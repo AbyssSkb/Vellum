@@ -262,7 +262,7 @@ final class VimPDFView: PDFView {
         return page.annotations.reversed().first { annotation in
             annotation.type == "Highlight"
                 && AIExplanationAnnotation.decode(annotation.contents) != nil
-                && highlightRegions(for: annotation).contains { region in
+                && HighlightGeometry.regions(for: annotation).contains { region in
                     region.insetBy(dx: -2, dy: -2).contains(pointOnPage)
                 }
         }
@@ -484,7 +484,7 @@ final class VimPDFView: PDFView {
         let annotations = explanationAnnotations(matching: explanation, on: page)
         let sourceAnnotations = annotations.isEmpty ? [annotation] : annotations
         let points = sourceAnnotations.flatMap { annotation in
-            highlightRegions(for: annotation).flatMap { region in
+            HighlightGeometry.regions(for: annotation).flatMap { region in
                 [
                     NSPoint(x: region.minX, y: region.minY),
                     NSPoint(x: region.maxX, y: region.minY),
@@ -494,7 +494,7 @@ final class VimPDFView: PDFView {
             }
         }
 
-        guard let pageRect = rect(containing: points) ?? rect(containing: [
+        guard let pageRect = HighlightGeometry.rect(containing: points) ?? HighlightGeometry.rect(containing: [
             NSPoint(x: annotation.bounds.minX, y: annotation.bounds.minY),
             NSPoint(x: annotation.bounds.maxX, y: annotation.bounds.maxY)
         ]),
@@ -586,7 +586,7 @@ final class VimPDFView: PDFView {
         let annotations = explanationAnnotations(matching: explanation, on: page)
         let sourceAnnotations = annotations.isEmpty ? [referenceAnnotation] : annotations
         let points = sourceAnnotations.flatMap { annotation in
-            highlightRegions(for: annotation).flatMap { region in
+            HighlightGeometry.regions(for: annotation).flatMap { region in
                 [
                     NSPoint(x: region.minX, y: region.minY),
                     NSPoint(x: region.maxX, y: region.minY),
@@ -596,7 +596,7 @@ final class VimPDFView: PDFView {
             }
         }
 
-        guard let groupBounds = rect(containing: points) else { return false }
+        guard let groupBounds = HighlightGeometry.rect(containing: points) else { return false }
         let pointOnPage = convert(pointInView, to: page)
         return groupBounds.insetBy(dx: -5, dy: -8).contains(pointOnPage)
     }
@@ -703,7 +703,7 @@ final class VimPDFView: PDFView {
 
         for lineSelection in selections {
             for page in lineSelection.pages {
-                guard let bounds = tightHighlightBounds(for: lineSelection, on: page),
+                guard let bounds = HighlightGeometry.tightBounds(for: lineSelection, on: page),
                       let viewRect = viewRect(for: bounds, on: page) else { continue }
                 return viewRect
             }
@@ -713,7 +713,7 @@ final class VimPDFView: PDFView {
     }
 
     private func viewRect(for pageRect: NSRect, on page: PDFPage) -> NSRect? {
-        rect(containing: [
+        HighlightGeometry.rect(containing: [
             convert(NSPoint(x: pageRect.minX, y: pageRect.minY), from: page),
             convert(NSPoint(x: pageRect.maxX, y: pageRect.minY), from: page),
             convert(NSPoint(x: pageRect.minX, y: pageRect.maxY), from: page),
@@ -2013,14 +2013,14 @@ final class VimPDFView: PDFView {
 
         for lineSelection in selections {
             for page in lineSelection.pages {
-                guard let bounds = tightHighlightBounds(for: lineSelection, on: page) else { continue }
+                guard let bounds = HighlightGeometry.tightBounds(for: lineSelection, on: page) else { continue }
 
                 let preservedExplanation = existingAIExplanation(on: page, intersecting: [bounds])
                 removeHighlightAnnotations(on: page, intersecting: bounds)
 
                 let annotation = PDFAnnotation(bounds: bounds, forType: .highlight, withProperties: nil)
                 annotation.color = color
-                annotation.quadrilateralPoints = quadrilateralPoints(for: bounds)
+                annotation.quadrilateralPoints = HighlightGeometry.quadrilateralPoints(for: bounds)
                 HighlightAnnotationMetadata.setGroupID(groupID, for: annotation)
                 if let preservedExplanation {
                     annotation.contents = AIExplanationAnnotation.encode(preservedExplanation)
@@ -2472,7 +2472,7 @@ final class VimPDFView: PDFView {
             annotation.type == "Highlight"
                 && HighlightAnnotationMetadata.groupID(for: annotation) == nil
                 && AIExplanationAnnotation.decode(annotation.contents) == nil
-                && highlightColor(annotation.color, matches: seed.color)
+                && HighlightGeometry.colorsMatch(annotation.color, seed.color)
         }
         var result: [PDFAnnotation] = []
         var queue: [PDFAnnotation] = [seed]
@@ -2484,7 +2484,7 @@ final class VimPDFView: PDFView {
             result.append(annotation)
 
             for candidate in candidates where !seen.contains(ObjectIdentifier(candidate)) {
-                if highlight(annotation, isConnectedTo: candidate) {
+                if HighlightGeometry.annotationsAreConnected(annotation, candidate) {
                     queue.append(candidate)
                 }
             }
@@ -2520,9 +2520,9 @@ final class VimPDFView: PDFView {
 
         return page.annotations.filter { annotation in
             annotation.type == "Highlight"
-                && highlightRegions(for: annotation).contains { highlightBounds in
+                && HighlightGeometry.regions(for: annotation).contains { highlightBounds in
                     selectionBounds.contains { selectedBounds in
-                        highlight(highlightBounds, matches: selectedBounds)
+                        HighlightGeometry.matches(annotationBounds: highlightBounds, selectionBounds: selectedBounds)
                     }
                 }
         }
@@ -2540,7 +2540,7 @@ final class VimPDFView: PDFView {
 
         for lineSelection in selections {
             for page in lineSelection.pages {
-                guard let bounds = tightHighlightBounds(for: lineSelection, on: page) else { continue }
+                guard let bounds = HighlightGeometry.tightBounds(for: lineSelection, on: page) else { continue }
 
                 if let index = result.firstIndex(where: { $0.page === page }) {
                     result[index].bounds.append(bounds)
@@ -2551,154 +2551,6 @@ final class VimPDFView: PDFView {
         }
 
         return result
-    }
-
-    private func tightHighlightBounds(for selection: PDFSelection, on page: PDFPage) -> NSRect? {
-        let rawBounds = selection.bounds(for: page)
-        guard rawBounds.width > 0, rawBounds.height > 0 else { return nil }
-
-        let verticalInset = min(max(rawBounds.height * 0.10, 0.45), 1.4)
-        let horizontalOutset: CGFloat = 0.35
-        let bounds = rawBounds.insetBy(dx: -horizontalOutset, dy: verticalInset)
-        guard bounds.width > 0, bounds.height > 0 else { return nil }
-
-        return bounds
-    }
-
-    private func quadrilateralPoints(for bounds: NSRect) -> [NSValue] {
-        [
-            NSValue(point: NSPoint(x: 0, y: bounds.height)),
-            NSValue(point: NSPoint(x: bounds.width, y: bounds.height)),
-            NSValue(point: NSPoint(x: 0, y: 0)),
-            NSValue(point: NSPoint(x: bounds.width, y: 0))
-        ]
-    }
-
-    private func highlightRegions(for annotation: PDFAnnotation) -> [NSRect] {
-        guard let quadrilateralPoints = annotation.quadrilateralPoints,
-              quadrilateralPoints.count >= 4 else {
-            return [annotation.bounds]
-        }
-
-        let regions = stride(from: 0, to: quadrilateralPoints.count - 3, by: 4).compactMap { index in
-            quadBounds(
-                Array(quadrilateralPoints[index..<(index + 4)]),
-                relativeTo: annotation.bounds
-            )
-        }
-
-        return regions.isEmpty ? [annotation.bounds] : regions
-    }
-
-    private func quadBounds(_ values: [NSValue], relativeTo annotationBounds: NSRect) -> NSRect? {
-        let points = values.map(\.pointValue)
-        guard points.count == 4 else { return nil }
-
-        guard let relativeBounds = rect(containing: points.map { point in
-            NSPoint(x: annotationBounds.minX + point.x, y: annotationBounds.minY + point.y)
-        }),
-              let absoluteBounds = rect(containing: points) else {
-            return nil
-        }
-        let expandedAnnotationBounds = annotationBounds.insetBy(dx: -1, dy: -1)
-
-        if expandedAnnotationBounds.intersects(relativeBounds) {
-            return relativeBounds
-        }
-
-        if expandedAnnotationBounds.intersects(absoluteBounds) {
-            return absoluteBounds
-        }
-
-        return relativeBounds
-    }
-
-    private func rect(containing points: [NSPoint]) -> NSRect? {
-        guard let minX = points.map(\.x).min(),
-              let maxX = points.map(\.x).max(),
-              let minY = points.map(\.y).min(),
-              let maxY = points.map(\.y).max(),
-              maxX > minX,
-              maxY > minY else {
-            return nil
-        }
-
-        return NSRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
-    }
-
-    private func highlight(_ annotationBounds: NSRect, matches selectionBounds: NSRect) -> Bool {
-        guard annotationBounds.width > 0,
-              annotationBounds.height > 0,
-              selectionBounds.width > 0,
-              selectionBounds.height > 0 else {
-            return false
-        }
-
-        let intersection = annotationBounds.intersection(selectionBounds)
-        guard !intersection.isNull,
-              intersection.width > 0,
-              intersection.height > 0 else {
-            return false
-        }
-
-        let verticalOverlap = intersection.height / min(annotationBounds.height, selectionBounds.height)
-        guard verticalOverlap >= 0.55 else { return false }
-
-        if selectionBounds.contains(center(of: annotationBounds))
-            || annotationBounds.contains(center(of: selectionBounds)) {
-            return true
-        }
-
-        let annotationArea = annotationBounds.width * annotationBounds.height
-        let selectionArea = selectionBounds.width * selectionBounds.height
-        let intersectionArea = intersection.width * intersection.height
-        let smallerArea = min(annotationArea, selectionArea)
-
-        return smallerArea > 0 && intersectionArea / smallerArea >= 0.42
-    }
-
-    private func highlight(_ lhs: PDFAnnotation, isConnectedTo rhs: PDFAnnotation) -> Bool {
-        if lhs === rhs { return true }
-
-        return highlightRegions(for: lhs).contains { lhsRegion in
-            highlightRegions(for: rhs).contains { rhsRegion in
-                highlight(lhsRegion, isConnectedTo: rhsRegion)
-            }
-        }
-    }
-
-    private func highlight(_ lhs: NSRect, isConnectedTo rhs: NSRect) -> Bool {
-        guard lhs.width > 0, lhs.height > 0, rhs.width > 0, rhs.height > 0 else {
-            return false
-        }
-
-        if lhs.intersects(rhs) {
-            return true
-        }
-
-        let verticalGap = max(0, max(lhs.minY - rhs.maxY, rhs.minY - lhs.maxY))
-        let horizontalGap = max(0, max(lhs.minX - rhs.maxX, rhs.minX - lhs.maxX))
-        let lineHeight = min(lhs.height, rhs.height)
-        let adjacentLineGap = max(2.5, lineHeight * 0.9)
-        let relatedHorizontalGap = max(24, lineHeight * 6)
-
-        return verticalGap <= adjacentLineGap && horizontalGap <= relatedHorizontalGap
-    }
-
-    private func highlightColor(_ lhs: NSColor?, matches rhs: NSColor?) -> Bool {
-        guard let lhs = lhs?.usingColorSpace(.deviceRGB),
-              let rhs = rhs?.usingColorSpace(.deviceRGB) else {
-            return lhs == nil && rhs == nil
-        }
-
-        return abs(lhs.redComponent - rhs.redComponent) < 0.015
-            && abs(lhs.greenComponent - rhs.greenComponent) < 0.015
-            && abs(lhs.blueComponent - rhs.blueComponent) < 0.015
-            && abs(lhs.alphaComponent - rhs.alphaComponent) < 0.03
-    }
-
-    private func center(of rect: NSRect) -> NSPoint {
-        NSPoint(x: rect.midX, y: rect.midY)
     }
 
     private func currentHorizontalOrigin() -> CGFloat? {
