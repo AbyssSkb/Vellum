@@ -25,57 +25,6 @@ extension NSColor {
 }
 
 
-struct PDFReader: NSViewRepresentable {
-    @EnvironmentObject private var appState: AppState
-    let tabID: PDFTab.ID
-    let document: PDFDocument
-    let snapshot: ReaderSnapshot?
-    let isActive: Bool
-
-    func makeNSView(context: Context) -> VimPDFView {
-        let view = VimPDFView()
-        view.appState = appState
-        view.saveBeforeDismantle = { [weak appState, weak view] in
-            guard let snapshot = view?.snapshot() else { return }
-            appState?.saveSnapshot(snapshot, for: tabID)
-        }
-        view.backgroundColor = TokyoNight.background
-        view.displayMode = .singlePageContinuous
-        view.displayDirection = .vertical
-        view.displaysPageBreaks = true
-        view.document = document
-        view.restore(snapshot)
-        appState.setActivePDFView(view, for: tabID)
-        if isActive, !appState.isOutlineVisible {
-            view.focus()
-        }
-        return view
-    }
-
-    func updateNSView(_ nsView: VimPDFView, context: Context) {
-        nsView.appState = appState
-        nsView.saveBeforeDismantle = { [weak appState, weak nsView] in
-            guard let snapshot = nsView?.snapshot() else { return }
-            appState?.saveSnapshot(snapshot, for: tabID)
-        }
-
-        if nsView.document !== document {
-            nsView.document = document
-            nsView.restore(snapshot)
-        }
-
-        appState.setActivePDFView(nsView, for: tabID)
-        if isActive, !appState.isOutlineVisible {
-            DispatchQueue.main.async {
-                nsView.focus()
-            }
-        }
-    }
-
-    static func dismantleNSView(_ nsView: VimPDFView, coordinator: ()) {
-        nsView.saveBeforeDismantle?()
-    }
-}
 
 private struct VimTextSelectionNavigationState {
     var anchorOffset: Int
