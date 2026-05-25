@@ -1,5 +1,3 @@
-@preconcurrency import AppKit
-import PDFKit
 import SwiftUI
 
 struct OutlineSidebar: View {
@@ -58,24 +56,6 @@ struct OutlineSidebarHeader: View {
     }
 }
 
-struct SidebarVisualEffectBackground: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSVisualEffectView {
-        let view = NSVisualEffectView()
-        view.material = .hudWindow
-        view.blendingMode = .behindWindow
-        view.state = .active
-        view.isEmphasized = false
-        return view
-    }
-
-    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
-        nsView.material = .hudWindow
-        nsView.blendingMode = .behindWindow
-        nsView.state = .active
-        nsView.isEmphasized = false
-    }
-}
-
 struct OutlinePlaceholder: View {
     let text: String
 
@@ -86,5 +66,4 @@ struct OutlinePlaceholder: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
-
 
