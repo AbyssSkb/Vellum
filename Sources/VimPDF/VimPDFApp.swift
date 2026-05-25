@@ -1,0 +1,7277 @@
+@preconcurrency import AppKit
+import PDFKit
+import SwiftUI
+import UniformTypeIdentifiers
+import WebKit
+
+enum TokyoNight {
+    static var background: NSColor { color(0x1A1B26) }
+    static var backgroundDeep: NSColor { color(0x16161E) }
+    static var panel: NSColor { color(0x24283B) }
+    static var panelElevated: NSColor { color(0x292E42) }
+    static var selection: NSColor { color(0x33467C) }
+    static var border: NSColor { color(0x3B4261) }
+    static var foreground: NSColor { color(0xC0CAF5) }
+    static var muted: NSColor { color(0x565F89) }
+    static var blue: NSColor { color(0x7AA2F7) }
+    static var cyan: NSColor { color(0x7DCFFF) }
+    static var purple: NSColor { color(0xBB9AF7) }
+    static var red: NSColor { color(0xF7768E) }
+
+    static var backgroundColor: Color { Color(nsColor: background) }
+    static var backgroundDeepColor: Color { Color(nsColor: backgroundDeep) }
+    static var panelColor: Color { Color(nsColor: panel) }
+    static var panelElevatedColor: Color { Color(nsColor: panelElevated) }
+    static var selectionColor: Color { Color(nsColor: selection) }
+    static var borderColor: Color { Color(nsColor: border) }
+    static var foregroundColor: Color { Color(nsColor: foreground) }
+    static var mutedColor: Color { Color(nsColor: muted) }
+    static var blueColor: Color { Color(nsColor: blue) }
+    static var cyanColor: Color { Color(nsColor: cyan) }
+    static var redColor: Color { Color(nsColor: red) }
+
+    private static func color(_ hex: Int) -> NSColor {
+        NSColor(
+            calibratedRed: CGFloat((hex >> 16) & 0xFF) / 255,
+            green: CGFloat((hex >> 8) & 0xFF) / 255,
+            blue: CGFloat(hex & 0xFF) / 255,
+            alpha: 1
+        )
+    }
+}
+
+@main
+struct VimPDFApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+    @StateObject private var appState = AppState()
+
+    var body: some Scene {
+        Window("VimPDF", id: "main") {
+            ContentView()
+                .environmentObject(appState)
+                .frame(minWidth: 900, minHeight: 620)
+        }
+        .windowStyle(.hiddenTitleBar)
+        .commands {
+            CommandGroup(replacing: .newItem) {
+                Button("Open...") {
+                    appState.openPanel(mode: .currentTab)
+                }
+                .keyboardShortcut("o", modifiers: [.command])
+            }
+
+            CommandGroup(after: .newItem) {
+                Button("Close Tab") {
+                    appState.closeSelectedTab()
+                }
+                .keyboardShortcut("w", modifiers: [.command])
+            }
+
+            CommandMenu("Navigate") {
+                Button("Next Tab") {
+                    appState.selectNextTab()
+                }
+                .keyboardShortcut("]", modifiers: [.command])
+
+                Button("Previous Tab") {
+                    appState.selectPreviousTab()
+                }
+                .keyboardShortcut("[", modifiers: [.command])
+            }
+        }
+
+        Settings {
+            AISettingsView()
+        }
+    }
+}
+
+@MainActor
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        NSApp.appearance = NSAppearance(named: .darkAqua)
+        UserDefaults.standard.set(false, forKey: "NSQuitAlwaysKeepsWindows")
+        DispatchQueue.main.async {
+            self.closeDuplicateMainWindows()
+        }
+    }
+
+    func applicationShouldOpenUntitledFile(_ sender: NSApplication) -> Bool {
+        false
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if !flag {
+            sender.windows.first?.makeKeyAndOrderFront(nil)
+        }
+        return false
+    }
+
+    func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
+        false
+    }
+
+    func application(_ application: NSApplication, open urls: [URL]) {
+        OpenURLRelay.shared.open(urls)
+    }
+
+    func application(_ sender: NSApplication, openFile filename: String) -> Bool {
+        OpenURLRelay.shared.open([URL(fileURLWithPath: filename)])
+        return true
+    }
+
+    func application(_ sender: NSApplication, openFiles filenames: [String]) {
+        OpenURLRelay.shared.open(filenames.map(URL.init(fileURLWithPath:)))
+        sender.reply(toOpenOrPrint: .success)
+    }
+
+    private func closeDuplicateMainWindows() {
+        let mainWindows = NSApp.windows.filter { window in
+            window.title == "VimPDF" && window.isVisible && !(window is NSPanel)
+        }
+
+        for window in mainWindows.dropFirst() {
+            window.close()
+        }
+    }
+}
+
+@MainActor
+final class OpenURLRelay {
+    static let shared = OpenURLRelay()
+
+    private var handler: (([URL]) -> Void)?
+    private var pendingURLs: [URL] = []
+    private var recentDeliveries: [URL: TimeInterval] = [:]
+
+    func activate(_ handler: @escaping ([URL]) -> Void) {
+        self.handler = handler
+
+        guard !pendingURLs.isEmpty else { return }
+        let urls = pendingURLs
+        pendingURLs.removeAll()
+        handler(urls)
+    }
+
+    func open(_ urls: [URL]) {
+        let fileURLs = uniqueFreshFileURLs(urls)
+        guard !fileURLs.isEmpty else { return }
+
+        if let handler {
+            handler(fileURLs)
+        } else {
+            pendingURLs.append(contentsOf: fileURLs)
+        }
+    }
+
+    private func uniqueFreshFileURLs(_ urls: [URL]) -> [URL] {
+        let now = Date.timeIntervalSinceReferenceDate
+        recentDeliveries = recentDeliveries.filter { now - $0.value < 1.0 }
+
+        var seen = Set<URL>()
+        return urls.compactMap { url in
+            guard url.isFileURL else { return nil }
+
+            let normalizedURL = url.standardizedFileURL
+            guard seen.insert(normalizedURL).inserted else { return nil }
+
+            if let lastDelivery = recentDeliveries[normalizedURL], now - lastDelivery < 0.5 {
+                return nil
+            }
+
+            recentDeliveries[normalizedURL] = now
+            return normalizedURL
+        }
+    }
+}
+
+enum AISettingsKeys {
+    static let baseURL = "AIBaseURL"
+    static let model = "AIModel"
+    static let apiKey = "AIApiKey"
+}
+
+struct AIConfiguration: Sendable {
+    static let defaultBaseURL = "https://api.openai.com/v1"
+    static let defaultModel = "gpt-4o-mini"
+
+    let baseURL: URL
+    let model: String
+    let apiKey: String
+
+    static func current(requireModel: Bool = true) throws -> AIConfiguration {
+        let defaults = UserDefaults.standard
+        let baseURLString = defaults.string(forKey: AISettingsKeys.baseURL)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .nilIfEmpty ?? defaultBaseURL
+        let model = defaults.string(forKey: AISettingsKeys.model)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .nilIfEmpty ?? defaultModel
+        let apiKey = defaults.string(forKey: AISettingsKeys.apiKey)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
+        guard let baseURL = URL(string: baseURLString),
+              let scheme = baseURL.scheme,
+              scheme.hasPrefix("http") else {
+            throw AIExplanationError.invalidBaseURL
+        }
+
+        guard !requireModel || !model.isEmpty else {
+            throw AIExplanationError.missingModel
+        }
+
+        guard !apiKey.isEmpty else {
+            throw AIExplanationError.missingAPIKey
+        }
+
+        return AIConfiguration(baseURL: baseURL, model: model, apiKey: apiKey)
+    }
+
+    var chatCompletionsURL: URL {
+        endpointURL("chat/completions")
+    }
+
+    var modelsURL: URL {
+        endpointURL("models")
+    }
+
+    private func endpointURL(_ endpoint: String) -> URL {
+        var url = baseURL
+        let path = url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+
+        if path.hasSuffix(endpoint) {
+            return url
+        }
+
+        if path.hasSuffix("chat/completions") {
+            url.deleteLastPathComponent()
+            url.deleteLastPathComponent()
+        } else if path.hasSuffix("models") {
+            url.deleteLastPathComponent()
+        }
+
+        for component in endpoint.split(separator: "/") {
+            url.appendPathComponent(String(component))
+        }
+        return url
+    }
+}
+
+struct AIExplanationContext: Sendable {
+    var selectedText: String
+    var previousParagraph: String?
+    var currentParagraph: String?
+    var nextParagraph: String?
+    var nearbyText: String
+    var fileName: String
+    var directoryName: String?
+    var outlineTitle: String?
+    var pageNumbers: [Int]
+
+    var prompt: String {
+        """
+        用户正在阅读 PDF，并选中了一段文本。请根据上下文解释“选中文本本身”，不要默认总结整段，也不要加入与理解选中文本无关的项目。
+
+        请严格按照这个 Markdown 模板输出，不要增删标题：
+
+        ### 中文翻译
+        用自然中文翻译选中文本。只翻译选中文本本身。
+
+        ### 上下文解释
+        用中文解释它在当前上下文里的具体含义、指代对象、逻辑作用或可能的深层含义。只写能帮助理解选中文本的内容。
+
+        输出要求：
+        - 不要按“单词/短语/句子/段落”分类处理。
+        - 附近段落只用于消歧和补充背景；只讲有助于理解选中文本的内容，不要展开无关背景。
+        - 保持简洁，优先给出能加深理解的解释；如果涉及数学公式，请保留 LaTeX 形式。
+        - 如果上下文不足，请明确指出不确定点，不要编造。
+
+        文件名：
+        \(fileName)
+
+        所在文件夹：
+        \(directoryName ?? "未知")
+
+        目录标题：
+        \(outlineTitle ?? "未知")
+
+        页码：
+        \(pageNumbers.map(String.init).joined(separator: ", "))
+
+        选中文本：
+        \(selectedText)
+
+        前一段：
+        \(previousParagraph ?? "未能从 PDF 文本中稳定识别。")
+
+        当前段落：
+        \(currentParagraph ?? "未能从 PDF 文本中稳定识别。")
+
+        后一段：
+        \(nextParagraph ?? "未能从 PDF 文本中稳定识别。")
+
+        附近可提取文本：
+        \(nearbyText)
+        """
+    }
+}
+
+enum AIExplanationAnnotation {
+    static let marker = "VimPDF AI Explanation v1"
+
+    static func encode(_ explanation: String) -> String {
+        "\(marker)\n\n\(explanation.trimmingCharacters(in: .whitespacesAndNewlines))"
+    }
+
+    static func decode(_ contents: String?) -> String? {
+        guard let contents,
+              contents.hasPrefix(marker) else { return nil }
+
+        let text = contents
+            .dropFirst(marker.count)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return text.isEmpty ? nil : String(text)
+    }
+}
+
+enum HighlightAnnotationMetadata {
+    private static let groupKey = PDFAnnotationKey(rawValue: "VimPDFHighlightGroup")
+
+    static func groupID(for annotation: PDFAnnotation) -> String? {
+        annotation.value(forAnnotationKey: groupKey) as? String
+    }
+
+    static func setGroupID(_ groupID: String, for annotation: PDFAnnotation) {
+        annotation.setValue(groupID, forAnnotationKey: groupKey)
+    }
+}
+
+enum AIExplanationError: LocalizedError {
+    case invalidBaseURL
+    case missingModel
+    case missingAPIKey
+    case noSelection
+    case noHighlightedText
+    case emptyResponse
+    case server(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidBaseURL:
+            return "AI base_url 无效，请在设置里填写完整的 http/https 地址。"
+        case .missingModel:
+            return "AI 模型名称为空，请先在设置里填写模型名称。"
+        case .missingAPIKey:
+            return "AI API Key 为空，请先在设置里填写 API Key。"
+        case .noSelection:
+            return "请先选中一段文字。"
+        case .noHighlightedText:
+            return "当前选区没有命中任何高亮。"
+        case .emptyResponse:
+            return "AI 没有返回可用解释。"
+        case .server(let message):
+            return message
+        }
+    }
+}
+
+enum AIExplanationClient {
+    static func testConnection(configuration: AIConfiguration) async throws -> String {
+        var request = URLRequest(url: configuration.chatCompletionsURL)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(configuration.apiKey)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 30
+
+        let body = ChatCompletionRequest(
+            model: configuration.model,
+            messages: [
+                ChatMessage(role: "system", content: "Reply with exactly: OK"),
+                ChatMessage(role: "user", content: "Ping")
+            ],
+            temperature: 0
+        )
+
+        request.httpBody = try JSONEncoder().encode(body)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        try validate(data: data, response: response)
+
+        let completion = try JSONDecoder().decode(ChatCompletionResponse.self, from: data)
+        guard completion.choices.first?.message.content
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .nilIfEmpty != nil else {
+            throw AIExplanationError.emptyResponse
+        }
+
+        return "模型可用：\(configuration.model)"
+    }
+
+    static func fetchModels(configuration: AIConfiguration) async throws -> [String] {
+        var request = URLRequest(url: configuration.modelsURL)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(configuration.apiKey)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 30
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        try validate(data: data, response: response)
+
+        let models = try JSONDecoder().decode(ModelListResponse.self, from: data)
+        return models.data
+            .map(\.id)
+            .filter { !$0.isEmpty }
+            .sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+    }
+
+    static func explain(context: AIExplanationContext, configuration: AIConfiguration) async throws -> String {
+        var request = URLRequest(url: configuration.chatCompletionsURL)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(configuration.apiKey)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 60
+
+        let body = ChatCompletionRequest(
+            model: configuration.model,
+            messages: [
+                ChatMessage(
+                    role: "system",
+                    content: "你是 VimPDF 的阅读助手，擅长解释 PDF 中被高亮的文字。你必须基于用户提供的原文和上下文回答，不要编造。"
+                ),
+                ChatMessage(role: "user", content: context.prompt)
+            ],
+            temperature: 0.2
+        )
+
+        request.httpBody = try JSONEncoder().encode(body)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        try validate(data: data, response: response)
+        let completion = try JSONDecoder().decode(ChatCompletionResponse.self, from: data)
+        guard let text = completion.choices.first?.message.content
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              !text.isEmpty else {
+            throw AIExplanationError.emptyResponse
+        }
+
+        return text
+    }
+
+    static func streamExplanation(
+        context: AIExplanationContext,
+        configuration: AIConfiguration,
+        onChunk: @escaping @MainActor (String) -> Void
+    ) async throws -> String {
+        var request = URLRequest(url: configuration.chatCompletionsURL)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(configuration.apiKey)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 60
+
+        let body = ChatCompletionRequest(
+            model: configuration.model,
+            messages: [
+                ChatMessage(
+                    role: "system",
+                    content: "你是 VimPDF 的阅读助手。你必须基于用户提供的原文和上下文回答，重点解释用户选中文本本身，不要默认总结整段。"
+                ),
+                ChatMessage(role: "user", content: context.prompt)
+            ],
+            temperature: 0.2,
+            stream: true
+        )
+
+        request.httpBody = try JSONEncoder().encode(body)
+
+        let (bytes, response) = try await URLSession.shared.bytes(for: request)
+        try validate(response: response)
+
+        var fullText = ""
+        for try await line in bytes.lines {
+            guard line.hasPrefix("data:") else { continue }
+
+            let payload = line
+                .dropFirst("data:".count)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard payload != "[DONE]", let data = payload.data(using: .utf8) else {
+                break
+            }
+
+            guard let chunk = try? JSONDecoder().decode(ChatCompletionStreamChunk.self, from: data),
+                  let delta = chunk.choices.first?.delta.content,
+                  !delta.isEmpty else {
+                continue
+            }
+
+            fullText += delta
+            await MainActor.run {
+                onChunk(delta)
+            }
+        }
+
+        let trimmed = fullText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            throw AIExplanationError.emptyResponse
+        }
+
+        return trimmed
+    }
+
+    private static func validate(data: Data, response: URLResponse) throws {
+        if let httpResponse = response as? HTTPURLResponse,
+           !(200..<300).contains(httpResponse.statusCode) {
+            let message = String(data: data, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .nilIfEmpty ?? "AI 请求失败，HTTP \(httpResponse.statusCode)。"
+            throw AIExplanationError.server(message)
+        }
+    }
+
+    private static func validate(response: URLResponse) throws {
+        if let httpResponse = response as? HTTPURLResponse,
+           !(200..<300).contains(httpResponse.statusCode) {
+            throw AIExplanationError.server("AI 请求失败，HTTP \(httpResponse.statusCode)。")
+        }
+    }
+
+    private struct ChatCompletionRequest: Encodable {
+        var model: String
+        var messages: [ChatMessage]
+        var temperature: Double
+        var stream: Bool? = nil
+    }
+
+    private struct ChatMessage: Codable {
+        var role: String
+        var content: String
+    }
+
+    private struct ChatCompletionResponse: Decodable {
+        var choices: [Choice]
+
+        struct Choice: Decodable {
+            var message: ChatMessage
+        }
+    }
+
+    private struct ChatCompletionStreamChunk: Decodable {
+        var choices: [Choice]
+
+        struct Choice: Decodable {
+            var delta: Delta
+        }
+
+        struct Delta: Decodable {
+            var content: String?
+        }
+    }
+
+    private struct ModelListResponse: Decodable {
+        var data: [Model]
+
+        struct Model: Decodable {
+            var id: String
+        }
+    }
+}
+
+@MainActor
+final class AppState: ObservableObject {
+    @Published private(set) var tabs: [PDFTab] = []
+    @Published private(set) var selectedTabID: PDFTab.ID?
+    @Published private(set) var isOutlineVisible = false
+    @Published private(set) var outlineFocusGeneration = 0
+    @Published private(set) var selectedHighlightColor: HighlightColor = .yellow
+
+    private weak var activePDFView: VimPDFView?
+    private var keyMonitor: Any?
+    private var pendingKey: String?
+    private var numericPrefix = ""
+    private var heldKey: String?
+    private var heldKeyTimer: Timer?
+    private var closedPDFTabs: [PDFTab] = []
+
+    init() {
+        installKeyMonitor()
+        installOpenURLObserver()
+    }
+
+    var hasOpenDocuments: Bool {
+        !tabs.isEmpty
+    }
+
+    var selectedTab: PDFTab? {
+        guard let selectedTabID else { return nil }
+        return tabs.first { $0.id == selectedTabID }
+    }
+
+    func setActivePDFView(_ view: VimPDFView?, for tabID: PDFTab.ID) {
+        guard tabID == selectedTabID else { return }
+        activePDFView = view
+    }
+
+    func toggleOutlineSidebar() {
+        guard hasOpenDocuments else {
+            isOutlineVisible = false
+            return
+        }
+
+        isOutlineVisible.toggle()
+        if isOutlineVisible {
+            outlineFocusGeneration += 1
+        } else {
+            focusReaderSoon()
+        }
+    }
+
+    func focusOutlineSidebar() {
+        guard isOutlineVisible else { return }
+        outlineFocusGeneration += 1
+    }
+
+    func jumpToOutlineDestination(_ destination: PDFDestination) {
+        activePDFView?.vimGoToDestination(destination)
+    }
+
+    func selectHighlightColor(_ color: HighlightColor) {
+        selectedHighlightColor = color
+        focusActivePDFViewSoon()
+    }
+
+    func cycleHighlightColor(preserveFocus: Bool = false) {
+        selectedHighlightColor = selectedHighlightColor.next
+        if !preserveFocus {
+            focusActivePDFViewSoon()
+        }
+    }
+
+    func selectTab(_ id: PDFTab.ID) {
+        guard selectedTabID != id, tabs.contains(where: { $0.id == id }) else { return }
+        saveActiveReaderState()
+        selectedTabID = id
+        focusActivePDFViewSoon()
+    }
+
+    func openPanel(mode: PDFOpenMode = .currentTab) {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.pdf]
+        panel.allowsMultipleSelection = mode == .newTabs
+        panel.canChooseDirectories = false
+        panel.canChooseFiles = true
+        panel.begin { [weak self] response in
+            guard response == .OK else { return }
+            switch mode {
+            case .currentTab:
+                guard let url = panel.urls.first else { return }
+                self?.openInCurrentTab(url: url)
+            case .newTabs:
+                self?.openInNewTabs(urls: panel.urls, reusingSelectedBlankTab: true)
+            }
+        }
+    }
+
+    func open(urls: [URL]) {
+        openInNewTabs(urls: urls, reusingSelectedBlankTab: true)
+    }
+
+    func openInCurrentTab(url: URL) {
+        saveActiveReaderState()
+
+        guard let document = PDFDocument(url: url) else { return }
+        let tab = PDFTab(url: url, document: document, snapshot: .initial)
+
+        if let index = selectedIndex {
+            tabs[index] = tab
+        } else {
+            tabs = [tab]
+        }
+        selectedTabID = tab.id
+        activePDFView = nil
+
+        focusActivePDFViewSoon()
+    }
+
+    func openInNewTabs(urls: [URL], reusingSelectedBlankTab: Bool) {
+        saveActiveReaderState()
+
+        var openedDocument = false
+        for url in urls {
+            guard let document = PDFDocument(url: url) else { continue }
+            let tab = PDFTab(url: url, document: document, snapshot: .initial)
+
+            tabs.append(tab)
+            selectedTabID = tab.id
+            openedDocument = true
+        }
+
+        if openedDocument {
+            activePDFView = nil
+            focusActivePDFViewSoon()
+        }
+    }
+
+    func closeSelectedTab() {
+        saveActiveReaderState()
+        guard let selectedTabID,
+              let index = tabs.firstIndex(where: { $0.id == selectedTabID }) else { return }
+
+        rememberClosedPDFTab(tabs[index])
+        tabs.remove(at: index)
+        activePDFView = nil
+
+        if tabs.isEmpty {
+            self.selectedTabID = nil
+            isOutlineVisible = false
+        } else {
+            self.selectedTabID = tabs[min(index, tabs.count - 1)].id
+        }
+        focusActivePDFViewSoon()
+    }
+
+    func restoreClosedPDFTab() {
+        saveActiveReaderState()
+
+        guard let tab = closedPDFTabs.popLast() else { return }
+        tabs.append(tab)
+        selectedTabID = tab.id
+        activePDFView = nil
+        focusActivePDFViewSoon()
+    }
+
+    func selectNextTab() {
+        guard let index = selectedIndex, !tabs.isEmpty else { return }
+        selectTab(tabs[(index + 1) % tabs.count].id)
+    }
+
+    func selectPreviousTab() {
+        guard let index = selectedIndex, !tabs.isEmpty else { return }
+        selectTab(tabs[(index - 1 + tabs.count) % tabs.count].id)
+    }
+
+    func handleVimCommand(_ command: VimCommand) {
+        switch command {
+        case .open:
+            openPanel(mode: .currentTab)
+        case .openInNewTab:
+            openPanel(mode: .newTabs)
+        case .closeTab:
+            closeSelectedTab()
+        case .restoreClosedTab:
+            restoreClosedPDFTab()
+        case .nextTab:
+            selectNextTab()
+        case .previousTab:
+            selectPreviousTab()
+        case .scrollDown:
+            activePDFView?.vimScroll(x: 0, y: -28)
+        case .scrollUp:
+            activePDFView?.vimScroll(x: 0, y: 28)
+        case .largeScrollDown:
+            activePDFView?.vimScroll(x: 0, y: -115)
+        case .largeScrollUp:
+            activePDFView?.vimScroll(x: 0, y: 115)
+        case .scrollLeft:
+            activePDFView?.vimScroll(x: -42, y: 0)
+        case .scrollRight:
+            activePDFView?.vimScroll(x: 42, y: 0)
+        case .pageDown:
+            activePDFView?.vimMoveByPage(1)
+        case .pageUp:
+            activePDFView?.vimMoveByPage(-1)
+        case .firstPage:
+            activePDFView?.vimGoToFirstPage()
+        case .lastPage:
+            activePDFView?.vimGoToLastPage()
+        case .jumpToPage(let pageNumber):
+            activePDFView?.vimGoToPage(pageNumber)
+        case .jumpBack:
+            activePDFView?.vimJumpBack()
+        case .jumpForward:
+            activePDFView?.vimJumpForward()
+        case .toggleOutline:
+            toggleOutlineSidebar()
+        case .highlightSelection:
+            activePDFView?.vimHighlightSelection(color: selectedHighlightColor.annotationColor)
+        case .cycleHighlightColor:
+            cycleHighlightColor()
+        case .explainHighlightSelection:
+            activePDFView?.vimExplainSelectedHighlight()
+        case .zoomIn:
+            activePDFView?.vimZoom(by: 1.04)
+        case .zoomOut:
+            activePDFView?.vimZoom(by: 1 / 1.04)
+        case .zoomPageFit:
+            activePDFView?.vimZoomToPageFit()
+        case .zoomFit:
+            activePDFView?.vimZoomToFit()
+        }
+    }
+
+    func snapshotForSelectedTab() -> ReaderSnapshot? {
+        selectedTab?.snapshot
+    }
+
+    func saveSnapshot(_ snapshot: ReaderSnapshot, for tabID: PDFTab.ID) {
+        guard let index = tabs.firstIndex(where: { $0.id == tabID }) else { return }
+        tabs[index].snapshot = snapshot
+    }
+
+    private var selectedIndex: Int? {
+        guard let selectedTabID else { return nil }
+        return tabs.firstIndex { $0.id == selectedTabID }
+    }
+
+    private func rememberClosedPDFTab(_ tab: PDFTab) {
+        guard tab.document != nil else { return }
+        closedPDFTabs.append(tab)
+
+        if closedPDFTabs.count > 20 {
+            closedPDFTabs.removeFirst(closedPDFTabs.count - 20)
+        }
+    }
+
+    private func saveActiveReaderState() {
+        guard let activePDFView,
+              let selectedTabID,
+              let snapshot = activePDFView.snapshot() else { return }
+        saveSnapshot(snapshot, for: selectedTabID)
+    }
+
+    private func focusActivePDFViewSoon() {
+        if isOutlineVisible {
+            DispatchQueue.main.async { [weak self] in
+                self?.outlineFocusGeneration += 1
+            }
+            return
+        }
+        focusReaderSoon()
+    }
+
+    private func focusReaderSoon() {
+        DispatchQueue.main.async { [weak self] in
+            self?.activePDFView?.focus()
+        }
+    }
+
+    private func installKeyMonitor() {
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .keyUp]) { [weak self] event in
+            guard let self, NSApp.modalWindow == nil else { return event }
+
+            if self.activePDFView?.handleAIKeyEvent(event) == true {
+                return nil
+            }
+
+            if self.activePDFView?.handleTextSelectionKeyEvent(event) == true {
+                self.stopHeldKeyTimer()
+                self.numericPrefix = ""
+                self.pendingKey = nil
+                return nil
+            }
+
+            guard self.shouldRoute(event) else { return event }
+
+            return self.handleKeyEvent(event) ? nil : event
+        }
+    }
+
+    private func installOpenURLObserver() {
+        OpenURLRelay.shared.activate { [weak self] urls in
+            self?.open(urls: urls)
+        }
+    }
+
+    private func shouldRoute(_ event: NSEvent) -> Bool {
+        guard activePDFView?.isAIInteractionActive != true else { return false }
+        guard let window = event.window, window.isVisible, !(window is NSPanel) else { return false }
+
+        if let responder = window.firstResponder,
+           responder is NSTextView || responder is NSTextField || responder is PDFOutlineKeyView || responderIsInsideAIExplanation(responder) {
+            return false
+        }
+
+        return true
+    }
+
+    private func responderIsInsideAIExplanation(_ responder: NSResponder?) -> Bool {
+        guard let view = responder as? NSView else { return false }
+
+        var current: NSView? = view
+        while let candidate = current {
+            if candidate is AIExplanationWebView {
+                return true
+            }
+            current = candidate.superview
+        }
+
+        return false
+    }
+
+    func handleKeyEvent(_ event: NSEvent) -> Bool {
+        if event.type == .keyDown, handleControlJump(event) {
+            return true
+        }
+
+        guard event.modifierFlags.intersection([.command, .control, .option]).isEmpty else {
+            return false
+        }
+
+        guard let key = event.charactersIgnoringModifiers, !key.isEmpty else { return false }
+
+        if activePDFView?.handleTextSelectionKey(key, eventType: event.type) == true {
+            stopHeldKeyTimer()
+            numericPrefix = ""
+            pendingKey = nil
+            return true
+        }
+
+        switch event.type {
+        case .keyDown:
+            return handleKeyDown(key, isRepeat: event.isARepeat)
+        case .keyUp:
+            return handleKeyUp(key)
+        default:
+            return false
+        }
+    }
+
+    private func handleControlJump(_ event: NSEvent) -> Bool {
+        guard event.modifierFlags.contains(.control),
+              event.modifierFlags.intersection([.command, .option]).isEmpty else { return false }
+
+        let key = event.charactersIgnoringModifiers?.lowercased()
+        if key == "o" || event.keyCode == 31 {
+            stopHeldKeyTimer()
+            numericPrefix = ""
+            pendingKey = nil
+            handleVimCommand(.jumpBack)
+            return true
+        }
+
+        if key == "i" || event.keyCode == 34 {
+            stopHeldKeyTimer()
+            numericPrefix = ""
+            pendingKey = nil
+            handleVimCommand(.jumpForward)
+            return true
+        }
+
+        return false
+    }
+
+    private func handleKeyDown(_ key: String, isRepeat: Bool) -> Bool {
+        if handleUppercaseCommand(key) {
+            return true
+        }
+
+        if activePDFView?.handleTextSelectionKey(key, eventType: .keyDown) == true {
+            stopHeldKeyTimer()
+            numericPrefix = ""
+            pendingKey = nil
+            return true
+        }
+
+        if normalizedContinuousKey(key) == "d", activePDFView?.vimDeleteHighlightsForSelection() == true {
+            stopHeldKeyTimer()
+            heldKey = "d"
+            numericPrefix = ""
+            pendingKey = nil
+            return true
+        }
+
+        guard isContinuousKey(key) else {
+            if isRepeat {
+                return isHandledKey(key)
+            }
+            return handleKey(key)
+        }
+
+        let normalizedKey = normalizedContinuousKey(key)
+        if heldKey == normalizedKey {
+            return true
+        }
+
+        heldKey = normalizedKey
+        performContinuousKey(heldKey)
+        ensureHeldKeyTimer()
+        return true
+    }
+
+    private func handleKeyUp(_ key: String) -> Bool {
+        guard isContinuousKey(key), heldKey == normalizedContinuousKey(key) else { return false }
+        stopHeldKeyTimer()
+        return true
+    }
+
+    private func handleUppercaseCommand(_ key: String) -> Bool {
+        switch key {
+        case "G":
+            if let pageNumber = consumeNumericPrefix() {
+                handleVimCommand(.jumpToPage(pageNumber))
+            } else {
+                handleVimCommand(.lastPage)
+            }
+        case "H":
+            numericPrefix = ""
+            handleVimCommand(.previousTab)
+        case "L":
+            numericPrefix = ""
+            handleVimCommand(.nextTab)
+        case "X":
+            numericPrefix = ""
+            handleVimCommand(.restoreClosedTab)
+        case "O":
+            numericPrefix = ""
+            handleVimCommand(.openInNewTab)
+        default:
+            return false
+        }
+        return true
+    }
+
+    func handleKey(_ key: String) -> Bool {
+        if handleNumericPrefixKey(key) {
+            return true
+        }
+
+        if pendingKey == "g" {
+            pendingKey = nil
+            numericPrefix = ""
+            switch key {
+            case "g":
+                handleVimCommand(.firstPage)
+            case "t":
+                handleVimCommand(.nextTab)
+            case "T":
+                handleVimCommand(.previousTab)
+            default:
+                return false
+            }
+            return true
+        }
+
+        if activePDFView?.vimNavigateTextSelection(key) == true {
+            numericPrefix = ""
+            pendingKey = nil
+            return true
+        }
+
+        switch key {
+        case "g":
+            numericPrefix = ""
+            pendingKey = "g"
+        case "\t", "t":
+            numericPrefix = ""
+            pendingKey = nil
+            handleVimCommand(.toggleOutline)
+        case "G":
+            if let pageNumber = consumeNumericPrefix() {
+                handleVimCommand(.jumpToPage(pageNumber))
+            } else {
+                handleVimCommand(.lastPage)
+            }
+        case "H":
+            handleVimCommand(.previousTab)
+        case "L":
+            handleVimCommand(.nextTab)
+        case "X":
+            handleVimCommand(.restoreClosedTab)
+        case "O":
+            handleVimCommand(.openInNewTab)
+        case "j":
+            handleVimCommand(.scrollDown)
+        case "k":
+            handleVimCommand(.scrollUp)
+        case "d":
+            handleVimCommand(.largeScrollDown)
+        case "u":
+            handleVimCommand(.largeScrollUp)
+        case "h":
+            handleVimCommand(.scrollLeft)
+        case "l":
+            handleVimCommand(.scrollRight)
+        case "a":
+            handleVimCommand(.explainHighlightSelection)
+        case "c":
+            handleVimCommand(.cycleHighlightColor)
+        case "m":
+            handleVimCommand(.highlightSelection)
+        case " ", "f":
+            handleVimCommand(.pageDown)
+        case "b":
+            handleVimCommand(.pageUp)
+        case "+", "=":
+            handleVimCommand(.zoomIn)
+        case "-":
+            handleVimCommand(.zoomOut)
+        case "0":
+            handleVimCommand(.zoomPageFit)
+        case "z":
+            handleVimCommand(.zoomFit)
+        case "o":
+            handleVimCommand(.open)
+        case "x":
+            handleVimCommand(.closeTab)
+        case "]":
+            handleVimCommand(.nextTab)
+        case "[":
+            handleVimCommand(.previousTab)
+        default:
+            numericPrefix = ""
+            let lowered = key.lowercased()
+            return lowered != key && handleLowercaseKey(lowered)
+        }
+        return true
+    }
+
+    private func ensureHeldKeyTimer() {
+        guard heldKeyTimer?.isValid != true else { return }
+
+        let timer = Timer(timeInterval: 1.0 / 24.0, repeats: true) { [weak self] timer in
+            guard let self else {
+                timer.invalidate()
+                return
+            }
+
+            MainActor.assumeIsolated {
+                guard self.heldKey != nil else {
+                    self.stopHeldKeyTimer()
+                    return
+                }
+                self.performContinuousKey(self.heldKey)
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        heldKeyTimer = timer
+    }
+
+    private func stopHeldKeyTimer() {
+        heldKeyTimer?.invalidate()
+        heldKeyTimer = nil
+        heldKey = nil
+    }
+
+    private func isContinuousKey(_ key: String) -> Bool {
+        switch normalizedContinuousKey(key) {
+        case "j", "k", "d", "u", "h", "l", "=", "-":
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func isHandledKey(_ key: String) -> Bool {
+        switch key {
+        case "g", "G", "H", "L", "O", "\t", "a", "c", "j", "k", "d", "u", "h", "l", "m", " ", "f", "b", "+", "=", "-", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "z", "o", "t", "x", "]", "[":
+            return true
+        case "w", "e":
+            return activePDFView?.hasNavigableTextSelection == true
+        default:
+            let lowered = key.lowercased()
+            return lowered != key && isHandledKey(lowered)
+        }
+    }
+
+    private func normalizedContinuousKey(_ key: String) -> String {
+        switch key {
+        case "+":
+            return "="
+        default:
+            return key.lowercased()
+        }
+    }
+
+    private func handleNumericPrefixKey(_ key: String) -> Bool {
+        switch key {
+        case "1"..."9":
+            numericPrefix.append(key)
+            pendingKey = nil
+            return true
+        case "0" where !numericPrefix.isEmpty:
+            numericPrefix.append(key)
+            pendingKey = nil
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func consumeNumericPrefix() -> Int? {
+        defer { numericPrefix = "" }
+        return Int(numericPrefix)
+    }
+
+    private func performContinuousKey(_ key: String?) {
+        guard let key else { return }
+
+        if activePDFView?.handleTextSelectionKey(key, eventType: .keyDown) == true {
+            return
+        }
+
+        switch key {
+        case "j":
+            handleVimCommand(.scrollDown)
+        case "k":
+            handleVimCommand(.scrollUp)
+        case "d":
+            handleVimCommand(.largeScrollDown)
+        case "u":
+            handleVimCommand(.largeScrollUp)
+        case "h":
+            handleVimCommand(.scrollLeft)
+        case "l":
+            handleVimCommand(.scrollRight)
+        case "=":
+            handleVimCommand(.zoomIn)
+        case "-":
+            handleVimCommand(.zoomOut)
+        default:
+            break
+        }
+    }
+
+    private func handleLowercaseKey(_ key: String) -> Bool {
+        switch key {
+        case "a", "c", "j", "k", "d", "u", "h", "l", "m", "f", "b", "w", "e", "o", "t", "x", "z":
+            return handleKey(key)
+        default:
+            return false
+        }
+    }
+}
+
+struct PDFTab: Identifiable, Equatable {
+    let id: UUID
+    var url: URL?
+    var document: PDFDocument?
+    var snapshot: ReaderSnapshot?
+
+    var title: String {
+        url?.deletingPathExtension().lastPathComponent ?? "Untitled"
+    }
+
+    init(id: UUID = UUID(), url: URL?, document: PDFDocument?, snapshot: ReaderSnapshot? = nil) {
+        self.id = id
+        self.url = url
+        self.document = document
+        self.snapshot = snapshot
+    }
+}
+
+struct ReaderSnapshot: Equatable {
+    static let initial = ReaderSnapshot(
+        pageIndex: 0,
+        pointOnPage: .zero,
+        scrollOrigin: nil,
+        scaleFactor: 0,
+        autoScales: true
+    )
+
+    var pageIndex: Int
+    var pointOnPage: NSPoint
+    var scrollOrigin: NSPoint?
+    var scaleFactor: CGFloat
+    var autoScales: Bool
+}
+
+enum HighlightColor: String, CaseIterable, Identifiable {
+    case yellow
+    case green
+    case cyan
+    case purple
+    case pink
+
+    var id: String { rawValue }
+
+    var swatchColor: Color {
+        Color(nsColor: displayColor)
+    }
+
+    var displayColor: NSColor {
+        switch self {
+        case .yellow:
+            return NSColor(calibratedRed: 0.88, green: 0.74, blue: 0.35, alpha: 1)
+        case .green:
+            return NSColor(calibratedRed: 0.62, green: 0.86, blue: 0.49, alpha: 1)
+        case .cyan:
+            return TokyoNight.cyan
+        case .purple:
+            return TokyoNight.purple
+        case .pink:
+            return TokyoNight.red
+        }
+    }
+
+    var annotationColor: NSColor {
+        displayColor.persistentHighlightColor()
+    }
+
+    var next: HighlightColor {
+        let colors = Self.allCases
+        guard let index = colors.firstIndex(of: self) else { return .yellow }
+        return colors[(index + 1) % colors.count]
+    }
+
+    var helpText: String {
+        switch self {
+        case .yellow:
+            return "Yellow highlight"
+        case .green:
+            return "Green highlight"
+        case .cyan:
+            return "Cyan highlight"
+        case .purple:
+            return "Purple highlight"
+        case .pink:
+            return "Pink highlight"
+        }
+    }
+}
+
+enum PDFOpenMode {
+    case currentTab
+    case newTabs
+}
+
+enum VimCommand {
+    case open
+    case openInNewTab
+    case closeTab
+    case restoreClosedTab
+    case nextTab
+    case previousTab
+    case scrollDown
+    case scrollUp
+    case largeScrollDown
+    case largeScrollUp
+    case scrollLeft
+    case scrollRight
+    case pageDown
+    case pageUp
+    case firstPage
+    case lastPage
+    case jumpToPage(Int)
+    case jumpBack
+    case jumpForward
+    case toggleOutline
+    case highlightSelection
+    case cycleHighlightColor
+    case explainHighlightSelection
+    case zoomIn
+    case zoomOut
+    case zoomPageFit
+    case zoomFit
+}
+
+struct ContentView: View {
+    @EnvironmentObject private var appState: AppState
+
+    var body: some View {
+        VStack(spacing: 0) {
+            if appState.hasOpenDocuments {
+                TabStrip()
+                TokyoNightDivider(axis: .horizontal)
+            }
+
+            HStack(spacing: 0) {
+                if appState.isOutlineVisible, appState.hasOpenDocuments {
+                    OutlineSidebar(tab: appState.selectedTab)
+                        .frame(width: 280)
+                    TokyoNightDivider(axis: .vertical)
+                }
+
+                ReaderStack()
+                    .clipped()
+            }
+        }
+        .foregroundStyle(TokyoNight.foregroundColor)
+        .tint(TokyoNight.blueColor)
+        .background(TokyoNight.backgroundColor)
+        .preferredColorScheme(.dark)
+        .background(WindowChromeConfigurator())
+        .ignoresSafeArea(.container, edges: .top)
+        .onOpenURL { url in
+            guard url.isFileURL else { return }
+            OpenURLRelay.shared.open([url])
+        }
+    }
+}
+
+struct WindowChromeConfigurator: NSViewRepresentable {
+    func makeNSView(context: Context) -> ChromeView {
+        ChromeView()
+    }
+
+    func updateNSView(_ nsView: ChromeView, context: Context) {
+        nsView.configureWindow()
+    }
+
+    final class ChromeView: NSView {
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            configureWindow()
+        }
+
+        override func layout() {
+            super.layout()
+            guard let window else { return }
+            centerTrafficLights(in: window)
+        }
+
+        func configureWindow() {
+            guard let window else { return }
+
+            window.titleVisibility = .hidden
+            window.titlebarAppearsTransparent = true
+            window.styleMask.insert(.fullSizeContentView)
+            window.toolbar = nil
+            window.isMovableByWindowBackground = false
+            window.isOpaque = false
+            window.backgroundColor = .clear
+            DispatchQueue.main.async { [weak window] in
+                guard let window else { return }
+                self.centerTrafficLights(in: window)
+            }
+        }
+
+        private func centerTrafficLights(in window: NSWindow) {
+            let buttons = [
+                window.standardWindowButton(.closeButton),
+                window.standardWindowButton(.miniaturizeButton),
+                window.standardWindowButton(.zoomButton)
+            ].compactMap { $0 }
+            guard let referenceButton = buttons.first else { return }
+            let containerHeight = referenceButton.superview?.bounds.height ?? referenceButton.frame.maxY
+
+            let targetCenterFromTop: CGFloat = 23
+            let leftInset: CGFloat = 22
+            let y = round(containerHeight - targetCenterFromTop - referenceButton.frame.height / 2)
+
+            var x = leftInset
+            for index in buttons.indices {
+                if index > 0 {
+                    let previous = buttons[index - 1]
+                    let current = buttons[index]
+                    x += max(18, current.frame.minX - previous.frame.minX)
+                }
+                buttons[index].setFrameOrigin(NSPoint(x: x, y: y))
+            }
+        }
+    }
+}
+
+struct TokyoNightDivider: View {
+    enum Axis {
+        case horizontal
+        case vertical
+    }
+
+    let axis: Axis
+
+    var body: some View {
+        Rectangle()
+            .fill(TokyoNight.borderColor.opacity(0.75))
+            .frame(
+                width: axis == .vertical ? 1 : nil,
+                height: axis == .horizontal ? 1 : nil
+            )
+    }
+}
+
+enum SettingsCategory: String, CaseIterable, Identifiable {
+    case ai
+    case shortcuts
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .ai:
+            return "AI"
+        case .shortcuts:
+            return "Shortcuts"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .ai:
+            return "Provider and model"
+        case .shortcuts:
+            return "Keyboard map"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .ai:
+            return "sparkles"
+        case .shortcuts:
+            return "keyboard"
+        }
+    }
+}
+
+enum AIConnectionStatus: Equatable {
+    case idle
+    case working(String)
+    case success(String)
+    case failure(String)
+
+    var text: String {
+        switch self {
+        case .idle:
+            return "Not checked"
+        case .working(let message), .success(let message), .failure(let message):
+            return message
+        }
+    }
+
+    var color: NSColor {
+        switch self {
+        case .idle:
+            return TokyoNight.muted
+        case .working:
+            return TokyoNight.blue
+        case .success:
+            return NSColor(calibratedRed: 0.62, green: 0.86, blue: 0.49, alpha: 1)
+        case .failure:
+            return TokyoNight.red
+        }
+    }
+
+    var isIdle: Bool {
+        if case .idle = self { return true }
+        return false
+    }
+}
+
+struct AISettingsView: View {
+    @State private var selectedCategory: SettingsCategory = .ai
+
+    var body: some View {
+        HStack(spacing: 0) {
+            SettingsSidebar(selectedCategory: $selectedCategory)
+                .frame(width: 190)
+
+            TokyoNightDivider(axis: .vertical)
+
+            Group {
+                switch selectedCategory {
+                case .ai:
+                    AISettingsDetailView()
+                case .shortcuts:
+                    ShortcutSettingsView()
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .frame(width: 840, height: 560)
+        .background(TokyoNight.backgroundColor)
+        .preferredColorScheme(.dark)
+    }
+}
+
+struct SettingsSidebar: View {
+    @Binding var selectedCategory: SettingsCategory
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("VimPDF")
+                    .font(.system(size: 19, weight: .semibold))
+                    .foregroundStyle(TokyoNight.foregroundColor)
+
+                Text("Settings")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(TokyoNight.mutedColor)
+            }
+            .padding(.horizontal, 18)
+            .padding(.top, 24)
+            .padding(.bottom, 8)
+
+            ForEach(SettingsCategory.allCases) { category in
+                Button {
+                    selectedCategory = category
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: category.systemImage)
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundStyle(selectedCategory == category ? TokyoNight.blueColor : TokyoNight.mutedColor)
+                            .frame(width: 20)
+
+                        Text(category.title)
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(TokyoNight.foregroundColor)
+
+                        Spacer()
+                    }
+                    .padding(.horizontal, 12)
+                    .frame(height: 38)
+                    .background(selectedCategory == category ? TokyoNight.selectionColor.opacity(0.92) : Color.clear)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(selectedCategory == category ? TokyoNight.blueColor.opacity(0.22) : Color.clear, lineWidth: 1)
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 12)
+            }
+
+            Spacer()
+        }
+        .background {
+            ZStack {
+                SidebarVisualEffectBackground()
+                TokyoNight.backgroundDeepColor.opacity(0.68)
+            }
+        }
+        .overlay(alignment: .trailing) {
+            Rectangle()
+                .fill(TokyoNight.borderColor.opacity(0.42))
+                .frame(width: 1)
+        }
+    }
+}
+
+struct AISettingsDetailView: View {
+    @AppStorage(AISettingsKeys.baseURL) private var baseURL = AIConfiguration.defaultBaseURL
+    @AppStorage(AISettingsKeys.model) private var model = AIConfiguration.defaultModel
+    @AppStorage(AISettingsKeys.apiKey) private var apiKey = ""
+    @State private var availableModels: [String] = []
+    @State private var status: AIConnectionStatus = .idle
+    @State private var isTestingConnection = false
+    @State private var isFetchingModels = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            header
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    SettingsGroup(title: "Provider") {
+                        SettingsRow(title: "Base URL", systemImage: "link") {
+                            SettingsInputContainer {
+                                TextField(AIConfiguration.defaultBaseURL, text: $baseURL)
+                                    .textFieldStyle(.plain)
+                            }
+                            .frame(width: 360)
+                        }
+
+                        SettingsRow(title: "API Key", systemImage: "key") {
+                            SettingsInputContainer {
+                                SecureField("sk-...", text: $apiKey)
+                                    .textFieldStyle(.plain)
+                            }
+                            .frame(width: 360)
+                        }
+                    }
+
+                    SettingsGroup(title: "Model") {
+                        SettingsRow(title: "Model", systemImage: "cube.transparent") {
+                            ModelPickerField(
+                                text: $model,
+                                models: availableModels,
+                                placeholder: AIConfiguration.defaultModel
+                            )
+                            .frame(width: 360)
+                        }
+
+                        SettingsRow(title: "Connection", systemImage: "circle.hexagongrid") {
+                            AIConnectionLight(status: status, isBusy: isBusy)
+
+                            Spacer(minLength: 12)
+
+                            Button {
+                                fetchModels()
+                            } label: {
+                                Label(isFetchingModels ? "Fetching" : "Fetch", systemImage: "arrow.clockwise")
+                            }
+                            .buttonStyle(SettingsActionButtonStyle())
+                            .disabled(isBusy)
+
+                            Button {
+                                testConnection()
+                            } label: {
+                                Label(isTestingConnection ? "Testing" : "Test", systemImage: "checkmark.circle")
+                            }
+                            .buttonStyle(SettingsActionButtonStyle(accentColor: TokyoNight.blue))
+                            .disabled(isBusy)
+                        }
+                    }
+                }
+                .padding(.horizontal, 26)
+                .padding(.vertical, 24)
+            }
+        }
+        .background(TokyoNight.backgroundColor)
+        .onChange(of: apiKey) { _, _ in
+            status = .idle
+        }
+        .onChange(of: baseURL) { _, _ in
+            availableModels.removeAll()
+            status = .idle
+        }
+    }
+
+    private var header: some View {
+        HStack(alignment: .center) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("AI")
+                    .font(.system(size: 24, weight: .semibold))
+                    .foregroundStyle(TokyoNight.foregroundColor)
+
+                Text("OpenAI-compatible provider and model")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(TokyoNight.mutedColor)
+            }
+
+            Spacer()
+        }
+        .padding(.horizontal, 24)
+        .padding(.vertical, 18)
+        .background(TokyoNight.backgroundColor)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(TokyoNight.borderColor.opacity(0.26))
+                .frame(height: 1)
+        }
+    }
+
+    private var isBusy: Bool {
+        isTestingConnection || isFetchingModels
+    }
+
+    private func testConnection() {
+        isTestingConnection = true
+        status = .working("Testing model...")
+
+        Task { @MainActor in
+            defer { isTestingConnection = false }
+
+            do {
+                let configuration = try currentConfiguration(requireModel: true)
+                _ = try await AIExplanationClient.testConnection(configuration: configuration)
+                status = .success("Model ready")
+            } catch {
+                status = .failure(error.localizedDescription)
+            }
+        }
+    }
+
+    private func fetchModels() {
+        isFetchingModels = true
+        status = .working("Fetching models...")
+
+        Task { @MainActor in
+            defer { isFetchingModels = false }
+
+            do {
+                let configuration = try currentConfiguration(requireModel: false)
+                let models = try await AIExplanationClient.fetchModels(configuration: configuration)
+                availableModels = models
+
+                let trimmedModel = model.trimmingCharacters(in: .whitespacesAndNewlines)
+                if let firstModel = models.first,
+                   trimmedModel.isEmpty || !models.contains(model) {
+                    model = firstModel
+                }
+
+                status = models.isEmpty
+                    ? .success("Connected. No models returned.")
+                    : .success("\(models.count) models loaded.")
+            } catch {
+                status = .failure(error.localizedDescription)
+            }
+        }
+    }
+
+    private func currentConfiguration(requireModel: Bool) throws -> AIConfiguration {
+        return try AIConfiguration.current(requireModel: requireModel)
+    }
+}
+
+struct SettingsField<Content: View>: View {
+    let title: String
+    let content: Content
+
+    init(title: String, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text(title)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(TokyoNight.mutedColor)
+
+            content
+        }
+    }
+}
+
+struct SettingsGroup<Content: View>: View {
+    let title: String
+    let content: Content
+
+    init(title: String, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(TokyoNight.mutedColor)
+                .padding(.horizontal, 2)
+
+            VStack(spacing: 0) {
+                content
+            }
+            .background(TokyoNight.panelColor.opacity(0.72))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(TokyoNight.borderColor.opacity(0.34), lineWidth: 1)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        }
+    }
+}
+
+struct SettingsRow<Content: View>: View {
+    let title: String
+    let systemImage: String
+    let content: Content
+
+    init(title: String, systemImage: String, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.systemImage = systemImage
+        self.content = content()
+    }
+
+    var body: some View {
+        HStack(spacing: 14) {
+            HStack(spacing: 10) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(TokyoNight.mutedColor)
+                    .frame(width: 18)
+
+                Text(title)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(TokyoNight.foregroundColor.opacity(0.9))
+            }
+            .frame(width: 150, alignment: .leading)
+
+            Spacer(minLength: 12)
+
+            content
+        }
+        .padding(.horizontal, 14)
+        .frame(minHeight: 52)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(TokyoNight.borderColor.opacity(0.22))
+                .frame(height: 1)
+                .padding(.leading, 48)
+        }
+    }
+}
+
+struct SettingsInputContainer<Content: View>: View {
+    let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    var body: some View {
+        HStack(spacing: 9) {
+            content
+        }
+        .font(.system(size: 13))
+        .foregroundStyle(TokyoNight.foregroundColor)
+        .padding(.horizontal, 10)
+        .frame(height: 34)
+        .background(TokyoNight.backgroundDeepColor.opacity(0.58))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(TokyoNight.borderColor.opacity(0.38), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+}
+
+struct ModelPickerField: View {
+    @Binding var text: String
+    let models: [String]
+    let placeholder: String
+
+    var body: some View {
+        SettingsInputContainer {
+            ModelComboBox(text: $text, models: models, placeholder: placeholder)
+                .frame(height: 24)
+        }
+    }
+}
+
+struct SettingsActionButtonStyle: ButtonStyle {
+    var accentColor: NSColor = TokyoNight.panelElevated
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(TokyoNight.foregroundColor)
+            .padding(.horizontal, 11)
+            .frame(height: 30)
+            .background(Color(nsColor: accentColor).opacity(configuration.isPressed ? 0.92 : 0.68))
+            .overlay(
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .stroke(TokyoNight.borderColor.opacity(0.48), lineWidth: 1)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+    }
+}
+
+struct AIConnectionLight: View {
+    let status: AIConnectionStatus
+    let isBusy: Bool
+
+    var body: some View {
+        HStack(spacing: 8) {
+            if isBusy {
+                ProgressView()
+                    .controlSize(.small)
+            } else {
+                Circle()
+                    .fill(Color(nsColor: status.color))
+                    .frame(width: 9, height: 9)
+                    .overlay(
+                        Circle()
+                            .stroke(TokyoNight.foregroundColor.opacity(0.16), lineWidth: 1)
+                    )
+            }
+
+            Text(status.text)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(status.isIdle ? TokyoNight.mutedColor : TokyoNight.foregroundColor.opacity(0.86))
+                .lineLimit(2)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+struct ShortcutSettingsView: View {
+    private let groups = ShortcutCatalog.groups
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .center) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Shortcuts")
+                        .font(.system(size: 25, weight: .semibold))
+                        .foregroundStyle(TokyoNight.foregroundColor)
+
+                    Text("Vim-style keyboard map")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(TokyoNight.mutedColor)
+                }
+
+                Spacer()
+            }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 20)
+            .background(TokyoNight.panelColor.opacity(0.78))
+            .overlay(alignment: .bottom) {
+                Rectangle()
+                    .fill(TokyoNight.borderColor.opacity(0.32))
+                    .frame(height: 1)
+            }
+
+            ScrollView {
+                LazyVGrid(
+                    columns: [
+                        GridItem(.flexible(minimum: 250), spacing: 14),
+                        GridItem(.flexible(minimum: 250), spacing: 14)
+                    ],
+                    alignment: .leading,
+                    spacing: 14
+                ) {
+                    ForEach(groups) { group in
+                        ShortcutGroupCard(group: group)
+                    }
+                }
+                .padding(.horizontal, 24)
+                .padding(.vertical, 22)
+            }
+        }
+        .background(TokyoNight.backgroundColor)
+    }
+}
+
+struct ShortcutGroup: Identifiable {
+    let id = UUID()
+    let title: String
+    let systemImage: String
+    let items: [ShortcutItem]
+}
+
+struct ShortcutItem: Identifiable {
+    let id = UUID()
+    let keys: [String]
+    let action: String
+}
+
+enum ShortcutCatalog {
+    static let groups: [ShortcutGroup] = [
+        ShortcutGroup(
+            title: "Files and Tabs",
+            systemImage: "doc.on.doc",
+            items: [
+                ShortcutItem(keys: ["o"], action: "Open PDF in current tab"),
+                ShortcutItem(keys: ["O"], action: "Open PDF in new tab"),
+                ShortcutItem(keys: ["x"], action: "Close current tab"),
+                ShortcutItem(keys: ["X"], action: "Restore closed PDF"),
+                ShortcutItem(keys: ["[", "]", "H", "L"], action: "Switch tabs")
+            ]
+        ),
+        ShortcutGroup(
+            title: "Reading",
+            systemImage: "arrow.up.and.down",
+            items: [
+                ShortcutItem(keys: ["j", "k"], action: "Smooth scroll"),
+                ShortcutItem(keys: ["u", "d"], action: "Large smooth scroll"),
+                ShortcutItem(keys: ["h", "l"], action: "Horizontal scroll"),
+                ShortcutItem(keys: ["f", "b"], action: "Move exactly one page"),
+                ShortcutItem(keys: ["gg", "G", "[num]G"], action: "Jump to first, last, or numbered page"),
+                ShortcutItem(keys: ["Ctrl O", "Ctrl I"], action: "Jump backward or forward")
+            ]
+        ),
+        ShortcutGroup(
+            title: "View",
+            systemImage: "rectangle.expand.vertical",
+            items: [
+                ShortcutItem(keys: ["=", "-"], action: "Smooth zoom"),
+                ShortcutItem(keys: ["z"], action: "Fit width"),
+                ShortcutItem(keys: ["0"], action: "Fit page"),
+                ShortcutItem(keys: ["Tab", "t"], action: "Toggle contents")
+            ]
+        ),
+        ShortcutGroup(
+            title: "Highlights and AI",
+            systemImage: "highlighter",
+            items: [
+                ShortcutItem(keys: ["m"], action: "Highlight selection"),
+                ShortcutItem(keys: ["c"], action: "Cycle highlight color"),
+                ShortcutItem(keys: ["d"], action: "Delete selected highlight"),
+                ShortcutItem(keys: ["a"], action: "Explain selected text")
+            ]
+        ),
+        ShortcutGroup(
+            title: "Text Selection",
+            systemImage: "selection.pin.in.out",
+            items: [
+                ShortcutItem(keys: ["h", "j", "k", "l"], action: "Move selection endpoint"),
+                ShortcutItem(keys: ["w", "b", "e"], action: "Move by word"),
+                ShortcutItem(keys: ["Esc"], action: "Clear text selection")
+            ]
+        ),
+        ShortcutGroup(
+            title: "Contents",
+            systemImage: "list.bullet.indent",
+            items: [
+                ShortcutItem(keys: ["j", "k"], action: "Move outline selection"),
+                ShortcutItem(keys: ["h", "l"], action: "Collapse or expand"),
+                ShortcutItem(keys: ["Enter"], action: "Jump to selected item")
+            ]
+        )
+    ]
+}
+
+struct ShortcutRow: View {
+    let item: ShortcutItem
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text(item.action)
+                .font(.system(size: 12.5, weight: .medium))
+                .foregroundStyle(TokyoNight.foregroundColor.opacity(0.9))
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: 5) {
+                ForEach(item.keys, id: \.self) { key in
+                    ShortcutKeyCap(text: key)
+                }
+            }
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 8)
+    }
+}
+
+struct ShortcutGroupCard: View {
+    let group: ShortcutGroup
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Image(systemName: group.systemImage)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(TokyoNight.blueColor)
+                    .frame(width: 18)
+
+                Text(group.title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(TokyoNight.foregroundColor)
+
+                Spacer(minLength: 0)
+            }
+            .padding(.bottom, 2)
+
+            VStack(spacing: 0) {
+                ForEach(group.items) { item in
+                    ShortcutRow(item: item)
+
+                    if item.id != group.items.last?.id {
+                        Rectangle()
+                            .fill(TokyoNight.borderColor.opacity(0.2))
+                            .frame(height: 1)
+                    }
+                }
+            }
+        }
+        .padding(13)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .background(TokyoNight.panelColor.opacity(0.7))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(TokyoNight.borderColor.opacity(0.34), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+}
+
+struct ShortcutKeyCap: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 11, weight: .semibold, design: .rounded))
+            .foregroundStyle(TokyoNight.foregroundColor)
+            .padding(.horizontal, 7)
+            .frame(height: 22)
+            .background(TokyoNight.backgroundDeepColor.opacity(0.82))
+            .overlay(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .stroke(TokyoNight.borderColor.opacity(0.55), lineWidth: 1)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+    }
+}
+
+struct ModelComboBox: NSViewRepresentable {
+    @Binding var text: String
+    let models: [String]
+    let placeholder: String
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+
+    func makeNSView(context: Context) -> NSComboBox {
+        let comboBox = NSComboBox()
+        comboBox.delegate = context.coordinator
+        comboBox.target = context.coordinator
+        comboBox.action = #selector(Coordinator.commitSelection(_:))
+        comboBox.completes = true
+        comboBox.usesDataSource = false
+        comboBox.isEditable = true
+        comboBox.isBordered = false
+        comboBox.drawsBackground = false
+        comboBox.hasVerticalScroller = true
+        comboBox.numberOfVisibleItems = 12
+        comboBox.font = .systemFont(ofSize: 13)
+        comboBox.controlSize = .regular
+        comboBox.textColor = TokyoNight.foreground
+        comboBox.backgroundColor = .clear
+        comboBox.placeholderString = placeholder
+        comboBox.addItems(withObjectValues: models)
+        comboBox.stringValue = text
+        return comboBox
+    }
+
+    func updateNSView(_ comboBox: NSComboBox, context: Context) {
+        context.coordinator.parent = self
+
+        let currentItems = (0..<comboBox.numberOfItems).compactMap {
+            comboBox.itemObjectValue(at: $0) as? String
+        }
+        if currentItems != models {
+            comboBox.removeAllItems()
+            comboBox.addItems(withObjectValues: models)
+        }
+
+        comboBox.placeholderString = placeholder
+        comboBox.font = .systemFont(ofSize: 13)
+        comboBox.textColor = TokyoNight.foreground
+        comboBox.backgroundColor = .clear
+        comboBox.drawsBackground = false
+        comboBox.isBordered = false
+        if comboBox.stringValue != text, comboBox.currentEditor() == nil {
+            comboBox.stringValue = text
+        }
+    }
+
+    @MainActor
+    final class Coordinator: NSObject, NSComboBoxDelegate {
+        var parent: ModelComboBox
+
+        init(_ parent: ModelComboBox) {
+            self.parent = parent
+        }
+
+        @objc func commitSelection(_ sender: NSComboBox) {
+            parent.text = sender.stringValue
+        }
+
+        func controlTextDidChange(_ notification: Notification) {
+            guard let comboBox = notification.object as? NSComboBox else { return }
+            parent.text = comboBox.stringValue
+        }
+
+        func comboBoxSelectionDidChange(_ notification: Notification) {
+            guard let comboBox = notification.object as? NSComboBox else { return }
+            parent.text = comboBox.stringValue
+        }
+    }
+}
+
+struct SettingsSection<Content: View>: View {
+    let title: String
+    let systemImage: String
+    let content: Content
+
+    init(
+        title: String,
+        systemImage: String,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.title = title
+        self.systemImage = systemImage
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                Image(systemName: systemImage)
+                    .foregroundStyle(TokyoNight.blueColor)
+                    .frame(width: 18)
+                Text(title)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(TokyoNight.foregroundColor)
+            }
+
+            content
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(TokyoNight.panelElevatedColor.opacity(0.62))
+        .overlay(
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .stroke(TokyoNight.borderColor.opacity(0.55), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+    }
+}
+
+struct AIStatusView: View {
+    let status: AIConnectionStatus
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(Color(nsColor: status.color))
+                .frame(width: 7, height: 7)
+            Text(status.text)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(TokyoNight.foregroundColor.opacity(0.9))
+                .lineLimit(1)
+                .truncationMode(.tail)
+        }
+        .padding(.horizontal, 9)
+        .frame(height: 24)
+        .background(TokyoNight.backgroundDeepColor.opacity(0.8))
+        .overlay(
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .stroke(Color(nsColor: status.color).opacity(0.45), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+    }
+}
+
+@MainActor
+private enum AIExplanationPopoverMetrics {
+    static let width: CGFloat = 520
+    static let hoverMinimumHeight: CGFloat = 56
+    static let minimumHeight: CGFloat = 124
+    static let streamingMinimumHeight: CGFloat = 56
+    static let maximumHeight: CGFloat = 420
+    static let compactInitialHeight: CGFloat = 148
+    static let standardInitialHeight: CGFloat = 260
+
+    static func estimatedHeight(for markdown: String) -> CGFloat {
+        let trimmed = markdown.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return minimumHeight }
+
+        let lines = trimmed.components(separatedBy: .newlines)
+        var headingCount = 0
+        var paragraphCount = 0
+        var listItemCount = 0
+        var blankLineCount = 0
+        let estimatedLineCount = lines.reduce(0) { partialResult, rawLine in
+            let line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !line.isEmpty else {
+                blankLineCount += 1
+                return partialResult
+            }
+
+            if line.hasPrefix("#") {
+                headingCount += 1
+            } else if line.hasPrefix("- ") || line.hasPrefix("* ") || line.range(of: #"^\d+\.\s+"#, options: .regularExpression) != nil {
+                listItemCount += 1
+            } else {
+                paragraphCount += 1
+            }
+
+            let characterCount = max(1, line.count)
+            return partialResult + max(1, Int(ceil(Double(characterCount) / 56.0)))
+        }
+
+        let contentHeight = CGFloat(estimatedLineCount) * 21
+            + CGFloat(headingCount) * 12
+            + CGFloat(paragraphCount) * 6
+            + CGFloat(listItemCount) * 3
+            + CGFloat(blankLineCount) * 4
+            + 46
+        return min(maximumHeight, max(minimumHeight, contentHeight))
+    }
+
+    static func estimatedHoverHeight(for markdown: String) -> CGFloat {
+        let lines = markdown
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        guard !lines.isEmpty else { return hoverMinimumHeight }
+
+        let contentHeight = lines.enumerated().reduce(CGFloat(36)) { partialResult, element in
+            let (index, line) = element
+            let estimatedLineCount = max(1, Int(ceil(Double(max(1, line.count)) / 58.0)))
+            let lineHeight: CGFloat = line.hasPrefix("#") ? 22 : 20
+            let spacing: CGFloat = index == lines.count - 1 ? 0 : 9
+            return partialResult + CGFloat(estimatedLineCount) * lineHeight + spacing
+        }
+
+        return min(maximumHeight, max(hoverMinimumHeight, ceil(contentHeight)))
+    }
+}
+
+@MainActor
+final class AIExplanationPopoverModel: ObservableObject {
+    @Published var title: String
+    @Published var text: String
+    @Published var isStreaming: Bool
+    @Published private(set) var preferredHeight: CGFloat
+    let maximumHeight: CGFloat
+
+    init(
+        title: String,
+        text: String = "",
+        isStreaming: Bool = false,
+        initialHeight: CGFloat = AIExplanationPopoverMetrics.standardInitialHeight,
+        maximumHeight: CGFloat = AIExplanationPopoverMetrics.maximumHeight
+    ) {
+        self.title = title
+        self.text = text
+        self.isStreaming = isStreaming
+        self.preferredHeight = initialHeight
+        self.maximumHeight = maximumHeight
+    }
+
+    func append(_ chunk: String) {
+        if text == "..." {
+            text = ""
+        }
+        text += chunk
+    }
+
+    var preferredSize: NSSize {
+        NSSize(width: AIExplanationPopoverMetrics.width, height: preferredHeight)
+    }
+
+    @discardableResult
+    func updateContentHeight(
+        _ contentHeight: CGFloat,
+        minimumHeight: CGFloat = AIExplanationPopoverMetrics.minimumHeight
+    ) -> Bool {
+        let clampedHeight = min(
+            maximumHeight,
+            max(minimumHeight, ceil(contentHeight))
+        )
+
+        guard abs(preferredHeight - clampedHeight) > 8 else { return false }
+        preferredHeight = clampedHeight
+        return true
+    }
+}
+
+struct AIExplanationPopoverView: View {
+    @ObservedObject var model: AIExplanationPopoverModel
+    let kind: AIExplanationPopoverKind
+    let onDismiss: () -> Void
+    let onHighlight: () -> Void
+    let onCycleColor: () -> Void
+    let onContentHeightChange: (CGFloat) -> Void
+    let onWebViewReady: (AIExplanationWebView) -> Void
+
+    var body: some View {
+        MarkdownWebView(
+            markdown: model.text.isEmpty ? "..." : model.text,
+            onDismiss: onDismiss,
+            onHighlight: onHighlight,
+            onCycleColor: onCycleColor,
+            onContentHeightChange: onContentHeightChange,
+            focusWhenReady: kind.shouldFocusWebView,
+            autoScrollOnUpdate: kind.autoScrollOnUpdate,
+            onReady: onWebViewReady
+        )
+        .frame(width: model.preferredSize.width, height: model.preferredSize.height)
+        .background(TokyoNight.panelElevatedColor)
+    }
+}
+
+struct MarkdownWebView: NSViewRepresentable {
+    let markdown: String
+    let onDismiss: () -> Void
+    let onHighlight: () -> Void
+    let onCycleColor: () -> Void
+    let onContentHeightChange: (CGFloat) -> Void
+    let focusWhenReady: Bool
+    let autoScrollOnUpdate: Bool
+    let onReady: (AIExplanationWebView) -> Void
+
+    func makeNSView(context: Context) -> AIExplanationWebView {
+        let webView = AIExplanationWebView()
+        webView.onDismiss = onDismiss
+        webView.onHighlight = onHighlight
+        webView.onCycleColor = onCycleColor
+        webView.onContentHeightChange = onContentHeightChange
+        webView.shouldFocusWhenReady = focusWhenReady
+        webView.autoScrollOnUpdate = autoScrollOnUpdate
+        onReady(webView)
+        webView.render(markdown)
+        return webView
+    }
+
+    func updateNSView(_ webView: AIExplanationWebView, context: Context) {
+        webView.onDismiss = onDismiss
+        webView.onHighlight = onHighlight
+        webView.onCycleColor = onCycleColor
+        webView.onContentHeightChange = onContentHeightChange
+        webView.shouldFocusWhenReady = focusWhenReady
+        webView.autoScrollOnUpdate = autoScrollOnUpdate
+        onReady(webView)
+        webView.render(markdown)
+
+        guard focusWhenReady else { return }
+
+        DispatchQueue.main.async { [weak webView] in
+            guard let webView else { return }
+            webView.window?.makeFirstResponder(webView)
+        }
+    }
+}
+
+final class WeakScriptMessageHandler: NSObject, WKScriptMessageHandler {
+    weak var target: WKScriptMessageHandler?
+
+    init(_ target: WKScriptMessageHandler) {
+        self.target = target
+        super.init()
+    }
+
+    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        target?.userContentController(userContentController, didReceive: message)
+    }
+}
+
+final class AIExplanationWebView: WKWebView, WKNavigationDelegate, WKScriptMessageHandler {
+    var onDismiss: (() -> Void)?
+    var onHighlight: (() -> Void)?
+    var onCycleColor: (() -> Void)?
+    var onContentHeightChange: ((CGFloat) -> Void)?
+    var shouldFocusWhenReady = true
+    var autoScrollOnUpdate = false
+    private var pendingMarkdown = ""
+    private var didLoadDocument = false
+
+    init() {
+        let configuration = WKWebViewConfiguration()
+        configuration.defaultWebpagePreferences.allowsContentJavaScript = true
+        super.init(frame: .zero, configuration: configuration)
+        navigationDelegate = self
+        configuration.userContentController.add(WeakScriptMessageHandler(self), name: "vimpdf")
+        setValue(false, forKey: "drawsBackground")
+        loadHTMLString(Self.html, baseURL: nil)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override var acceptsFirstResponder: Bool { true }
+
+    func render(_ markdown: String) {
+        pendingMarkdown = markdown
+        guard didLoadDocument else { return }
+
+        let encoded = Self.javascriptString(markdown)
+        evaluateJavaScript("window.vimpdfSetMarkdown(\(encoded), \(autoScrollOnUpdate ? "true" : "false"));")
+    }
+
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        didLoadDocument = true
+        render(pendingMarkdown)
+        if shouldFocusWhenReady {
+            window?.makeFirstResponder(self)
+        }
+    }
+
+    func handleKey(_ key: String) -> Bool {
+        switch key {
+        case "j":
+            pulseScroll(direction: 1)
+        case "k":
+            pulseScroll(direction: -1)
+        case "m":
+            onHighlight?()
+        case "c":
+            onCycleColor?()
+        case "\u{1b}":
+            onDismiss?()
+        default:
+            return false
+        }
+
+        return true
+    }
+
+    override func keyDown(with event: NSEvent) {
+        guard event.modifierFlags.intersection([.command, .control, .option]).isEmpty else {
+            super.keyDown(with: event)
+            return
+        }
+
+        let key = event.charactersIgnoringModifiers?.lowercased()
+        switch key {
+        case "j":
+            startContinuousScroll(direction: 1)
+        case "k":
+            startContinuousScroll(direction: -1)
+        default:
+            if handleKey(key ?? "") == false {
+                super.keyDown(with: event)
+            }
+        }
+    }
+
+    override func keyUp(with event: NSEvent) {
+        guard event.modifierFlags.intersection([.command, .control, .option]).isEmpty else {
+            super.keyUp(with: event)
+            return
+        }
+
+        let key = event.charactersIgnoringModifiers?.lowercased()
+        switch key {
+        case "j", "k":
+            stopContinuousScroll()
+        default:
+            super.keyUp(with: event)
+        }
+    }
+
+    func startContinuousScroll(direction: Int) {
+        evaluateJavaScript("window.vimpdfStartScroll(\(direction));")
+    }
+
+    func stopContinuousScroll() {
+        evaluateJavaScript("window.vimpdfStopScroll();")
+    }
+
+    func pulseScroll(direction: Int) {
+        evaluateJavaScript("window.vimpdfPulseScroll(\(direction));")
+    }
+
+    func scrollToTop() {
+        evaluateJavaScript("window.vimpdfScrollToTop();")
+    }
+
+    func scrollToBottom() {
+        evaluateJavaScript("window.vimpdfScrollToBottom();")
+    }
+
+    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        guard message.name == "vimpdf" else { return }
+
+        if let command = message.body as? String {
+            _ = handleCommand(command)
+            return
+        }
+
+        guard let payload = message.body as? [String: Any],
+              let command = payload["command"] as? String else { return }
+
+        switch command {
+        case "contentHeight":
+            guard let height = payload["height"] as? NSNumber else { return }
+            onContentHeightChange?(CGFloat(truncating: height))
+        default:
+            _ = handleCommand(command)
+        }
+    }
+
+    @discardableResult
+    private func handleCommand(_ command: String) -> Bool {
+        switch command {
+        case "startScrollDown":
+            startContinuousScroll(direction: 1)
+        case "startScrollUp":
+            startContinuousScroll(direction: -1)
+        case "stopScroll":
+            stopContinuousScroll()
+        case "scrollDown":
+            pulseScroll(direction: 1)
+        case "scrollUp":
+            pulseScroll(direction: -1)
+        default:
+            return handleKey(Self.key(for: command))
+        }
+
+        return true
+    }
+
+    private static func key(for command: String) -> String {
+        switch command {
+        case "highlight":
+            return "m"
+        case "cycleColor":
+            return "c"
+        case "dismiss":
+            return "\u{1b}"
+        default:
+            return ""
+        }
+    }
+
+    private static func javascriptString(_ string: String) -> String {
+        guard let data = try? JSONSerialization.data(withJSONObject: [string]),
+              let encoded = String(data: data, encoding: .utf8) else {
+            return "\"\""
+        }
+
+        return String(encoded.dropFirst().dropLast())
+    }
+
+    private static let html = """
+    <!doctype html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <script>
+        window.MathJax = {
+          tex: { inlineMath: [['$', '$'], ['\\\\(', '\\\\)']], displayMath: [['$$', '$$'], ['\\\\[', '\\\\]']] },
+          options: { skipHtmlTags: ['script','noscript','style','textarea','pre','code'] }
+        };
+      </script>
+      <script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+      <style>
+        :root { color-scheme: dark; }
+        html, body {
+          margin: 0;
+          padding: 0;
+          background: #292E42;
+          color: #C0CAF5;
+          font: 13px -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+          line-height: 1.55;
+          overflow-y: auto;
+          scrollbar-width: none;
+        }
+        html::-webkit-scrollbar,
+        body::-webkit-scrollbar,
+        *::-webkit-scrollbar {
+          width: 0;
+          height: 0;
+          display: none;
+        }
+        body { padding: 0 14px; box-sizing: border-box; }
+        #content {
+          padding: 18px 0;
+          box-sizing: border-box;
+        }
+        #content > :first-child { margin-top: 0; }
+        #content > :last-child { margin-bottom: 0; }
+        h1, h2, h3 { color: #E0E7FF; margin: 0.8em 0 0.35em; line-height: 1.25; }
+        h1 { font-size: 18px; } h2 { font-size: 16px; } h3 { font-size: 14px; }
+        p { margin: 0 0 0.75em; }
+        ul, ol { margin: 0 0 0.85em 1.25em; padding: 0; }
+        li { margin: 0.2em 0; }
+        blockquote {
+          margin: 0.7em 0;
+          padding: 0.2em 0 0.2em 0.8em;
+          border-left: 3px solid #7AA2F7;
+          color: #A9B1D6;
+        }
+        code {
+          background: #1A1B26;
+          color: #7DCFFF;
+          padding: 1px 4px;
+          border-radius: 4px;
+          font-family: "SF Mono", Menlo, monospace;
+          font-size: 12px;
+        }
+        pre {
+          background: #1A1B26;
+          border: 1px solid #3B4261;
+          border-radius: 7px;
+          padding: 10px;
+          overflow-x: auto;
+          scrollbar-width: none;
+        }
+        pre code { background: transparent; padding: 0; }
+        strong { color: #E0E7FF; }
+        a { color: #7AA2F7; }
+        .empty { color: #565F89; }
+      </style>
+    </head>
+    <body>
+      <main id="content" class="empty">...</main>
+      <script>
+        const scrollState = {
+          direction: 0,
+          frame: null,
+          lastTime: 0,
+          velocity: 672
+        };
+        function tickScroll(now) {
+          if (!scrollState.direction) { return; }
+          const previous = scrollState.lastTime || now;
+          const deltaSeconds = Math.min(0.05, Math.max(0, (now - previous) / 1000));
+          scrollState.lastTime = now;
+          window.scrollBy(0, scrollState.direction * scrollState.velocity * deltaSeconds);
+          scrollState.frame = requestAnimationFrame(tickScroll);
+        }
+        window.vimpdfStartScroll = function(direction) {
+          direction = direction < 0 ? -1 : 1;
+          if (scrollState.direction === direction && scrollState.frame !== null) { return; }
+          window.vimpdfStopScroll();
+          scrollState.direction = direction;
+          scrollState.lastTime = performance.now();
+          window.scrollBy(0, direction * 28);
+          scrollState.frame = requestAnimationFrame(tickScroll);
+        };
+        window.vimpdfStopScroll = function() {
+          scrollState.direction = 0;
+          scrollState.lastTime = 0;
+          if (scrollState.frame !== null) {
+            cancelAnimationFrame(scrollState.frame);
+            scrollState.frame = null;
+          }
+        };
+        window.vimpdfPulseScroll = function(direction) {
+          direction = direction < 0 ? -1 : 1;
+          window.scrollBy(0, direction * 28);
+        };
+        function escapeHTML(value) {
+          return value.replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+        }
+        function inlineMarkdown(value) {
+          return value
+            .replace(/`([^`]+)`/g, '<code>$1</code>')
+            .replace(/\\*\\*([^*]+)\\*\\*/g, '<strong>$1</strong>')
+            .replace(/\\*([^*]+)\\*/g, '<em>$1</em>')
+            .replace(/\\[([^\\]]+)\\]\\(([^\\)]+)\\)/g, '<a href="$2">$1</a>');
+        }
+        function renderMarkdown(markdown) {
+          const fenceMap = [];
+          let text = escapeHTML(markdown || '...');
+          text = text.replace(/```([\\s\\S]*?)```/g, (_, code) => {
+            const token = `@@CODE_${fenceMap.length}@@`;
+            fenceMap.push(`<pre><code>${code.trim()}</code></pre>`);
+            return token;
+          });
+          const lines = text.split(/\\n/);
+          let html = '';
+          let list = null;
+          function closeList() {
+            if (list) { html += `</${list}>`; list = null; }
+          }
+          for (const raw of lines) {
+            const line = raw.trim();
+            if (!line) { closeList(); continue; }
+            let match;
+            if ((match = line.match(/^(#{1,3})\\s+(.+)$/))) {
+              closeList();
+              html += `<h${match[1].length}>${inlineMarkdown(match[2])}</h${match[1].length}>`;
+            } else if ((match = line.match(/^[-*]\\s+(.+)$/))) {
+              if (list !== 'ul') { closeList(); html += '<ul>'; list = 'ul'; }
+              html += `<li>${inlineMarkdown(match[1])}</li>`;
+            } else if ((match = line.match(/^\\d+\\.\\s+(.+)$/))) {
+              if (list !== 'ol') { closeList(); html += '<ol>'; list = 'ol'; }
+              html += `<li>${inlineMarkdown(match[1])}</li>`;
+            } else if ((match = line.match(/^&gt;\\s*(.+)$/))) {
+              closeList();
+              html += `<blockquote>${inlineMarkdown(match[1])}</blockquote>`;
+            } else {
+              closeList();
+              html += `<p>${inlineMarkdown(line)}</p>`;
+            }
+          }
+          closeList();
+          for (let i = 0; i < fenceMap.length; i++) {
+            html = html.replace(`@@CODE_${i}@@`, fenceMap[i]);
+          }
+          return html;
+        }
+        window.vimpdfSetMarkdown = function(markdown, followBottom) {
+          const content = document.getElementById('content');
+          content.className = markdown && markdown.trim() ? '' : 'empty';
+          content.innerHTML = renderMarkdown(markdown);
+          requestAnimationFrame(() => afterRender(followBottom));
+          if (window.MathJax && window.MathJax.typesetPromise) {
+            window.MathJax.typesetPromise([content])
+              .then(() => { afterRender(followBottom); })
+              .catch(() => { afterRender(followBottom); });
+          }
+        };
+        function afterRender(followBottom) {
+          reportContentHeight();
+          if (followBottom && isContentOverflowing()) {
+            scrollToBottom();
+            requestAnimationFrame(scrollToBottom);
+          }
+        }
+        function isContentOverflowing() {
+          const height = Math.max(
+            document.documentElement.scrollHeight,
+            document.body.scrollHeight
+          );
+          return height - window.innerHeight > 8;
+        }
+        function scrollToTop() {
+          window.scrollTo(0, 0);
+        }
+        function scrollToBottom() {
+          const height = Math.max(
+            document.documentElement.scrollHeight,
+            document.body.scrollHeight
+          );
+          const maxScroll = Math.max(0, height - window.innerHeight);
+          window.scrollTo(0, maxScroll <= 8 ? 0 : maxScroll);
+        }
+        window.vimpdfScrollToTop = function() {
+          scrollToTop();
+          requestAnimationFrame(scrollToTop);
+        };
+        window.vimpdfScrollToBottom = function() {
+          scrollToBottom();
+          requestAnimationFrame(scrollToBottom);
+        };
+        function postVimPDFCommand(command) {
+          if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.vimpdf) {
+            window.webkit.messageHandlers.vimpdf.postMessage(command);
+          }
+        }
+        function postVimPDFMessage(message) {
+          if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.vimpdf) {
+            window.webkit.messageHandlers.vimpdf.postMessage(message);
+          }
+        }
+        function reportContentHeight() {
+          const content = document.getElementById('content');
+          const bodyStyle = window.getComputedStyle(document.body);
+          const paddingTop = parseFloat(bodyStyle.paddingTop) || 0;
+          const paddingBottom = parseFloat(bodyStyle.paddingBottom) || 0;
+          const contentHeight = content ? content.getBoundingClientRect().height : 0;
+          const height = contentHeight + paddingTop + paddingBottom;
+          postVimPDFMessage({ command: 'contentHeight', height: Math.ceil(height) });
+        }
+        document.addEventListener('keydown', function(event) {
+          if (event.metaKey || event.ctrlKey || event.altKey) { return; }
+
+          if (event.key === 'j') {
+            event.preventDefault();
+            postVimPDFCommand('startScrollDown');
+          } else if (event.key === 'k') {
+            event.preventDefault();
+            postVimPDFCommand('startScrollUp');
+          } else if (event.key === 'm') {
+            event.preventDefault();
+            postVimPDFCommand('highlight');
+          } else if (event.key === 'c') {
+            event.preventDefault();
+            postVimPDFCommand('cycleColor');
+          } else if (event.key === 'Escape') {
+            event.preventDefault();
+            postVimPDFCommand('dismiss');
+          }
+        }, true);
+        document.addEventListener('keyup', function(event) {
+          if (event.metaKey || event.ctrlKey || event.altKey) { return; }
+
+          if (event.key === 'j' || event.key === 'k') {
+            event.preventDefault();
+            postVimPDFCommand('stopScroll');
+          }
+        }, true);
+        window.addEventListener('blur', function() {
+          postVimPDFCommand('stopScroll');
+        });
+        window.addEventListener('resize', reportContentHeight);
+      </script>
+    </body>
+    </html>
+    """
+}
+
+struct TabStrip: View {
+    @EnvironmentObject private var appState: AppState
+    private let preferredTabWidth: CGFloat = 220
+    private let tabSpacing: CGFloat = 2
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Color.clear
+                .frame(width: 84)
+
+            SidebarToggleButton()
+
+            GeometryReader { geometry in
+                let tabWidth = tabWidth(
+                    availableWidth: geometry.size.width,
+                    tabCount: appState.tabs.count
+                )
+
+                HStack(spacing: tabSpacing) {
+                    ForEach(appState.tabs) { tab in
+                        TabButton(
+                            tab: tab,
+                            isSelected: tab.id == appState.selectedTabID,
+                            width: tabWidth
+                        )
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+            }
+            .frame(height: 34)
+            .layoutPriority(1)
+
+            HighlightToolbar()
+                .padding(.trailing, 10)
+        }
+        .frame(height: 46)
+        .background(TokyoNight.backgroundDeepColor)
+    }
+
+    private func tabWidth(availableWidth: CGFloat, tabCount: Int) -> CGFloat {
+        guard tabCount > 0 else { return 0 }
+
+        let spacingWidth = tabSpacing * CGFloat(max(0, tabCount - 1))
+        let preferredTotal = preferredTabWidth * CGFloat(tabCount) + spacingWidth
+        guard preferredTotal > availableWidth else { return preferredTabWidth }
+
+        let availableForTabs = max(0, availableWidth - spacingWidth)
+        return availableForTabs / CGFloat(tabCount)
+    }
+}
+
+struct SidebarToggleButton: View {
+    @EnvironmentObject private var appState: AppState
+    @State private var isHovered = false
+
+    var body: some View {
+        Button {
+            appState.toggleOutlineSidebar()
+        } label: {
+            SidebarToggleGlyph(isOpen: appState.isOutlineVisible)
+                .foregroundStyle(TokyoNight.foregroundColor.opacity(isHovered ? 0.92 : 0.68))
+                .frame(width: 30, height: 30)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help("Toggle Contents")
+        .onHover { isHovered = $0 }
+    }
+}
+
+struct SidebarToggleGlyph: View {
+    let isOpen: Bool
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 3.5, style: .continuous)
+                .stroke(lineWidth: 1.4)
+                .frame(width: 16, height: 13)
+
+            if isOpen {
+                RoundedRectangle(cornerRadius: 2.2, style: .continuous)
+                    .fill()
+                    .frame(width: 5, height: 9)
+                    .offset(x: -4.2)
+
+                Path { path in
+                    path.move(to: CGPoint(x: 17.4, y: 11.1))
+                    path.addLine(to: CGPoint(x: 14.7, y: 15))
+                    path.addLine(to: CGPoint(x: 17.4, y: 18.9))
+                }
+                .stroke(style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
+            } else {
+                Path { path in
+                    path.move(to: CGPoint(x: 13.3, y: 11.1))
+                    path.addLine(to: CGPoint(x: 16, y: 15))
+                    path.addLine(to: CGPoint(x: 13.3, y: 18.9))
+                }
+                .stroke(style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
+            }
+        }
+    }
+}
+
+struct HighlightToolbar: View {
+    @EnvironmentObject private var appState: AppState
+
+    var body: some View {
+        HStack(spacing: 7) {
+            ForEach(HighlightColor.allCases) { color in
+                let isSelected = appState.selectedHighlightColor == color
+
+                Button {
+                    appState.selectHighlightColor(color)
+                } label: {
+                    ZStack {
+                        if isSelected {
+                            Circle()
+                                .fill(TokyoNight.foregroundColor.opacity(0.14))
+                                .frame(width: 31, height: 31)
+                            Circle()
+                                .stroke(TokyoNight.foregroundColor, lineWidth: 2.5)
+                                .frame(width: 27, height: 27)
+                        }
+
+                        Circle()
+                            .fill(color.swatchColor)
+                            .frame(width: isSelected ? 20 : 12, height: isSelected ? 20 : 12)
+                            .overlay(
+                                Circle()
+                                    .stroke(
+                                        isSelected ? TokyoNight.backgroundDeepColor.opacity(0.9) : TokyoNight.borderColor.opacity(0.55),
+                                        lineWidth: isSelected ? 1.5 : 1
+                                    )
+                            )
+                    }
+                    .frame(width: 32, height: 32)
+                    .animation(.easeInOut(duration: 0.12), value: isSelected)
+                }
+                .buttonStyle(.plain)
+                .help(color.helpText)
+            }
+        }
+        .padding(.horizontal, 8)
+        .frame(height: 36)
+        .background(TokyoNight.panelElevatedColor.opacity(0.7))
+        .overlay(
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .stroke(TokyoNight.borderColor.opacity(0.55), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+    }
+}
+
+struct TabButton: View {
+    @EnvironmentObject private var appState: AppState
+    let tab: PDFTab
+    let isSelected: Bool
+    let width: CGFloat
+
+    var body: some View {
+        HStack(spacing: width < 70 ? 4 : 7) {
+            ClippedTabTitle(title: tab.title, isSelected: isSelected)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .clipped()
+
+            if isSelected, width >= 90 {
+                Button {
+                    appState.closeSelectedTab()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 9.5, weight: .semibold))
+                        .foregroundStyle(TokyoNight.foregroundColor.opacity(0.68))
+                        .frame(width: 16, height: 16)
+                        .background(TokyoNight.panelColor.opacity(0.85))
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .help("Close Tab")
+            }
+        }
+        .padding(.leading, width < 70 ? 6 : 12)
+        .padding(.trailing, isSelected && width >= 90 ? 8 : (width < 70 ? 6 : 12))
+        .frame(width: width, height: 32)
+        .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .onTapGesture {
+            if !isSelected {
+                appState.selectTab(tab.id)
+            }
+        }
+        .help(tab.title)
+        .background(isSelected ? TokyoNight.panelElevatedColor : TokyoNight.panelColor.opacity(0.58))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(isSelected ? TokyoNight.blueColor.opacity(0.38) : TokyoNight.borderColor.opacity(0.32), lineWidth: 1)
+        )
+        .overlay(alignment: .bottom) {
+            if isSelected {
+                Rectangle()
+                    .fill(TokyoNight.blueColor.opacity(0.9))
+                    .frame(height: 2)
+                    .padding(.horizontal, 10)
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+}
+
+struct ClippedTabTitle: NSViewRepresentable {
+    let title: String
+    let isSelected: Bool
+
+    func makeNSView(context: Context) -> NSTextField {
+        let textField = NSTextField(labelWithString: title)
+        textField.lineBreakMode = .byClipping
+        textField.maximumNumberOfLines = 1
+        textField.alignment = .left
+        textField.isSelectable = false
+        textField.allowsDefaultTighteningForTruncation = false
+        textField.backgroundColor = .clear
+        textField.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        textField.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        return textField
+    }
+
+    func updateNSView(_ textField: NSTextField, context: Context) {
+        textField.stringValue = title
+        textField.font = .systemFont(ofSize: 12.5, weight: isSelected ? .semibold : .regular)
+        textField.textColor = isSelected
+            ? TokyoNight.foreground
+            : TokyoNight.foreground.withAlphaComponent(0.76)
+        textField.lineBreakMode = .byClipping
+        textField.maximumNumberOfLines = 1
+        textField.alignment = .left
+    }
+}
+
+struct ReaderStack: View {
+    @EnvironmentObject private var appState: AppState
+
+    var body: some View {
+        ZStack {
+            if appState.tabs.isEmpty {
+                EmptyReader()
+            } else {
+                ForEach(appState.tabs) { tab in
+                    let isSelected = tab.id == appState.selectedTabID
+
+                    if let document = tab.document {
+                        PDFReader(
+                            tabID: tab.id,
+                            document: document,
+                            snapshot: tab.snapshot,
+                            isActive: isSelected
+                        )
+                        .opacity(isSelected ? 1 : 0)
+                        .allowsHitTesting(isSelected)
+                        .accessibilityHidden(!isSelected)
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+struct EmptyReader: View {
+    @EnvironmentObject private var appState: AppState
+
+    var body: some View {
+        VStack(spacing: 18) {
+            Image(systemName: "doc.text.magnifyingglass")
+                .font(.system(size: 56, weight: .light))
+                .foregroundStyle(TokyoNight.mutedColor)
+
+            Text("Open a PDF")
+                .font(.title2.weight(.semibold))
+                .foregroundStyle(TokyoNight.foregroundColor)
+
+            Button {
+                appState.openPanel(mode: .currentTab)
+            } label: {
+                Label("Choose File", systemImage: "folder")
+            }
+            .keyboardShortcut("o", modifiers: [.command])
+            .tint(TokyoNight.blueColor)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(TokyoNight.backgroundColor)
+        .background(KeyboardCapture(appState: appState))
+    }
+}
+
+struct OutlineSidebar: View {
+    @EnvironmentObject private var appState: AppState
+    let tab: PDFTab?
+
+    var body: some View {
+        VStack(spacing: 0) {
+            if let document = tab?.document {
+                let items = PDFOutlineBuilder.items(for: document)
+                OutlineSidebarHeader()
+                TokyoNightDivider(axis: .horizontal)
+
+                if items.isEmpty {
+                    OutlinePlaceholder(text: "No contents")
+                } else {
+                    PDFOutlineView(
+                        items: items,
+                        focusGeneration: appState.outlineFocusGeneration,
+                        appState: appState
+                    )
+                }
+            } else {
+                OutlineSidebarHeader()
+                TokyoNightDivider(axis: .horizontal)
+                OutlinePlaceholder(text: "No document")
+            }
+        }
+        .background {
+            ZStack {
+                SidebarVisualEffectBackground()
+                TokyoNight.backgroundDeepColor.opacity(0.46)
+            }
+        }
+        .overlay(alignment: .trailing) {
+            Rectangle()
+                .fill(TokyoNight.borderColor.opacity(0.28))
+                .frame(width: 1)
+        }
+    }
+}
+
+struct OutlineSidebarHeader: View {
+    var body: some View {
+        HStack(spacing: 8) {
+            Text("Contents")
+                .font(.system(size: 13.5, weight: .semibold))
+                .foregroundStyle(TokyoNight.foregroundColor)
+
+            Spacer(minLength: 8)
+        }
+        .padding(.horizontal, 16)
+        .frame(height: 44)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(TokyoNight.backgroundDeepColor.opacity(0.34))
+    }
+}
+
+struct SidebarVisualEffectBackground: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = .hudWindow
+        view.blendingMode = .behindWindow
+        view.state = .active
+        view.isEmphasized = false
+        return view
+    }
+
+    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
+        nsView.material = .hudWindow
+        nsView.blendingMode = .behindWindow
+        nsView.state = .active
+        nsView.isEmphasized = false
+    }
+}
+
+struct OutlinePlaceholder: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 13, weight: .medium))
+            .foregroundStyle(TokyoNight.mutedColor)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+final class PDFOutlineItem: NSObject {
+    let id: String
+    let title: String
+    let destination: PDFDestination?
+    let pageIndex: Int?
+    weak var parent: PDFOutlineItem?
+    var children: [PDFOutlineItem] = []
+
+    init(
+        id: String,
+        title: String,
+        destination: PDFDestination?,
+        pageIndex: Int?,
+        parent: PDFOutlineItem?
+    ) {
+        self.id = id
+        self.title = title
+        self.destination = destination
+        self.pageIndex = pageIndex
+        self.parent = parent
+        super.init()
+    }
+}
+
+enum PDFOutlineBuilder {
+    static func items(for document: PDFDocument) -> [PDFOutlineItem] {
+        guard let root = document.outlineRoot else { return [] }
+        return children(of: root, document: document, parent: nil, path: "")
+    }
+
+    private static func children(
+        of outline: PDFOutline,
+        document: PDFDocument,
+        parent: PDFOutlineItem?,
+        path: String
+    ) -> [PDFOutlineItem] {
+        (0..<outline.numberOfChildren).compactMap { index in
+            guard let child = outline.child(at: index) else { return nil }
+
+            let itemPath = path.isEmpty ? "\(index)" : "\(path).\(index)"
+            let destination = child.destination
+            let pageIndex = destination?.page.map { document.index(for: $0) }
+            let fallbackTitle = pageIndex.map { "Page \($0 + 1)" } ?? "Untitled"
+            let title = child.label?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .nilIfEmpty ?? fallbackTitle
+
+            let item = PDFOutlineItem(
+                id: itemPath,
+                title: title,
+                destination: destination,
+                pageIndex: pageIndex,
+                parent: parent
+            )
+            item.children = children(of: child, document: document, parent: item, path: itemPath)
+            return item
+        }
+    }
+}
+
+struct PDFOutlineView: NSViewRepresentable {
+    let items: [PDFOutlineItem]
+    let focusGeneration: Int
+    let appState: AppState
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(items: items, appState: appState)
+    }
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let outlineView = PDFOutlineKeyView()
+        outlineView.appState = appState
+        outlineView.dataSource = context.coordinator
+        outlineView.delegate = context.coordinator
+        outlineView.target = context.coordinator
+        outlineView.doubleAction = #selector(Coordinator.doubleClick(_:))
+        outlineView.headerView = nil
+        outlineView.backgroundColor = .clear
+        outlineView.selectionHighlightStyle = .regular
+        outlineView.allowsEmptySelection = false
+        outlineView.allowsMultipleSelection = false
+        outlineView.indentationPerLevel = 14
+        outlineView.intercellSpacing = NSSize(width: 0, height: 3)
+        outlineView.rowHeight = 32
+        outlineView.rowSizeStyle = .medium
+        outlineView.gridStyleMask = []
+        if #available(macOS 11.0, *) {
+            outlineView.style = .plain
+        }
+
+        let column = NSTableColumn(identifier: Coordinator.columnIdentifier)
+        column.resizingMask = .autoresizingMask
+        outlineView.addTableColumn(column)
+        outlineView.outlineTableColumn = column
+
+        let scrollView = NSScrollView()
+        scrollView.drawsBackground = false
+        scrollView.backgroundColor = .clear
+        scrollView.hasVerticalScroller = false
+        scrollView.hasHorizontalScroller = false
+        scrollView.autohidesScrollers = true
+        scrollView.automaticallyAdjustsContentInsets = false
+        scrollView.contentInsets = NSEdgeInsets(top: 10, left: 0, bottom: 12, right: 0)
+        scrollView.documentView = outlineView
+
+        outlineView.reloadData()
+        outlineView.expandItem(nil, expandChildren: false)
+        context.coordinator.selectInitialRow(in: outlineView)
+
+        return scrollView
+    }
+
+    func updateNSView(_ scrollView: NSScrollView, context: Context) {
+        guard let outlineView = scrollView.documentView as? PDFOutlineKeyView else { return }
+
+        context.coordinator.appState = appState
+        outlineView.appState = appState
+
+        if context.coordinator.updateItemsIfNeeded(items, in: outlineView) {
+            outlineView.expandItem(nil, expandChildren: false)
+            context.coordinator.selectInitialRow(in: outlineView)
+        }
+
+        if context.coordinator.lastFocusGeneration != focusGeneration {
+            context.coordinator.lastFocusGeneration = focusGeneration
+            DispatchQueue.main.async { [weak outlineView] in
+                outlineView?.focus()
+            }
+        }
+    }
+
+    @MainActor
+    final class Coordinator: NSObject, NSOutlineViewDataSource, NSOutlineViewDelegate {
+        static let columnIdentifier = NSUserInterfaceItemIdentifier("PDFOutlineColumn")
+        private static let cellIdentifier = NSUserInterfaceItemIdentifier("PDFOutlineCell")
+
+        var appState: AppState
+        var lastFocusGeneration = 0
+        private var items: [PDFOutlineItem]
+        private var itemSignature: String
+
+        init(items: [PDFOutlineItem], appState: AppState) {
+            self.items = items
+            self.appState = appState
+            itemSignature = Self.signature(for: items)
+            super.init()
+        }
+
+        func updateItemsIfNeeded(_ nextItems: [PDFOutlineItem], in outlineView: NSOutlineView) -> Bool {
+            let nextSignature = Self.signature(for: nextItems)
+            guard nextSignature != itemSignature else { return false }
+
+            let selectedID = selectedItem(in: outlineView)?.id
+            let expandedIDs = expandedItemIDs(in: outlineView)
+            items = nextItems
+            itemSignature = nextSignature
+            outlineView.reloadData()
+            restoreExpandedItems(expandedIDs, in: outlineView)
+            restoreSelection(selectedID, in: outlineView)
+            return true
+        }
+
+        func selectInitialRow(in outlineView: NSOutlineView) {
+            guard outlineView.numberOfRows > 0, outlineView.selectedRow < 0 else { return }
+            outlineView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+        }
+
+        func outlineView(_ outlineView: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int {
+            guard let item = item as? PDFOutlineItem else { return items.count }
+            return item.children.count
+        }
+
+        func outlineView(_ outlineView: NSOutlineView, child index: Int, ofItem item: Any?) -> Any {
+            guard let item = item as? PDFOutlineItem else { return items[index] }
+            return item.children[index]
+        }
+
+        func outlineView(_ outlineView: NSOutlineView, isItemExpandable item: Any) -> Bool {
+            guard let item = item as? PDFOutlineItem else { return false }
+            return !item.children.isEmpty
+        }
+
+        func outlineView(
+            _ outlineView: NSOutlineView,
+            viewFor tableColumn: NSTableColumn?,
+            item: Any
+        ) -> NSView? {
+            guard let item = item as? PDFOutlineItem else { return nil }
+
+            let cell = outlineView.makeView(
+                withIdentifier: Self.cellIdentifier,
+                owner: self
+            ) as? NSTableCellView ?? makeCell()
+
+            cell.textField?.stringValue = item.title
+            if let pageIndex = item.pageIndex {
+                cell.textField?.toolTip = "\(item.title) · Page \(pageIndex + 1)"
+            } else {
+                cell.textField?.toolTip = item.title
+            }
+            return cell
+        }
+
+        func outlineView(_ outlineView: NSOutlineView, heightOfRowByItem item: Any) -> CGFloat {
+            32
+        }
+
+        func outlineView(_ outlineView: NSOutlineView, rowViewForItem item: Any) -> NSTableRowView? {
+            TokyoNightOutlineRowView()
+        }
+
+        @objc func doubleClick(_ sender: NSOutlineView) {
+            guard let destination = selectedItem(in: sender)?.destination else { return }
+            appState.jumpToOutlineDestination(destination)
+        }
+
+        private func makeCell() -> NSTableCellView {
+            let cell = NSTableCellView()
+            cell.identifier = Self.cellIdentifier
+
+            let textField = NSTextField(labelWithString: "")
+            textField.translatesAutoresizingMaskIntoConstraints = false
+            textField.lineBreakMode = .byTruncatingTail
+            textField.maximumNumberOfLines = 1
+            textField.font = .systemFont(ofSize: 13, weight: .medium)
+            textField.textColor = TokyoNight.foreground.withAlphaComponent(0.88)
+            textField.backgroundColor = .clear
+            textField.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+
+            cell.addSubview(textField)
+            cell.textField = textField
+
+            NSLayoutConstraint.activate([
+                textField.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 0),
+                textField.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -8),
+                textField.centerYAnchor.constraint(equalTo: cell.centerYAnchor)
+            ])
+
+            return cell
+        }
+
+        private func selectedItem(in outlineView: NSOutlineView) -> PDFOutlineItem? {
+            guard outlineView.selectedRow >= 0 else { return nil }
+            return outlineView.item(atRow: outlineView.selectedRow) as? PDFOutlineItem
+        }
+
+        private func expandedItemIDs(in outlineView: NSOutlineView) -> Set<String> {
+            var ids = Set<String>()
+            for item in items.flattened() where outlineView.isItemExpanded(item) {
+                ids.insert(item.id)
+            }
+            return ids
+        }
+
+        private func restoreExpandedItems(_ ids: Set<String>, in outlineView: NSOutlineView) {
+            for item in items.flattened() where ids.contains(item.id) {
+                outlineView.expandItem(item)
+            }
+        }
+
+        private func restoreSelection(_ id: String?, in outlineView: NSOutlineView) {
+            guard let id,
+                  let item = items.flattened().first(where: { $0.id == id }) else {
+                selectInitialRow(in: outlineView)
+                return
+            }
+
+            let row = outlineView.row(forItem: item)
+            guard row >= 0 else {
+                selectInitialRow(in: outlineView)
+                return
+            }
+
+            outlineView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+            outlineView.scrollRowToVisible(row)
+        }
+
+        private static func signature(for items: [PDFOutlineItem]) -> String {
+            items.flattened()
+                .map { "\($0.id)|\($0.title)|\($0.pageIndex ?? -1)" }
+                .joined(separator: "\n")
+        }
+    }
+}
+
+final class TokyoNightOutlineRowView: NSTableRowView {
+    private static let horizontalInset: CGFloat = 10
+    private var mouseInside = false {
+        didSet { needsDisplay = true }
+    }
+    private var hoverTrackingArea: NSTrackingArea?
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+
+        if let hoverTrackingArea {
+            removeTrackingArea(hoverTrackingArea)
+            self.hoverTrackingArea = nil
+        }
+
+        let trackingArea = NSTrackingArea(
+            rect: bounds,
+            options: [.mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect],
+            owner: self,
+            userInfo: nil
+        )
+        addTrackingArea(trackingArea)
+        hoverTrackingArea = trackingArea
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        super.mouseEntered(with: event)
+        mouseInside = true
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        super.mouseExited(with: event)
+        mouseInside = false
+    }
+
+    override func drawBackground(in dirtyRect: NSRect) {
+        if mouseInside && !isSelected {
+            let hoverRect = roundedBackgroundRect()
+            let path = NSBezierPath(roundedRect: hoverRect, xRadius: 7, yRadius: 7)
+            TokyoNight.panel.withAlphaComponent(0.38).setFill()
+            path.fill()
+        }
+    }
+
+    override func drawSelection(in dirtyRect: NSRect) {
+        guard isSelected else { return }
+
+        let selectionRect = roundedBackgroundRect()
+        let path = NSBezierPath(roundedRect: selectionRect, xRadius: 7, yRadius: 7)
+        TokyoNight.panelElevated.withAlphaComponent(0.82).setFill()
+        path.fill()
+
+        TokyoNight.blue.withAlphaComponent(0.18).setStroke()
+        path.lineWidth = 1
+        path.stroke()
+    }
+
+    private func roundedBackgroundRect() -> NSRect {
+        let visibleWidth = enclosingScrollView?.contentView.bounds.width ?? bounds.width
+        let width = min(bounds.width, visibleWidth)
+        return NSRect(
+            x: Self.horizontalInset,
+            y: 2,
+            width: max(0, width - Self.horizontalInset * 2),
+            height: max(0, bounds.height - 4)
+        )
+    }
+}
+
+final class PDFOutlineKeyView: NSOutlineView {
+    weak var appState: AppState?
+
+    override var acceptsFirstResponder: Bool { true }
+
+    override func frameOfOutlineCell(atRow row: Int) -> NSRect {
+        var frame = super.frameOfOutlineCell(atRow: row)
+        let level = outlineLevel(forRow: row)
+        frame.origin.x = 20 + CGFloat(level) * indentationPerLevel
+        return frame
+    }
+
+    override func frameOfCell(atColumn column: Int, row: Int) -> NSRect {
+        var frame = super.frameOfCell(atColumn: column, row: row)
+        let level = outlineLevel(forRow: row)
+        let textX = 36 + CGFloat(level) * indentationPerLevel
+        frame.origin.x = textX
+        frame.size.width = max(0, bounds.width - textX - 12)
+        return frame
+    }
+
+    func focus() {
+        window?.makeFirstResponder(self)
+    }
+
+    override func keyDown(with event: NSEvent) {
+        if handleOutlineKey(event) {
+            return
+        }
+
+        if appState?.handleKeyEvent(event) == true {
+            return
+        }
+
+        super.keyDown(with: event)
+    }
+
+    override func keyUp(with event: NSEvent) {
+        if appState?.handleKeyEvent(event) == true {
+            return
+        }
+
+        super.keyUp(with: event)
+    }
+
+    private func handleOutlineKey(_ event: NSEvent) -> Bool {
+        guard event.type == .keyDown else { return false }
+
+        if event.keyCode == 48 || event.charactersIgnoringModifiers == "\t" {
+            appState?.toggleOutlineSidebar()
+            return true
+        }
+
+        if event.keyCode == 36 || event.keyCode == 76 {
+            activateSelectedItem()
+            return true
+        }
+
+        guard event.modifierFlags.intersection([.command, .control, .option]).isEmpty else {
+            return false
+        }
+
+        let isShifted = event.modifierFlags.contains(.shift)
+        let key = event.charactersIgnoringModifiers?.lowercased()
+
+        switch key {
+        case "j" where !isShifted:
+            moveSelection(by: 1)
+        case "k" where !isShifted:
+            moveSelection(by: -1)
+        case "h" where !isShifted:
+            collapseSelectedItem()
+        case "l" where !isShifted:
+            expandSelectedItem()
+        default:
+            return false
+        }
+
+        return true
+    }
+
+    private func moveSelection(by delta: Int) {
+        guard numberOfRows > 0 else { return }
+
+        let startingRow = selectedRow >= 0
+            ? selectedRow
+            : (delta > 0 ? -1 : numberOfRows)
+        let nextRow = min(max(startingRow + delta, 0), numberOfRows - 1)
+        selectRowIndexes(IndexSet(integer: nextRow), byExtendingSelection: false)
+        scrollRowToVisible(nextRow)
+    }
+
+    private func collapseSelectedItem() {
+        guard let item = selectedOutlineItem else { return }
+
+        if isItemExpanded(item) {
+            collapseItem(item)
+            return
+        }
+
+        guard let parent = item.parent else { return }
+        let parentRow = row(forItem: parent)
+        guard parentRow >= 0 else { return }
+        selectRowIndexes(IndexSet(integer: parentRow), byExtendingSelection: false)
+        scrollRowToVisible(parentRow)
+    }
+
+    private func expandSelectedItem() {
+        guard let item = selectedOutlineItem, !item.children.isEmpty else { return }
+        expandItem(item)
+    }
+
+    private func activateSelectedItem() {
+        guard let item = selectedOutlineItem else { return }
+
+        if let destination = item.destination {
+            appState?.jumpToOutlineDestination(destination)
+        } else if !item.children.isEmpty {
+            isItemExpanded(item) ? collapseItem(item) : expandItem(item)
+        }
+    }
+
+    private var selectedOutlineItem: PDFOutlineItem? {
+        guard selectedRow >= 0 else { return nil }
+        return item(atRow: selectedRow) as? PDFOutlineItem
+    }
+
+    private func outlineLevel(forRow row: Int) -> Int {
+        guard row >= 0, let item = item(atRow: row) else { return 0 }
+        return level(forItem: item)
+    }
+}
+
+private extension Array where Element == PDFOutlineItem {
+    func flattened() -> [PDFOutlineItem] {
+        flatMap { item in
+            [item] + item.children.flattened()
+        }
+    }
+}
+
+private extension String {
+    var nilIfEmpty: String? {
+        isEmpty ? nil : self
+    }
+
+    var normalizedForAIContext: String {
+        components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+            .lowercased()
+    }
+
+    var aiPopoverTitle: String {
+        let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
+        let title = trimmed.count > 44 ? String(trimmed.prefix(44)) + "..." : trimmed
+        return "Explain: \(title)"
+    }
+
+    func prefixString(_ maxLength: Int) -> String {
+        String(prefix(maxLength))
+    }
+
+    func limitedForAIContext(_ maxLength: Int = 4000) -> String {
+        let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count > maxLength else { return trimmed }
+        return String(trimmed.prefix(maxLength)) + "\n..."
+    }
+}
+
+private extension Array where Element == String {
+    func chunked(maxCharacters: Int) -> [String] {
+        var chunks: [String] = []
+        var current = ""
+
+        for line in self {
+            if current.count + line.count + 1 > maxCharacters, !current.isEmpty {
+                chunks.append(current)
+                current = line
+            } else if current.isEmpty {
+                current = line
+            } else {
+                current += " " + line
+            }
+        }
+
+        if !current.isEmpty {
+            chunks.append(current)
+        }
+
+        return chunks
+    }
+}
+
+private extension NSColor {
+    func persistentHighlightColor() -> NSColor {
+        guard let rgb = usingColorSpace(.deviceRGB) else {
+            return withAlphaComponent(1)
+        }
+
+        let sourceOpacity: CGFloat = 0.42
+        return NSColor(
+            calibratedRed: rgb.redComponent * sourceOpacity + (1 - sourceOpacity),
+            green: rgb.greenComponent * sourceOpacity + (1 - sourceOpacity),
+            blue: rgb.blueComponent * sourceOpacity + (1 - sourceOpacity),
+            alpha: 1
+        )
+    }
+}
+
+enum AIExplanationPopoverKind {
+    case hover
+    case message
+    case streaming
+
+    var behavior: NSPopover.Behavior {
+        switch self {
+        case .hover:
+            return .applicationDefined
+        case .message, .streaming:
+            return .transient
+        }
+    }
+
+    var animates: Bool {
+        switch self {
+        case .hover, .message, .streaming:
+            return true
+        }
+    }
+
+    var shouldFocusWebView: Bool {
+        switch self {
+        case .hover:
+            return false
+        case .message, .streaming:
+            return true
+        }
+    }
+
+    var allowsDynamicHeight: Bool {
+        switch self {
+        case .hover, .message, .streaming:
+            return true
+        }
+    }
+
+    var autoScrollOnUpdate: Bool {
+        switch self {
+        case .hover, .message, .streaming:
+            return false
+        }
+    }
+}
+
+struct PDFReader: NSViewRepresentable {
+    @EnvironmentObject private var appState: AppState
+    let tabID: PDFTab.ID
+    let document: PDFDocument
+    let snapshot: ReaderSnapshot?
+    let isActive: Bool
+
+    func makeNSView(context: Context) -> VimPDFView {
+        let view = VimPDFView()
+        view.appState = appState
+        view.saveBeforeDismantle = { [weak appState, weak view] in
+            guard let snapshot = view?.snapshot() else { return }
+            appState?.saveSnapshot(snapshot, for: tabID)
+        }
+        view.backgroundColor = TokyoNight.background
+        view.displayMode = .singlePageContinuous
+        view.displayDirection = .vertical
+        view.displaysPageBreaks = true
+        view.document = document
+        view.restore(snapshot)
+        appState.setActivePDFView(view, for: tabID)
+        if isActive, !appState.isOutlineVisible {
+            view.focus()
+        }
+        return view
+    }
+
+    func updateNSView(_ nsView: VimPDFView, context: Context) {
+        nsView.appState = appState
+        nsView.saveBeforeDismantle = { [weak appState, weak nsView] in
+            guard let snapshot = nsView?.snapshot() else { return }
+            appState?.saveSnapshot(snapshot, for: tabID)
+        }
+
+        if nsView.document !== document {
+            nsView.document = document
+            nsView.restore(snapshot)
+        }
+
+        appState.setActivePDFView(nsView, for: tabID)
+        if isActive, !appState.isOutlineVisible {
+            DispatchQueue.main.async {
+                nsView.focus()
+            }
+        }
+    }
+
+    static func dismantleNSView(_ nsView: VimPDFView, coordinator: ()) {
+        nsView.saveBeforeDismantle?()
+    }
+}
+
+private struct VimTextSelectionNavigationState {
+    var anchorOffset: Int
+    var extentOffset: Int
+    var preferredX: CGFloat?
+    var anchorCaret: VimTextCaret?
+    var extentCaret: VimTextCaret?
+}
+
+private struct VimTextCaret {
+    let offset: Int
+    let pageIndex: Int
+    let slotIndex: Int
+    let point: NSPoint
+    let lineMidY: CGFloat
+}
+
+private struct VimTextLineCharacter {
+    let globalOffset: Int
+    let minX: CGFloat
+    let centerX: CGFloat
+    let maxX: CGFloat
+    let centerY: CGFloat
+    let height: CGFloat
+}
+
+private struct VimTextLine {
+    let pageIndex: Int
+    let startOffset: Int
+    let endOffset: Int
+    let midY: CGFloat
+    let characters: [VimTextLineCharacter]
+}
+
+private struct VimTextCaretPosition {
+    let pageIndex: Int
+    let lineIndex: Int
+    let slotIndex: Int
+}
+
+private enum VimTextCharacterClass: Equatable {
+    case whitespace
+    case word
+    case punctuation
+}
+
+final class VimPDFView: PDFView {
+    private static let textSelectionNavigationKeys: Set<String> = ["h", "j", "k", "l", "w", "b", "e"]
+
+    weak var appState: AppState?
+    var saveBeforeDismantle: (() -> Void)?
+    private var scrollTargetOrigin: NSPoint?
+    private var scrollTimer: Timer?
+    private var lastScrollTick = Date.timeIntervalSinceReferenceDate
+    private var zoomTargetScale: CGFloat?
+    private var zoomAnchor: PDFDestination?
+    private var zoomTimer: Timer?
+    private var lastZoomTick = Date.timeIntervalSinceReferenceDate
+    private var jumpBackStack: [ReaderSnapshot] = []
+    private var jumpForwardStack: [ReaderSnapshot] = []
+    private var restoreGeneration = 0
+    private var explanationTrackingArea: NSTrackingArea?
+    private var explanationPopover: NSPopover?
+    private var activeExplanationModel: AIExplanationPopoverModel?
+    private var activeAISelection: PDFSelection?
+    private var activeAIExistingAnnotations: [PDFAnnotation] = []
+    private var activeAIExplanationTask: Task<Void, Never>?
+    private weak var activeAIWebView: AIExplanationWebView?
+    private var activeAIContinuousScrollKey: String?
+    private var pendingPopoverContentHeight: CGFloat?
+    private var popoverHeightUpdateWorkItem: DispatchWorkItem?
+    private weak var hoveredExplanationAnnotation: PDFAnnotation?
+    private var hoveredExplanationText: String?
+    private var hoveredExplanationKey: String?
+    private var suppressedHoverExplanationKey: String?
+    private weak var suppressedHoverExplanationAnnotation: PDFAnnotation?
+    private var suppressedHoverExplanationText: String?
+    private var hoverPopoverHideWorkItem: DispatchWorkItem?
+    private var isMouseSelectingText = false
+    private var textSelectionNavigationState: VimTextSelectionNavigationState?
+
+    override var acceptsFirstResponder: Bool { true }
+
+    var isAIInteractionActive: Bool {
+        explanationPopover?.isShown == true || activeExplanationModel != nil
+    }
+
+    var hasNavigableTextSelection: Bool {
+        guard let selection = currentSelection else { return false }
+        if selection.string?.isEmpty == false {
+            return true
+        }
+
+        return selection.pages.contains { page in
+            !selection.bounds(for: page).isEmpty
+        }
+    }
+
+    var hasAnyTextSelection: Bool {
+        currentSelection != nil
+    }
+
+    func handleTextSelectionKeyEvent(_ event: NSEvent) -> Bool {
+        guard event.modifierFlags.intersection([.command, .control, .option]).isEmpty,
+              let rawKey = event.charactersIgnoringModifiers,
+              !rawKey.isEmpty else {
+            return false
+        }
+
+        return handleTextSelectionKey(rawKey, eventType: event.type)
+    }
+
+    func handleTextSelectionKey(_ rawKey: String, eventType: NSEvent.EventType) -> Bool {
+        let key = rawKey.lowercased()
+
+        if key == "\u{1b}" {
+            guard hasAnyTextSelection else { return false }
+            if eventType == .keyDown {
+                clearTextSelectionForVimNavigation()
+            }
+            return true
+        }
+
+        guard Self.textSelectionNavigationKeys.contains(key), hasNavigableTextSelection else { return false }
+
+        switch eventType {
+        case .keyDown:
+            stopScrollAnimation()
+            _ = vimNavigateTextSelection(key)
+            return true
+        case .keyUp:
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func clearTextSelectionForVimNavigation() {
+        stopScrollAnimation()
+        textSelectionNavigationState = nil
+        clearSelection()
+        needsDisplay = true
+        focus()
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        window?.acceptsMouseMovedEvents = true
+        configurePDFScrollers()
+        updateExplanationTrackingArea()
+        if appState?.isOutlineVisible != true {
+            focus()
+        }
+        DispatchQueue.main.async { [weak self] in
+            self?.configurePDFScrollers()
+        }
+    }
+
+    override func layout() {
+        super.layout()
+        configurePDFScrollers()
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        updateExplanationTrackingArea()
+    }
+
+    func focus() {
+        window?.makeFirstResponder(self)
+    }
+
+    override func keyDown(with event: NSEvent) {
+        if appState?.handleKeyEvent(event) == true {
+            return
+        }
+        super.keyDown(with: event)
+    }
+
+    override func keyUp(with event: NSEvent) {
+        if appState?.handleKeyEvent(event) == true {
+            return
+        }
+        super.keyUp(with: event)
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        super.mouseMoved(with: event)
+        updateHoveredAIExplanation(for: event)
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        isMouseSelectingText = true
+        textSelectionNavigationState = nil
+        hideAIExplanationPopover()
+        super.mouseDown(with: event)
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        isMouseSelectingText = true
+        hideAIExplanationPopover()
+        super.mouseDragged(with: event)
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        super.mouseUp(with: event)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) { [weak self] in
+            self?.isMouseSelectingText = false
+        }
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        super.mouseExited(with: event)
+        if hoveredExplanationAnnotation != nil {
+            scheduleHoverPopoverHide()
+        }
+    }
+
+    private func updateExplanationTrackingArea() {
+        if let explanationTrackingArea {
+            removeTrackingArea(explanationTrackingArea)
+            self.explanationTrackingArea = nil
+        }
+
+        guard window != nil else { return }
+
+        let trackingArea = NSTrackingArea(
+            rect: bounds,
+            options: [.mouseMoved, .mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect],
+            owner: self,
+            userInfo: nil
+        )
+        addTrackingArea(trackingArea)
+        explanationTrackingArea = trackingArea
+    }
+
+    private func configurePDFScrollers() {
+        guard let scrollView = pdfScrollView else { return }
+        scrollView.scrollerStyle = .overlay
+        scrollView.scrollerKnobStyle = .default
+        scrollView.autohidesScrollers = true
+        scrollView.hasVerticalScroller = true
+        scrollView.hasHorizontalScroller = true
+        scrollView.drawsBackground = false
+        scrollView.backgroundColor = .clear
+    }
+
+    private func updateHoveredAIExplanation(for event: NSEvent) {
+        if activeExplanationModel != nil, hoveredExplanationAnnotation == nil {
+            return
+        }
+
+        if isMouseSelectingText || currentSelection != nil || NSEvent.pressedMouseButtons != 0 {
+            hideAIExplanationPopover()
+            return
+        }
+
+        let point = convert(event.locationInWindow, from: nil)
+        guard let annotation = aiExplanationAnnotation(at: point),
+              let explanation = AIExplanationAnnotation.decode(annotation.contents) else {
+            if let suppressedHoverExplanationAnnotation,
+               let suppressedHoverExplanationText,
+               isPoint(point, insideExplanationGroupFor: suppressedHoverExplanationAnnotation, explanation: suppressedHoverExplanationText) {
+                hideAIExplanationPopover()
+                return
+            }
+
+            if let hoveredExplanationAnnotation,
+               let hoveredExplanationText,
+               isPoint(point, insideExplanationGroupFor: hoveredExplanationAnnotation, explanation: hoveredExplanationText) {
+                cancelPendingHoverPopoverHide()
+                return
+            }
+
+            clearSuppressedHoverExplanation()
+            scheduleHoverPopoverHide()
+            return
+        }
+        let hoverKey = hoverExplanationKey(for: annotation, explanation: explanation)
+
+        if suppressedHoverExplanationKey == hoverKey {
+            hideAIExplanationPopover()
+            return
+        }
+        clearSuppressedHoverExplanation()
+
+        cancelPendingHoverPopoverHide()
+
+        if hoveredExplanationKey == hoverKey,
+           hoveredExplanationText == explanation,
+           explanationPopover?.isShown == true {
+            hoveredExplanationAnnotation = annotation
+            return
+        }
+
+        showAIExplanationPopover(explanation, at: point, annotation: annotation, hoverKey: hoverKey)
+    }
+
+    private func aiExplanationAnnotation(at pointInView: NSPoint) -> PDFAnnotation? {
+        guard let page = page(for: pointInView, nearest: false) else { return nil }
+
+        let pointOnPage = convert(pointInView, to: page)
+        return page.annotations.reversed().first { annotation in
+            annotation.type == "Highlight"
+                && AIExplanationAnnotation.decode(annotation.contents) != nil
+                && highlightRegions(for: annotation).contains { region in
+                    region.insetBy(dx: -2, dy: -2).contains(pointOnPage)
+                }
+        }
+    }
+
+    private func showAIExplanationPopover(
+        _ explanation: String,
+        at point: NSPoint,
+        annotation: PDFAnnotation,
+        hoverKey: String
+    ) {
+        let model = AIExplanationPopoverModel(
+            title: "Saved explanation",
+            text: explanation,
+            initialHeight: AIExplanationPopoverMetrics.estimatedHoverHeight(for: explanation)
+        )
+        showPopover(
+            model: model,
+            at: explanationPopoverAnchorRect(for: annotation, explanation: explanation, fallbackPoint: point),
+            kind: .hover
+        )
+        clearSuppressedHoverExplanation()
+        hoveredExplanationAnnotation = annotation
+        hoveredExplanationText = explanation
+        hoveredExplanationKey = hoverKey
+    }
+
+    private func showAIMessage(_ message: String, at rect: NSRect? = nil) {
+        let model = AIExplanationPopoverModel(
+            title: "VimPDF",
+            text: message,
+            initialHeight: AIExplanationPopoverMetrics.compactInitialHeight
+        )
+        showPopover(model: model, at: rect ?? selectionPopoverRect(for: currentSelection), kind: .message)
+        clearSuppressedHoverExplanation()
+        hoveredExplanationAnnotation = nil
+        hoveredExplanationText = message
+        hoveredExplanationKey = nil
+    }
+
+    private func showStreamingAIExplanationPopover(
+        title: String,
+        at rect: NSRect?
+    ) -> AIExplanationPopoverModel? {
+        let model = AIExplanationPopoverModel(
+            title: title,
+            isStreaming: true,
+            initialHeight: AIExplanationPopoverMetrics.streamingMinimumHeight
+        )
+        showPopover(model: model, at: rect ?? selectionPopoverRect(for: currentSelection), kind: .streaming)
+        clearSuppressedHoverExplanation()
+        hoveredExplanationAnnotation = nil
+        hoveredExplanationText = nil
+        hoveredExplanationKey = nil
+        return model
+    }
+
+    private func showPopover(
+        model: AIExplanationPopoverModel,
+        at rect: NSRect?,
+        kind: AIExplanationPopoverKind
+    ) {
+        guard window != nil else { return }
+        cancelPendingHoverPopoverHide()
+        hideAIExplanationPopover()
+
+        let popover = NSPopover()
+        popover.behavior = kind.behavior
+        popover.animates = kind.animates
+        popover.contentSize = model.preferredSize
+        popover.contentViewController = NSHostingController(
+            rootView: AIExplanationPopoverView(
+                model: model,
+                kind: kind,
+                onDismiss: { [weak self] in
+                    switch kind {
+                    case .hover:
+                        self?.dismissHoverAIExplanation(suppressCurrent: true)
+                    case .message, .streaming:
+                        self?.dismissActiveAIInteraction(clearSelection: true)
+                    }
+                },
+                onHighlight: { [weak self] in
+                    self?.highlightActiveAISelection()
+                },
+                onCycleColor: { [weak self] in
+                    self?.appState?.cycleHighlightColor(preserveFocus: true)
+                },
+                onContentHeightChange: { [weak self, model, kind] contentHeight in
+                    guard kind.allowsDynamicHeight else { return }
+
+                    switch kind {
+                    case .streaming:
+                        self?.scheduleStreamingPopoverHeightUpdate(model: model, contentHeight: contentHeight)
+                    case .message:
+                        self?.applyPopoverHeight(model: model, contentHeight: contentHeight, scrollToBottom: false)
+                    case .hover:
+                        self?.applyPopoverHeight(
+                            model: model,
+                            contentHeight: contentHeight,
+                            minimumHeight: AIExplanationPopoverMetrics.hoverMinimumHeight,
+                            scrollToBottom: false
+                        )
+                    }
+                },
+                onWebViewReady: { [weak self, kind] webView in
+                    self?.activeAIWebView = webView
+                    guard kind.shouldFocusWebView else { return }
+
+                    DispatchQueue.main.async { [weak webView] in
+                        guard let webView else { return }
+                        webView.window?.makeFirstResponder(webView)
+                    }
+                }
+            )
+        )
+
+        let anchor = rect ?? NSRect(x: bounds.midX, y: bounds.midY, width: 1, height: 1)
+        popover.show(relativeTo: anchor, of: self, preferredEdge: .maxY)
+        explanationPopover = popover
+        activeExplanationModel = model
+    }
+
+    private func scheduleStreamingPopoverHeightUpdate(model: AIExplanationPopoverModel, contentHeight: CGFloat) {
+        pendingPopoverContentHeight = contentHeight
+
+        guard popoverHeightUpdateWorkItem == nil else { return }
+
+        let workItem = DispatchWorkItem { [weak self, model] in
+            guard let self else { return }
+
+            let latestHeight = self.pendingPopoverContentHeight ?? contentHeight
+            self.pendingPopoverContentHeight = nil
+            self.popoverHeightUpdateWorkItem = nil
+            self.applyPopoverHeight(
+                model: model,
+                contentHeight: latestHeight,
+                minimumHeight: AIExplanationPopoverMetrics.streamingMinimumHeight,
+                scrollToBottom: true
+            )
+        }
+        popoverHeightUpdateWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.045, execute: workItem)
+    }
+
+    private func applyPopoverHeight(
+        model: AIExplanationPopoverModel,
+        contentHeight: CGFloat,
+        minimumHeight: CGFloat = AIExplanationPopoverMetrics.minimumHeight,
+        scrollToBottom: Bool
+    ) {
+        guard activeExplanationModel === model else { return }
+
+        if model.updateContentHeight(contentHeight, minimumHeight: minimumHeight) {
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0
+                context.allowsImplicitAnimation = false
+                explanationPopover?.contentSize = model.preferredSize
+            }
+        }
+
+        if scrollToBottom, let webView = activeAIWebView {
+            let shouldStickToBottom = ceil(contentHeight) > model.maximumHeight + 1
+            let alignScroll = { [weak webView] in
+                if shouldStickToBottom {
+                    webView?.scrollToBottom()
+                } else {
+                    webView?.scrollToTop()
+                }
+            }
+
+            alignScroll()
+            DispatchQueue.main.async {
+                alignScroll()
+            }
+        }
+    }
+
+    private func hideAIExplanationPopover() {
+        cancelPendingHoverPopoverHide()
+        popoverHeightUpdateWorkItem?.cancel()
+        popoverHeightUpdateWorkItem = nil
+        pendingPopoverContentHeight = nil
+        stopAIContinuousScroll()
+        explanationPopover?.close()
+        explanationPopover = nil
+        activeExplanationModel = nil
+        activeAIWebView = nil
+        hoveredExplanationAnnotation = nil
+        hoveredExplanationText = nil
+        hoveredExplanationKey = nil
+    }
+
+    private func dismissHoverAIExplanation(suppressCurrent: Bool) {
+        if suppressCurrent, let hoveredExplanationKey {
+            suppressedHoverExplanationKey = hoveredExplanationKey
+            suppressedHoverExplanationAnnotation = hoveredExplanationAnnotation
+            suppressedHoverExplanationText = hoveredExplanationText
+        }
+        hideAIExplanationPopover()
+        focus()
+    }
+
+    private func clearSuppressedHoverExplanation() {
+        suppressedHoverExplanationKey = nil
+        suppressedHoverExplanationAnnotation = nil
+        suppressedHoverExplanationText = nil
+    }
+
+    private func explanationPopoverAnchorRect(
+        for annotation: PDFAnnotation,
+        explanation: String,
+        fallbackPoint: NSPoint
+    ) -> NSRect {
+        guard let page = annotation.page else {
+            return NSRect(x: fallbackPoint.x, y: fallbackPoint.y, width: 1, height: 1)
+        }
+
+        let annotations = explanationAnnotations(matching: explanation, on: page)
+        let sourceAnnotations = annotations.isEmpty ? [annotation] : annotations
+        let points = sourceAnnotations.flatMap { annotation in
+            highlightRegions(for: annotation).flatMap { region in
+                [
+                    NSPoint(x: region.minX, y: region.minY),
+                    NSPoint(x: region.maxX, y: region.minY),
+                    NSPoint(x: region.minX, y: region.maxY),
+                    NSPoint(x: region.maxX, y: region.maxY)
+                ]
+            }
+        }
+
+        guard let pageRect = rect(containing: points) ?? rect(containing: [
+            NSPoint(x: annotation.bounds.minX, y: annotation.bounds.minY),
+            NSPoint(x: annotation.bounds.maxX, y: annotation.bounds.maxY)
+        ]),
+              let viewRect = viewRect(for: pageRect, on: page) else {
+            return NSRect(x: fallbackPoint.x, y: fallbackPoint.y, width: 1, height: 1)
+        }
+
+        return viewRect.insetBy(dx: -3, dy: -3)
+    }
+
+    private func explanationAnnotations(matching explanation: String, on page: PDFPage) -> [PDFAnnotation] {
+        page.annotations.filter { annotation in
+            annotation.type == "Highlight"
+                && AIExplanationAnnotation.decode(annotation.contents) == explanation
+        }
+    }
+
+    private func hoverExplanationKey(for annotation: PDFAnnotation, explanation: String) -> String {
+        let pageIndex: Int
+        if let page = annotation.page, let document {
+            let index = document.index(for: page)
+            pageIndex = index == NSNotFound ? -1 : index
+        } else {
+            pageIndex = -1
+        }
+
+        return "\(pageIndex):\(explanation)"
+    }
+
+    private func scheduleHoverPopoverHide() {
+        guard hoveredExplanationAnnotation != nil else { return }
+
+        hoverPopoverHideWorkItem?.cancel()
+        let workItem = DispatchWorkItem { [weak self] in
+            self?.hideHoverPopoverIfNeeded()
+        }
+        hoverPopoverHideWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.09, execute: workItem)
+    }
+
+    private func hideHoverPopoverIfNeeded() {
+        guard let hoveredExplanationKey else { return }
+
+        if mouseIsHoveringExplanationGroup(hoveredExplanationKey)
+            || mouseIsInsideExplanationPopover() {
+            scheduleHoverPopoverHide()
+            return
+        }
+
+        hideAIExplanationPopover()
+    }
+
+    private func cancelPendingHoverPopoverHide() {
+        hoverPopoverHideWorkItem?.cancel()
+        hoverPopoverHideWorkItem = nil
+    }
+
+    private func mouseIsInsideExplanationPopover() -> Bool {
+        guard let popoverWindow = explanationPopover?.contentViewController?.view.window else {
+            return false
+        }
+
+        return popoverWindow.frame.insetBy(dx: -3, dy: -3).contains(NSEvent.mouseLocation)
+    }
+
+    private func mouseIsHoveringExplanationGroup(_ hoverKey: String) -> Bool {
+        guard let point = currentMousePointInView(),
+              bounds.insetBy(dx: -4, dy: -4).contains(point) else { return false }
+
+        if let annotation = aiExplanationAnnotation(at: point),
+           let explanation = AIExplanationAnnotation.decode(annotation.contents) {
+            return hoverExplanationKey(for: annotation, explanation: explanation) == hoverKey
+        }
+
+        guard let hoveredExplanationAnnotation,
+              let hoveredExplanationText,
+              hoveredExplanationKey == hoverKey else { return false }
+
+        return isPoint(point, insideExplanationGroupFor: hoveredExplanationAnnotation, explanation: hoveredExplanationText)
+    }
+
+    private func isPoint(
+        _ pointInView: NSPoint,
+        insideExplanationGroupFor referenceAnnotation: PDFAnnotation,
+        explanation: String
+    ) -> Bool {
+        guard let page = referenceAnnotation.page else { return false }
+
+        let annotations = explanationAnnotations(matching: explanation, on: page)
+        let sourceAnnotations = annotations.isEmpty ? [referenceAnnotation] : annotations
+        let points = sourceAnnotations.flatMap { annotation in
+            highlightRegions(for: annotation).flatMap { region in
+                [
+                    NSPoint(x: region.minX, y: region.minY),
+                    NSPoint(x: region.maxX, y: region.minY),
+                    NSPoint(x: region.minX, y: region.maxY),
+                    NSPoint(x: region.maxX, y: region.maxY)
+                ]
+            }
+        }
+
+        guard let groupBounds = rect(containing: points) else { return false }
+        let pointOnPage = convert(pointInView, to: page)
+        return groupBounds.insetBy(dx: -5, dy: -8).contains(pointOnPage)
+    }
+
+    private func currentMousePointInView() -> NSPoint? {
+        guard let window else { return nil }
+
+        let pointInWindow = window.convertPoint(fromScreen: NSEvent.mouseLocation)
+        return convert(pointInWindow, from: nil)
+    }
+
+    func handleAIKeyEvent(_ event: NSEvent) -> Bool {
+        guard isAIInteractionActive else { return false }
+        guard event.modifierFlags.intersection([.command, .control, .option]).isEmpty else { return false }
+        guard let key = event.charactersIgnoringModifiers?.lowercased(), !key.isEmpty else { return false }
+
+        switch event.type {
+        case .keyDown:
+            if key == "\u{1b}", hoveredExplanationKey != nil {
+                dismissHoverAIExplanation(suppressCurrent: true)
+                return true
+            }
+
+            if key == "j" || key == "k" {
+                startAIContinuousScroll(key)
+                return true
+            }
+
+            if activeAIWebView?.handleKey(key) == true {
+                return true
+            }
+            return ["j", "k", "m", "c", "\u{1b}"].contains(key)
+        case .keyUp:
+            if key == "j" || key == "k" {
+                if activeAIContinuousScrollKey == key {
+                    stopAIContinuousScroll()
+                }
+                return true
+            }
+            return ["j", "k", "m", "c", "\u{1b}"].contains(key)
+        default:
+            return false
+        }
+    }
+
+    private func startAIContinuousScroll(_ key: String) {
+        guard activeAIContinuousScrollKey != key else { return }
+
+        activeAIContinuousScrollKey = key
+        activeAIWebView?.startContinuousScroll(direction: key == "j" ? 1 : -1)
+    }
+
+    private func stopAIContinuousScroll() {
+        activeAIContinuousScrollKey = nil
+        activeAIWebView?.stopContinuousScroll()
+    }
+
+    private func dismissActiveAIInteraction(clearSelection shouldClearSelection: Bool) {
+        activeAIExplanationTask?.cancel()
+        activeAIExplanationTask = nil
+        activeAISelection = nil
+        activeAIExistingAnnotations = []
+        if shouldClearSelection {
+            clearSelection()
+            textSelectionNavigationState = nil
+        }
+        hideAIExplanationPopover()
+        focus()
+    }
+
+    private func highlightActiveAISelection() {
+        guard let selection = activeAISelection ?? currentSelection else {
+            dismissActiveAIInteraction(clearSelection: true)
+            return
+        }
+
+        activeAIExplanationTask?.cancel()
+        activeAIExplanationTask = nil
+
+        let color = appState?.selectedHighlightColor.annotationColor ?? HighlightColor.yellow.annotationColor
+        let annotations = addHighlightAnnotations(for: selection, color: color)
+        let explanation = activeExplanationModel?.text
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .nilIfEmpty
+
+        if let explanation {
+            for annotation in annotations {
+                annotation.contents = AIExplanationAnnotation.encode(explanation)
+                annotation.userName = "VimPDF AI"
+                annotation.modificationDate = Date()
+            }
+        }
+
+        needsDisplay = true
+        persistAnnotationsIfPossible()
+        dismissActiveAIInteraction(clearSelection: true)
+    }
+
+    private func selectionPopoverRect(for selection: PDFSelection?) -> NSRect? {
+        guard let selection else { return nil }
+
+        let lineSelections = selection.selectionsByLine()
+        let selections = lineSelections.isEmpty ? [selection] : lineSelections
+
+        for lineSelection in selections {
+            for page in lineSelection.pages {
+                guard let bounds = tightHighlightBounds(for: lineSelection, on: page),
+                      let viewRect = viewRect(for: bounds, on: page) else { continue }
+                return viewRect
+            }
+        }
+
+        return nil
+    }
+
+    private func viewRect(for pageRect: NSRect, on page: PDFPage) -> NSRect? {
+        rect(containing: [
+            convert(NSPoint(x: pageRect.minX, y: pageRect.minY), from: page),
+            convert(NSPoint(x: pageRect.maxX, y: pageRect.minY), from: page),
+            convert(NSPoint(x: pageRect.minX, y: pageRect.maxY), from: page),
+            convert(NSPoint(x: pageRect.maxX, y: pageRect.maxY), from: page)
+        ])
+    }
+
+    @discardableResult
+    func vimNavigateTextSelection(_ key: String) -> Bool {
+        let key = key.lowercased()
+        guard ["h", "j", "k", "l", "w", "b", "e"].contains(key),
+              let document,
+              hasNavigableTextSelection else {
+            return false
+        }
+
+        let pageStarts = textPageStarts(in: document)
+        guard let totalLength = pageStarts.last, totalLength > 0 else { return false }
+
+        if textSelectionNavigationState == nil {
+            guard let range = currentSelectionCharacterRange(pageStarts: pageStarts) else { return false }
+            textSelectionNavigationState = VimTextSelectionNavigationState(
+                anchorOffset: range.start,
+                extentOffset: range.end,
+                preferredX: nil,
+                anchorCaret: textCaret(
+                    atInsertionOffset: range.start,
+                    preferTrailingEdge: false,
+                    pageStarts: pageStarts
+                ),
+                extentCaret: textCaret(
+                    atInsertionOffset: range.end,
+                    preferTrailingEdge: true,
+                    pageStarts: pageStarts
+                )
+            )
+        }
+
+        guard var state = textSelectionNavigationState else { return false }
+        var nextExtent: Int?
+        var nextExtentCaret: VimTextCaret?
+        var movementDirection = 0
+        var scrollCaretAfterSelection: VimTextCaret?
+        var useVisualSelection = false
+
+        switch key {
+        case "h":
+            nextExtent = state.extentOffset - 1
+            movementDirection = -1
+            state.preferredX = nil
+        case "l":
+            nextExtent = state.extentOffset + 1
+            movementDirection = 1
+            state.preferredX = nil
+        case "b":
+            nextExtent = wordBackwardOffset(from: state.extentOffset, in: document, pageStarts: pageStarts)
+            movementDirection = -1
+            state.preferredX = nil
+        case "w":
+            nextExtent = wordForwardOffset(from: state.extentOffset, in: document, pageStarts: pageStarts)
+            movementDirection = 1
+            state.preferredX = nil
+        case "e":
+            nextExtent = wordEndOffset(from: state.extentOffset, in: document, pageStarts: pageStarts)
+            movementDirection = 1
+            state.preferredX = nil
+        case "j", "k":
+            useVisualSelection = true
+            let verticalMove = verticalSelectionCaret(
+                from: state.extentCaret,
+                fallbackExtentOffset: state.extentOffset,
+                anchorOffset: state.anchorOffset,
+                anchorCaret: state.anchorCaret,
+                direction: key == "j" ? 1 : -1,
+                preferredX: state.preferredX,
+                pageStarts: pageStarts
+            )
+            nextExtent = verticalMove?.caret.offset
+            nextExtentCaret = verticalMove?.caret
+            scrollCaretAfterSelection = verticalMove?.caret
+            state.preferredX = verticalMove?.preferredX ?? state.preferredX
+            movementDirection = key == "j" ? 1 : -1
+        default:
+            return false
+        }
+
+        guard var extent = nextExtent else { return false }
+        extent = min(max(extent, 0), totalLength)
+        if !useVisualSelection, extent == state.anchorOffset {
+            extent = min(max(state.anchorOffset + movementDirection, 0), totalLength)
+        }
+        if useVisualSelection {
+            guard nextExtentCaret != nil,
+                  !sameVisualCaret(nextExtentCaret, state.anchorCaret) else { return true }
+        } else {
+            guard extent != state.anchorOffset else { return true }
+        }
+
+        state.extentOffset = extent
+        state.extentCaret = nextExtentCaret ?? textCaret(
+            atInsertionOffset: state.extentOffset,
+            preferTrailingEdge: state.extentOffset >= state.anchorOffset,
+            pageStarts: pageStarts
+        )
+
+        let didApplySelection = useVisualSelection
+            ? applyVisualTextSelection(anchorCaret: state.anchorCaret, extentCaret: state.extentCaret, pageStarts: pageStarts)
+                || applyTextSelection(
+                    anchorOffset: state.anchorOffset,
+                    extentOffset: state.extentOffset,
+                    pageStarts: pageStarts,
+                    scrollToEndpoint: scrollCaretAfterSelection == nil
+                )
+            : applyTextSelection(
+                anchorOffset: state.anchorOffset,
+                extentOffset: state.extentOffset,
+                pageStarts: pageStarts,
+                scrollToEndpoint: scrollCaretAfterSelection == nil
+            )
+
+        guard didApplySelection else {
+            textSelectionNavigationState = nil
+            return false
+        }
+
+        if let scrollCaretAfterSelection {
+            scrollTextCaretToVisible(scrollCaretAfterSelection)
+        }
+
+        textSelectionNavigationState = state
+        return true
+    }
+
+    private func currentSelectionCharacterRange(pageStarts: [Int]) -> (start: Int, end: Int)? {
+        guard let selection = currentSelection else { return nil }
+
+        var selectedRanges: [(start: Int, end: Int)] = []
+        for page in selection.pages {
+            guard let pageIndex = document?.index(for: page),
+                  pageIndex != NSNotFound,
+                  pageIndex + 1 < pageStarts.count else { continue }
+
+            let pageStart = pageStarts[pageIndex]
+            let rangeCount = selection.numberOfTextRanges(on: page)
+            for rangeIndex in 0..<rangeCount {
+                let range = selection.range(at: rangeIndex, on: page)
+                guard range.location != NSNotFound, range.length > 0 else { continue }
+
+                let start = pageStart + range.location
+                let end = min(pageStarts[pageIndex + 1], start + range.length)
+                guard end > start else { continue }
+                selectedRanges.append((start, end))
+            }
+        }
+
+        if let start = selectedRanges.map(\.start).min(),
+           let end = selectedRanges.map(\.end).max(),
+           end > start {
+            return (start, end)
+        }
+
+        var selectedOffsets: [Int] = []
+        let lineSelections = selection.selectionsByLine()
+        let selections = lineSelections.isEmpty ? [selection] : lineSelections
+        var pageRects: [Int: [NSRect]] = [:]
+
+        for lineSelection in selections {
+            for page in lineSelection.pages {
+                guard let pageIndex = document?.index(for: page),
+                      pageIndex != NSNotFound,
+                      pageIndex + 1 < pageStarts.count else { continue }
+
+                let bounds = lineSelection.bounds(for: page)
+                guard bounds.width > 0, bounds.height > 0 else { continue }
+                pageRects[pageIndex, default: []].append(bounds.insetBy(dx: -1.5, dy: -2.0))
+            }
+        }
+
+        for (pageIndex, rects) in pageRects {
+            guard let page = document?.page(at: pageIndex) else { continue }
+            let pageStart = pageStarts[pageIndex]
+            for characterIndex in 0..<page.numberOfCharacters {
+                let bounds = page.characterBounds(at: characterIndex)
+                guard bounds.width > 0, bounds.height > 0 else { continue }
+
+                let center = NSPoint(x: bounds.midX, y: bounds.midY)
+                if rects.contains(where: { rect in rect.contains(center) || rect.intersects(bounds) }) {
+                    selectedOffsets.append(pageStart + characterIndex)
+                }
+            }
+        }
+
+        guard let start = selectedOffsets.min(),
+              let end = selectedOffsets.max().map({ $0 + 1 }),
+              end > start else {
+            return selectionStringCharacterRange(selection, pageStarts: pageStarts)
+        }
+
+        return (start, end)
+    }
+
+    private func selectionStringCharacterRange(
+        _ selection: PDFSelection,
+        pageStarts: [Int]
+    ) -> (start: Int, end: Int)? {
+        guard let selectedText = selection.string?.nilIfEmpty else { return nil }
+
+        for page in selection.pages {
+            guard let pageIndex = document?.index(for: page),
+                  pageIndex != NSNotFound,
+                  pageIndex < pageStarts.count,
+                  let pageText = page.string as NSString? else { continue }
+
+            let range = pageText.range(of: selectedText)
+            if range.location != NSNotFound, range.length > 0 {
+                let start = pageStarts[pageIndex] + range.location
+                return (start, start + range.length)
+            }
+        }
+
+        guard let document else { return nil }
+        let documentText = documentText(in: document) as NSString
+        let range = documentText.range(of: selectedText)
+        guard range.location != NSNotFound, range.length > 0 else { return nil }
+        return (range.location, range.location + range.length)
+    }
+
+    private func applyTextSelection(
+        anchorOffset: Int,
+        extentOffset: Int,
+        pageStarts: [Int],
+        scrollToEndpoint: Bool = true
+    ) -> Bool {
+        guard let document else { return false }
+
+        let startOffset = min(anchorOffset, extentOffset)
+        let endOffset = max(anchorOffset, extentOffset)
+        guard endOffset > startOffset else { return false }
+
+        if let startEndpoint = textSelectionEndpoint(forInclusiveOffset: startOffset, pageStarts: pageStarts),
+           let endEndpoint = textSelectionEndpoint(forInclusiveOffset: endOffset - 1, pageStarts: pageStarts),
+           let selection = document.selection(
+                from: startEndpoint.page,
+                atCharacterIndex: startEndpoint.characterIndex,
+                to: endEndpoint.page,
+                atCharacterIndex: endEndpoint.characterIndex
+           ),
+           !selection.pages.isEmpty {
+            setCurrentSelection(selection, animate: false)
+            if scrollToEndpoint {
+                scrollTextSelectionEndpointToVisible(
+                    anchorOffset: anchorOffset,
+                    extentOffset: extentOffset,
+                    pageStarts: pageStarts
+                )
+            }
+            needsDisplay = true
+            return true
+        }
+
+        let selection = PDFSelection()
+        for pageIndex in 0..<document.pageCount {
+            guard pageIndex + 1 < pageStarts.count,
+                  let page = document.page(at: pageIndex) else { continue }
+
+            let pageStart = pageStarts[pageIndex]
+            let pageEnd = pageStarts[pageIndex + 1]
+            let localStart = max(startOffset, pageStart) - pageStart
+            let localEnd = min(endOffset, pageEnd) - pageStart
+            guard localEnd > localStart else { continue }
+
+            let range = NSRange(location: localStart, length: localEnd - localStart)
+            if let pageSelection = page.selection(for: range) {
+                selection.add(pageSelection)
+            }
+        }
+
+        guard !selection.pages.isEmpty else { return false }
+        setCurrentSelection(selection, animate: false)
+        if scrollToEndpoint {
+            scrollTextSelectionEndpointToVisible(
+                anchorOffset: anchorOffset,
+                extentOffset: extentOffset,
+                pageStarts: pageStarts
+            )
+        }
+        needsDisplay = true
+        return true
+    }
+
+    private func applyVisualTextSelection(
+        anchorCaret: VimTextCaret?,
+        extentCaret: VimTextCaret?,
+        pageStarts: [Int]
+    ) -> Bool {
+        guard let anchorCaret,
+              let extentCaret,
+              let document else { return false }
+
+        let anchorPosition = visualCaretPosition(for: anchorCaret, pageStarts: pageStarts)
+        let extentPosition = visualCaretPosition(for: extentCaret, pageStarts: pageStarts)
+        guard let anchorPosition, let extentPosition else { return false }
+
+        let isForward = compareVisualPosition(anchorPosition, extentPosition) <= 0
+        let start = isForward ? anchorPosition : extentPosition
+        let end = isForward ? extentPosition : anchorPosition
+
+        let selection = PDFSelection()
+        for pageIndex in start.pageIndex...end.pageIndex {
+            guard pageIndex + 1 < pageStarts.count,
+                  let page = document.page(at: pageIndex) else { continue }
+
+            let lines = textLines(onPageAt: pageIndex, pageStarts: pageStarts)
+            guard !lines.isEmpty else { continue }
+
+            let firstLine = pageIndex == start.pageIndex ? start.lineIndex : 0
+            let lastLine = pageIndex == end.pageIndex ? end.lineIndex : lines.count - 1
+            guard firstLine <= lastLine,
+                  firstLine >= 0,
+                  lastLine < lines.count else { continue }
+
+            for lineIndex in firstLine...lastLine {
+                let line = lines[lineIndex]
+                let startSlot = pageIndex == start.pageIndex && lineIndex == start.lineIndex
+                    ? start.slotIndex
+                    : 0
+                let endSlot = pageIndex == end.pageIndex && lineIndex == end.lineIndex
+                    ? end.slotIndex
+                    : line.characters.count
+
+                addVisualLineSelection(
+                    line: line,
+                    startSlot: startSlot,
+                    endSlot: endSlot,
+                    page: page,
+                    pageStart: pageStarts[pageIndex],
+                    to: selection
+                )
+            }
+        }
+
+        guard !selection.pages.isEmpty else { return false }
+        setCurrentSelection(selection, animate: false)
+        scrollTextCaretToVisible(extentCaret)
+        needsDisplay = true
+        return true
+    }
+
+    private func addVisualLineSelection(
+        line: VimTextLine,
+        startSlot rawStartSlot: Int,
+        endSlot rawEndSlot: Int,
+        page: PDFPage,
+        pageStart: Int,
+        to selection: PDFSelection
+    ) {
+        let startSlot = min(max(rawStartSlot, 0), line.characters.count)
+        let endSlot = min(max(rawEndSlot, 0), line.characters.count)
+        guard endSlot > startSlot else { return }
+
+        let offsets = line.characters[startSlot..<endSlot]
+            .map { $0.globalOffset - pageStart }
+            .sorted()
+        guard var runStart = offsets.first else { return }
+        var previous = runStart
+
+        for offset in offsets.dropFirst() {
+            if offset == previous + 1 {
+                previous = offset
+                continue
+            }
+
+            addPageSelection(page: page, start: runStart, end: previous + 1, to: selection)
+            runStart = offset
+            previous = offset
+        }
+
+        addPageSelection(page: page, start: runStart, end: previous + 1, to: selection)
+    }
+
+    private func addPageSelection(page: PDFPage, start: Int, end: Int, to selection: PDFSelection) {
+        guard end > start else { return }
+
+        let range = NSRange(location: start, length: end - start)
+        if let pageSelection = page.selection(for: range) {
+            selection.add(pageSelection)
+        }
+    }
+
+    private func textSelectionEndpoint(
+        forInclusiveOffset offset: Int,
+        pageStarts: [Int]
+    ) -> (page: PDFPage, characterIndex: Int)? {
+        guard let document,
+              let totalLength = pageStarts.last,
+              totalLength > 0 else { return nil }
+
+        let clampedOffset = min(max(offset, 0), totalLength - 1)
+        guard let pageIndex = pageIndex(containing: clampedOffset, pageStarts: pageStarts),
+              let page = document.page(at: pageIndex),
+              page.numberOfCharacters > 0 else { return nil }
+
+        let characterIndex = min(
+            max(clampedOffset - pageStarts[pageIndex], 0),
+            max(0, page.numberOfCharacters - 1)
+        )
+        return (page, characterIndex)
+    }
+
+    private func textCaret(
+        atInsertionOffset offset: Int,
+        preferTrailingEdge: Bool,
+        pageStarts: [Int]
+    ) -> VimTextCaret? {
+        guard let totalLength = pageStarts.last, totalLength > 0 else { return nil }
+
+        let insertionOffset = min(max(offset, 0), totalLength)
+        let candidateOffset: Int
+        let preferPrevious: Bool
+
+        if preferTrailingEdge {
+            candidateOffset = max(0, insertionOffset - 1)
+            preferPrevious = true
+        } else if insertionOffset >= totalLength {
+            candidateOffset = totalLength - 1
+            preferPrevious = true
+        } else {
+            candidateOffset = insertionOffset
+            preferPrevious = false
+        }
+
+        guard let character = visibleTextCharacterWithLocation(
+            near: candidateOffset,
+            preferPrevious: preferPrevious,
+            pageStarts: pageStarts
+        ) else { return nil }
+
+        let lines = textLines(onPageAt: character.pageIndex, pageStarts: pageStarts)
+        guard let lineIndex = lines.firstIndex(where: { line in
+            line.characters.contains { $0.globalOffset == character.globalOffset }
+        }) else { return nil }
+
+        let line = lines[lineIndex]
+        let useTrailingEdge = preferTrailingEdge || insertionOffset >= totalLength
+        let slotIndex = slotIndex(
+            forInsertionOffset: insertionOffset,
+            preferTrailingEdge: useTrailingEdge,
+            in: line
+        )
+        let slotPoint = pointForSlot(slotIndex, in: line)
+
+        return VimTextCaret(
+            offset: insertionOffset,
+            pageIndex: character.pageIndex,
+            slotIndex: slotIndex,
+            point: NSPoint(
+                x: slotPoint.x,
+                y: slotPoint.y
+            ),
+            lineMidY: line.midY
+        )
+    }
+
+    private func visibleTextCharacterWithLocation(
+        near offset: Int,
+        preferPrevious: Bool,
+        pageStarts: [Int]
+    ) -> (pageIndex: Int, globalOffset: Int, bounds: NSRect)? {
+        guard let totalLength = pageStarts.last, totalLength > 0 else { return nil }
+
+        let clampedOffset = min(max(offset, 0), totalLength - 1)
+        if preferPrevious {
+            if let previous = visibleTextCharacterWithLocation(
+                in: stride(from: clampedOffset, through: 0, by: -1),
+                pageStarts: pageStarts
+            ) {
+                return previous
+            }
+            return visibleTextCharacterWithLocation(
+                in: stride(from: clampedOffset + 1, to: totalLength, by: 1),
+                pageStarts: pageStarts
+            )
+        }
+
+        if let next = visibleTextCharacterWithLocation(
+            in: stride(from: clampedOffset, to: totalLength, by: 1),
+            pageStarts: pageStarts
+        ) {
+            return next
+        }
+        return visibleTextCharacterWithLocation(
+            in: stride(from: clampedOffset - 1, through: 0, by: -1),
+            pageStarts: pageStarts
+        )
+    }
+
+    private func visibleTextCharacterWithLocation<S: Sequence>(
+        in offsets: S,
+        pageStarts: [Int]
+    ) -> (pageIndex: Int, globalOffset: Int, bounds: NSRect)? where S.Element == Int {
+        for offset in offsets {
+            guard let pageIndex = pageIndex(containing: offset, pageStarts: pageStarts),
+                  let page = document?.page(at: pageIndex) else { continue }
+
+            let characterIndex = offset - pageStarts[pageIndex]
+            guard characterIndex >= 0, characterIndex < page.numberOfCharacters else { continue }
+            guard !isNewlineCharacter(at: characterIndex, in: page.string as NSString?) else { continue }
+
+            let bounds = page.characterBounds(at: characterIndex)
+            guard bounds.width > 0, bounds.height > 0 else { continue }
+            return (pageIndex, offset, bounds)
+        }
+
+        return nil
+    }
+
+    private func scrollTextCaretToVisible(_ caret: VimTextCaret) {
+        guard let document,
+              let scrollView = pdfScrollView,
+              let documentView = scrollView.documentView,
+              let page = document.page(at: caret.pageIndex) else { return }
+
+        guard let endpointRectInView = viewRect(
+            for: NSRect(x: caret.point.x - 2, y: caret.point.y - 8, width: 4, height: 16),
+            on: page
+        ) else { return }
+
+        scrollRectToComfortableTextArea(endpointRectInView, scrollView: scrollView, documentView: documentView)
+    }
+
+    private func scrollTextSelectionEndpointToVisible(
+        anchorOffset: Int,
+        extentOffset: Int,
+        pageStarts: [Int]
+    ) {
+        guard let document,
+              let totalLength = pageStarts.last,
+              totalLength > 0,
+              let scrollView = pdfScrollView,
+              let documentView = scrollView.documentView else { return }
+
+        let activeOffset = activeCharacterOffset(
+            extentOffset: extentOffset,
+            anchorOffset: anchorOffset,
+            totalLength: totalLength
+        )
+        guard let pageIndex = pageIndex(containing: activeOffset, pageStarts: pageStarts),
+              let page = document.page(at: pageIndex) else { return }
+
+        let localOffset = activeOffset - pageStarts[pageIndex]
+        guard localOffset >= 0, localOffset < page.numberOfCharacters else { return }
+
+        let characterBounds = page.characterBounds(at: localOffset).insetBy(dx: -8, dy: -10)
+        guard characterBounds.width > 0, characterBounds.height > 0,
+              let endpointRectInView = viewRect(for: characterBounds, on: page) else { return }
+
+        scrollRectToComfortableTextArea(endpointRectInView, scrollView: scrollView, documentView: documentView)
+    }
+
+    private func scrollRectToComfortableTextArea(
+        _ endpointRectInView: NSRect,
+        scrollView: NSScrollView,
+        documentView: NSView
+    ) {
+        let endpointRect = convert(endpointRectInView, to: documentView)
+        let clipView = scrollView.contentView
+        let visibleRect = clipView.bounds
+        let marginX = min(44, visibleRect.width * 0.12)
+        let marginY = min(56, visibleRect.height * 0.14)
+        let comfortableRect = visibleRect.insetBy(dx: marginX, dy: marginY)
+
+        guard !comfortableRect.contains(endpointRect) else { return }
+
+        let documentBounds = documentView.bounds
+        let maxOriginX = max(documentBounds.minX, documentBounds.maxX - visibleRect.width)
+        let maxOriginY = max(documentBounds.minY, documentBounds.maxY - visibleRect.height)
+        var nextOrigin = visibleRect.origin
+
+        if endpointRect.minX < comfortableRect.minX {
+            nextOrigin.x += endpointRect.minX - comfortableRect.minX
+        } else if endpointRect.maxX > comfortableRect.maxX {
+            nextOrigin.x += endpointRect.maxX - comfortableRect.maxX
+        }
+
+        if endpointRect.minY < comfortableRect.minY {
+            nextOrigin.y += endpointRect.minY - comfortableRect.minY
+        } else if endpointRect.maxY > comfortableRect.maxY {
+            nextOrigin.y += endpointRect.maxY - comfortableRect.maxY
+        }
+
+        nextOrigin.x = min(max(documentBounds.minX, nextOrigin.x), maxOriginX)
+        nextOrigin.y = min(max(documentBounds.minY, nextOrigin.y), maxOriginY)
+
+        guard abs(nextOrigin.x - visibleRect.origin.x) > 0.5
+            || abs(nextOrigin.y - visibleRect.origin.y) > 0.5 else { return }
+
+        clipView.scroll(to: nextOrigin)
+        scrollView.reflectScrolledClipView(clipView)
+    }
+
+    private func textPageStarts(in document: PDFDocument) -> [Int] {
+        var starts: [Int] = []
+        var offset = 0
+
+        for pageIndex in 0..<document.pageCount {
+            starts.append(offset)
+            offset += document.page(at: pageIndex)?.numberOfCharacters ?? 0
+        }
+
+        starts.append(offset)
+        return starts
+    }
+
+    private func wordForwardOffset(from offset: Int, in document: PDFDocument, pageStarts: [Int]) -> Int {
+        let text = documentText(in: document) as NSString
+        let length = min(text.length, pageStarts.last ?? text.length)
+        var index = min(max(offset, 0), length)
+
+        if index < length, characterClass(at: index, in: text) != .whitespace {
+            let currentClass = characterClass(at: index, in: text)
+            while index < length, characterClass(at: index, in: text) == currentClass {
+                index += 1
+            }
+        }
+
+        while index < length, characterClass(at: index, in: text) == .whitespace {
+            index += 1
+        }
+
+        return index
+    }
+
+    private func wordBackwardOffset(from offset: Int, in document: PDFDocument, pageStarts: [Int]) -> Int {
+        let text = documentText(in: document) as NSString
+        let length = min(text.length, pageStarts.last ?? text.length)
+        var index = min(max(offset, 0), length) - 1
+
+        while index > 0, characterClass(at: index, in: text) == .whitespace {
+            index -= 1
+        }
+
+        guard index >= 0 else { return 0 }
+        let targetClass = characterClass(at: index, in: text)
+        while index > 0, characterClass(at: index - 1, in: text) == targetClass {
+            index -= 1
+        }
+
+        return index
+    }
+
+    private func wordEndOffset(from offset: Int, in document: PDFDocument, pageStarts: [Int]) -> Int {
+        let text = documentText(in: document) as NSString
+        let length = min(text.length, pageStarts.last ?? text.length)
+        var index = min(max(offset, 0), length)
+
+        while index < length, characterClass(at: index, in: text) == .whitespace {
+            index += 1
+        }
+
+        guard index < length else { return length }
+        let targetClass = characterClass(at: index, in: text)
+        while index + 1 < length, characterClass(at: index + 1, in: text) == targetClass {
+            index += 1
+        }
+
+        return min(length, index + 1)
+    }
+
+    private func documentText(in document: PDFDocument) -> String {
+        (0..<document.pageCount)
+            .compactMap { document.page(at: $0)?.string }
+            .joined()
+    }
+
+    private func characterClass(at offset: Int, in text: NSString) -> VimTextCharacterClass {
+        guard offset >= 0, offset < text.length,
+              let scalar = UnicodeScalar(Int(text.character(at: offset))) else {
+            return .punctuation
+        }
+
+        if CharacterSet.whitespacesAndNewlines.contains(scalar) {
+            return .whitespace
+        }
+
+        if CharacterSet.alphanumerics.contains(scalar) || scalar == "_" {
+            return .word
+        }
+
+        return .punctuation
+    }
+
+    private func isNewlineCharacter(at offset: Int, in text: NSString?) -> Bool {
+        guard let text,
+              offset >= 0,
+              offset < text.length,
+              let scalar = UnicodeScalar(Int(text.character(at: offset))) else {
+            return false
+        }
+
+        return CharacterSet.newlines.contains(scalar)
+    }
+
+    private func verticalSelectionCaret(
+        from extentCaret: VimTextCaret?,
+        fallbackExtentOffset: Int,
+        anchorOffset: Int,
+        anchorCaret: VimTextCaret?,
+        direction: Int,
+        preferredX: CGFloat?,
+        pageStarts: [Int]
+    ) -> (caret: VimTextCaret, preferredX: CGFloat)? {
+        guard let document,
+              let totalLength = pageStarts.last,
+              totalLength > 0 else { return nil }
+
+        let fallbackActiveOffset = activeCharacterOffset(
+            extentOffset: fallbackExtentOffset,
+            anchorOffset: anchorOffset,
+            totalLength: totalLength
+        )
+        let activeCaret = extentCaret ?? textCaret(
+            atInsertionOffset: fallbackExtentOffset,
+            preferTrailingEdge: fallbackExtentOffset >= anchorOffset,
+            pageStarts: pageStarts
+        )
+        let pageIndex = activeCaret?.pageIndex
+            ?? pageIndex(containing: fallbackActiveOffset, pageStarts: pageStarts)
+        guard let pageIndex else { return nil }
+
+        let lines = textLines(onPageAt: pageIndex, pageStarts: pageStarts)
+        guard let currentLineIndex = lineIndex(for: activeCaret, fallbackOffset: fallbackActiveOffset, in: lines) else { return nil }
+
+        let currentX = preferredX ?? activeCaret?.point.x ?? caretX(
+            near: fallbackActiveOffset,
+            in: lines[currentLineIndex],
+            selectionIsForward: fallbackExtentOffset >= anchorOffset,
+            pageStarts: pageStarts
+        )
+        let currentLine = lines[currentLineIndex]
+        guard let targetLine = targetLine(
+            from: currentLine,
+            direction: direction,
+            document: document,
+            pageStarts: pageStarts,
+            preferredX: currentX
+        ) else { return nil }
+
+        guard var targetCaret = targetCaret(in: targetLine, preferredX: currentX) else { return nil }
+        targetCaret = adjustedTargetCaret(
+            targetCaret,
+            targetLine: targetLine,
+            anchorCaret: anchorCaret,
+            pageStarts: pageStarts
+        )
+        return (targetCaret, currentX)
+    }
+
+    private func lineIndex(for caret: VimTextCaret?, fallbackOffset: Int, in lines: [VimTextLine]) -> Int? {
+        guard !lines.isEmpty else { return nil }
+
+        if let caret,
+           let exactPageLine = lines.indices.min(by: { lhs, rhs in
+               let lhsLine = lines[lhs]
+               let rhsLine = lines[rhs]
+               let lhsY = abs(lhsLine.midY - caret.lineMidY)
+               let rhsY = abs(rhsLine.midY - caret.lineMidY)
+               if abs(lhsY - rhsY) > 0.5 {
+                   return lhsY < rhsY
+               }
+               return lineDistanceToX(caret.point.x, lhsLine) < lineDistanceToX(caret.point.x, rhsLine)
+           }) {
+            return exactPageLine
+        }
+
+        if let exactOffsetLine = lines.firstIndex(where: { line in
+            line.characters.contains { $0.globalOffset == fallbackOffset }
+        }) {
+            return exactOffsetLine
+        }
+
+        return lines.indices.min { lhs, rhs in
+            distance(from: fallbackOffset, to: lines[lhs]) < distance(from: fallbackOffset, to: lines[rhs])
+        }
+    }
+
+    private func visualCaretPosition(
+        for caret: VimTextCaret,
+        pageStarts: [Int]
+    ) -> VimTextCaretPosition? {
+        let lines = textLines(onPageAt: caret.pageIndex, pageStarts: pageStarts)
+        guard let lineIndex = lineIndex(for: caret, fallbackOffset: caret.offset, in: lines) else { return nil }
+        let line = lines[lineIndex]
+        let slotIndex = min(
+            max(closestSlotIndex(to: caret.point.x, in: line, fallbackSlot: caret.slotIndex), 0),
+            line.characters.count
+        )
+
+        return VimTextCaretPosition(
+            pageIndex: caret.pageIndex,
+            lineIndex: lineIndex,
+            slotIndex: slotIndex
+        )
+    }
+
+    private func compareVisualPosition(_ lhs: VimTextCaretPosition, _ rhs: VimTextCaretPosition) -> Int {
+        if lhs.pageIndex != rhs.pageIndex {
+            return lhs.pageIndex < rhs.pageIndex ? -1 : 1
+        }
+
+        if lhs.lineIndex != rhs.lineIndex {
+            return lhs.lineIndex < rhs.lineIndex ? -1 : 1
+        }
+
+        if lhs.slotIndex != rhs.slotIndex {
+            return lhs.slotIndex < rhs.slotIndex ? -1 : 1
+        }
+
+        return 0
+    }
+
+    private func sameVisualCaret(_ lhs: VimTextCaret?, _ rhs: VimTextCaret?) -> Bool {
+        guard let lhs, let rhs else { return false }
+
+        return lhs.pageIndex == rhs.pageIndex
+            && lhs.slotIndex == rhs.slotIndex
+            && abs(lhs.lineMidY - rhs.lineMidY) < 0.5
+    }
+
+    private func averageCharacterHeight(in line: VimTextLine) -> CGFloat {
+        guard !line.characters.isEmpty else { return 0 }
+        return line.characters.reduce(CGFloat(0)) { $0 + $1.height } / CGFloat(line.characters.count)
+    }
+
+    private func distance(from offset: Int, to line: VimTextLine) -> Int {
+        if offset < line.startOffset {
+            return line.startOffset - offset
+        }
+
+        if offset >= line.endOffset {
+            return offset - line.endOffset + 1
+        }
+
+        return 0
+    }
+
+    private func activeCharacterOffset(extentOffset: Int, anchorOffset: Int, totalLength: Int) -> Int {
+        let offset = extentOffset >= anchorOffset ? extentOffset - 1 : extentOffset
+        return min(max(offset, 0), max(0, totalLength - 1))
+    }
+
+    private func pageIndex(containing globalOffset: Int, pageStarts: [Int]) -> Int? {
+        guard pageStarts.count > 1 else { return nil }
+
+        for index in 0..<(pageStarts.count - 1) {
+            if globalOffset >= pageStarts[index], globalOffset < pageStarts[index + 1] {
+                return index
+            }
+        }
+
+        return pageStarts.count >= 2 ? pageStarts.count - 2 : nil
+    }
+
+    private func textLines(onPageAt pageIndex: Int, pageStarts: [Int]) -> [VimTextLine] {
+        guard let page = document?.page(at: pageIndex),
+              pageIndex + 1 < pageStarts.count else { return [] }
+
+        let pageStart = pageStarts[pageIndex]
+        let pageText = page.string as NSString?
+        var characters: [VimTextLineCharacter] = []
+        for characterIndex in 0..<page.numberOfCharacters {
+            guard !isNewlineCharacter(at: characterIndex, in: pageText) else { continue }
+
+            let bounds = page.characterBounds(at: characterIndex)
+            guard bounds.width > 0, bounds.height > 0 else { continue }
+
+            characters.append(
+                VimTextLineCharacter(
+                    globalOffset: pageStart + characterIndex,
+                    minX: bounds.minX,
+                    centerX: bounds.midX,
+                    maxX: bounds.maxX,
+                    centerY: bounds.midY,
+                    height: bounds.height
+                )
+            )
+        }
+
+        let sortedCharacters = characters.sorted {
+            if abs($0.centerY - $1.centerY) > 2 {
+                return $0.centerY > $1.centerY
+            }
+            return $0.centerX < $1.centerX
+        }
+
+        var grouped: [[VimTextLineCharacter]] = []
+        for character in sortedCharacters {
+            if let last = grouped.indices.last,
+               let reference = grouped[last].first {
+                let threshold = max(2.0, max(reference.height, character.height) * 0.65)
+                if abs(reference.centerY - character.centerY) <= threshold {
+                    grouped[last].append(character)
+                    continue
+                }
+            }
+            grouped.append([character])
+        }
+
+        return grouped.flatMap { group in
+            splitVisualLineSegments(group.sorted { $0.centerX < $1.centerX }).compactMap { lineCharacters in
+                guard let start = lineCharacters.map(\.globalOffset).min(),
+                      let end = lineCharacters.map(\.globalOffset).max().map({ $0 + 1 }) else {
+                    return nil
+                }
+
+                let midY = lineCharacters.reduce(CGFloat(0)) { $0 + $1.centerY } / CGFloat(lineCharacters.count)
+                return VimTextLine(
+                    pageIndex: pageIndex,
+                    startOffset: start,
+                    endOffset: end,
+                    midY: midY,
+                    characters: lineCharacters
+                )
+            }
+        }
+    }
+
+    private func splitVisualLineSegments(_ characters: [VimTextLineCharacter]) -> [[VimTextLineCharacter]] {
+        guard !characters.isEmpty else { return [] }
+
+        let averageWidth = characters.reduce(CGFloat(0)) { $0 + max(1, $1.maxX - $1.minX) } / CGFloat(characters.count)
+        let gapThreshold = max(28, averageWidth * 5.5)
+        var segments: [[VimTextLineCharacter]] = []
+        var current: [VimTextLineCharacter] = []
+        var previous: VimTextLineCharacter?
+
+        for character in characters {
+            if let previous,
+               character.minX - previous.maxX > gapThreshold,
+               !current.isEmpty {
+                segments.append(current)
+                current = []
+            }
+
+            current.append(character)
+            previous = character
+        }
+
+        if !current.isEmpty {
+            segments.append(current)
+        }
+
+        return segments
+    }
+
+    private func targetLine(
+        from currentLine: VimTextLine,
+        direction: Int,
+        document: PDFDocument,
+        pageStarts: [Int],
+        preferredX: CGFloat
+    ) -> VimTextLine? {
+        let currentHeight = averageCharacterHeight(in: currentLine)
+        let sameRowThreshold = max(2, currentHeight * 0.7)
+        let currentPageLines = textLines(onPageAt: currentLine.pageIndex, pageStarts: pageStarts)
+
+        let samePageCandidates = currentPageLines.filter { candidate in
+            if direction > 0 {
+                return currentLine.midY - candidate.midY > sameRowThreshold
+            }
+
+            return candidate.midY - currentLine.midY > sameRowThreshold
+        }
+
+        if let line = bestTargetLine(from: currentLine, candidates: samePageCandidates, preferredX: preferredX) {
+            return line
+        }
+
+        if direction > 0 {
+            for nextPageIndex in (currentLine.pageIndex + 1)..<document.pageCount {
+                let lines = textLines(onPageAt: nextPageIndex, pageStarts: pageStarts)
+                if let line = edgeLine(in: lines, edge: .top, preferredX: preferredX) {
+                    return line
+                }
+            }
+        } else if currentLine.pageIndex > 0 {
+            for previousPageIndex in stride(from: currentLine.pageIndex - 1, through: 0, by: -1) {
+                let lines = textLines(onPageAt: previousPageIndex, pageStarts: pageStarts)
+                if let line = edgeLine(in: lines, edge: .bottom, preferredX: preferredX) {
+                    return line
+                }
+            }
+        }
+
+        return nil
+    }
+
+    private enum VisualLineEdge {
+        case top
+        case bottom
+    }
+
+    private func bestTargetLine(
+        from currentLine: VimTextLine,
+        candidates: [VimTextLine],
+        preferredX: CGFloat
+    ) -> VimTextLine? {
+        candidates.min { lhs, rhs in
+            let lhsVerticalDistance = abs(lhs.midY - currentLine.midY)
+            let rhsVerticalDistance = abs(rhs.midY - currentLine.midY)
+
+            if abs(lhsVerticalDistance - rhsVerticalDistance) > max(1, averageCharacterHeight(in: currentLine) * 0.25) {
+                return lhsVerticalDistance < rhsVerticalDistance
+            }
+
+            let lhsXDistance = lineDistanceToX(preferredX, lhs)
+            let rhsXDistance = lineDistanceToX(preferredX, rhs)
+            if abs(lhsXDistance - rhsXDistance) > 0.5 {
+                return lhsXDistance < rhsXDistance
+            }
+
+            return lhs.characters.first?.minX ?? 0 < rhs.characters.first?.minX ?? 0
+        }
+    }
+
+    private func edgeLine(in lines: [VimTextLine], edge: VisualLineEdge, preferredX: CGFloat) -> VimTextLine? {
+        guard !lines.isEmpty else { return nil }
+
+        let edgeY: CGFloat
+        switch edge {
+        case .top:
+            edgeY = lines.map(\.midY).max() ?? 0
+        case .bottom:
+            edgeY = lines.map(\.midY).min() ?? 0
+        }
+
+        let rowTolerance = max(2, (lines.map { averageCharacterHeight(in: $0) }.max() ?? 0) * 0.7)
+        let edgeLines = lines.filter { abs($0.midY - edgeY) <= rowTolerance }
+        return edgeLines.min { lhs, rhs in
+            lineDistanceToX(preferredX, lhs) < lineDistanceToX(preferredX, rhs)
+        }
+    }
+
+    private func lineDistanceToX(_ x: CGFloat, _ line: VimTextLine) -> CGFloat {
+        guard let first = line.characters.first,
+              let last = line.characters.last else { return .greatestFiniteMagnitude }
+
+        if x < first.minX {
+            return first.minX - x
+        }
+
+        if x > last.maxX {
+            return x - last.maxX
+        }
+
+        return 0
+    }
+
+    private func caretX(
+        near globalOffset: Int,
+        in line: VimTextLine,
+        selectionIsForward: Bool,
+        pageStarts: [Int]
+    ) -> CGFloat {
+        if let nearest = line.characters.min(by: {
+            abs($0.globalOffset - globalOffset) < abs($1.globalOffset - globalOffset)
+        }) {
+            return selectionIsForward ? nearest.maxX : nearest.minX
+        }
+
+        return characterCenterX(globalOffset: globalOffset, pageStarts: pageStarts)
+    }
+
+    private func targetCaret(
+        in line: VimTextLine,
+        preferredX: CGFloat
+    ) -> VimTextCaret? {
+        guard document?.page(at: line.pageIndex) != nil else { return nil }
+
+        let slots = (0...line.characters.count).map { slotIndex in
+            let point = pointForSlot(slotIndex, in: line)
+            return VimTextCaret(
+                offset: offsetForSlot(slotIndex, in: line),
+                pageIndex: line.pageIndex,
+                slotIndex: slotIndex,
+                point: point,
+                lineMidY: line.midY
+            )
+        }
+
+        guard !slots.isEmpty else { return nil }
+
+        let clampedX = min(
+            max(preferredX, line.characters.first?.minX ?? preferredX),
+            line.characters.last?.maxX ?? preferredX
+        )
+
+        return slots.min { lhs, rhs in
+            let lhsDistance = abs(lhs.point.x - clampedX)
+            let rhsDistance = abs(rhs.point.x - clampedX)
+
+            if abs(lhsDistance - rhsDistance) < 0.001 {
+                return lhs.offset > rhs.offset
+            }
+
+            return lhsDistance < rhsDistance
+        }
+    }
+
+    private func adjustedTargetCaret(
+        _ caret: VimTextCaret,
+        targetLine: VimTextLine,
+        anchorCaret: VimTextCaret?,
+        pageStarts: [Int]
+    ) -> VimTextCaret {
+        guard let anchorCaret,
+              let anchorPosition = visualCaretPosition(for: anchorCaret, pageStarts: pageStarts),
+              let targetPosition = visualCaretPosition(for: caret, pageStarts: pageStarts) else {
+            return caret
+        }
+
+        let comparison = compareVisualPosition(anchorPosition, targetPosition)
+        var slotIndex = caret.slotIndex
+
+        if comparison < 0, slotIndex == 0, !targetLine.characters.isEmpty {
+            slotIndex = 1
+        } else if comparison > 0, slotIndex == targetLine.characters.count, !targetLine.characters.isEmpty {
+            slotIndex = max(0, targetLine.characters.count - 1)
+        }
+
+        guard slotIndex != caret.slotIndex else { return caret }
+
+        let point = pointForSlot(slotIndex, in: targetLine)
+        return VimTextCaret(
+            offset: offsetForSlot(slotIndex, in: targetLine),
+            pageIndex: targetLine.pageIndex,
+            slotIndex: slotIndex,
+            point: point,
+            lineMidY: targetLine.midY
+        )
+    }
+
+    private func closestSlotIndex(to x: CGFloat, in line: VimTextLine, fallbackSlot: Int) -> Int {
+        guard !line.characters.isEmpty else { return 0 }
+
+        let slots = (0...line.characters.count).map { slotIndex in
+            (slotIndex: slotIndex, point: pointForSlot(slotIndex, in: line))
+        }
+
+        return slots.min { lhs, rhs in
+            let lhsDistance = abs(lhs.point.x - x)
+            let rhsDistance = abs(rhs.point.x - x)
+
+            if abs(lhsDistance - rhsDistance) < 0.001 {
+                return abs(lhs.slotIndex - fallbackSlot) < abs(rhs.slotIndex - fallbackSlot)
+            }
+
+            return lhsDistance < rhsDistance
+        }?.slotIndex ?? fallbackSlot
+    }
+
+    private func slotIndex(
+        forInsertionOffset insertionOffset: Int,
+        preferTrailingEdge: Bool,
+        in line: VimTextLine
+    ) -> Int {
+        guard !line.characters.isEmpty else { return 0 }
+
+        if preferTrailingEdge,
+           let previousIndex = line.characters.lastIndex(where: { $0.globalOffset < insertionOffset }) {
+            return min(line.characters.count, previousIndex + 1)
+        }
+
+        if let exactIndex = line.characters.firstIndex(where: { $0.globalOffset >= insertionOffset }) {
+            return exactIndex
+        }
+
+        return line.characters.count
+    }
+
+    private func pointForSlot(_ slotIndex: Int, in line: VimTextLine) -> NSPoint {
+        guard !line.characters.isEmpty else {
+            return NSPoint(x: 0, y: line.midY)
+        }
+
+        if slotIndex <= 0, let first = line.characters.first {
+            return NSPoint(x: first.minX, y: first.centerY)
+        }
+
+        if slotIndex >= line.characters.count, let last = line.characters.last {
+            return NSPoint(x: last.maxX, y: last.centerY)
+        }
+
+        let previous = line.characters[slotIndex - 1]
+        let next = line.characters[slotIndex]
+        return NSPoint(
+            x: max(previous.maxX, next.minX),
+            y: (previous.centerY + next.centerY) / 2
+        )
+    }
+
+    private func offsetForSlot(_ slotIndex: Int, in line: VimTextLine) -> Int {
+        guard !line.characters.isEmpty else { return line.startOffset }
+
+        if slotIndex <= 0 {
+            return line.characters[0].globalOffset
+        }
+
+        if slotIndex >= line.characters.count {
+            return line.characters[line.characters.count - 1].globalOffset + 1
+        }
+
+        return line.characters[slotIndex].globalOffset
+    }
+
+    private func characterCenterX(globalOffset: Int, pageStarts: [Int]) -> CGFloat {
+        guard let pageIndex = pageIndex(containing: globalOffset, pageStarts: pageStarts),
+              let page = document?.page(at: pageIndex) else { return 0 }
+
+        let localOffset = globalOffset - pageStarts[pageIndex]
+        return page.characterBounds(at: localOffset).midX
+    }
+
+    func vimScroll(x: CGFloat, y: CGFloat) {
+        guard let scrollView = pdfScrollView else { return }
+        cancelPendingRestore()
+        let clipView = scrollView.contentView
+        let documentSize = scrollView.documentView?.bounds.size ?? .zero
+        let maxX = max(0, documentSize.width - clipView.bounds.width)
+        let maxY = max(0, documentSize.height - clipView.bounds.height)
+        let origin = scrollTargetOrigin ?? clipView.bounds.origin
+        let next = NSPoint(
+            x: nextScrollCoordinate(
+                origin: origin.x,
+                delta: x,
+                contentLength: documentSize.width,
+                viewportLength: clipView.bounds.width,
+                maxValue: maxX
+            ),
+            y: nextScrollCoordinate(
+                origin: origin.y,
+                delta: y,
+                contentLength: documentSize.height,
+                viewportLength: clipView.bounds.height,
+                maxValue: maxY
+            )
+        )
+        scrollTargetOrigin = next
+        ensureScrollAnimation(in: scrollView)
+    }
+
+    func vimMoveByPage(_ delta: Int) {
+        guard let document,
+              let pageState = currentPageState(),
+              let targetPage = document.page(at: pageState.pageIndex + delta) else { return }
+
+        cancelPendingRestore()
+        stopScrollAnimation()
+        stopZoomState()
+
+        let targetBounds = targetPage.bounds(for: displayBox)
+        let yRatio = pageState.pageBounds.height == 0
+            ? 0
+            : (pageState.pointOnPage.y - pageState.pageBounds.minY) / pageState.pageBounds.height
+        let targetY = targetBounds.minY + targetBounds.height * min(max(yRatio, 0), 1)
+        let targetPoint = NSPoint(x: targetBounds.midX, y: targetY)
+
+        go(to: PDFDestination(page: targetPage, at: targetPoint))
+        DispatchQueue.main.async { [weak self] in
+            self?.centerVertically(on: PDFDestination(page: targetPage, at: targetPoint))
+        }
+    }
+
+    func vimHighlightSelection(color: NSColor) {
+        guard let selection = currentSelection else {
+            NSSound.beep()
+            return
+        }
+
+        let annotations = addHighlightAnnotations(for: selection, color: color)
+        guard !annotations.isEmpty else {
+            NSSound.beep()
+            return
+        }
+
+        clearSelection()
+        textSelectionNavigationState = nil
+        needsDisplay = true
+        persistAnnotationsIfPossible()
+    }
+
+    @discardableResult
+    private func addHighlightAnnotations(for selection: PDFSelection, color: NSColor) -> [PDFAnnotation] {
+        let lineSelections = selection.selectionsByLine()
+        let selections = lineSelections.isEmpty ? [selection] : lineSelections
+        var annotations: [PDFAnnotation] = []
+        let groupID = UUID().uuidString
+
+        for lineSelection in selections {
+            for page in lineSelection.pages {
+                guard let bounds = tightHighlightBounds(for: lineSelection, on: page) else { continue }
+
+                let preservedExplanation = existingAIExplanation(on: page, intersecting: [bounds])
+                removeHighlightAnnotations(on: page, intersecting: bounds)
+
+                let annotation = PDFAnnotation(bounds: bounds, forType: .highlight, withProperties: nil)
+                annotation.color = color
+                annotation.quadrilateralPoints = quadrilateralPoints(for: bounds)
+                HighlightAnnotationMetadata.setGroupID(groupID, for: annotation)
+                if let preservedExplanation {
+                    annotation.contents = AIExplanationAnnotation.encode(preservedExplanation)
+                    annotation.userName = "VimPDF AI"
+                }
+                annotation.shouldDisplay = true
+                annotation.shouldPrint = true
+                page.addAnnotation(annotation)
+                annotations.append(annotation)
+            }
+        }
+
+        return annotations
+    }
+
+    func vimDeleteHighlightsForSelection() -> Bool {
+        guard let selection = currentSelection else { return false }
+
+        let selectionsByPage = highlightSelectionBoundsByPage(for: selection)
+        var didRemoveHighlight = false
+
+        for pageSelection in selectionsByPage {
+            didRemoveHighlight = removeHighlightAnnotations(
+                on: pageSelection.page,
+                intersecting: pageSelection.bounds
+            ) || didRemoveHighlight
+        }
+
+        guard didRemoveHighlight else {
+            NSSound.beep()
+            return true
+        }
+
+        clearSelection()
+        needsDisplay = true
+        persistAnnotationsIfPossible()
+        return true
+    }
+
+    func vimExplainSelectedHighlight() {
+        guard let selection = currentSelection,
+              let selectedText = selection.string?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+              !selectedText.isEmpty else {
+            showAIMessage(AIExplanationError.noSelection.localizedDescription)
+            NSSound.beep()
+            return
+        }
+
+        let anchor = selectionPopoverRect(for: selection)
+        let targetAnnotations = highlightedAnnotations(intersecting: selection)
+
+        let configuration: AIConfiguration
+        do {
+            configuration = try AIConfiguration.current()
+        } catch {
+            showAIMessage(error.localizedDescription)
+            NSSound.beep()
+            return
+        }
+
+        guard let context = aiExplanationContext(for: selection, selectedText: selectedText) else {
+            showAIMessage(AIExplanationError.noSelection.localizedDescription)
+            NSSound.beep()
+            return
+        }
+
+        activeAIExplanationTask?.cancel()
+        activeAISelection = selection.copy() as? PDFSelection ?? selection
+        activeAIExistingAnnotations = targetAnnotations
+        let popoverModel = showStreamingAIExplanationPopover(
+            title: selectedText.aiPopoverTitle,
+            at: anchor
+        )
+
+        let task = Task { @MainActor [weak self] in
+            do {
+                let explanation = try await AIExplanationClient.streamExplanation(
+                    context: context,
+                    configuration: configuration,
+                    onChunk: { chunk in
+                        popoverModel?.append(chunk)
+                    }
+                )
+                guard let self else { return }
+
+                for annotation in self.activeAIExistingAnnotations {
+                    annotation.contents = AIExplanationAnnotation.encode(explanation)
+                    annotation.userName = "VimPDF AI"
+                    annotation.modificationDate = Date()
+                }
+
+                if !self.activeAIExistingAnnotations.isEmpty {
+                    self.needsDisplay = true
+                    self.persistAnnotationsIfPossible()
+                }
+                popoverModel?.isStreaming = false
+                self.activeAIExplanationTask = nil
+            } catch {
+                guard !Task.isCancelled else { return }
+                self?.activeAIExplanationTask = nil
+                popoverModel?.isStreaming = false
+                popoverModel?.title = "AI request failed"
+                popoverModel?.text = error.localizedDescription
+                NSSound.beep()
+            }
+        }
+        activeAIExplanationTask = task
+    }
+
+    func vimZoom(by factor: CGFloat) {
+        cancelPendingRestore()
+        let baseScale = zoomTargetScale ?? scaleFactor
+        vimZoom(to: baseScale * factor)
+    }
+
+    func vimZoom(to targetScale: CGFloat) {
+        cancelPendingRestore()
+        stopScrollAnimation()
+        autoScales = false
+        prepareZoomAnchor()
+        zoomTargetScale = min(max(targetScale, minimumZoomScale), maximumZoomScale)
+        ensureZoomAnimation()
+    }
+
+    func vimZoomToFit() {
+        cancelPendingRestore()
+        stopScrollAnimation()
+        guard let fitScale = widthFitScale() else { return }
+        zoomAnchor = centerDestination() ?? currentDestination
+        zoomTargetScale = min(max(fitScale, minimumZoomScale), maximumZoomScale)
+        ensureZoomAnimation()
+    }
+
+    func vimZoomToPageFit() {
+        cancelPendingRestore()
+        stopScrollAnimation()
+        guard let pageState = currentPageState(),
+              let pageFitScale = pageFitScale(for: pageState.page) else { return }
+
+        zoomAnchor = pageCenterDestination(for: pageState.page)
+        zoomTargetScale = min(max(pageFitScale, minimumZoomScale), maximumZoomScale)
+        ensureZoomAnimation()
+    }
+
+    func vimGoToFirstPage() {
+        cancelPendingRestore()
+        recordJumpSource()
+        stopScrollAnimation()
+        stopZoomState()
+        goToFirstPage(nil)
+        DispatchQueue.main.async { [weak self] in
+            self?.scrollToDocumentEdge(.top)
+        }
+    }
+
+    func vimGoToLastPage() {
+        cancelPendingRestore()
+        recordJumpSource()
+        stopScrollAnimation()
+        stopZoomState()
+        goToLastPage(nil)
+        DispatchQueue.main.async { [weak self] in
+            self?.scrollToDocumentEdge(.bottom)
+        }
+    }
+
+    func vimGoToPage(_ pageNumber: Int) {
+        guard let document, document.pageCount > 0 else { return }
+
+        let pageIndex = min(max(pageNumber - 1, 0), document.pageCount - 1)
+        guard let page = document.page(at: pageIndex) else { return }
+
+        cancelPendingRestore()
+        recordJumpSource()
+        stopScrollAnimation()
+        stopZoomState()
+
+        let destination = topDestination(for: page)
+        go(to: destination)
+        DispatchQueue.main.async { [weak self] in
+            self?.go(to: destination)
+        }
+    }
+
+    func vimGoToDestination(_ destination: PDFDestination) {
+        let horizontalOrigin = currentHorizontalOrigin()
+
+        cancelPendingRestore()
+        recordJumpSource()
+        stopScrollAnimation()
+        stopZoomState()
+
+        go(to: destination)
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.go(to: destination)
+            self.restoreHorizontalOrigin(horizontalOrigin)
+
+            DispatchQueue.main.async { [weak self] in
+                self?.restoreHorizontalOrigin(horizontalOrigin)
+            }
+        }
+    }
+
+    func vimJumpBack() {
+        guard let targetSnapshot = jumpBackStack.popLast() else { return }
+
+        cancelPendingRestore()
+        if let current = self.snapshot() {
+            jumpForwardStack.append(current)
+            trimJumpStacks()
+        }
+
+        restore(targetSnapshot)
+    }
+
+    func vimJumpForward() {
+        guard let targetSnapshot = jumpForwardStack.popLast() else { return }
+
+        cancelPendingRestore()
+        if let current = self.snapshot() {
+            jumpBackStack.append(current)
+            trimJumpStacks()
+        }
+
+        restore(targetSnapshot)
+    }
+
+    func snapshot() -> ReaderSnapshot? {
+        guard let document else { return nil }
+
+        if let scrollView = pdfScrollView {
+            let clipView = scrollView.contentView
+            let visibleCenter = NSPoint(x: clipView.bounds.midX, y: clipView.bounds.midY)
+            let pointInPDFView = convert(visibleCenter, from: clipView)
+
+            if let page = page(for: pointInPDFView, nearest: true) {
+                return ReaderSnapshot(
+                    pageIndex: document.index(for: page),
+                    pointOnPage: convert(pointInPDFView, to: page),
+                    scrollOrigin: clipView.bounds.origin,
+                    scaleFactor: scaleFactor,
+                    autoScales: autoScales
+                )
+            }
+        }
+
+        guard let destination = currentDestination,
+              let page = destination.page else { return nil }
+
+        return ReaderSnapshot(
+            pageIndex: document.index(for: page),
+            pointOnPage: destination.point,
+            scrollOrigin: nil,
+            scaleFactor: scaleFactor,
+            autoScales: autoScales
+        )
+    }
+
+    func restore(_ snapshot: ReaderSnapshot?) {
+        restoreGeneration += 1
+        let generation = restoreGeneration
+        stopScrollAnimation()
+        stopZoomState()
+
+        if snapshot == .initial {
+            restoreInitialDocumentPosition(generation: generation)
+            return
+        }
+
+        guard let snapshot, let document, let page = document.page(at: snapshot.pageIndex) else {
+            _ = applyWidthFitScaleNow()
+            return
+        }
+
+        autoScales = false
+        if snapshot.autoScales {
+            _ = applyWidthFitScaleNow()
+        } else {
+            scaleFactor = snapshot.scaleFactor
+            layoutDocumentView()
+        }
+
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.go(to: PDFDestination(page: page, at: snapshot.pointOnPage))
+            self.restoreScrollOrigin(snapshot.scrollOrigin)
+
+            DispatchQueue.main.async { [weak self] in
+                self?.restoreScrollOrigin(snapshot.scrollOrigin)
+            }
+        }
+    }
+
+    private func restoreInitialDocumentPosition(
+        generation: Int,
+        attemptsRemaining: Int = 30,
+        stablePasses: Int = 0,
+        lastViewportSize: NSSize? = nil
+    ) {
+        guard generation == restoreGeneration else { return }
+
+        let viewportSize = fitViewportSize()
+        let didFit = applyWidthFitScaleNow(for: document?.page(at: 0))
+        if didFit {
+            goToFirstPage(nil)
+            scrollToDocumentEdge(.top)
+        }
+
+        let nextStablePasses: Int
+        if didFit,
+           let viewportSize,
+           let lastViewportSize,
+           isSameViewportSize(viewportSize, lastViewportSize) {
+            nextStablePasses = stablePasses + 1
+        } else {
+            nextStablePasses = 0
+        }
+
+        guard attemptsRemaining > 0, (!didFit || nextStablePasses < 2) else { return }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.04) { [weak self] in
+            self?.restoreInitialDocumentPosition(
+                generation: generation,
+                attemptsRemaining: attemptsRemaining - 1,
+                stablePasses: nextStablePasses,
+                lastViewportSize: viewportSize
+            )
+        }
+    }
+
+    private func recordJumpSource() {
+        guard let current = snapshot() else { return }
+
+        if let last = jumpBackStack.last, isSameJumpLocation(last, current) {
+            jumpForwardStack.removeAll()
+            return
+        }
+
+        jumpBackStack.append(current)
+        jumpForwardStack.removeAll()
+        trimJumpStacks()
+    }
+
+    private func trimJumpStacks() {
+        if jumpBackStack.count > 100 {
+            jumpBackStack.removeFirst(jumpBackStack.count - 100)
+        }
+
+        if jumpForwardStack.count > 100 {
+            jumpForwardStack.removeFirst(jumpForwardStack.count - 100)
+        }
+    }
+
+    private func isSameJumpLocation(_ lhs: ReaderSnapshot, _ rhs: ReaderSnapshot) -> Bool {
+        lhs.pageIndex == rhs.pageIndex
+            && abs(lhs.pointOnPage.x - rhs.pointOnPage.x) < 2
+            && abs(lhs.pointOnPage.y - rhs.pointOnPage.y) < 2
+    }
+
+    private func restoreScrollOrigin(_ origin: NSPoint?) {
+        guard let origin, let scrollView = pdfScrollView else { return }
+        stopScrollAnimation()
+
+        let clipView = scrollView.contentView
+        let documentSize = scrollView.documentView?.bounds.size ?? .zero
+        let maxX = max(0, documentSize.width - clipView.bounds.width)
+        let maxY = max(0, documentSize.height - clipView.bounds.height)
+        let clamped = NSPoint(
+            x: restoredScrollCoordinate(
+                origin: origin.x,
+                contentLength: documentSize.width,
+                viewportLength: clipView.bounds.width,
+                maxValue: maxX
+            ),
+            y: restoredScrollCoordinate(
+                origin: origin.y,
+                contentLength: documentSize.height,
+                viewportLength: clipView.bounds.height,
+                maxValue: maxY
+            )
+        )
+
+        clipView.scroll(to: clamped)
+        scrollView.reflectScrolledClipView(clipView)
+    }
+
+    private func persistAnnotationsIfPossible() {
+        guard let document, let url = document.documentURL else { return }
+        if !document.write(to: url) {
+            NSSound.beep()
+        }
+    }
+
+    @discardableResult
+    private func removeHighlightAnnotations(on page: PDFPage, intersecting bounds: NSRect) -> Bool {
+        removeHighlightAnnotations(on: page, intersecting: [bounds])
+    }
+
+    @discardableResult
+    private func removeHighlightAnnotations(on page: PDFPage, intersecting selectionBounds: [NSRect]) -> Bool {
+        let highlights = highlightAnnotationsToRemove(on: page, intersecting: selectionBounds)
+
+        for annotation in highlights {
+            page.removeAnnotation(annotation)
+        }
+
+        return !highlights.isEmpty
+    }
+
+    private func highlightAnnotationsToRemove(on page: PDFPage, intersecting selectionBounds: [NSRect]) -> [PDFAnnotation] {
+        let directlyHitHighlights = highlightAnnotations(on: page, intersecting: selectionBounds)
+        var seen = Set<ObjectIdentifier>()
+        var result: [PDFAnnotation] = []
+
+        for annotation in directlyHitHighlights {
+            for groupedAnnotation in highlightGroupAnnotations(for: annotation, on: page) {
+                let identifier = ObjectIdentifier(groupedAnnotation)
+                guard seen.insert(identifier).inserted else { continue }
+                result.append(groupedAnnotation)
+            }
+        }
+
+        return result
+    }
+
+    private func highlightGroupAnnotations(for seed: PDFAnnotation, on page: PDFPage) -> [PDFAnnotation] {
+        if let groupID = HighlightAnnotationMetadata.groupID(for: seed) {
+            return page.annotations.filter { annotation in
+                annotation.type == "Highlight"
+                    && HighlightAnnotationMetadata.groupID(for: annotation) == groupID
+            }
+        }
+
+        if let explanation = AIExplanationAnnotation.decode(seed.contents) {
+            return explanationAnnotations(matching: explanation, on: page)
+        }
+
+        return legacyConnectedHighlightGroup(for: seed, on: page)
+    }
+
+    private func legacyConnectedHighlightGroup(for seed: PDFAnnotation, on page: PDFPage) -> [PDFAnnotation] {
+        let candidates = page.annotations.filter { annotation in
+            annotation.type == "Highlight"
+                && HighlightAnnotationMetadata.groupID(for: annotation) == nil
+                && AIExplanationAnnotation.decode(annotation.contents) == nil
+                && highlightColor(annotation.color, matches: seed.color)
+        }
+        var result: [PDFAnnotation] = []
+        var queue: [PDFAnnotation] = [seed]
+        var seen = Set<ObjectIdentifier>()
+
+        while let annotation = queue.popLast() {
+            let identifier = ObjectIdentifier(annotation)
+            guard seen.insert(identifier).inserted else { continue }
+            result.append(annotation)
+
+            for candidate in candidates where !seen.contains(ObjectIdentifier(candidate)) {
+                if highlight(annotation, isConnectedTo: candidate) {
+                    queue.append(candidate)
+                }
+            }
+        }
+
+        return result
+    }
+
+    private func existingAIExplanation(on page: PDFPage, intersecting selectionBounds: [NSRect]) -> String? {
+        highlightAnnotations(on: page, intersecting: selectionBounds)
+            .compactMap { AIExplanationAnnotation.decode($0.contents) }
+            .first
+    }
+
+    private func highlightedAnnotations(intersecting selection: PDFSelection) -> [PDFAnnotation] {
+        let selectionsByPage = highlightSelectionBoundsByPage(for: selection)
+        var seen = Set<ObjectIdentifier>()
+        var annotations: [PDFAnnotation] = []
+
+        for pageSelection in selectionsByPage {
+            for annotation in highlightAnnotations(on: pageSelection.page, intersecting: pageSelection.bounds) {
+                let identifier = ObjectIdentifier(annotation)
+                guard seen.insert(identifier).inserted else { continue }
+                annotations.append(annotation)
+            }
+        }
+
+        return annotations
+    }
+
+    private func highlightAnnotations(on page: PDFPage, intersecting selectionBounds: [NSRect]) -> [PDFAnnotation] {
+        guard !selectionBounds.isEmpty else { return [] }
+
+        return page.annotations.filter { annotation in
+            annotation.type == "Highlight"
+                && highlightRegions(for: annotation).contains { highlightBounds in
+                    selectionBounds.contains { selectedBounds in
+                        highlight(highlightBounds, matches: selectedBounds)
+                    }
+                }
+        }
+    }
+
+    private struct PageSelectionBounds {
+        var page: PDFPage
+        var bounds: [NSRect]
+    }
+
+    private func highlightSelectionBoundsByPage(for selection: PDFSelection) -> [PageSelectionBounds] {
+        let lineSelections = selection.selectionsByLine()
+        let selections = lineSelections.isEmpty ? [selection] : lineSelections
+        var result: [PageSelectionBounds] = []
+
+        for lineSelection in selections {
+            for page in lineSelection.pages {
+                guard let bounds = tightHighlightBounds(for: lineSelection, on: page) else { continue }
+
+                if let index = result.firstIndex(where: { $0.page === page }) {
+                    result[index].bounds.append(bounds)
+                } else {
+                    result.append(PageSelectionBounds(page: page, bounds: [bounds]))
+                }
+            }
+        }
+
+        return result
+    }
+
+    private func aiExplanationContext(
+        for selection: PDFSelection,
+        selectedText: String
+    ) -> AIExplanationContext? {
+        guard let document else { return nil }
+
+        let pages = selection.pages
+        let pageNumbers = pages.compactMap { page -> Int? in
+            let index = document.index(for: page)
+            return index == NSNotFound ? nil : index + 1
+        }
+        let pageText = pages
+            .compactMap { $0.string?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty }
+            .joined(separator: "\n\n")
+        let paragraphContext = paragraphContext(
+            selectedText: selectedText,
+            in: pageText
+        )
+        let url = document.documentURL
+
+        return AIExplanationContext(
+            selectedText: selectedText,
+            previousParagraph: paragraphContext.previous,
+            currentParagraph: paragraphContext.current,
+            nextParagraph: paragraphContext.next,
+            nearbyText: paragraphContext.nearby,
+            fileName: url?.lastPathComponent ?? "Untitled PDF",
+            directoryName: url?.deletingLastPathComponent().lastPathComponent,
+            outlineTitle: document.outlineItem(for: selection)?.label?.nilIfEmpty,
+            pageNumbers: pageNumbers.isEmpty ? [1] : pageNumbers
+        )
+    }
+
+    private func paragraphContext(
+        selectedText: String,
+        in text: String
+    ) -> (previous: String?, current: String?, next: String?, nearby: String) {
+        let paragraphs = paragraphs(from: text)
+        let selectedNeedle = selectedText.normalizedForAIContext.prefixString(240)
+
+        if let index = paragraphs.firstIndex(where: { paragraph in
+            let normalized = paragraph.normalizedForAIContext
+            return normalized.contains(selectedNeedle)
+                || selectedNeedle.contains(normalized.prefixString(240))
+        }) {
+            let previous = index > 0 ? paragraphs[index - 1] : nil
+            let current = paragraphs[index]
+            let next = index + 1 < paragraphs.count ? paragraphs[index + 1] : nil
+            let nearby = [previous, current, next]
+                .compactMap { $0 }
+                .joined(separator: "\n\n")
+                .limitedForAIContext()
+            return (previous, current, next, nearby)
+        }
+
+        return (
+            nil,
+            nil,
+            nil,
+            text.trimmingCharacters(in: .whitespacesAndNewlines).limitedForAIContext()
+        )
+    }
+
+    private func paragraphs(from text: String) -> [String] {
+        let normalized = text
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+        var paragraphs: [String] = []
+        var currentLines: [String] = []
+
+        for line in normalized.components(separatedBy: "\n") {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty {
+                if !currentLines.isEmpty {
+                    paragraphs.append(currentLines.joined(separator: " "))
+                    currentLines.removeAll()
+                }
+            } else {
+                currentLines.append(trimmed)
+            }
+        }
+
+        if !currentLines.isEmpty {
+            paragraphs.append(currentLines.joined(separator: " "))
+        }
+
+        if paragraphs.count > 1 {
+            return paragraphs.map { $0.limitedForAIContext(1600) }
+        }
+
+        return normalized
+            .components(separatedBy: "\n")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .chunked(maxCharacters: 900)
+            .map { $0.limitedForAIContext(1600) }
+    }
+
+    private func tightHighlightBounds(for selection: PDFSelection, on page: PDFPage) -> NSRect? {
+        let rawBounds = selection.bounds(for: page)
+        guard rawBounds.width > 0, rawBounds.height > 0 else { return nil }
+
+        let verticalInset = min(max(rawBounds.height * 0.10, 0.45), 1.4)
+        let horizontalOutset: CGFloat = 0.35
+        let bounds = rawBounds.insetBy(dx: -horizontalOutset, dy: verticalInset)
+        guard bounds.width > 0, bounds.height > 0 else { return nil }
+
+        return bounds
+    }
+
+    private func quadrilateralPoints(for bounds: NSRect) -> [NSValue] {
+        [
+            NSValue(point: NSPoint(x: 0, y: bounds.height)),
+            NSValue(point: NSPoint(x: bounds.width, y: bounds.height)),
+            NSValue(point: NSPoint(x: 0, y: 0)),
+            NSValue(point: NSPoint(x: bounds.width, y: 0))
+        ]
+    }
+
+    private func highlightRegions(for annotation: PDFAnnotation) -> [NSRect] {
+        guard let quadrilateralPoints = annotation.quadrilateralPoints,
+              quadrilateralPoints.count >= 4 else {
+            return [annotation.bounds]
+        }
+
+        let regions = stride(from: 0, to: quadrilateralPoints.count - 3, by: 4).compactMap { index in
+            quadBounds(
+                Array(quadrilateralPoints[index..<(index + 4)]),
+                relativeTo: annotation.bounds
+            )
+        }
+
+        return regions.isEmpty ? [annotation.bounds] : regions
+    }
+
+    private func quadBounds(_ values: [NSValue], relativeTo annotationBounds: NSRect) -> NSRect? {
+        let points = values.map(\.pointValue)
+        guard points.count == 4 else { return nil }
+
+        guard let relativeBounds = rect(containing: points.map { point in
+            NSPoint(x: annotationBounds.minX + point.x, y: annotationBounds.minY + point.y)
+        }),
+              let absoluteBounds = rect(containing: points) else {
+            return nil
+        }
+        let expandedAnnotationBounds = annotationBounds.insetBy(dx: -1, dy: -1)
+
+        if expandedAnnotationBounds.intersects(relativeBounds) {
+            return relativeBounds
+        }
+
+        if expandedAnnotationBounds.intersects(absoluteBounds) {
+            return absoluteBounds
+        }
+
+        return relativeBounds
+    }
+
+    private func rect(containing points: [NSPoint]) -> NSRect? {
+        guard let minX = points.map(\.x).min(),
+              let maxX = points.map(\.x).max(),
+              let minY = points.map(\.y).min(),
+              let maxY = points.map(\.y).max(),
+              maxX > minX,
+              maxY > minY else {
+            return nil
+        }
+
+        return NSRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
+    }
+
+    private func highlight(_ annotationBounds: NSRect, matches selectionBounds: NSRect) -> Bool {
+        guard annotationBounds.width > 0,
+              annotationBounds.height > 0,
+              selectionBounds.width > 0,
+              selectionBounds.height > 0 else {
+            return false
+        }
+
+        let intersection = annotationBounds.intersection(selectionBounds)
+        guard !intersection.isNull,
+              intersection.width > 0,
+              intersection.height > 0 else {
+            return false
+        }
+
+        let verticalOverlap = intersection.height / min(annotationBounds.height, selectionBounds.height)
+        guard verticalOverlap >= 0.55 else { return false }
+
+        if selectionBounds.contains(center(of: annotationBounds))
+            || annotationBounds.contains(center(of: selectionBounds)) {
+            return true
+        }
+
+        let annotationArea = annotationBounds.width * annotationBounds.height
+        let selectionArea = selectionBounds.width * selectionBounds.height
+        let intersectionArea = intersection.width * intersection.height
+        let smallerArea = min(annotationArea, selectionArea)
+
+        return smallerArea > 0 && intersectionArea / smallerArea >= 0.42
+    }
+
+    private func highlight(_ lhs: PDFAnnotation, isConnectedTo rhs: PDFAnnotation) -> Bool {
+        if lhs === rhs { return true }
+
+        return highlightRegions(for: lhs).contains { lhsRegion in
+            highlightRegions(for: rhs).contains { rhsRegion in
+                highlight(lhsRegion, isConnectedTo: rhsRegion)
+            }
+        }
+    }
+
+    private func highlight(_ lhs: NSRect, isConnectedTo rhs: NSRect) -> Bool {
+        guard lhs.width > 0, lhs.height > 0, rhs.width > 0, rhs.height > 0 else {
+            return false
+        }
+
+        if lhs.intersects(rhs) {
+            return true
+        }
+
+        let verticalGap = max(0, max(lhs.minY - rhs.maxY, rhs.minY - lhs.maxY))
+        let horizontalGap = max(0, max(lhs.minX - rhs.maxX, rhs.minX - lhs.maxX))
+        let lineHeight = min(lhs.height, rhs.height)
+        let adjacentLineGap = max(2.5, lineHeight * 0.9)
+        let relatedHorizontalGap = max(24, lineHeight * 6)
+
+        return verticalGap <= adjacentLineGap && horizontalGap <= relatedHorizontalGap
+    }
+
+    private func highlightColor(_ lhs: NSColor?, matches rhs: NSColor?) -> Bool {
+        guard let lhs = lhs?.usingColorSpace(.deviceRGB),
+              let rhs = rhs?.usingColorSpace(.deviceRGB) else {
+            return lhs == nil && rhs == nil
+        }
+
+        return abs(lhs.redComponent - rhs.redComponent) < 0.015
+            && abs(lhs.greenComponent - rhs.greenComponent) < 0.015
+            && abs(lhs.blueComponent - rhs.blueComponent) < 0.015
+            && abs(lhs.alphaComponent - rhs.alphaComponent) < 0.03
+    }
+
+    private func center(of rect: NSRect) -> NSPoint {
+        NSPoint(x: rect.midX, y: rect.midY)
+    }
+
+    private func currentHorizontalOrigin() -> CGFloat? {
+        pdfScrollView?.contentView.bounds.origin.x
+    }
+
+    private func restoreHorizontalOrigin(_ originX: CGFloat?) {
+        guard let originX, let scrollView = pdfScrollView else { return }
+
+        let clipView = scrollView.contentView
+        let documentSize = scrollView.documentView?.bounds.size ?? .zero
+        let maxX = max(0, documentSize.width - clipView.bounds.width)
+        let clampedX = restoredScrollCoordinate(
+            origin: originX,
+            contentLength: documentSize.width,
+            viewportLength: clipView.bounds.width,
+            maxValue: maxX
+        )
+
+        clipView.scroll(to: NSPoint(x: clampedX, y: clipView.bounds.origin.y))
+        scrollView.reflectScrolledClipView(clipView)
+    }
+
+    private func ensureScrollAnimation(in scrollView: NSScrollView) {
+        guard scrollTimer?.isValid != true else { return }
+
+        lastScrollTick = Date.timeIntervalSinceReferenceDate
+        let timer = Timer(timeInterval: 1.0 / 120.0, repeats: true) { [weak self, weak scrollView] timer in
+            guard let self, let scrollView else {
+                timer.invalidate()
+                return
+            }
+
+            MainActor.assumeIsolated {
+                self.stepScrollAnimation(in: scrollView)
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        scrollTimer = timer
+    }
+
+    private func stepScrollAnimation(in scrollView: NSScrollView) {
+        guard let target = scrollTargetOrigin else {
+            stopScrollAnimation()
+            return
+        }
+
+        let now = Date.timeIntervalSinceReferenceDate
+        let deltaTime = min(max(now - lastScrollTick, 1.0 / 240.0), 1.0 / 30.0)
+        lastScrollTick = now
+
+        let clipView = scrollView.contentView
+        let origin = clipView.bounds.origin
+        let deltaX = target.x - origin.x
+        let deltaY = target.y - origin.y
+
+        if abs(deltaX) < 0.45, abs(deltaY) < 0.45 {
+            clipView.scroll(to: target)
+            scrollView.reflectScrolledClipView(clipView)
+            stopScrollAnimation()
+            return
+        }
+
+        let progress = 1 - CGFloat(exp(-deltaTime / 0.055))
+        let next = NSPoint(
+            x: origin.x + deltaX * progress,
+            y: origin.y + deltaY * progress
+        )
+        clipView.scroll(to: next)
+        scrollView.reflectScrolledClipView(clipView)
+    }
+
+    private func stopScrollAnimation() {
+        scrollTimer?.invalidate()
+        scrollTimer = nil
+        scrollTargetOrigin = nil
+    }
+
+    private func prepareZoomAnchor() {
+        if zoomAnchor == nil {
+            zoomAnchor = centerDestination() ?? currentDestination
+        }
+    }
+
+    private func ensureZoomAnimation() {
+        guard zoomTimer?.isValid != true else { return }
+
+        lastZoomTick = Date.timeIntervalSinceReferenceDate
+        let timer = Timer(timeInterval: 1.0 / 60.0, repeats: true) { [weak self] timer in
+            guard let self else {
+                timer.invalidate()
+                return
+            }
+
+            MainActor.assumeIsolated {
+                self.stepZoomAnimation()
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        zoomTimer = timer
+    }
+
+    private func stepZoomAnimation() {
+        guard let target = zoomTargetScale else {
+            stopZoomState()
+            return
+        }
+
+        let now = Date.timeIntervalSinceReferenceDate
+        let deltaTime = min(max(now - lastZoomTick, 1.0 / 120.0), 1.0 / 30.0)
+        lastZoomTick = now
+
+        let current = scaleFactor
+        let delta = target - current
+        let threshold = max(0.001, target * 0.0008)
+
+        if abs(delta) < threshold {
+            applyZoomScale(target)
+            stopZoomState()
+            return
+        }
+
+        let progress = 1 - CGFloat(exp(-deltaTime / 0.11))
+        applyZoomScale(current + delta * progress)
+    }
+
+    private func applyZoomScale(_ scale: CGFloat) {
+        autoScales = false
+        scaleFactor = min(max(scale, minimumZoomScale), maximumZoomScale)
+        layoutDocumentView()
+
+        if let zoomAnchor {
+            centerBothAxes(on: zoomAnchor)
+        }
+    }
+
+    private func stopZoomState() {
+        zoomTimer?.invalidate()
+        zoomTimer = nil
+        zoomTargetScale = nil
+        zoomAnchor = nil
+    }
+
+    private func cancelPendingRestore() {
+        restoreGeneration += 1
+    }
+
+    @discardableResult
+    private func applyWidthFitScaleNow(for page: PDFPage? = nil) -> Bool {
+        guard let fitScale = widthFitScale(for: page) else { return false }
+
+        autoScales = false
+        scaleFactor = fitScale
+        layoutDocumentView()
+        needsDisplay = true
+        return true
+    }
+
+    private func widthFitScale(for explicitPage: PDFPage? = nil) -> CGFloat? {
+        guard let page = explicitPage ?? currentPage ?? currentDestination?.page ?? document?.page(at: 0),
+              let viewportSize = fitViewportSize(),
+              let pageSize = displaySize(for: page) else { return nil }
+
+        return clampedScale((viewportSize.width * 0.985) / pageSize.width)
+    }
+
+    private func pageFitScale(for page: PDFPage) -> CGFloat? {
+        guard let viewportSize = fitViewportSize(),
+              let pageSize = displaySize(for: page) else { return nil }
+
+        let widthScale = (viewportSize.width * 0.985) / pageSize.width
+        let heightScale = (viewportSize.height * 0.985) / pageSize.height
+        return clampedScale(min(widthScale, heightScale))
+    }
+
+    private func fitViewportSize() -> NSSize? {
+        guard window != nil, let scrollView = pdfScrollView else { return nil }
+
+        layoutSubtreeIfNeeded()
+        scrollView.layoutSubtreeIfNeeded()
+
+        let viewportSize = scrollView.contentView.frame.size
+        guard viewportSize.width > 100, viewportSize.height > 100 else { return nil }
+
+        return viewportSize
+    }
+
+    private func displaySize(for page: PDFPage) -> NSSize? {
+        let bounds = page.bounds(for: displayBox)
+        guard bounds.width > 0, bounds.height > 0 else { return nil }
+
+        let normalizedRotation = ((page.rotation % 360) + 360) % 360
+        if normalizedRotation == 90 || normalizedRotation == 270 {
+            return NSSize(width: bounds.height, height: bounds.width)
+        }
+
+        return bounds.size
+    }
+
+    private func clampedScale(_ scale: CGFloat) -> CGFloat {
+        min(max(scale, minimumZoomScale), maximumZoomScale)
+    }
+
+    private func isSameViewportSize(_ lhs: NSSize, _ rhs: NSSize) -> Bool {
+        abs(lhs.width - rhs.width) < 0.5 && abs(lhs.height - rhs.height) < 0.5
+    }
+
+    private func pageCenterDestination(for page: PDFPage) -> PDFDestination {
+        let bounds = page.bounds(for: displayBox)
+        return PDFDestination(page: page, at: NSPoint(x: bounds.midX, y: bounds.midY))
+    }
+
+    private func centerDestination() -> PDFDestination? {
+        guard let scrollView = pdfScrollView else { return currentDestination }
+
+        let clipView = scrollView.contentView
+        let visibleCenter = NSPoint(x: clipView.bounds.midX, y: clipView.bounds.midY)
+        let pointInPDFView = convert(visibleCenter, from: clipView)
+
+        guard let page = page(for: pointInPDFView, nearest: true) else {
+            return currentDestination
+        }
+
+        return PDFDestination(page: page, at: convert(pointInPDFView, to: page))
+    }
+
+    private struct PageState {
+        var page: PDFPage
+        var pageIndex: Int
+        var pointOnPage: NSPoint
+        var pageBounds: NSRect
+    }
+
+    private func currentPageState() -> PageState? {
+        guard let document,
+              let scrollView = pdfScrollView else { return nil }
+
+        let clipView = scrollView.contentView
+        let visibleCenter = NSPoint(x: clipView.bounds.midX, y: clipView.bounds.midY)
+        let pointInPDFView = convert(visibleCenter, from: clipView)
+
+        guard let page = page(for: pointInPDFView, nearest: true) ?? currentPage else { return nil }
+
+        return PageState(
+            page: page,
+            pageIndex: document.index(for: page),
+            pointOnPage: convert(pointInPDFView, to: page),
+            pageBounds: page.bounds(for: displayBox)
+        )
+    }
+
+    private func topDestination(for page: PDFPage) -> PDFDestination {
+        let bounds = page.bounds(for: displayBox)
+        return PDFDestination(page: page, at: NSPoint(x: bounds.midX, y: bounds.maxY))
+    }
+
+    private func centerVertically(on destination: PDFDestination) {
+        guard let page = destination.page,
+              let scrollView = pdfScrollView,
+              let documentView = scrollView.documentView else {
+            go(to: destination)
+            return
+        }
+
+        let clipView = scrollView.contentView
+        let pointInPDFView = convert(destination.point, from: page)
+        let pointInDocument = convert(pointInPDFView, to: documentView)
+        let documentSize = documentView.bounds.size
+        let maxY = max(0, documentSize.height - clipView.bounds.height)
+        let currentOrigin = clipView.bounds.origin
+        let next = NSPoint(
+            x: currentOrigin.x,
+            y: centeredScrollCoordinate(
+                point: pointInDocument.y,
+                currentOrigin: currentOrigin.y,
+                contentLength: documentSize.height,
+                viewportLength: clipView.bounds.height,
+                maxValue: maxY
+            )
+        )
+
+        clipView.scroll(to: next)
+        scrollView.reflectScrolledClipView(clipView)
+    }
+
+    private func centerBothAxes(on destination: PDFDestination) {
+        guard let page = destination.page,
+              let scrollView = pdfScrollView,
+              let documentView = scrollView.documentView else {
+            go(to: destination)
+            return
+        }
+
+        let clipView = scrollView.contentView
+        let pointInPDFView = convert(destination.point, from: page)
+        let pointInDocument = convert(pointInPDFView, to: documentView)
+        let documentSize = documentView.bounds.size
+        let maxX = max(0, documentSize.width - clipView.bounds.width)
+        let maxY = max(0, documentSize.height - clipView.bounds.height)
+        let currentOrigin = clipView.bounds.origin
+        let next = NSPoint(
+            x: centeredScrollCoordinate(
+                point: pointInDocument.x,
+                currentOrigin: currentOrigin.x,
+                contentLength: documentSize.width,
+                viewportLength: clipView.bounds.width,
+                maxValue: maxX
+            ),
+            y: centeredScrollCoordinate(
+                point: pointInDocument.y,
+                currentOrigin: currentOrigin.y,
+                contentLength: documentSize.height,
+                viewportLength: clipView.bounds.height,
+                maxValue: maxY
+            )
+        )
+
+        clipView.scroll(to: next)
+        scrollView.reflectScrolledClipView(clipView)
+    }
+
+    private func nextScrollCoordinate(
+        origin: CGFloat,
+        delta: CGFloat,
+        contentLength: CGFloat,
+        viewportLength: CGFloat,
+        maxValue: CGFloat
+    ) -> CGFloat {
+        guard delta != 0 else { return origin }
+        guard contentLength > viewportLength else { return origin }
+        return min(max(0, origin + delta), maxValue)
+    }
+
+    private func restoredScrollCoordinate(
+        origin: CGFloat,
+        contentLength: CGFloat,
+        viewportLength: CGFloat,
+        maxValue: CGFloat
+    ) -> CGFloat {
+        guard contentLength > viewportLength else { return origin }
+        return min(max(0, origin), maxValue)
+    }
+
+    private enum VerticalEdge {
+        case top
+        case bottom
+    }
+
+    private func scrollToDocumentEdge(_ edge: VerticalEdge) {
+        guard let scrollView = pdfScrollView else { return }
+
+        let clipView = scrollView.contentView
+        let documentSize = scrollView.documentView?.bounds.size ?? .zero
+        let maxY = max(0, documentSize.height - clipView.bounds.height)
+        let currentOrigin = clipView.bounds.origin
+        let nextY: CGFloat
+
+        if scrollView.documentView?.isFlipped == true {
+            nextY = edge == .top ? 0 : maxY
+        } else {
+            nextY = edge == .top ? maxY : 0
+        }
+
+        clipView.scroll(to: NSPoint(x: currentOrigin.x, y: nextY))
+        scrollView.reflectScrolledClipView(clipView)
+    }
+
+    private func centeredScrollCoordinate(
+        point: CGFloat,
+        currentOrigin: CGFloat,
+        contentLength: CGFloat,
+        viewportLength: CGFloat,
+        maxValue: CGFloat
+    ) -> CGFloat {
+        guard contentLength > viewportLength else { return currentOrigin }
+        return min(max(0, point - viewportLength / 2), maxValue)
+    }
+
+    private var minimumZoomScale: CGFloat {
+        minScaleFactor > 0 ? minScaleFactor : 0.1
+    }
+
+    private var maximumZoomScale: CGFloat {
+        maxScaleFactor > minimumZoomScale ? maxScaleFactor : 8
+    }
+
+    private var pdfScrollView: NSScrollView? {
+        findScrollView(in: self)
+    }
+
+    private func findScrollView(in view: NSView) -> NSScrollView? {
+        if let scrollView = view as? NSScrollView {
+            return scrollView
+        }
+
+        for subview in view.subviews {
+            if let scrollView = findScrollView(in: subview) {
+                return scrollView
+            }
+        }
+
+        return nil
+    }
+}
+
+struct KeyboardCapture: NSViewRepresentable {
+    weak var appState: AppState?
+
+    func makeNSView(context: Context) -> KeyCaptureView {
+        let view = KeyCaptureView()
+        view.appState = appState
+        DispatchQueue.main.async {
+            view.focus()
+        }
+        return view
+    }
+
+    func updateNSView(_ nsView: KeyCaptureView, context: Context) {
+        nsView.appState = appState
+        DispatchQueue.main.async {
+            nsView.focus()
+        }
+    }
+}
+
+final class KeyCaptureView: NSView {
+    weak var appState: AppState?
+
+    override var acceptsFirstResponder: Bool { true }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        focus()
+    }
+
+    func focus() {
+        window?.makeFirstResponder(self)
+    }
+
+    override func keyDown(with event: NSEvent) {
+        if appState?.handleKeyEvent(event) == true {
+            return
+        }
+        super.keyDown(with: event)
+    }
+
+    override func keyUp(with event: NSEvent) {
+        if appState?.handleKeyEvent(event) == true {
+            return
+        }
+        super.keyUp(with: event)
+    }
+}
