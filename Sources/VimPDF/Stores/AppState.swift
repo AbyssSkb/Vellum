@@ -398,7 +398,8 @@ final class AppState: ObservableObject {
             return true
         }
 
-        if normalizedContinuousKey(key) == "d", activePDFView?.vimDeleteHighlightsForSelection() == true {
+        if VimKeyMap.normalizedContinuousKey(key) == "d",
+           activePDFView?.vimDeleteHighlightsForSelection() == true {
             stopHeldKeyTimer()
             heldKey = "d"
             numericPrefix = ""
@@ -406,14 +407,17 @@ final class AppState: ObservableObject {
             return true
         }
 
-        guard isContinuousKey(key) else {
+        guard VimKeyMap.isContinuousKey(key) else {
             if isRepeat {
-                return isHandledKey(key)
+                return VimKeyMap.isHandledKey(
+                    key,
+                    hasNavigableTextSelection: activePDFView?.hasNavigableTextSelection == true
+                )
             }
             return handleKey(key)
         }
 
-        let normalizedKey = normalizedContinuousKey(key)
+        let normalizedKey = VimKeyMap.normalizedContinuousKey(key)
         if heldKey == normalizedKey {
             return true
         }
@@ -425,7 +429,8 @@ final class AppState: ObservableObject {
     }
 
     private func handleKeyUp(_ key: String) -> Bool {
-        guard isContinuousKey(key), heldKey == normalizedContinuousKey(key) else { return false }
+        guard VimKeyMap.isContinuousKey(key),
+              heldKey == VimKeyMap.normalizedContinuousKey(key) else { return false }
         stopHeldKeyTimer()
         return true
     }
@@ -545,8 +550,8 @@ final class AppState: ObservableObject {
             handleVimCommand(.previousTab)
         default:
             numericPrefix = ""
-            let lowered = key.lowercased()
-            return lowered != key && handleLowercaseKey(lowered)
+            guard let fallback = VimKeyMap.lowercaseFallback(for: key) else { return false }
+            return handleKey(fallback)
         }
         return true
     }
@@ -576,36 +581,6 @@ final class AppState: ObservableObject {
         heldKeyTimer?.invalidate()
         heldKeyTimer = nil
         heldKey = nil
-    }
-
-    private func isContinuousKey(_ key: String) -> Bool {
-        switch normalizedContinuousKey(key) {
-        case "j", "k", "d", "u", "h", "l", "=", "-":
-            return true
-        default:
-            return false
-        }
-    }
-
-    private func isHandledKey(_ key: String) -> Bool {
-        switch key {
-        case "g", "G", "H", "L", "O", "\t", "a", "c", "j", "k", "d", "u", "h", "l", "m", " ", "f", "b", "+", "=", "-", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "z", "o", "t", "x", "]", "[":
-            return true
-        case "w", "e":
-            return activePDFView?.hasNavigableTextSelection == true
-        default:
-            let lowered = key.lowercased()
-            return lowered != key && isHandledKey(lowered)
-        }
-    }
-
-    private func normalizedContinuousKey(_ key: String) -> String {
-        switch key {
-        case "+":
-            return "="
-        default:
-            return key.lowercased()
-        }
     }
 
     private func handleNumericPrefixKey(_ key: String) -> Bool {
@@ -657,12 +632,4 @@ final class AppState: ObservableObject {
         }
     }
 
-    private func handleLowercaseKey(_ key: String) -> Bool {
-        switch key {
-        case "a", "c", "j", "k", "d", "u", "h", "l", "m", "f", "b", "w", "e", "o", "t", "x", "z":
-            return handleKey(key)
-        default:
-            return false
-        }
-    }
 }
