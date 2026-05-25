@@ -2,50 +2,6 @@
 import PDFKit
 import SwiftUI
 
-private struct VimTextSelectionNavigationState {
-    var anchorOffset: Int
-    var extentOffset: Int
-    var preferredX: CGFloat?
-    var anchorCaret: VimTextCaret?
-    var extentCaret: VimTextCaret?
-}
-
-private struct VimTextCaret {
-    let offset: Int
-    let pageIndex: Int
-    let slotIndex: Int
-    let point: NSPoint
-    let lineMidY: CGFloat
-}
-
-private struct VimTextLineCharacter {
-    let globalOffset: Int
-    let minX: CGFloat
-    let centerX: CGFloat
-    let maxX: CGFloat
-    let centerY: CGFloat
-    let height: CGFloat
-}
-
-private struct VimTextLine {
-    let pageIndex: Int
-    let startOffset: Int
-    let endOffset: Int
-    let midY: CGFloat
-    let characters: [VimTextLineCharacter]
-}
-
-private struct VimTextCaretPosition {
-    let pageIndex: Int
-    let lineIndex: Int
-    let slotIndex: Int
-}
-
-private enum VimTextCharacterClass: Equatable {
-    case whitespace
-    case word
-    case punctuation
-}
 
 final class VimPDFView: PDFView {
     private static let textSelectionNavigationKeys: Set<String> = ["h", "j", "k", "l", "w", "b", "e"]
