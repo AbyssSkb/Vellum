@@ -9,8 +9,8 @@ struct PDFReader: NSViewRepresentable {
     let snapshot: ReaderSnapshot?
     let isActive: Bool
 
-    func makeNSView(context: Context) -> VimPDFView {
-        let view = VimPDFView()
+    func makeNSView(context: Context) -> VellumPDFView {
+        let view = VellumPDFView()
         view.appState = appState
         view.saveBeforeDismantle = { [weak appState, weak view] in
             guard let snapshot = view?.snapshot() else { return }
@@ -29,7 +29,7 @@ struct PDFReader: NSViewRepresentable {
         return view
     }
 
-    func updateNSView(_ nsView: VimPDFView, context: Context) {
+    func updateNSView(_ nsView: VellumPDFView, context: Context) {
         nsView.appState = appState
         nsView.saveBeforeDismantle = { [weak appState, weak nsView] in
             guard let snapshot = nsView?.snapshot() else { return }
@@ -49,7 +49,7 @@ struct PDFReader: NSViewRepresentable {
         }
     }
 
-    static func dismantleNSView(_ nsView: VimPDFView, coordinator: ()) {
+    static func dismantleNSView(_ nsView: VellumPDFView, coordinator: ()) {
         nsView.saveBeforeDismantle?()
     }
 }

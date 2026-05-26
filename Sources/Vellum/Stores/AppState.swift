@@ -10,7 +10,7 @@ final class AppState: ObservableObject {
     @Published private(set) var outlineFocusGeneration = 0
     @Published private(set) var selectedHighlightColor: HighlightColor = .yellow
 
-    private weak var activePDFView: VimPDFView?
+    private weak var activePDFView: VellumPDFView?
     private var keyMonitor: Any?
     private var keyState = VimKeyState()
     private var heldKeyTimer: Timer?
@@ -30,7 +30,7 @@ final class AppState: ObservableObject {
         return tabs.first { $0.id == selectedTabID }
     }
 
-    func setActivePDFView(_ view: VimPDFView?, for tabID: PDFTab.ID) {
+    func setActivePDFView(_ view: VellumPDFView?, for tabID: PDFTab.ID) {
         guard tabID == selectedTabID else { return }
         activePDFView = view
     }

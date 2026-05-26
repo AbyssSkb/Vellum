@@ -6,7 +6,7 @@ struct SettingsSidebar: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             VStack(alignment: .leading, spacing: 3) {
-                Text("VimPDF")
+                Text("Vellum")
                     .font(.system(size: 19, weight: .semibold))
                     .foregroundStyle(TokyoNight.foregroundColor)
 

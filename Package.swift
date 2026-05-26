@@ -3,17 +3,17 @@
 import PackageDescription
 
 let package = Package(
-    name: "VimPDF",
+    name: "Vellum",
     platforms: [
         .macOS(.v14)
     ],
     products: [
-        .executable(name: "VimPDF", targets: ["VimPDF"])
+        .executable(name: "Vellum", targets: ["Vellum"])
     ],
     targets: [
         .executableTarget(
-            name: "VimPDF",
-            path: "Sources/VimPDF"
+            name: "Vellum",
+            path: "Sources/Vellum"
         )
     ]
 )

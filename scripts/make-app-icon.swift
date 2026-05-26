@@ -6,7 +6,7 @@ let sourceURL = URL(fileURLWithPath: "icon.png")
 
 guard let sourceImage = NSImage(contentsOf: sourceURL) else {
     throw NSError(
-        domain: "VimPDFIcon",
+        domain: "VellumIcon",
         code: 1,
         userInfo: [NSLocalizedDescriptionKey: "Could not load icon.png"]
     )
@@ -33,7 +33,7 @@ for icon in icons {
     let url = outputDirectory.appendingPathComponent(icon.name)
     guard let data = image.representation(using: .png, properties: [:]) else {
         throw NSError(
-            domain: "VimPDFIcon",
+            domain: "VellumIcon",
             code: 2,
             userInfo: [NSLocalizedDescriptionKey: "Could not encode \(icon.name)"]
         )

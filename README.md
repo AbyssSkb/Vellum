@@ -1,4 +1,4 @@
-# VimPDF
+# Vellum
 
 A native macOS PDF reader built with SwiftUI and PDFKit, designed around Vim-style keyboard navigation and lightweight multi-tab reading.
 
@@ -13,7 +13,7 @@ scripts/package-app.sh
 The app is created at:
 
 ```text
-dist/VimPDF.app
+dist/Vellum.app
 ```
 
 For development, you can also run the executable directly:
@@ -25,7 +25,7 @@ swift run
 The debug binary is produced at:
 
 ```text
-.build/arm64-apple-macosx/debug/VimPDF
+.build/arm64-apple-macosx/debug/Vellum
 ```
 
 ## Keys

@@ -30,7 +30,7 @@ final class AIExplanationWebView: WKWebView, WKNavigationDelegate, WKScriptMessa
         configuration.defaultWebpagePreferences.allowsContentJavaScript = true
         super.init(frame: .zero, configuration: configuration)
         navigationDelegate = self
-        configuration.userContentController.add(WeakScriptMessageHandler(self), name: "vimpdf")
+        configuration.userContentController.add(WeakScriptMessageHandler(self), name: "vellum")
         setValue(false, forKey: "drawsBackground")
         loadHTMLString(AIExplanationHTML.document, baseURL: nil)
     }
@@ -47,7 +47,7 @@ final class AIExplanationWebView: WKWebView, WKNavigationDelegate, WKScriptMessa
         guard didLoadDocument else { return }
 
         let encoded = Self.javascriptString(markdown)
-        evaluateJavaScript("window.vimpdfSetMarkdown(\(encoded), \(autoScrollOnUpdate ? "true" : "false"));")
+        evaluateJavaScript("window.vellumSetMarkdown(\(encoded), \(autoScrollOnUpdate ? "true" : "false"));")
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
@@ -112,27 +112,27 @@ final class AIExplanationWebView: WKWebView, WKNavigationDelegate, WKScriptMessa
     }
 
     func startContinuousScroll(direction: Int) {
-        evaluateJavaScript("window.vimpdfStartScroll(\(direction));")
+        evaluateJavaScript("window.vellumStartScroll(\(direction));")
     }
 
     func stopContinuousScroll() {
-        evaluateJavaScript("window.vimpdfStopScroll();")
+        evaluateJavaScript("window.vellumStopScroll();")
     }
 
     func pulseScroll(direction: Int) {
-        evaluateJavaScript("window.vimpdfPulseScroll(\(direction));")
+        evaluateJavaScript("window.vellumPulseScroll(\(direction));")
     }
 
     func scrollToTop() {
-        evaluateJavaScript("window.vimpdfScrollToTop();")
+        evaluateJavaScript("window.vellumScrollToTop();")
     }
 
     func scrollToBottom() {
-        evaluateJavaScript("window.vimpdfScrollToBottom();")
+        evaluateJavaScript("window.vellumScrollToBottom();")
     }
 
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-        guard message.name == "vimpdf" else { return }
+        guard message.name == "vellum" else { return }
 
         if let command = message.body as? String {
             _ = handleCommand(command)

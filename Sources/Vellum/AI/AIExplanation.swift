@@ -61,7 +61,7 @@ enum AIExplanationClient {
             messages: [
                 ChatMessage(
                     role: "system",
-                    content: "你是 VimPDF 的阅读助手，擅长解释 PDF 中被高亮的文字。你必须基于用户提供的原文和上下文回答，不要编造。"
+                    content: "你是 Vellum 的阅读助手，擅长解释 PDF 中被高亮的文字。你必须基于用户提供的原文和上下文回答，不要编造。"
                 ),
                 ChatMessage(role: "user", content: context.prompt)
             ],
@@ -98,7 +98,7 @@ enum AIExplanationClient {
             messages: [
                 ChatMessage(
                     role: "system",
-                    content: "你是 VimPDF 的阅读助手。你必须基于用户提供的原文和上下文回答，重点解释用户选中文本本身，不要默认总结整段。"
+                    content: "你是 Vellum 的阅读助手。你必须基于用户提供的原文和上下文回答，重点解释用户选中文本本身，不要默认总结整段。"
                 ),
                 ChatMessage(role: "user", content: context.prompt)
             ],

@@ -2,12 +2,12 @@
 import SwiftUI
 
 @main
-struct VimPDFApp: App {
+struct VellumApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var appState = AppState()
 
     var body: some Scene {
-        Window("VimPDF", id: "main") {
+        Window("Vellum", id: "main") {
             ContentView()
                 .environmentObject(appState)
                 .frame(minWidth: 900, minHeight: 620)
@@ -88,7 +88,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func closeDuplicateMainWindows() {
         let mainWindows = NSApp.windows.filter { window in
-            window.title == "VimPDF" && window.isVisible && !(window is NSPanel)
+            window.title == "Vellum" && window.isVisible && !(window is NSPanel)
         }
 
         for window in mainWindows.dropFirst() {

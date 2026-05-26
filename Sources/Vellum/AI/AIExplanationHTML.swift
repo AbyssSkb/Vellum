@@ -88,16 +88,16 @@ enum AIExplanationHTML {
           window.scrollBy(0, scrollState.direction * scrollState.velocity * deltaSeconds);
           scrollState.frame = requestAnimationFrame(tickScroll);
         }
-        window.vimpdfStartScroll = function(direction) {
+        window.vellumStartScroll = function(direction) {
           direction = direction < 0 ? -1 : 1;
           if (scrollState.direction === direction && scrollState.frame !== null) { return; }
-          window.vimpdfStopScroll();
+          window.vellumStopScroll();
           scrollState.direction = direction;
           scrollState.lastTime = performance.now();
           window.scrollBy(0, direction * 28);
           scrollState.frame = requestAnimationFrame(tickScroll);
         };
-        window.vimpdfStopScroll = function() {
+        window.vellumStopScroll = function() {
           scrollState.direction = 0;
           scrollState.lastTime = 0;
           if (scrollState.frame !== null) {
@@ -105,7 +105,7 @@ enum AIExplanationHTML {
             scrollState.frame = null;
           }
         };
-        window.vimpdfPulseScroll = function(direction) {
+        window.vellumPulseScroll = function(direction) {
           direction = direction < 0 ? -1 : 1;
           window.scrollBy(0, direction * 28);
         };
@@ -160,7 +160,7 @@ enum AIExplanationHTML {
           }
           return html;
         }
-        window.vimpdfSetMarkdown = function(markdown, followBottom) {
+        window.vellumSetMarkdown = function(markdown, followBottom) {
           const content = document.getElementById('content');
           content.className = markdown && markdown.trim() ? '' : 'empty';
           content.innerHTML = renderMarkdown(markdown);
@@ -196,22 +196,22 @@ enum AIExplanationHTML {
           const maxScroll = Math.max(0, height - window.innerHeight);
           window.scrollTo(0, maxScroll <= 8 ? 0 : maxScroll);
         }
-        window.vimpdfScrollToTop = function() {
+        window.vellumScrollToTop = function() {
           scrollToTop();
           requestAnimationFrame(scrollToTop);
         };
-        window.vimpdfScrollToBottom = function() {
+        window.vellumScrollToBottom = function() {
           scrollToBottom();
           requestAnimationFrame(scrollToBottom);
         };
-        function postVimPDFCommand(command) {
-          if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.vimpdf) {
-            window.webkit.messageHandlers.vimpdf.postMessage(command);
+        function postVellumCommand(command) {
+          if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.vellum) {
+            window.webkit.messageHandlers.vellum.postMessage(command);
           }
         }
-        function postVimPDFMessage(message) {
-          if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.vimpdf) {
-            window.webkit.messageHandlers.vimpdf.postMessage(message);
+        function postVellumMessage(message) {
+          if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.vellum) {
+            window.webkit.messageHandlers.vellum.postMessage(message);
           }
         }
         function reportContentHeight() {
@@ -221,26 +221,26 @@ enum AIExplanationHTML {
           const paddingBottom = parseFloat(bodyStyle.paddingBottom) || 0;
           const contentHeight = content ? content.getBoundingClientRect().height : 0;
           const height = contentHeight + paddingTop + paddingBottom;
-          postVimPDFMessage({ command: 'contentHeight', height: Math.ceil(height) });
+          postVellumMessage({ command: 'contentHeight', height: Math.ceil(height) });
         }
         document.addEventListener('keydown', function(event) {
           if (event.metaKey || event.ctrlKey || event.altKey) { return; }
 
           if (event.key === 'j') {
             event.preventDefault();
-            postVimPDFCommand('startScrollDown');
+            postVellumCommand('startScrollDown');
           } else if (event.key === 'k') {
             event.preventDefault();
-            postVimPDFCommand('startScrollUp');
+            postVellumCommand('startScrollUp');
           } else if (event.key === 'm') {
             event.preventDefault();
-            postVimPDFCommand('highlight');
+            postVellumCommand('highlight');
           } else if (event.key === 'c') {
             event.preventDefault();
-            postVimPDFCommand('cycleColor');
+            postVellumCommand('cycleColor');
           } else if (event.key === 'Escape') {
             event.preventDefault();
-            postVimPDFCommand('dismiss');
+            postVellumCommand('dismiss');
           }
         }, true);
         document.addEventListener('keyup', function(event) {
@@ -248,11 +248,11 @@ enum AIExplanationHTML {
 
           if (event.key === 'j' || event.key === 'k') {
             event.preventDefault();
-            postVimPDFCommand('stopScroll');
+            postVellumCommand('stopScroll');
           }
         }, true);
         window.addEventListener('blur', function() {
-          postVimPDFCommand('stopScroll');
+          postVellumCommand('stopScroll');
         });
         window.addEventListener('resize', reportContentHeight);
       </script>

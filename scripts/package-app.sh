@@ -2,7 +2,7 @@
 set -eu
 
 ROOT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
-APP_NAME="VimPDF"
+APP_NAME="Vellum"
 BUILD_CONFIG="${BUILD_CONFIG:-release}"
 PRODUCT_DIR="$ROOT_DIR/.build/arm64-apple-macosx/$BUILD_CONFIG"
 EXECUTABLE="$PRODUCT_DIR/$APP_NAME"
@@ -36,17 +36,17 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
     <key>CFBundleDevelopmentRegion</key>
     <string>en</string>
     <key>CFBundleDisplayName</key>
-    <string>VimPDF</string>
+    <string>Vellum</string>
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>CFBundleExecutable</key>
-    <string>VimPDF</string>
+    <string>Vellum</string>
     <key>CFBundleIdentifier</key>
-    <string>dev.local.vimpdf</string>
+    <string>dev.local.vellum</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
-    <string>VimPDF</string>
+    <string>Vellum</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>

@@ -3,7 +3,7 @@ import PDFKit
 import SwiftUI
 
 
-final class VimPDFView: PDFView {
+final class VellumPDFView: PDFView {
     private static let textSelectionNavigationKeys: Set<String> = ["h", "j", "k", "l", "w", "b", "e"]
 
     weak var appState: AppState?
@@ -292,7 +292,7 @@ final class VimPDFView: PDFView {
 
     private func showAIMessage(_ message: String, at rect: NSRect? = nil) {
         let model = AIExplanationPopoverModel(
-            title: "VimPDF",
+            title: "Vellum",
             text: message,
             initialHeight: AIExplanationPopoverMetrics.compactInitialHeight
         )
@@ -685,7 +685,7 @@ final class VimPDFView: PDFView {
         if let explanation {
             for annotation in annotations {
                 annotation.contents = AIExplanationAnnotation.encode(explanation)
-                annotation.userName = "VimPDF AI"
+                annotation.userName = "Vellum AI"
                 annotation.modificationDate = Date()
             }
         }
@@ -2024,7 +2024,7 @@ final class VimPDFView: PDFView {
                 HighlightAnnotationMetadata.setGroupID(groupID, for: annotation)
                 if let preservedExplanation {
                     annotation.contents = AIExplanationAnnotation.encode(preservedExplanation)
-                    annotation.userName = "VimPDF AI"
+                    annotation.userName = "Vellum AI"
                 }
                 annotation.shouldDisplay = true
                 annotation.shouldPrint = true
@@ -2113,7 +2113,7 @@ final class VimPDFView: PDFView {
 
                 for annotation in self.activeAIExistingAnnotations {
                     annotation.contents = AIExplanationAnnotation.encode(explanation)
-                    annotation.userName = "VimPDF AI"
+                    annotation.userName = "Vellum AI"
                     annotation.modificationDate = Date()
                 }
 
