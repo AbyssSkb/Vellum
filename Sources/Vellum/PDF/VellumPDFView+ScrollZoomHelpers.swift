@@ -12,7 +12,7 @@ extension VellumPDFView {
         let clipView = scrollView.contentView
         let documentSize = scrollView.documentView?.bounds.size ?? .zero
         let maxX = max(0, documentSize.width - clipView.bounds.width)
-        let clampedX = restoredScrollCoordinate(
+        let clampedX = ScrollGeometry.restoredCoordinate(
             origin: originX,
             contentLength: documentSize.width,
             viewportLength: clipView.bounds.width,
@@ -267,7 +267,7 @@ extension VellumPDFView {
         let currentOrigin = clipView.bounds.origin
         let next = NSPoint(
             x: currentOrigin.x,
-            y: centeredScrollCoordinate(
+            y: ScrollGeometry.centeredCoordinate(
                 point: pointInDocument.y,
                 currentOrigin: currentOrigin.y,
                 contentLength: documentSize.height,
@@ -296,14 +296,14 @@ extension VellumPDFView {
         let maxY = max(0, documentSize.height - clipView.bounds.height)
         let currentOrigin = clipView.bounds.origin
         let next = NSPoint(
-            x: centeredScrollCoordinate(
+            x: ScrollGeometry.centeredCoordinate(
                 point: pointInDocument.x,
                 currentOrigin: currentOrigin.x,
                 contentLength: documentSize.width,
                 viewportLength: clipView.bounds.width,
                 maxValue: maxX
             ),
-            y: centeredScrollCoordinate(
+            y: ScrollGeometry.centeredCoordinate(
                 point: pointInDocument.y,
                 currentOrigin: currentOrigin.y,
                 contentLength: documentSize.height,
@@ -314,28 +314,6 @@ extension VellumPDFView {
 
         clipView.scroll(to: next)
         scrollView.reflectScrolledClipView(clipView)
-    }
-
-    func nextScrollCoordinate(
-        origin: CGFloat,
-        delta: CGFloat,
-        contentLength: CGFloat,
-        viewportLength: CGFloat,
-        maxValue: CGFloat
-    ) -> CGFloat {
-        guard delta != 0 else { return origin }
-        guard contentLength > viewportLength else { return origin }
-        return min(max(0, origin + delta), maxValue)
-    }
-
-    func restoredScrollCoordinate(
-        origin: CGFloat,
-        contentLength: CGFloat,
-        viewportLength: CGFloat,
-        maxValue: CGFloat
-    ) -> CGFloat {
-        guard contentLength > viewportLength else { return origin }
-        return min(max(0, origin), maxValue)
     }
 
     enum VerticalEdge {
@@ -350,27 +328,15 @@ extension VellumPDFView {
         let documentSize = scrollView.documentView?.bounds.size ?? .zero
         let maxY = max(0, documentSize.height - clipView.bounds.height)
         let currentOrigin = clipView.bounds.origin
-        let nextY: CGFloat
-
-        if scrollView.documentView?.isFlipped == true {
-            nextY = edge == .top ? 0 : maxY
-        } else {
-            nextY = edge == .top ? maxY : 0
-        }
+        let geometryEdge: ScrollGeometry.VerticalEdge = edge == .top ? .top : .bottom
+        let nextY = ScrollGeometry.verticalEdgeCoordinate(
+            edge: geometryEdge,
+            isFlipped: scrollView.documentView?.isFlipped == true,
+            maxValue: maxY
+        )
 
         clipView.scroll(to: NSPoint(x: currentOrigin.x, y: nextY))
         scrollView.reflectScrolledClipView(clipView)
-    }
-
-    func centeredScrollCoordinate(
-        point: CGFloat,
-        currentOrigin: CGFloat,
-        contentLength: CGFloat,
-        viewportLength: CGFloat,
-        maxValue: CGFloat
-    ) -> CGFloat {
-        guard contentLength > viewportLength else { return currentOrigin }
-        return min(max(0, point - viewportLength / 2), maxValue)
     }
 
     var minimumZoomScale: CGFloat {

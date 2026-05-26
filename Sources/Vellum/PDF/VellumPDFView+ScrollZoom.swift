@@ -10,14 +10,14 @@ extension VellumPDFView {
         let maxY = max(0, documentSize.height - clipView.bounds.height)
         let origin = animationState.scrollTargetOrigin ?? clipView.bounds.origin
         let next = NSPoint(
-            x: nextScrollCoordinate(
+            x: ScrollGeometry.nextCoordinate(
                 origin: origin.x,
                 delta: x,
                 contentLength: documentSize.width,
                 viewportLength: clipView.bounds.width,
                 maxValue: maxX
             ),
-            y: nextScrollCoordinate(
+            y: ScrollGeometry.nextCoordinate(
                 origin: origin.y,
                 delta: y,
                 contentLength: documentSize.height,
