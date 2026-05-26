@@ -421,34 +421,12 @@ extension VellumPDFView {
         let endpointRect = convert(endpointRectInView, to: documentView)
         let clipView = scrollView.contentView
         let visibleRect = clipView.bounds
-        let marginX = min(44, visibleRect.width * 0.12)
-        let marginY = min(56, visibleRect.height * 0.14)
-        let comfortableRect = visibleRect.insetBy(dx: marginX, dy: marginY)
-
-        guard !comfortableRect.contains(endpointRect) else { return }
-
-        let documentBounds = documentView.bounds
-        let maxOriginX = max(documentBounds.minX, documentBounds.maxX - visibleRect.width)
-        let maxOriginY = max(documentBounds.minY, documentBounds.maxY - visibleRect.height)
-        var nextOrigin = visibleRect.origin
-
-        if endpointRect.minX < comfortableRect.minX {
-            nextOrigin.x += endpointRect.minX - comfortableRect.minX
-        } else if endpointRect.maxX > comfortableRect.maxX {
-            nextOrigin.x += endpointRect.maxX - comfortableRect.maxX
-        }
-
-        if endpointRect.minY < comfortableRect.minY {
-            nextOrigin.y += endpointRect.minY - comfortableRect.minY
-        } else if endpointRect.maxY > comfortableRect.maxY {
-            nextOrigin.y += endpointRect.maxY - comfortableRect.maxY
-        }
-
-        nextOrigin.x = min(max(documentBounds.minX, nextOrigin.x), maxOriginX)
-        nextOrigin.y = min(max(documentBounds.minY, nextOrigin.y), maxOriginY)
-
-        guard abs(nextOrigin.x - visibleRect.origin.x) > 0.5
-            || abs(nextOrigin.y - visibleRect.origin.y) > 0.5 else { return }
+        guard let nextOrigin = ScrollGeometry.comfortableVisibleOrigin(
+            currentOrigin: visibleRect.origin,
+            visibleSize: visibleRect.size,
+            documentBounds: documentView.bounds,
+            targetRect: endpointRect
+        ) else { return }
 
         clipView.scroll(to: nextOrigin)
         scrollView.reflectScrolledClipView(clipView)

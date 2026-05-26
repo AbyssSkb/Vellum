@@ -1,4 +1,5 @@
 import Testing
+import AppKit
 @testable import Vellum
 
 @Suite("Scroll geometry")
@@ -37,5 +38,53 @@ struct ScrollGeometryTests {
         #expect(ScrollGeometry.verticalEdgeCoordinate(edge: .bottom, isFlipped: true, maxValue: 300) == 300)
         #expect(ScrollGeometry.verticalEdgeCoordinate(edge: .top, isFlipped: false, maxValue: 300) == 300)
         #expect(ScrollGeometry.verticalEdgeCoordinate(edge: .bottom, isFlipped: false, maxValue: 300) == 0)
+    }
+
+    @Test
+    func comfortableVisibleOriginLeavesComfortableTargetsAlone() {
+        let nextOrigin = ScrollGeometry.comfortableVisibleOrigin(
+            currentOrigin: NSPoint(x: 0, y: 0),
+            visibleSize: NSSize(width: 500, height: 400),
+            documentBounds: NSRect(x: 0, y: 0, width: 1_000, height: 1_000),
+            targetRect: NSRect(x: 120, y: 120, width: 20, height: 20)
+        )
+
+        #expect(nextOrigin == nil)
+    }
+
+    @Test
+    func comfortableVisibleOriginScrollsTargetIntoMargin() {
+        let nextOrigin = ScrollGeometry.comfortableVisibleOrigin(
+            currentOrigin: NSPoint(x: 100, y: 100),
+            visibleSize: NSSize(width: 500, height: 400),
+            documentBounds: NSRect(x: 0, y: 0, width: 1_000, height: 1_000),
+            targetRect: NSRect(x: 130, y: 130, width: 20, height: 20)
+        )
+
+        #expect(nextOrigin == NSPoint(x: 86, y: 74))
+    }
+
+    @Test
+    func comfortableVisibleOriginClampsToDocumentBounds() {
+        let nextOrigin = ScrollGeometry.comfortableVisibleOrigin(
+            currentOrigin: NSPoint(x: 480, y: 570),
+            visibleSize: NSSize(width: 500, height: 400),
+            documentBounds: NSRect(x: 0, y: 0, width: 1_000, height: 1_000),
+            targetRect: NSRect(x: 940, y: 980, width: 80, height: 60)
+        )
+
+        #expect(nextOrigin == NSPoint(x: 500, y: 600))
+    }
+
+    @Test
+    func comfortableVisibleOriginIgnoresSubpixelAdjustments() {
+        let nextOrigin = ScrollGeometry.comfortableVisibleOrigin(
+            currentOrigin: NSPoint(x: 100, y: 100),
+            visibleSize: NSSize(width: 500, height: 400),
+            documentBounds: NSRect(x: 0, y: 0, width: 1_000, height: 1_000),
+            targetRect: NSRect(x: 155.7, y: 156.3, width: 20, height: 20)
+        )
+
+        #expect(nextOrigin == nil)
     }
 }
