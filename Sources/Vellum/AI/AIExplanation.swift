@@ -18,13 +18,7 @@ struct OpenAICompatibleAIExplanationClient: AIExplaining {
         let (data, response) = try await data(for: request)
         try validate(data: data, response: response)
 
-        let completion = try JSONDecoder().decode(ChatCompletionResponse.self, from: data)
-        guard completion.choices.first?.message.content
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .nilIfEmpty != nil else {
-            throw AIExplanationError.emptyResponse
-        }
-
+        _ = try AIResponseParser.completionText(from: data)
         return "模型可用：\(configuration.model)"
     }
 
@@ -33,11 +27,7 @@ struct OpenAICompatibleAIExplanationClient: AIExplaining {
         let (data, response) = try await data(for: request)
         try validate(data: data, response: response)
 
-        let models = try JSONDecoder().decode(ModelListResponse.self, from: data)
-        return models.data
-            .map(\.id)
-            .filter { !$0.isEmpty }
-            .sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+        return try AIResponseParser.modelIDs(from: data)
     }
 
     func explain(context: AIExplanationContext, configuration: AIConfiguration) async throws -> String {
@@ -47,14 +37,7 @@ struct OpenAICompatibleAIExplanationClient: AIExplaining {
         )
         let (data, response) = try await data(for: request)
         try validate(data: data, response: response)
-        let completion = try JSONDecoder().decode(ChatCompletionResponse.self, from: data)
-        guard let text = completion.choices.first?.message.content
-            .trimmingCharacters(in: .whitespacesAndNewlines),
-              !text.isEmpty else {
-            throw AIExplanationError.emptyResponse
-        }
-
-        return text
+        return try AIResponseParser.completionText(from: data)
     }
 
     func streamExplanation(
@@ -121,22 +104,6 @@ struct OpenAICompatibleAIExplanationClient: AIExplaining {
             return try await URLSession.shared.bytes(for: request)
         } catch {
             throw AIExplanationError.transport("AI 连接失败：\(error.localizedDescription)")
-        }
-    }
-
-    private struct ChatCompletionResponse: Decodable {
-        var choices: [Choice]
-
-        struct Choice: Decodable {
-            var message: ChatMessage
-        }
-    }
-
-    private struct ModelListResponse: Decodable {
-        var data: [Model]
-
-        struct Model: Decodable {
-            var id: String
         }
     }
 }
