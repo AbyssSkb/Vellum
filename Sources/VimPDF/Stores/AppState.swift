@@ -14,7 +14,7 @@ final class AppState: ObservableObject {
     private var keyMonitor: Any?
     private var keyState = VimKeyState()
     private var heldKeyTimer: Timer?
-    private var closedPDFTabs: [PDFTab] = []
+    private var closedPDFTabHistory = ClosedPDFTabHistory()
 
     init() {
         installKeyMonitor()
@@ -132,7 +132,7 @@ final class AppState: ObservableObject {
         guard let selectedTabID,
               let index = tabs.firstIndex(where: { $0.id == selectedTabID }) else { return }
 
-        rememberClosedPDFTab(tabs[index])
+        closedPDFTabHistory.remember(tabs[index])
         tabs.remove(at: index)
         activePDFView = nil
 
@@ -148,7 +148,7 @@ final class AppState: ObservableObject {
     func restoreClosedPDFTab() {
         saveActiveReaderState()
 
-        guard let tab = closedPDFTabs.popLast() else { return }
+        guard let tab = closedPDFTabHistory.restore() else { return }
         tabs.append(tab)
         selectedTabID = tab.id
         activePDFView = nil
@@ -236,15 +236,6 @@ final class AppState: ObservableObject {
     private var selectedIndex: Int? {
         guard let selectedTabID else { return nil }
         return tabs.firstIndex { $0.id == selectedTabID }
-    }
-
-    private func rememberClosedPDFTab(_ tab: PDFTab) {
-        guard tab.document != nil else { return }
-        closedPDFTabs.append(tab)
-
-        if closedPDFTabs.count > 20 {
-            closedPDFTabs.removeFirst(closedPDFTabs.count - 20)
-        }
     }
 
     private func saveActiveReaderState() {
