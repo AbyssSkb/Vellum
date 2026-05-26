@@ -14,6 +14,11 @@ let package = Package(
         .executableTarget(
             name: "Vellum",
             path: "Sources/Vellum"
+        ),
+        .testTarget(
+            name: "VellumTests",
+            dependencies: ["Vellum"],
+            path: "Tests/VellumTests"
         )
     ]
 )
