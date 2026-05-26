@@ -14,24 +14,7 @@ protocol AIExplaining: Sendable {
 
 struct OpenAICompatibleAIExplanationClient: AIExplaining {
     func testConnection(configuration: AIConfiguration) async throws -> String {
-        var request = URLRequest(url: configuration.chatCompletionsURL)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(configuration.apiKey)", forHTTPHeaderField: "Authorization")
-        request.timeoutInterval = 30
-
-        let body = ChatCompletionRequest(
-            model: configuration.model,
-            messages: [
-                ChatMessage(role: "user", content: "Ping")
-            ],
-            temperature: 0,
-            maxTokens: 8,
-            enableThinking: configuration.supportsSiliconFlowThinkingControls ? false : nil
-        )
-
-        request.httpBody = try JSONEncoder().encode(body)
-
+        let request = try AIRequestFactory.testConnectionRequest(configuration: configuration)
         let (data, response) = try await data(for: request)
         try validate(data: data, response: response)
 
@@ -46,11 +29,7 @@ struct OpenAICompatibleAIExplanationClient: AIExplaining {
     }
 
     func fetchModels(configuration: AIConfiguration) async throws -> [String] {
-        var request = URLRequest(url: configuration.modelsURL)
-        request.httpMethod = "GET"
-        request.setValue("Bearer \(configuration.apiKey)", forHTTPHeaderField: "Authorization")
-        request.timeoutInterval = 30
-
+        let request = AIRequestFactory.modelsRequest(configuration: configuration)
         let (data, response) = try await data(for: request)
         try validate(data: data, response: response)
 
@@ -62,28 +41,10 @@ struct OpenAICompatibleAIExplanationClient: AIExplaining {
     }
 
     func explain(context: AIExplanationContext, configuration: AIConfiguration) async throws -> String {
-        var request = URLRequest(url: configuration.chatCompletionsURL)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(configuration.apiKey)", forHTTPHeaderField: "Authorization")
-        request.timeoutInterval = 60
-
-        let body = ChatCompletionRequest(
-            model: configuration.model,
-            messages: [
-                ChatMessage(
-                    role: "system",
-                    content: "你是 Vellum 的阅读助手，擅长解释 PDF 中被高亮的文字。你必须基于用户提供的原文和上下文回答，不要编造。若选中文本是单个英文单词或常见英文词形，附上音标；若选中文本本来是中文或无需翻译，省略中文翻译部分。"
-                ),
-                ChatMessage(role: "user", content: context.prompt)
-            ],
-            temperature: 0.2,
-            maxTokens: 1200,
-            enableThinking: configuration.supportsSiliconFlowThinkingControls ? false : nil
+        let request = try AIRequestFactory.explanationRequest(
+            context: context,
+            configuration: configuration
         )
-
-        request.httpBody = try JSONEncoder().encode(body)
-
         let (data, response) = try await data(for: request)
         try validate(data: data, response: response)
         let completion = try JSONDecoder().decode(ChatCompletionResponse.self, from: data)
@@ -101,29 +62,10 @@ struct OpenAICompatibleAIExplanationClient: AIExplaining {
         configuration: AIConfiguration,
         onChunk: @escaping @MainActor (String) -> Void
     ) async throws -> String {
-        var request = URLRequest(url: configuration.chatCompletionsURL)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(configuration.apiKey)", forHTTPHeaderField: "Authorization")
-        request.timeoutInterval = 60
-
-        let body = ChatCompletionRequest(
-            model: configuration.model,
-            messages: [
-                ChatMessage(
-                    role: "system",
-                    content: "你是 Vellum 的阅读助手。你必须基于用户提供的原文和上下文回答，重点解释用户选中文本本身，不要默认总结整段。若选中文本是单个英文单词或常见英文词形，附上音标；若选中文本本来是中文或无需翻译，省略中文翻译部分。"
-                ),
-                ChatMessage(role: "user", content: context.prompt)
-            ],
-            temperature: 0.2,
-            maxTokens: 1200,
-            stream: true,
-            enableThinking: configuration.supportsSiliconFlowThinkingControls ? false : nil
+        let request = try AIRequestFactory.streamingExplanationRequest(
+            context: context,
+            configuration: configuration
         )
-
-        request.httpBody = try JSONEncoder().encode(body)
-
         let (bytes, response) = try await bytes(for: request)
         try validate(response: response)
 
@@ -180,29 +122,6 @@ struct OpenAICompatibleAIExplanationClient: AIExplaining {
         } catch {
             throw AIExplanationError.transport("AI 连接失败：\(error.localizedDescription)")
         }
-    }
-
-    private struct ChatCompletionRequest: Encodable {
-        var model: String
-        var messages: [ChatMessage]
-        var temperature: Double
-        var maxTokens: Int? = nil
-        var stream: Bool? = nil
-        var enableThinking: Bool? = nil
-
-        enum CodingKeys: String, CodingKey {
-            case model
-            case messages
-            case temperature
-            case maxTokens = "max_tokens"
-            case stream
-            case enableThinking = "enable_thinking"
-        }
-    }
-
-    private struct ChatMessage: Codable {
-        var role: String
-        var content: String
     }
 
     private struct ChatCompletionResponse: Decodable {
