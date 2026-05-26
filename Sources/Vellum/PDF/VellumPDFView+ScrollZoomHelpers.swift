@@ -24,9 +24,9 @@ extension VellumPDFView {
     }
 
     func ensureScrollAnimation(in scrollView: NSScrollView) {
-        guard scrollTimer?.isValid != true else { return }
+        guard !animationState.hasActiveScrollTimer else { return }
 
-        lastScrollTick = Date.timeIntervalSinceReferenceDate
+        animationState.lastScrollTick = Date.timeIntervalSinceReferenceDate
         let timer = Timer(timeInterval: 1.0 / 120.0, repeats: true) { [weak self, weak scrollView] timer in
             guard let self, let scrollView else {
                 timer.invalidate()
@@ -38,18 +38,18 @@ extension VellumPDFView {
             }
         }
         RunLoop.main.add(timer, forMode: .common)
-        scrollTimer = timer
+        animationState.scrollTimer = timer
     }
 
     func stepScrollAnimation(in scrollView: NSScrollView) {
-        guard let target = scrollTargetOrigin else {
+        guard let target = animationState.scrollTargetOrigin else {
             stopScrollAnimation()
             return
         }
 
         let now = Date.timeIntervalSinceReferenceDate
-        let deltaTime = min(max(now - lastScrollTick, 1.0 / 240.0), 1.0 / 30.0)
-        lastScrollTick = now
+        let deltaTime = min(max(now - animationState.lastScrollTick, 1.0 / 240.0), 1.0 / 30.0)
+        animationState.lastScrollTick = now
 
         let clipView = scrollView.contentView
         let origin = clipView.bounds.origin
@@ -73,21 +73,19 @@ extension VellumPDFView {
     }
 
     func stopScrollAnimation() {
-        scrollTimer?.invalidate()
-        scrollTimer = nil
-        scrollTargetOrigin = nil
+        animationState.clearScroll()
     }
 
     func prepareZoomAnchor() {
-        if zoomAnchor == nil {
-            zoomAnchor = centerDestination() ?? currentDestination
+        if animationState.zoomAnchor == nil {
+            animationState.zoomAnchor = centerDestination() ?? currentDestination
         }
     }
 
     func ensureZoomAnimation() {
-        guard zoomTimer?.isValid != true else { return }
+        guard !animationState.hasActiveZoomTimer else { return }
 
-        lastZoomTick = Date.timeIntervalSinceReferenceDate
+        animationState.lastZoomTick = Date.timeIntervalSinceReferenceDate
         let timer = Timer(timeInterval: 1.0 / 60.0, repeats: true) { [weak self] timer in
             guard let self else {
                 timer.invalidate()
@@ -99,18 +97,18 @@ extension VellumPDFView {
             }
         }
         RunLoop.main.add(timer, forMode: .common)
-        zoomTimer = timer
+        animationState.zoomTimer = timer
     }
 
     func stepZoomAnimation() {
-        guard let target = zoomTargetScale else {
+        guard let target = animationState.zoomTargetScale else {
             stopZoomState()
             return
         }
 
         let now = Date.timeIntervalSinceReferenceDate
-        let deltaTime = min(max(now - lastZoomTick, 1.0 / 120.0), 1.0 / 30.0)
-        lastZoomTick = now
+        let deltaTime = min(max(now - animationState.lastZoomTick, 1.0 / 120.0), 1.0 / 30.0)
+        animationState.lastZoomTick = now
 
         let current = scaleFactor
         let delta = target - current
@@ -131,16 +129,13 @@ extension VellumPDFView {
         scaleFactor = min(max(scale, minimumZoomScale), maximumZoomScale)
         layoutDocumentView()
 
-        if let zoomAnchor {
+        if let zoomAnchor = animationState.zoomAnchor {
             centerBothAxes(on: zoomAnchor)
         }
     }
 
     func stopZoomState() {
-        zoomTimer?.invalidate()
-        zoomTimer = nil
-        zoomTargetScale = nil
-        zoomAnchor = nil
+        animationState.clearZoom()
     }
 
     func cancelPendingRestore() {

@@ -8,13 +8,7 @@ final class VellumPDFView: PDFView {
 
     weak var appState: AppState?
     var saveBeforeDismantle: (() -> Void)?
-    var scrollTargetOrigin: NSPoint?
-    var scrollTimer: Timer?
-    var lastScrollTick = Date.timeIntervalSinceReferenceDate
-    var zoomTargetScale: CGFloat?
-    var zoomAnchor: PDFDestination?
-    var zoomTimer: Timer?
-    var lastZoomTick = Date.timeIntervalSinceReferenceDate
+    let animationState = ReaderAnimationState()
     var jumpBackStack: [ReaderSnapshot] = []
     var jumpForwardStack: [ReaderSnapshot] = []
     var restoreGeneration = 0
