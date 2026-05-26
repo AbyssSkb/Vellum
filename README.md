@@ -104,7 +104,6 @@ Useful commands:
 ```sh
 swift build
 swift test
-scripts/check-core-logic.sh
 swift run
 scripts/package-app.sh
 ```
