@@ -48,25 +48,29 @@ extension VellumPDFView {
         }
 
         let now = Date.timeIntervalSinceReferenceDate
-        let deltaTime = min(max(now - animationState.lastScrollTick, 1.0 / 240.0), 1.0 / 30.0)
+        let deltaTime = AnimationGeometry.clampedDeltaTime(
+            from: animationState.lastScrollTick,
+            to: now,
+            minimum: 1.0 / 240.0,
+            maximum: 1.0 / 30.0
+        )
         animationState.lastScrollTick = now
 
         let clipView = scrollView.contentView
         let origin = clipView.bounds.origin
-        let deltaX = target.x - origin.x
-        let deltaY = target.y - origin.y
 
-        if abs(deltaX) < 0.45, abs(deltaY) < 0.45 {
+        if AnimationGeometry.isNearTarget(current: origin.x, target: target.x, threshold: 0.45),
+           AnimationGeometry.isNearTarget(current: origin.y, target: target.y, threshold: 0.45) {
             clipView.scroll(to: target)
             scrollView.reflectScrolledClipView(clipView)
             stopScrollAnimation()
             return
         }
 
-        let progress = 1 - CGFloat(exp(-deltaTime / 0.055))
+        let progress = AnimationGeometry.exponentialProgress(deltaTime: deltaTime, timeConstant: 0.055)
         let next = NSPoint(
-            x: origin.x + deltaX * progress,
-            y: origin.y + deltaY * progress
+            x: AnimationGeometry.nextValue(current: origin.x, target: target.x, progress: progress),
+            y: AnimationGeometry.nextValue(current: origin.y, target: target.y, progress: progress)
         )
         clipView.scroll(to: next)
         scrollView.reflectScrolledClipView(clipView)
@@ -107,21 +111,25 @@ extension VellumPDFView {
         }
 
         let now = Date.timeIntervalSinceReferenceDate
-        let deltaTime = min(max(now - animationState.lastZoomTick, 1.0 / 120.0), 1.0 / 30.0)
+        let deltaTime = AnimationGeometry.clampedDeltaTime(
+            from: animationState.lastZoomTick,
+            to: now,
+            minimum: 1.0 / 120.0,
+            maximum: 1.0 / 30.0
+        )
         animationState.lastZoomTick = now
 
         let current = scaleFactor
-        let delta = target - current
         let threshold = max(0.001, target * 0.0008)
 
-        if abs(delta) < threshold {
+        if AnimationGeometry.isNearTarget(current: current, target: target, threshold: threshold) {
             applyZoomScale(target)
             stopZoomState()
             return
         }
 
-        let progress = 1 - CGFloat(exp(-deltaTime / 0.11))
-        applyZoomScale(current + delta * progress)
+        let progress = AnimationGeometry.exponentialProgress(deltaTime: deltaTime, timeConstant: 0.11)
+        applyZoomScale(AnimationGeometry.nextValue(current: current, target: target, progress: progress))
     }
 
     func applyZoomScale(_ scale: CGFloat) {
