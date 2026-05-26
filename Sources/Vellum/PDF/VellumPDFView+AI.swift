@@ -266,31 +266,19 @@ extension VellumPDFView {
         fallbackPoint: NSPoint
     ) -> NSRect {
         guard let page = annotation.page else {
-            return NSRect(x: fallbackPoint.x, y: fallbackPoint.y, width: 1, height: 1)
+            return AIExplanationGeometry.fallbackAnchorRect(at: fallbackPoint)
         }
 
         let annotations = explanationAnnotations(matching: explanation, on: page)
         let sourceAnnotations = annotations.isEmpty ? [annotation] : annotations
-        let points = sourceAnnotations.flatMap { annotation in
-            HighlightGeometry.regions(for: annotation).flatMap { region in
-                [
-                    NSPoint(x: region.minX, y: region.minY),
-                    NSPoint(x: region.maxX, y: region.minY),
-                    NSPoint(x: region.minX, y: region.maxY),
-                    NSPoint(x: region.maxX, y: region.maxY)
-                ]
-            }
-        }
+        let regions = sourceAnnotations.flatMap(HighlightGeometry.regions)
 
-        guard let pageRect = HighlightGeometry.rect(containing: points) ?? HighlightGeometry.rect(containing: [
-            NSPoint(x: annotation.bounds.minX, y: annotation.bounds.minY),
-            NSPoint(x: annotation.bounds.maxX, y: annotation.bounds.maxY)
-        ]),
+        guard let pageRect = AIExplanationGeometry.groupBounds(for: regions, fallbackBounds: annotation.bounds),
               let viewRect = viewRect(for: pageRect, on: page) else {
-            return NSRect(x: fallbackPoint.x, y: fallbackPoint.y, width: 1, height: 1)
+            return AIExplanationGeometry.fallbackAnchorRect(at: fallbackPoint)
         }
 
-        return viewRect.insetBy(dx: -3, dy: -3)
+        return AIExplanationGeometry.popoverAnchorRect(from: viewRect)
     }
 
     func explanationAnnotations(matching explanation: String, on page: PDFPage) -> [PDFAnnotation] {
@@ -373,20 +361,11 @@ extension VellumPDFView {
 
         let annotations = explanationAnnotations(matching: explanation, on: page)
         let sourceAnnotations = annotations.isEmpty ? [referenceAnnotation] : annotations
-        let points = sourceAnnotations.flatMap { annotation in
-            HighlightGeometry.regions(for: annotation).flatMap { region in
-                [
-                    NSPoint(x: region.minX, y: region.minY),
-                    NSPoint(x: region.maxX, y: region.minY),
-                    NSPoint(x: region.minX, y: region.maxY),
-                    NSPoint(x: region.maxX, y: region.maxY)
-                ]
-            }
-        }
+        let regions = sourceAnnotations.flatMap(HighlightGeometry.regions)
 
-        guard let groupBounds = HighlightGeometry.rect(containing: points) else { return false }
+        guard let groupBounds = AIExplanationGeometry.groupBounds(for: regions) else { return false }
         let pointOnPage = convert(pointInView, to: page)
-        return groupBounds.insetBy(dx: -5, dy: -8).contains(pointOnPage)
+        return AIExplanationGeometry.hoverContains(pointOnPage, in: groupBounds)
     }
 
     func currentMousePointInView() -> NSPoint? {
