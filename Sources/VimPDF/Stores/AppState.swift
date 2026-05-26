@@ -1,7 +1,6 @@
 @preconcurrency import AppKit
 import PDFKit
 import SwiftUI
-import UniformTypeIdentifiers
 
 @MainActor
 final class AppState: ObservableObject {
@@ -81,19 +80,13 @@ final class AppState: ObservableObject {
     }
 
     func openPanel(mode: PDFOpenMode = .currentTab) {
-        let panel = NSOpenPanel()
-        panel.allowedContentTypes = [.pdf]
-        panel.allowsMultipleSelection = mode == .newTabs
-        panel.canChooseDirectories = false
-        panel.canChooseFiles = true
-        panel.begin { [weak self] response in
-            guard response == .OK else { return }
+        PDFOpenPanelPresenter.present(mode: mode) { [weak self] urls in
             switch mode {
             case .currentTab:
-                guard let url = panel.urls.first else { return }
+                guard let url = urls.first else { return }
                 self?.openInCurrentTab(url: url)
             case .newTabs:
-                self?.openInNewTabs(urls: panel.urls, reusingSelectedBlankTab: true)
+                self?.openInNewTabs(urls: urls, reusingSelectedBlankTab: true)
             }
         }
     }
@@ -105,8 +98,7 @@ final class AppState: ObservableObject {
     func openInCurrentTab(url: URL) {
         saveActiveReaderState()
 
-        guard let document = PDFDocument(url: url) else { return }
-        let tab = PDFTab(url: url, document: document, snapshot: .initial)
+        guard let tab = PDFDocumentLoader.tab(for: url) else { return }
 
         if let index = selectedIndex {
             tabs[index] = tab
@@ -124,8 +116,7 @@ final class AppState: ObservableObject {
 
         var openedDocument = false
         for url in urls {
-            guard let document = PDFDocument(url: url) else { continue }
-            let tab = PDFTab(url: url, document: document, snapshot: .initial)
+            guard let tab = PDFDocumentLoader.tab(for: url) else { continue }
 
             tabs.append(tab)
             selectedTabID = tab.id
