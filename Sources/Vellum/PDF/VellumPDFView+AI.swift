@@ -401,32 +401,30 @@ extension VellumPDFView {
         guard event.modifierFlags.intersection([.command, .control, .option]).isEmpty else { return false }
         guard let key = event.charactersIgnoringModifiers?.lowercased(), !key.isEmpty else { return false }
 
-        switch event.type {
-        case .keyDown:
-            if key == "\u{1b}", aiInteraction.hoveredKey != nil {
-                dismissHoverAIExplanation(suppressCurrent: true)
-                return true
-            }
-
-            if key == "j" || key == "k" {
-                startAIContinuousScroll(key)
-                return true
-            }
-
+        switch AIKeyEventRouter.action(
+            key: key,
+            eventType: event.type,
+            hasHoveredExplanation: aiInteraction.hoveredKey != nil,
+            continuousScrollKey: aiInteraction.continuousScrollKey
+        ) {
+        case .none:
+            return false
+        case .dismissHover:
+            dismissHoverAIExplanation(suppressCurrent: true)
+            return true
+        case .startContinuousScroll(let directionKey):
+            startAIContinuousScroll(directionKey)
+            return true
+        case .stopContinuousScroll:
+            stopAIContinuousScroll()
+            return true
+        case .forwardToWebView(let key):
             if aiInteraction.activeWebView?.handleKey(key) == true {
                 return true
             }
-            return ["j", "k", "m", "c", "\u{1b}"].contains(key)
-        case .keyUp:
-            if key == "j" || key == "k" {
-                if aiInteraction.continuousScrollKey == key {
-                    stopAIContinuousScroll()
-                }
-                return true
-            }
-            return ["j", "k", "m", "c", "\u{1b}"].contains(key)
-        default:
-            return false
+            return true
+        case .consume:
+            return true
         }
     }
 
