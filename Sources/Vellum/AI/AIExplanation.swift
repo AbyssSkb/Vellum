@@ -128,25 +128,18 @@ struct OpenAICompatibleAIExplanationClient: AIExplaining {
         try validate(response: response)
 
         var fullText = ""
+        streamLoop:
         for try await line in bytes.lines {
-            guard line.hasPrefix("data:") else { continue }
-
-            let payload = line
-                .dropFirst("data:".count)
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            guard payload != "[DONE]", let data = payload.data(using: .utf8) else {
-                break
-            }
-
-            guard let chunk = try? JSONDecoder().decode(ChatCompletionStreamChunk.self, from: data),
-                  let delta = chunk.choices.first?.delta.content,
-                  !delta.isEmpty else {
+            switch AIStreamParser.event(from: line) {
+            case .chunk(let delta):
+                fullText += delta
+                await MainActor.run {
+                    onChunk(delta)
+                }
+            case .done:
+                break streamLoop
+            case .ignored:
                 continue
-            }
-
-            fullText += delta
-            await MainActor.run {
-                onChunk(delta)
             }
         }
 
@@ -254,18 +247,6 @@ struct OpenAICompatibleAIExplanationClient: AIExplaining {
 
         struct Choice: Decodable {
             var message: ChatMessage
-        }
-    }
-
-    private struct ChatCompletionStreamChunk: Decodable {
-        var choices: [Choice]
-
-        struct Choice: Decodable {
-            var delta: Delta
-        }
-
-        struct Delta: Decodable {
-            var content: String?
         }
     }
 
