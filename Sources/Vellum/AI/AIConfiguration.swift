@@ -25,21 +25,36 @@ struct AIConfiguration: Sendable {
         let apiKey = defaults.string(forKey: AISettingsKeys.apiKey)?
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
 
-        guard let baseURL = URL(string: baseURLString),
+        return try AIConfiguration(
+            baseURLString: baseURLString,
+            model: model,
+            apiKey: apiKey,
+            requireModel: requireModel
+        )
+    }
+
+    init(baseURLString: String, model: String, apiKey: String, requireModel: Bool = true) throws {
+        let trimmedBaseURL = baseURLString.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedModel = model.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedAPIKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard let baseURL = URL(string: trimmedBaseURL),
               let scheme = baseURL.scheme,
               scheme.hasPrefix("http") else {
             throw AIExplanationError.invalidBaseURL
         }
 
-        guard !requireModel || !model.isEmpty else {
+        guard !requireModel || !trimmedModel.isEmpty else {
             throw AIExplanationError.missingModel
         }
 
-        guard !apiKey.isEmpty else {
+        guard !trimmedAPIKey.isEmpty else {
             throw AIExplanationError.missingAPIKey
         }
 
-        return AIConfiguration(baseURL: baseURL, model: model, apiKey: apiKey)
+        self.baseURL = baseURL
+        self.model = trimmedModel
+        self.apiKey = trimmedAPIKey
     }
 
     var chatCompletionsURL: URL {
@@ -48,6 +63,10 @@ struct AIConfiguration: Sendable {
 
     var modelsURL: URL {
         endpointURL("models")
+    }
+
+    var supportsSiliconFlowThinkingControls: Bool {
+        baseURL.host?.lowercased().contains("siliconflow") == true
     }
 
     private func endpointURL(_ endpoint: String) -> URL {

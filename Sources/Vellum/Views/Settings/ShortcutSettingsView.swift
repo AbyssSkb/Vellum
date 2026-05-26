@@ -4,47 +4,14 @@ struct ShortcutSettingsView: View {
     private let groups = ShortcutCatalog.groups
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .center) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Shortcuts")
-                        .font(.system(size: 25, weight: .semibold))
-                        .foregroundStyle(TokyoNight.foregroundColor)
-
-                    Text("Vim-style keyboard map")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(TokyoNight.mutedColor)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                ForEach(groups) { group in
+                    ShortcutGroupCard(group: group)
                 }
-
-                Spacer()
             }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 20)
-            .background(TokyoNight.panelColor.opacity(0.78))
-            .overlay(alignment: .bottom) {
-                Rectangle()
-                    .fill(TokyoNight.borderColor.opacity(0.32))
-                    .frame(height: 1)
-            }
-
-            ScrollView {
-                LazyVGrid(
-                    columns: [
-                        GridItem(.flexible(minimum: 250), spacing: 14),
-                        GridItem(.flexible(minimum: 250), spacing: 14)
-                    ],
-                    alignment: .leading,
-                    spacing: 14
-                ) {
-                    ForEach(groups) { group in
-                        ShortcutGroupCard(group: group)
-                    }
-                }
-                .padding(.horizontal, 24)
-                .padding(.vertical, 22)
-            }
+            .padding(20)
         }
-        .background(TokyoNight.backgroundColor)
     }
 }
 
@@ -134,7 +101,7 @@ struct ShortcutRow: View {
         VStack(alignment: .leading, spacing: 7) {
             Text(item.action)
                 .font(.system(size: 12.5, weight: .medium))
-                .foregroundStyle(TokyoNight.foregroundColor.opacity(0.9))
+                .foregroundStyle(.primary)
                 .fixedSize(horizontal: false, vertical: true)
 
             HStack(spacing: 5) {
@@ -153,41 +120,20 @@ struct ShortcutGroupCard: View {
     let group: ShortcutGroup
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                Image(systemName: group.systemImage)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(TokyoNight.blueColor)
-                    .frame(width: 18)
-
-                Text(group.title)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(TokyoNight.foregroundColor)
-
-                Spacer(minLength: 0)
-            }
-            .padding(.bottom, 2)
-
+        GroupBox {
             VStack(spacing: 0) {
                 ForEach(group.items) { item in
                     ShortcutRow(item: item)
 
                     if item.id != group.items.last?.id {
-                        Rectangle()
-                            .fill(TokyoNight.borderColor.opacity(0.2))
-                            .frame(height: 1)
+                        Divider()
                     }
                 }
             }
+        } label: {
+            Label(group.title, systemImage: group.systemImage)
+                .font(.headline)
         }
-        .padding(13)
-        .frame(maxWidth: .infinity, alignment: .topLeading)
-        .background(TokyoNight.panelColor.opacity(0.7))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(TokyoNight.borderColor.opacity(0.34), lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 }
 
@@ -197,14 +143,13 @@ struct ShortcutKeyCap: View {
     var body: some View {
         Text(text)
             .font(.system(size: 11, weight: .semibold, design: .rounded))
-            .foregroundStyle(TokyoNight.foregroundColor)
+            .foregroundStyle(.primary)
             .padding(.horizontal, 7)
             .frame(height: 22)
-            .background(TokyoNight.backgroundDeepColor.opacity(0.82))
+            .background(.quaternary, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .stroke(TokyoNight.borderColor.opacity(0.55), lineWidth: 1)
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .stroke(.separator.opacity(0.45), lineWidth: 1)
             )
-            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
     }
 }

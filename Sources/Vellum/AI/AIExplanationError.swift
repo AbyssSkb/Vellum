@@ -8,6 +8,7 @@ enum AIExplanationError: LocalizedError {
     case noHighlightedText
     case emptyResponse
     case server(String)
+    case transport(String)
 
     var errorDescription: String? {
         switch self {
@@ -24,6 +25,8 @@ enum AIExplanationError: LocalizedError {
         case .emptyResponse:
             return "AI 没有返回可用解释。"
         case .server(let message):
+            return message
+        case .transport(let message):
             return message
         }
     }

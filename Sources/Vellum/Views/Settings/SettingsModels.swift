@@ -1,4 +1,5 @@
 @preconcurrency import AppKit
+import SwiftUI
 
 enum SettingsCategory: String, CaseIterable, Identifiable {
     case ai
@@ -65,5 +66,31 @@ enum AIConnectionStatus: Equatable {
     var isIdle: Bool {
         if case .idle = self { return true }
         return false
+    }
+
+    var systemImage: String {
+        switch self {
+        case .idle:
+            return "circle"
+        case .working:
+            return "clock"
+        case .success:
+            return "checkmark.circle.fill"
+        case .failure:
+            return "exclamationmark.triangle.fill"
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .idle:
+            return .secondary
+        case .working:
+            return .accentColor
+        case .success:
+            return .green
+        case .failure:
+            return .red
+        }
     }
 }

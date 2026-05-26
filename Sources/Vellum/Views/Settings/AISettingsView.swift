@@ -1,33 +1,22 @@
 @preconcurrency import AppKit
 import SwiftUI
 
-
 struct AISettingsView: View {
-    @State private var selectedCategory: SettingsCategory = .ai
-
     var body: some View {
-        HStack(spacing: 0) {
-            SettingsSidebar(selectedCategory: $selectedCategory)
-                .frame(width: 190)
-
-            TokyoNightDivider(axis: .vertical)
-
-            Group {
-                switch selectedCategory {
-                case .ai:
-                    AISettingsDetailView()
-                case .shortcuts:
-                    ShortcutSettingsView()
+        TabView {
+            AISettingsDetailView()
+                .tabItem {
+                    Label("AI", systemImage: "sparkles")
                 }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            ShortcutSettingsView()
+                .tabItem {
+                    Label("Shortcuts", systemImage: "keyboard")
+                }
         }
-        .frame(width: 840, height: 560)
-        .background(TokyoNight.backgroundColor)
-        .preferredColorScheme(.dark)
+        .frame(width: 620, height: 520)
     }
 }
-
 
 struct AISettingsDetailView: View {
     @AppStorage(AISettingsKeys.baseURL) private var baseURL = AIConfiguration.defaultBaseURL
@@ -39,67 +28,72 @@ struct AISettingsDetailView: View {
     @State private var isFetchingModels = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            header
+        Form {
+            Section {
+                TextField("Base URL", text: $baseURL, prompt: Text(AIConfiguration.defaultBaseURL))
+                    .textContentType(.URL)
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    SettingsGroup(title: "Provider") {
-                        SettingsRow(title: "Base URL", systemImage: "link") {
-                            SettingsInputContainer {
-                                TextField(AIConfiguration.defaultBaseURL, text: $baseURL)
-                                    .textFieldStyle(.plain)
-                            }
-                            .frame(width: 360)
-                        }
+                SecureField("API Key", text: $apiKey, prompt: Text("sk-..."))
 
-                        SettingsRow(title: "API Key", systemImage: "key") {
-                            SettingsInputContainer {
-                                SecureField("sk-...", text: $apiKey)
-                                    .textFieldStyle(.plain)
-                            }
-                            .frame(width: 360)
-                        }
+                TextField("Model", text: $model, prompt: Text(AIConfiguration.defaultModel))
+                    .textSelection(.enabled)
+            } header: {
+                Text("Provider")
+            } footer: {
+                Text("Use an OpenAI-compatible base URL, for example https://api.openai.com/v1.")
+            }
+
+            Section {
+                HStack {
+                    Button {
+                        fetchModels()
+                    } label: {
+                        Label(isFetchingModels ? "Fetching Models" : "Fetch Models", systemImage: "arrow.clockwise")
                     }
+                    .disabled(isBusy)
 
-                    SettingsGroup(title: "Model") {
-                        SettingsRow(title: "Model", systemImage: "cube.transparent") {
-                            ModelPickerField(
-                                text: $model,
-                                models: availableModels,
-                                placeholder: AIConfiguration.defaultModel
-                            )
-                            .frame(width: 360)
-                        }
+                    Button {
+                        testConnection()
+                    } label: {
+                        Label(isTestingConnection ? "Testing" : "Test Connection", systemImage: "checkmark.circle")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(isBusy)
+                }
 
-                        SettingsRow(title: "Connection", systemImage: "circle.hexagongrid") {
-                            AIConnectionLight(status: status, isBusy: isBusy)
-
-                            Spacer(minLength: 12)
-
-                            Button {
-                                fetchModels()
-                            } label: {
-                                Label(isFetchingModels ? "Fetching" : "Fetch", systemImage: "arrow.clockwise")
-                            }
-                            .buttonStyle(SettingsActionButtonStyle())
-                            .disabled(isBusy)
-
-                            Button {
-                                testConnection()
-                            } label: {
-                                Label(isTestingConnection ? "Testing" : "Test", systemImage: "checkmark.circle")
-                            }
-                            .buttonStyle(SettingsActionButtonStyle(accentColor: TokyoNight.blue))
-                            .disabled(isBusy)
+                if !availableModels.isEmpty {
+                    Picker("Fetched Models", selection: $model) {
+                        ForEach(availableModels, id: \.self) { fetchedModel in
+                            Text(fetchedModel).tag(fetchedModel)
                         }
                     }
                 }
-                .padding(.horizontal, 26)
-                .padding(.vertical, 24)
+            } header: {
+                Text("Connection")
+            } footer: {
+                Text("Fetching models only fills this menu. It will not change the model unless you choose one.")
+            }
+
+            Section {
+                StatusRow(status: status, isBusy: isBusy)
+
+                LabeledContent("Chat Endpoint") {
+                    Text(chatEndpointText)
+                        .textSelection(.enabled)
+                        .foregroundStyle(.secondary)
+                }
+
+                LabeledContent("Current Model") {
+                    Text(trimmedModelText)
+                        .textSelection(.enabled)
+                        .foregroundStyle(.secondary)
+                }
+            } header: {
+                Text("Diagnostics")
             }
         }
-        .background(TokyoNight.backgroundColor)
+        .formStyle(.grouped)
+        .padding(20)
         .onChange(of: apiKey) { _, _ in
             status = .idle
         }
@@ -107,29 +101,8 @@ struct AISettingsDetailView: View {
             availableModels.removeAll()
             status = .idle
         }
-    }
-
-    private var header: some View {
-        HStack(alignment: .center) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("AI")
-                    .font(.system(size: 24, weight: .semibold))
-                    .foregroundStyle(TokyoNight.foregroundColor)
-
-                Text("OpenAI-compatible provider and model")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(TokyoNight.mutedColor)
-            }
-
-            Spacer()
-        }
-        .padding(.horizontal, 24)
-        .padding(.vertical, 18)
-        .background(TokyoNight.backgroundColor)
-        .overlay(alignment: .bottom) {
-            Rectangle()
-                .fill(TokyoNight.borderColor.opacity(0.26))
-                .frame(height: 1)
+        .onChange(of: model) { _, _ in
+            status = .idle
         }
     }
 
@@ -137,17 +110,29 @@ struct AISettingsDetailView: View {
         isTestingConnection || isFetchingModels
     }
 
+    private var trimmedModelText: String {
+        let trimmed = model.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "Not set" : trimmed
+    }
+
+    private var chatEndpointText: String {
+        guard let configuration = try? currentConfiguration(requireModel: false) else {
+            return "Invalid base URL"
+        }
+        return configuration.chatCompletionsURL.absoluteString
+    }
+
     private func testConnection() {
         isTestingConnection = true
-        status = .working("Testing model...")
 
         Task { @MainActor in
             defer { isTestingConnection = false }
 
             do {
                 let configuration = try currentConfiguration(requireModel: true)
+                status = .working("Testing \(configuration.model)...")
                 _ = try await AIExplanationClient.testConnection(configuration: configuration)
-                status = .success("Model ready")
+                status = .success("Model ready: \(configuration.model)")
             } catch {
                 status = .failure(error.localizedDescription)
             }
@@ -156,25 +141,17 @@ struct AISettingsDetailView: View {
 
     private func fetchModels() {
         isFetchingModels = true
-        status = .working("Fetching models...")
 
         Task { @MainActor in
             defer { isFetchingModels = false }
 
             do {
                 let configuration = try currentConfiguration(requireModel: false)
-                let models = try await AIExplanationClient.fetchModels(configuration: configuration)
-                availableModels = models
-
-                let trimmedModel = model.trimmingCharacters(in: .whitespacesAndNewlines)
-                if let firstModel = models.first,
-                   trimmedModel.isEmpty || !models.contains(model) {
-                    model = firstModel
-                }
-
-                status = models.isEmpty
+                status = .working("Fetching models...")
+                availableModels = try await AIExplanationClient.fetchModels(configuration: configuration)
+                status = availableModels.isEmpty
                     ? .success("Connected. No models returned.")
-                    : .success("\(models.count) models loaded.")
+                    : .success("\(availableModels.count) models loaded.")
             } catch {
                 status = .failure(error.localizedDescription)
             }
@@ -182,7 +159,34 @@ struct AISettingsDetailView: View {
     }
 
     private func currentConfiguration(requireModel: Bool) throws -> AIConfiguration {
-        return try AIConfiguration.current(requireModel: requireModel)
+        try AIConfiguration(
+            baseURLString: baseURL,
+            model: model,
+            apiKey: apiKey,
+            requireModel: requireModel
+        )
     }
 }
 
+private struct StatusRow: View {
+    let status: AIConnectionStatus
+    let isBusy: Bool
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            if isBusy {
+                ProgressView()
+                    .controlSize(.small)
+            } else {
+                Image(systemName: status.systemImage)
+                    .foregroundStyle(status.tint)
+            }
+
+            Text(status.text)
+                .foregroundStyle(status.isIdle ? .secondary : .primary)
+                .textSelection(.enabled)
+                .lineLimit(6)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+}
