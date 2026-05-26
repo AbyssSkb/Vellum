@@ -85,16 +85,52 @@ Standard macOS shortcuts are also wired for opening files, closing tabs, and swi
 ## Project Structure
 
 ```text
-Resources/AppIcon        Source artwork for the macOS app icon
-Sources/Vellum/App       App entry, app delegate, URL relay, and open panels
-Sources/Vellum/AI        AI explanation configuration, client, popovers, and HTML rendering
-Sources/Vellum/Models    Shared reader, outline, tab, highlight, and Vim command models
-Sources/Vellum/PDF       PDFKit integration, highlight geometry, PDF view behavior, navigation, zoom, and selection logic
-Sources/Vellum/Services  Document loading services
-Sources/Vellum/Stores    App-wide observable state and input routing
-Sources/Vellum/Support   Shared styling and small extensions
-Sources/Vellum/Views     SwiftUI views and AppKit wrappers
-scripts                  Packaging and icon generation helpers
+Resources/AppIcon
+    Source artwork for the macOS app icon
+Sources/Vellum/App
+    App entry, app delegate, URL relay, and open panels
+Sources/Vellum/AI/Client
+    OpenAI-compatible requests, responses, streaming, and errors
+Sources/Vellum/AI/Configuration
+    AI provider configuration and persisted settings keys
+Sources/Vellum/AI/Context
+    Selected-text and annotation context for AI explanations
+Sources/Vellum/AI/UI
+    AI explanation popovers, WebView rendering, and layout helpers
+Sources/Vellum/Documents
+    Document coordination and PDF loading services
+Sources/Vellum/Input
+    Vim-style key maps, key state, and input controller
+Sources/Vellum/Outline
+    Outline data models
+Sources/Vellum/PDF/Geometry
+    Scroll, zoom, and animation geometry helpers
+Sources/Vellum/PDF/Highlighting
+    Highlight geometry and annotation behavior
+Sources/Vellum/PDF/Selection
+    Text selection, word navigation, and visual-line geometry
+Sources/Vellum/PDF/View
+    PDFKit view integration, navigation, scrolling, zooming, and AI hooks
+Sources/Vellum/Reader
+    Shared reader models
+Sources/Vellum/Stores
+    App-wide observable state and command dispatching
+Sources/Vellum/Support
+    Shared styling and small extensions
+Sources/Vellum/Tabs
+    Closed-tab history models
+Sources/Vellum/Views/Reader
+    Main reader SwiftUI views and AppKit wrappers
+Sources/Vellum/Views/Settings
+    Settings screens and settings view models
+Sources/Vellum/Views/Outline
+    Outline AppKit bridge, coordinator, keyboard handling, and row styling
+Sources/Vellum/Views/Components
+    Reusable SwiftUI/AppKit components
+Tests/VellumTests
+    Tests mirrored by feature area
+scripts
+    Packaging and icon generation helpers
 ```
 
 ## Development
