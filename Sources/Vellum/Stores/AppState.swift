@@ -9,6 +9,8 @@ final class AppState: ObservableObject {
     @Published private(set) var outlineFocusGeneration = 0
     @Published private(set) var selectedHighlightColor: HighlightColor = .yellow
 
+    private let documentCoordinator = DocumentCoordinator()
+
     weak var activePDFView: VellumPDFView?
     var keyMonitor: Any?
     var vimInput = VimInputController()
@@ -91,19 +93,19 @@ final class AppState: ObservableObject {
                 guard let url = urls.first else { return }
                 self?.openInCurrentTab(url: url)
             case .newTabs:
-                self?.openInNewTabs(urls: urls, reusingSelectedBlankTab: true)
+                self?.openInNewTabs(urls: urls)
             }
         }
     }
 
     func open(urls: [URL]) {
-        openInNewTabs(urls: urls, reusingSelectedBlankTab: true)
+        openInNewTabs(urls: urls)
     }
 
     func openInCurrentTab(url: URL) {
         saveActiveReaderState()
 
-        guard let tab = PDFDocumentLoader.tab(for: url) else { return }
+        guard let tab = documentCoordinator.openTab(for: url) else { return }
 
         tabStore.openInCurrentTab(tab)
         activePDFView = nil
@@ -111,10 +113,10 @@ final class AppState: ObservableObject {
         focusActivePDFViewSoon()
     }
 
-    func openInNewTabs(urls: [URL], reusingSelectedBlankTab: Bool) {
+    func openInNewTabs(urls: [URL]) {
         saveActiveReaderState()
 
-        let newTabs = urls.compactMap(PDFDocumentLoader.tab(for:))
+        let newTabs = documentCoordinator.openTabs(for: urls)
 
         if tabStore.openInNewTabs(newTabs) {
             activePDFView = nil
