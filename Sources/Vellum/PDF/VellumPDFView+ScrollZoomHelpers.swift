@@ -158,16 +158,24 @@ extension VellumPDFView {
               let viewportSize = fitViewportSize(),
               let pageSize = displaySize(for: page) else { return nil }
 
-        return clampedScale((viewportSize.width * 0.985) / pageSize.width)
+        return ZoomGeometry.widthFitScale(
+            viewportSize: viewportSize,
+            pageSize: pageSize,
+            minimum: minimumZoomScale,
+            maximum: maximumZoomScale
+        )
     }
 
     func pageFitScale(for page: PDFPage) -> CGFloat? {
         guard let viewportSize = fitViewportSize(),
               let pageSize = displaySize(for: page) else { return nil }
 
-        let widthScale = (viewportSize.width * 0.985) / pageSize.width
-        let heightScale = (viewportSize.height * 0.985) / pageSize.height
-        return clampedScale(min(widthScale, heightScale))
+        return ZoomGeometry.pageFitScale(
+            viewportSize: viewportSize,
+            pageSize: pageSize,
+            minimum: minimumZoomScale,
+            maximum: maximumZoomScale
+        )
     }
 
     func fitViewportSize() -> NSSize? {
@@ -183,23 +191,15 @@ extension VellumPDFView {
     }
 
     func displaySize(for page: PDFPage) -> NSSize? {
-        let bounds = page.bounds(for: displayBox)
-        guard bounds.width > 0, bounds.height > 0 else { return nil }
-
-        let normalizedRotation = ((page.rotation % 360) + 360) % 360
-        if normalizedRotation == 90 || normalizedRotation == 270 {
-            return NSSize(width: bounds.height, height: bounds.width)
-        }
-
-        return bounds.size
+        ZoomGeometry.displaySize(bounds: page.bounds(for: displayBox), rotation: page.rotation)
     }
 
     func clampedScale(_ scale: CGFloat) -> CGFloat {
-        min(max(scale, minimumZoomScale), maximumZoomScale)
+        ZoomGeometry.clampedScale(scale, minimum: minimumZoomScale, maximum: maximumZoomScale)
     }
 
     func isSameViewportSize(_ lhs: NSSize, _ rhs: NSSize) -> Bool {
-        abs(lhs.width - rhs.width) < 0.5 && abs(lhs.height - rhs.height) < 0.5
+        ZoomGeometry.isSameViewportSize(lhs, rhs)
     }
 
     func pageCenterDestination(for page: PDFPage) -> PDFDestination {
