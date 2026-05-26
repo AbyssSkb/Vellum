@@ -2,64 +2,86 @@ import Foundation
 
 @MainActor
 struct VimCommandDispatcher {
-    func perform(_ command: VimCommand, in appState: AppState) {
+    func perform(_ command: VimCommand, on target: VimCommandTarget) {
         switch command {
         case .open:
-            appState.openPanel(mode: .currentTab)
+            target.openPDFInCurrentTab()
         case .openInNewTab:
-            appState.openPanel(mode: .newTabs)
+            target.openPDFInNewTabs()
         case .closeTab:
-            appState.closeSelectedTab()
+            target.closeSelectedTab()
         case .restoreClosedTab:
-            appState.restoreClosedPDFTab()
+            target.restoreClosedPDFTab()
         case .nextTab:
-            appState.selectNextTab()
+            target.selectNextTab()
         case .previousTab:
-            appState.selectPreviousTab()
+            target.selectPreviousTab()
         case .scrollDown:
-            appState.activePDFView?.vimScroll(x: 0, y: -28)
+            target.scrollBy(x: 0, y: -28)
         case .scrollUp:
-            appState.activePDFView?.vimScroll(x: 0, y: 28)
+            target.scrollBy(x: 0, y: 28)
         case .largeScrollDown:
-            appState.activePDFView?.vimScroll(x: 0, y: -115)
+            target.scrollBy(x: 0, y: -115)
         case .largeScrollUp:
-            appState.activePDFView?.vimScroll(x: 0, y: 115)
+            target.scrollBy(x: 0, y: 115)
         case .scrollLeft:
-            appState.activePDFView?.vimScroll(x: -42, y: 0)
+            target.scrollBy(x: -42, y: 0)
         case .scrollRight:
-            appState.activePDFView?.vimScroll(x: 42, y: 0)
+            target.scrollBy(x: 42, y: 0)
         case .pageDown:
-            appState.activePDFView?.vimMoveByPage(1)
+            target.moveByPage(1)
         case .pageUp:
-            appState.activePDFView?.vimMoveByPage(-1)
+            target.moveByPage(-1)
         case .firstPage:
-            appState.activePDFView?.vimGoToFirstPage()
+            target.goToFirstPage()
         case .lastPage:
-            appState.activePDFView?.vimGoToLastPage()
+            target.goToLastPage()
         case .jumpToPage(let pageNumber):
-            appState.activePDFView?.vimGoToPage(pageNumber)
+            target.goToPage(pageNumber)
         case .jumpBack:
-            appState.activePDFView?.vimJumpBack()
+            target.jumpBack()
         case .jumpForward:
-            appState.activePDFView?.vimJumpForward()
+            target.jumpForward()
         case .toggleOutline:
-            appState.toggleOutlineSidebar()
+            target.toggleOutlineSidebar()
         case .highlightSelection:
-            appState.activePDFView?.vimHighlightSelection(
-                color: appState.selectedHighlightColor.annotationColor
-            )
+            target.highlightSelection()
         case .cycleHighlightColor:
-            appState.cycleHighlightColor()
+            target.cycleHighlightColor()
         case .explainHighlightSelection:
-            appState.activePDFView?.vimExplainSelectedHighlight()
+            target.explainHighlightSelection()
         case .zoomIn:
-            appState.activePDFView?.vimZoom(by: 1.04)
+            target.zoom(by: 1.04)
         case .zoomOut:
-            appState.activePDFView?.vimZoom(by: 1 / 1.04)
+            target.zoom(by: 1 / 1.04)
         case .zoomPageFit:
-            appState.activePDFView?.vimZoomToPageFit()
+            target.zoomToPageFit()
         case .zoomFit:
-            appState.activePDFView?.vimZoomToFit()
+            target.zoomToFit()
         }
     }
+}
+
+@MainActor
+protocol VimCommandTarget {
+    func openPDFInCurrentTab()
+    func openPDFInNewTabs()
+    func closeSelectedTab()
+    func restoreClosedPDFTab()
+    func selectNextTab()
+    func selectPreviousTab()
+    func scrollBy(x: CGFloat, y: CGFloat)
+    func moveByPage(_ delta: Int)
+    func goToFirstPage()
+    func goToLastPage()
+    func goToPage(_ pageNumber: Int)
+    func jumpBack()
+    func jumpForward()
+    func toggleOutlineSidebar()
+    func highlightSelection()
+    func cycleHighlightColor()
+    func explainHighlightSelection()
+    func zoom(by factor: CGFloat)
+    func zoomToPageFit()
+    func zoomToFit()
 }
