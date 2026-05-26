@@ -12,7 +12,7 @@ extension AppState {
 
             if self.activePDFView?.handleTextSelectionKeyEvent(event) == true {
                 self.stopHeldKeyTimer()
-                self.keyState.clearPendingInput()
+                self.vimInput.clearPendingInput()
                 return nil
             }
 
@@ -67,7 +67,7 @@ extension AppState {
 
         if activePDFView?.handleTextSelectionKey(key, eventType: event.type) == true {
             stopHeldKeyTimer()
-            keyState.clearPendingInput()
+            vimInput.clearPendingInput()
             return true
         }
 
@@ -88,14 +88,14 @@ extension AppState {
         let key = event.charactersIgnoringModifiers?.lowercased()
         if key == "o" || event.keyCode == 31 {
             stopHeldKeyTimer()
-            keyState.clearPendingInput()
+            vimInput.clearPendingInput()
             handleVimCommand(.jumpBack)
             return true
         }
 
         if key == "i" || event.keyCode == 34 {
             stopHeldKeyTimer()
-            keyState.clearPendingInput()
+            vimInput.clearPendingInput()
             handleVimCommand(.jumpForward)
             return true
         }
@@ -104,125 +104,31 @@ extension AppState {
     }
 
     private func handleKeyDown(_ key: String, isRepeat: Bool) -> Bool {
-        if handleUppercaseCommand(key) {
-            return true
-        }
-
         if activePDFView?.handleTextSelectionKey(key, eventType: .keyDown) == true {
             stopHeldKeyTimer()
-            keyState.clearPendingInput()
+            vimInput.clearPendingInput()
             return true
         }
 
         if VimKeyMap.normalizedContinuousKey(key) == "d",
            activePDFView?.vimDeleteHighlightsForSelection() == true {
             stopHeldKeyTimer()
-            keyState.heldKey = "d"
-            keyState.clearPendingInput()
+            vimInput.beginHeldKey("d")
+            vimInput.clearPendingInput()
             return true
         }
 
-        guard VimKeyMap.isContinuousKey(key) else {
-            if isRepeat {
-                return VimKeyMap.isHandledKey(
-                    key,
-                    hasNavigableTextSelection: activePDFView?.hasNavigableTextSelection == true
-                )
-            }
-            return handleKey(key)
-        }
-
-        let normalizedKey = VimKeyMap.normalizedContinuousKey(key)
-        if keyState.heldKey == normalizedKey {
-            return true
-        }
-
-        keyState.heldKey = normalizedKey
-        performContinuousKey(keyState.heldKey)
-        ensureHeldKeyTimer()
-        return true
+        return applyVimInputAction(
+            vimInput.handleKeyDown(
+                key,
+                isRepeat: isRepeat,
+                hasNavigableTextSelection: activePDFView?.hasNavigableTextSelection == true
+            )
+        )
     }
 
     private func handleKeyUp(_ key: String) -> Bool {
-        guard VimKeyMap.isContinuousKey(key),
-              keyState.heldKey == VimKeyMap.normalizedContinuousKey(key) else { return false }
-        stopHeldKeyTimer()
-        return true
-    }
-
-    private func handleUppercaseCommand(_ key: String) -> Bool {
-        switch key {
-        case "G":
-            if let pageNumber = consumeNumericPrefix() {
-                handleVimCommand(.jumpToPage(pageNumber))
-            } else {
-                handleVimCommand(.lastPage)
-            }
-        case "H":
-            keyState.numericPrefix = ""
-            handleVimCommand(.previousTab)
-        case "L":
-            keyState.numericPrefix = ""
-            handleVimCommand(.nextTab)
-        case "X":
-            keyState.numericPrefix = ""
-            handleVimCommand(.restoreClosedTab)
-        case "O":
-            keyState.numericPrefix = ""
-            handleVimCommand(.openInNewTab)
-        default:
-            return false
-        }
-        return true
-    }
-
-    func handleKey(_ key: String) -> Bool {
-        if handleNumericPrefixKey(key) {
-            return true
-        }
-
-        if keyState.pendingKey == "g" {
-            keyState.clearPendingInput()
-            switch key {
-            case "g":
-                handleVimCommand(.firstPage)
-            case "t":
-                handleVimCommand(.nextTab)
-            case "T":
-                handleVimCommand(.previousTab)
-            default:
-                return false
-            }
-            return true
-        }
-
-        if activePDFView?.vimNavigateTextSelection(key) == true {
-            keyState.clearPendingInput()
-            return true
-        }
-
-        switch key {
-        case "g":
-            keyState.numericPrefix = ""
-            keyState.pendingKey = "g"
-        case "G":
-            if let pageNumber = consumeNumericPrefix() {
-                handleVimCommand(.jumpToPage(pageNumber))
-            } else {
-                handleVimCommand(.lastPage)
-            }
-        default:
-            if let command = VimKeyMap.command(for: key) {
-                keyState.clearPendingInput()
-                handleVimCommand(command)
-                return true
-            }
-
-            keyState.numericPrefix = ""
-            guard let fallback = VimKeyMap.lowercaseFallback(for: key) else { return false }
-            return handleKey(fallback)
-        }
-        return true
+        applyVimInputAction(vimInput.handleKeyUp(key))
     }
 
     private func ensureHeldKeyTimer() {
@@ -235,11 +141,11 @@ extension AppState {
             }
 
             MainActor.assumeIsolated {
-                guard self.keyState.heldKey != nil else {
+                guard self.vimInput.heldKey != nil else {
                     self.stopHeldKeyTimer()
                     return
                 }
-                self.performContinuousKey(self.keyState.heldKey)
+                self.performContinuousKey(self.vimInput.heldKey)
             }
         }
         RunLoop.main.add(timer, forMode: .common)
@@ -249,15 +155,7 @@ extension AppState {
     private func stopHeldKeyTimer() {
         heldKeyTimer?.invalidate()
         heldKeyTimer = nil
-        keyState.clearHeldKey()
-    }
-
-    private func handleNumericPrefixKey(_ key: String) -> Bool {
-        keyState.handleNumericPrefixKey(key)
-    }
-
-    private func consumeNumericPrefix() -> Int? {
-        keyState.consumeNumericPrefix()
+        vimInput.clearHeldKey()
     }
 
     private func performContinuousKey(_ key: String?) {
@@ -272,4 +170,22 @@ extension AppState {
         }
     }
 
+    private func applyVimInputAction(_ action: VimInputAction) -> Bool {
+        switch action {
+        case .ignored:
+            return false
+        case .handled:
+            return true
+        case .command(let command):
+            handleVimCommand(command)
+            return true
+        case .continuousKey(let key):
+            performContinuousKey(key)
+            ensureHeldKeyTimer()
+            return true
+        case .stopContinuousKey:
+            stopHeldKeyTimer()
+            return true
+        }
+    }
 }

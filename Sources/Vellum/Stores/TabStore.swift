@@ -1,0 +1,88 @@
+import Foundation
+
+struct TabStore {
+    private(set) var tabs: [PDFTab] = []
+    private(set) var selectedTabID: PDFTab.ID?
+
+    private var closedPDFTabHistory = ClosedPDFTabHistory()
+
+    var hasOpenDocuments: Bool {
+        !tabs.isEmpty
+    }
+
+    var selectedTab: PDFTab? {
+        guard let selectedTabID else { return nil }
+        return tabs.first { $0.id == selectedTabID }
+    }
+
+    var selectedIndex: Int? {
+        guard let selectedTabID else { return nil }
+        return tabs.firstIndex { $0.id == selectedTabID }
+    }
+
+    mutating func selectTab(_ id: PDFTab.ID) -> Bool {
+        guard selectedTabID != id, tabs.contains(where: { $0.id == id }) else { return false }
+        selectedTabID = id
+        return true
+    }
+
+    mutating func openInCurrentTab(_ tab: PDFTab) {
+        if let index = selectedIndex {
+            tabs[index] = tab
+        } else {
+            tabs = [tab]
+        }
+        selectedTabID = tab.id
+    }
+
+    mutating func openInNewTabs(_ newTabs: [PDFTab]) -> Bool {
+        guard !newTabs.isEmpty else { return false }
+        tabs.append(contentsOf: newTabs)
+        selectedTabID = newTabs.last?.id
+        return true
+    }
+
+    mutating func closeSelectedTab() -> Bool {
+        guard let selectedTabID,
+              let index = tabs.firstIndex(where: { $0.id == selectedTabID }) else { return false }
+
+        closedPDFTabHistory.remember(tabs[index])
+        tabs.remove(at: index)
+
+        if tabs.isEmpty {
+            self.selectedTabID = nil
+        } else {
+            self.selectedTabID = tabs[min(index, tabs.count - 1)].id
+        }
+
+        return true
+    }
+
+    mutating func restoreClosedPDFTab() -> Bool {
+        guard let tab = closedPDFTabHistory.restore() else { return false }
+        tabs.append(tab)
+        selectedTabID = tab.id
+        return true
+    }
+
+    mutating func selectNextTab() -> Bool {
+        guard let index = selectedIndex, !tabs.isEmpty else { return false }
+        selectedTabID = tabs[(index + 1) % tabs.count].id
+        return true
+    }
+
+    mutating func selectPreviousTab() -> Bool {
+        guard let index = selectedIndex, !tabs.isEmpty else { return false }
+        selectedTabID = tabs[(index - 1 + tabs.count) % tabs.count].id
+        return true
+    }
+
+    mutating func saveSnapshot(_ snapshot: ReaderSnapshot, for tabID: PDFTab.ID) {
+        guard let index = tabs.firstIndex(where: { $0.id == tabID }) else { return }
+        tabs[index].snapshot = snapshot
+    }
+
+    func snapshotForSelectedTab() -> ReaderSnapshot? {
+        selectedTab?.snapshot
+    }
+}

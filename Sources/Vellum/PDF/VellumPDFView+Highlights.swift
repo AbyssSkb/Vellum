@@ -107,9 +107,9 @@ extension VellumPDFView {
             return
         }
 
-        activeAIExplanationTask?.cancel()
-        activeAISelection = selection.copy() as? PDFSelection ?? selection
-        activeAIExistingAnnotations = targetAnnotations
+        aiInteraction.explanationTask?.cancel()
+        aiInteraction.activeSelection = selection.copy() as? PDFSelection ?? selection
+        aiInteraction.existingAnnotations = targetAnnotations
         let popoverModel = showStreamingAIExplanationPopover(
             title: selectedText.aiPopoverTitle,
             at: anchor
@@ -126,27 +126,27 @@ extension VellumPDFView {
                 )
                 guard let self else { return }
 
-                for annotation in self.activeAIExistingAnnotations {
+                for annotation in self.aiInteraction.existingAnnotations {
                     annotation.contents = AIExplanationAnnotation.encode(explanation)
                     annotation.userName = "Vellum AI"
                     annotation.modificationDate = Date()
                 }
 
-                if !self.activeAIExistingAnnotations.isEmpty {
+                if !self.aiInteraction.existingAnnotations.isEmpty {
                     self.needsDisplay = true
                     self.persistAnnotationsIfPossible()
                 }
                 popoverModel?.isStreaming = false
-                self.activeAIExplanationTask = nil
+                self.aiInteraction.explanationTask = nil
             } catch {
                 guard !Task.isCancelled else { return }
-                self?.activeAIExplanationTask = nil
+                self?.aiInteraction.explanationTask = nil
                 popoverModel?.isStreaming = false
                 popoverModel?.title = "AI request failed"
                 popoverModel?.text = error.localizedDescription
                 NSSound.beep()
             }
         }
-        activeAIExplanationTask = task
+        aiInteraction.explanationTask = task
     }
 }

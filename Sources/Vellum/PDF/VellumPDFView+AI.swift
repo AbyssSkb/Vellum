@@ -4,7 +4,7 @@ import SwiftUI
 
 extension VellumPDFView {
     func updateHoveredAIExplanation(for event: NSEvent) {
-        if activeExplanationModel != nil, hoveredExplanationAnnotation == nil {
+        if aiInteraction.activeExplanationModel != nil, aiInteraction.hoveredAnnotation == nil {
             return
         }
 
@@ -16,16 +16,16 @@ extension VellumPDFView {
         let point = convert(event.locationInWindow, from: nil)
         guard let annotation = aiExplanationAnnotation(at: point),
               let explanation = AIExplanationAnnotation.decode(annotation.contents) else {
-            if let suppressedHoverExplanationAnnotation,
-               let suppressedHoverExplanationText,
-               isPoint(point, insideExplanationGroupFor: suppressedHoverExplanationAnnotation, explanation: suppressedHoverExplanationText) {
+            if let suppressedHoverAnnotation = aiInteraction.suppressedHoverAnnotation,
+               let suppressedHoverText = aiInteraction.suppressedHoverText,
+               isPoint(point, insideExplanationGroupFor: suppressedHoverAnnotation, explanation: suppressedHoverText) {
                 hideAIExplanationPopover()
                 return
             }
 
-            if let hoveredExplanationAnnotation,
-               let hoveredExplanationText,
-               isPoint(point, insideExplanationGroupFor: hoveredExplanationAnnotation, explanation: hoveredExplanationText) {
+            if let hoveredAnnotation = aiInteraction.hoveredAnnotation,
+               let hoveredText = aiInteraction.hoveredText,
+               isPoint(point, insideExplanationGroupFor: hoveredAnnotation, explanation: hoveredText) {
                 cancelPendingHoverPopoverHide()
                 return
             }
@@ -36,7 +36,7 @@ extension VellumPDFView {
         }
         let hoverKey = hoverExplanationKey(for: annotation, explanation: explanation)
 
-        if suppressedHoverExplanationKey == hoverKey {
+        if aiInteraction.suppressedHoverKey == hoverKey {
             hideAIExplanationPopover()
             return
         }
@@ -44,10 +44,10 @@ extension VellumPDFView {
 
         cancelPendingHoverPopoverHide()
 
-        if hoveredExplanationKey == hoverKey,
-           hoveredExplanationText == explanation,
-           explanationPopover?.isShown == true {
-            hoveredExplanationAnnotation = annotation
+        if aiInteraction.hoveredKey == hoverKey,
+           aiInteraction.hoveredText == explanation,
+           aiInteraction.explanationPopover?.isShown == true {
+            aiInteraction.hoveredAnnotation = annotation
             return
         }
 
@@ -84,9 +84,9 @@ extension VellumPDFView {
             kind: .hover
         )
         clearSuppressedHoverExplanation()
-        hoveredExplanationAnnotation = annotation
-        hoveredExplanationText = explanation
-        hoveredExplanationKey = hoverKey
+        aiInteraction.hoveredAnnotation = annotation
+        aiInteraction.hoveredText = explanation
+        aiInteraction.hoveredKey = hoverKey
     }
 
     func showAIMessage(_ message: String, at rect: NSRect? = nil) {
@@ -97,9 +97,9 @@ extension VellumPDFView {
         )
         showPopover(model: model, at: rect ?? selectionPopoverRect(for: currentSelection), kind: .message)
         clearSuppressedHoverExplanation()
-        hoveredExplanationAnnotation = nil
-        hoveredExplanationText = message
-        hoveredExplanationKey = nil
+        aiInteraction.hoveredAnnotation = nil
+        aiInteraction.hoveredText = message
+        aiInteraction.hoveredKey = nil
     }
 
     func showStreamingAIExplanationPopover(
@@ -113,9 +113,9 @@ extension VellumPDFView {
         )
         showPopover(model: model, at: rect ?? selectionPopoverRect(for: currentSelection), kind: .streaming)
         clearSuppressedHoverExplanation()
-        hoveredExplanationAnnotation = nil
-        hoveredExplanationText = nil
-        hoveredExplanationKey = nil
+        aiInteraction.hoveredAnnotation = nil
+        aiInteraction.hoveredText = nil
+        aiInteraction.hoveredKey = nil
         return model
     }
 
@@ -168,7 +168,7 @@ extension VellumPDFView {
                     }
                 },
                 onWebViewReady: { [weak self, kind] webView in
-                    self?.activeAIWebView = webView
+                    self?.aiInteraction.activeWebView = webView
                     guard kind.shouldFocusWebView else { return }
 
                     DispatchQueue.main.async { [weak webView] in
@@ -181,21 +181,21 @@ extension VellumPDFView {
 
         let anchor = rect ?? NSRect(x: bounds.midX, y: bounds.midY, width: 1, height: 1)
         popover.show(relativeTo: anchor, of: self, preferredEdge: .maxY)
-        explanationPopover = popover
-        activeExplanationModel = model
+        aiInteraction.explanationPopover = popover
+        aiInteraction.activeExplanationModel = model
     }
 
     func scheduleStreamingPopoverHeightUpdate(model: AIExplanationPopoverModel, contentHeight: CGFloat) {
-        pendingPopoverContentHeight = contentHeight
+        aiInteraction.pendingPopoverContentHeight = contentHeight
 
-        guard popoverHeightUpdateWorkItem == nil else { return }
+        guard aiInteraction.popoverHeightUpdateWorkItem == nil else { return }
 
         let workItem = DispatchWorkItem { [weak self, model] in
             guard let self else { return }
 
-            let latestHeight = self.pendingPopoverContentHeight ?? contentHeight
-            self.pendingPopoverContentHeight = nil
-            self.popoverHeightUpdateWorkItem = nil
+            let latestHeight = self.aiInteraction.pendingPopoverContentHeight ?? contentHeight
+            self.aiInteraction.pendingPopoverContentHeight = nil
+            self.aiInteraction.popoverHeightUpdateWorkItem = nil
             self.applyPopoverHeight(
                 model: model,
                 contentHeight: latestHeight,
@@ -203,7 +203,7 @@ extension VellumPDFView {
                 scrollToBottom: true
             )
         }
-        popoverHeightUpdateWorkItem = workItem
+        aiInteraction.popoverHeightUpdateWorkItem = workItem
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.045, execute: workItem)
     }
 
@@ -213,17 +213,17 @@ extension VellumPDFView {
         minimumHeight: CGFloat = AIExplanationPopoverMetrics.minimumHeight,
         scrollToBottom: Bool
     ) {
-        guard activeExplanationModel === model else { return }
+        guard aiInteraction.activeExplanationModel === model else { return }
 
         if model.updateContentHeight(contentHeight, minimumHeight: minimumHeight) {
             NSAnimationContext.runAnimationGroup { context in
                 context.duration = 0
                 context.allowsImplicitAnimation = false
-                explanationPopover?.contentSize = model.preferredSize
+                aiInteraction.explanationPopover?.contentSize = model.preferredSize
             }
         }
 
-        if scrollToBottom, let webView = activeAIWebView {
+        if scrollToBottom, let webView = aiInteraction.activeWebView {
             let shouldStickToBottom = ceil(contentHeight) > model.maximumHeight + 1
             let alignScroll = { [weak webView] in
                 if shouldStickToBottom {
@@ -242,33 +242,22 @@ extension VellumPDFView {
 
     func hideAIExplanationPopover() {
         cancelPendingHoverPopoverHide()
-        popoverHeightUpdateWorkItem?.cancel()
-        popoverHeightUpdateWorkItem = nil
-        pendingPopoverContentHeight = nil
         stopAIContinuousScroll()
-        explanationPopover?.close()
-        explanationPopover = nil
-        activeExplanationModel = nil
-        activeAIWebView = nil
-        hoveredExplanationAnnotation = nil
-        hoveredExplanationText = nil
-        hoveredExplanationKey = nil
+        aiInteraction.clearPopoverState()
     }
 
     func dismissHoverAIExplanation(suppressCurrent: Bool) {
-        if suppressCurrent, let hoveredExplanationKey {
-            suppressedHoverExplanationKey = hoveredExplanationKey
-            suppressedHoverExplanationAnnotation = hoveredExplanationAnnotation
-            suppressedHoverExplanationText = hoveredExplanationText
+        if suppressCurrent, let hoveredKey = aiInteraction.hoveredKey {
+            aiInteraction.suppressedHoverKey = hoveredKey
+            aiInteraction.suppressedHoverAnnotation = aiInteraction.hoveredAnnotation
+            aiInteraction.suppressedHoverText = aiInteraction.hoveredText
         }
         hideAIExplanationPopover()
         focus()
     }
 
     func clearSuppressedHoverExplanation() {
-        suppressedHoverExplanationKey = nil
-        suppressedHoverExplanationAnnotation = nil
-        suppressedHoverExplanationText = nil
+        aiInteraction.clearSuppressedHover()
     }
 
     func explanationPopoverAnchorRect(
@@ -324,20 +313,20 @@ extension VellumPDFView {
     }
 
     func scheduleHoverPopoverHide() {
-        guard hoveredExplanationAnnotation != nil else { return }
+        guard aiInteraction.hoveredAnnotation != nil else { return }
 
-        hoverPopoverHideWorkItem?.cancel()
+        aiInteraction.hoverPopoverHideWorkItem?.cancel()
         let workItem = DispatchWorkItem { [weak self] in
             self?.hideHoverPopoverIfNeeded()
         }
-        hoverPopoverHideWorkItem = workItem
+        aiInteraction.hoverPopoverHideWorkItem = workItem
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.09, execute: workItem)
     }
 
     func hideHoverPopoverIfNeeded() {
-        guard let hoveredExplanationKey else { return }
+        guard let hoveredKey = aiInteraction.hoveredKey else { return }
 
-        if mouseIsHoveringExplanationGroup(hoveredExplanationKey)
+        if mouseIsHoveringExplanationGroup(hoveredKey)
             || mouseIsInsideExplanationPopover() {
             scheduleHoverPopoverHide()
             return
@@ -347,12 +336,12 @@ extension VellumPDFView {
     }
 
     func cancelPendingHoverPopoverHide() {
-        hoverPopoverHideWorkItem?.cancel()
-        hoverPopoverHideWorkItem = nil
+        aiInteraction.hoverPopoverHideWorkItem?.cancel()
+        aiInteraction.hoverPopoverHideWorkItem = nil
     }
 
     func mouseIsInsideExplanationPopover() -> Bool {
-        guard let popoverWindow = explanationPopover?.contentViewController?.view.window else {
+        guard let popoverWindow = aiInteraction.explanationPopover?.contentViewController?.view.window else {
             return false
         }
 
@@ -368,11 +357,11 @@ extension VellumPDFView {
             return hoverExplanationKey(for: annotation, explanation: explanation) == hoverKey
         }
 
-        guard let hoveredExplanationAnnotation,
-              let hoveredExplanationText,
-              hoveredExplanationKey == hoverKey else { return false }
+        guard let hoveredAnnotation = aiInteraction.hoveredAnnotation,
+              let hoveredText = aiInteraction.hoveredText,
+              aiInteraction.hoveredKey == hoverKey else { return false }
 
-        return isPoint(point, insideExplanationGroupFor: hoveredExplanationAnnotation, explanation: hoveredExplanationText)
+        return isPoint(point, insideExplanationGroupFor: hoveredAnnotation, explanation: hoveredText)
     }
 
     func isPoint(
@@ -414,7 +403,7 @@ extension VellumPDFView {
 
         switch event.type {
         case .keyDown:
-            if key == "\u{1b}", hoveredExplanationKey != nil {
+            if key == "\u{1b}", aiInteraction.hoveredKey != nil {
                 dismissHoverAIExplanation(suppressCurrent: true)
                 return true
             }
@@ -424,13 +413,13 @@ extension VellumPDFView {
                 return true
             }
 
-            if activeAIWebView?.handleKey(key) == true {
+            if aiInteraction.activeWebView?.handleKey(key) == true {
                 return true
             }
             return ["j", "k", "m", "c", "\u{1b}"].contains(key)
         case .keyUp:
             if key == "j" || key == "k" {
-                if activeAIContinuousScrollKey == key {
+                if aiInteraction.continuousScrollKey == key {
                     stopAIContinuousScroll()
                 }
                 return true
@@ -442,22 +431,19 @@ extension VellumPDFView {
     }
 
     func startAIContinuousScroll(_ key: String) {
-        guard activeAIContinuousScrollKey != key else { return }
+        guard aiInteraction.continuousScrollKey != key else { return }
 
-        activeAIContinuousScrollKey = key
-        activeAIWebView?.startContinuousScroll(direction: key == "j" ? 1 : -1)
+        aiInteraction.continuousScrollKey = key
+        aiInteraction.activeWebView?.startContinuousScroll(direction: key == "j" ? 1 : -1)
     }
 
     func stopAIContinuousScroll() {
-        activeAIContinuousScrollKey = nil
-        activeAIWebView?.stopContinuousScroll()
+        aiInteraction.continuousScrollKey = nil
+        aiInteraction.activeWebView?.stopContinuousScroll()
     }
 
     func dismissActiveAIInteraction(clearSelection shouldClearSelection: Bool) {
-        activeAIExplanationTask?.cancel()
-        activeAIExplanationTask = nil
-        activeAISelection = nil
-        activeAIExistingAnnotations = []
+        aiInteraction.clearActiveRequest()
         if shouldClearSelection {
             clearSelection()
             textSelectionNavigationState = nil
@@ -467,17 +453,17 @@ extension VellumPDFView {
     }
 
     func highlightActiveAISelection() {
-        guard let selection = activeAISelection ?? currentSelection else {
+        guard let selection = aiInteraction.activeSelection ?? currentSelection else {
             dismissActiveAIInteraction(clearSelection: true)
             return
         }
 
-        activeAIExplanationTask?.cancel()
-        activeAIExplanationTask = nil
+        aiInteraction.explanationTask?.cancel()
+        aiInteraction.explanationTask = nil
 
         let color = appState?.selectedHighlightColor.annotationColor ?? HighlightColor.yellow.annotationColor
         let annotations = addHighlightAnnotations(for: selection, color: color)
-        let explanation = activeExplanationModel?.text
+        let explanation = aiInteraction.activeExplanationModel?.text
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .nilIfEmpty
 

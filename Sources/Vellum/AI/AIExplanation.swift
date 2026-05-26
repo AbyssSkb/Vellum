@@ -1,8 +1,19 @@
 import Foundation
 
 
-enum AIExplanationClient {
-    static func testConnection(configuration: AIConfiguration) async throws -> String {
+protocol AIExplaining: Sendable {
+    func testConnection(configuration: AIConfiguration) async throws -> String
+    func fetchModels(configuration: AIConfiguration) async throws -> [String]
+    func explain(context: AIExplanationContext, configuration: AIConfiguration) async throws -> String
+    func streamExplanation(
+        context: AIExplanationContext,
+        configuration: AIConfiguration,
+        onChunk: @escaping @MainActor (String) -> Void
+    ) async throws -> String
+}
+
+struct OpenAICompatibleAIExplanationClient: AIExplaining {
+    func testConnection(configuration: AIConfiguration) async throws -> String {
         var request = URLRequest(url: configuration.chatCompletionsURL)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -34,7 +45,7 @@ enum AIExplanationClient {
         return "模型可用：\(configuration.model)"
     }
 
-    static func fetchModels(configuration: AIConfiguration) async throws -> [String] {
+    func fetchModels(configuration: AIConfiguration) async throws -> [String] {
         var request = URLRequest(url: configuration.modelsURL)
         request.httpMethod = "GET"
         request.setValue("Bearer \(configuration.apiKey)", forHTTPHeaderField: "Authorization")
@@ -50,7 +61,7 @@ enum AIExplanationClient {
             .sorted { $0.localizedStandardCompare($1) == .orderedAscending }
     }
 
-    static func explain(context: AIExplanationContext, configuration: AIConfiguration) async throws -> String {
+    func explain(context: AIExplanationContext, configuration: AIConfiguration) async throws -> String {
         var request = URLRequest(url: configuration.chatCompletionsURL)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -85,7 +96,7 @@ enum AIExplanationClient {
         return text
     }
 
-    static func streamExplanation(
+    func streamExplanation(
         context: AIExplanationContext,
         configuration: AIConfiguration,
         onChunk: @escaping @MainActor (String) -> Void
@@ -147,7 +158,7 @@ enum AIExplanationClient {
         return trimmed
     }
 
-    private static func validate(data: Data, response: URLResponse) throws {
+    private func validate(data: Data, response: URLResponse) throws {
         if let httpResponse = response as? HTTPURLResponse,
            !(200..<300).contains(httpResponse.statusCode) {
             let message = serverErrorMessage(from: data, statusCode: httpResponse.statusCode)
@@ -155,14 +166,14 @@ enum AIExplanationClient {
         }
     }
 
-    private static func validate(response: URLResponse) throws {
+    private func validate(response: URLResponse) throws {
         if let httpResponse = response as? HTTPURLResponse,
            !(200..<300).contains(httpResponse.statusCode) {
             throw AIExplanationError.server("AI 请求失败，HTTP \(httpResponse.statusCode)。")
         }
     }
 
-    private static func data(for request: URLRequest) async throws -> (Data, URLResponse) {
+    private func data(for request: URLRequest) async throws -> (Data, URLResponse) {
         do {
             return try await URLSession.shared.data(for: request)
         } catch {
@@ -170,7 +181,7 @@ enum AIExplanationClient {
         }
     }
 
-    private static func bytes(for request: URLRequest) async throws -> (URLSession.AsyncBytes, URLResponse) {
+    private func bytes(for request: URLRequest) async throws -> (URLSession.AsyncBytes, URLResponse) {
         do {
             return try await URLSession.shared.bytes(for: request)
         } catch {
@@ -178,7 +189,7 @@ enum AIExplanationClient {
         }
     }
 
-    private static func serverErrorMessage(from data: Data, statusCode: Int) -> String {
+    private func serverErrorMessage(from data: Data, statusCode: Int) -> String {
         let fallback = "AI 请求失败，HTTP \(statusCode)。"
         guard let rawMessage = String(data: data, encoding: .utf8)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -264,5 +275,33 @@ enum AIExplanationClient {
         struct Model: Decodable {
             var id: String
         }
+    }
+}
+
+enum AIExplanationClient {
+    static let shared: any AIExplaining = OpenAICompatibleAIExplanationClient()
+
+    static func testConnection(configuration: AIConfiguration) async throws -> String {
+        try await shared.testConnection(configuration: configuration)
+    }
+
+    static func fetchModels(configuration: AIConfiguration) async throws -> [String] {
+        try await shared.fetchModels(configuration: configuration)
+    }
+
+    static func explain(context: AIExplanationContext, configuration: AIConfiguration) async throws -> String {
+        try await shared.explain(context: context, configuration: configuration)
+    }
+
+    static func streamExplanation(
+        context: AIExplanationContext,
+        configuration: AIConfiguration,
+        onChunk: @escaping @MainActor (String) -> Void
+    ) async throws -> String {
+        try await shared.streamExplanation(
+            context: context,
+            configuration: configuration,
+            onChunk: onChunk
+        )
     }
 }

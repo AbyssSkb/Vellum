@@ -19,29 +19,14 @@ final class VellumPDFView: PDFView {
     var jumpForwardStack: [ReaderSnapshot] = []
     var restoreGeneration = 0
     var explanationTrackingArea: NSTrackingArea?
-    var explanationPopover: NSPopover?
-    var activeExplanationModel: AIExplanationPopoverModel?
-    var activeAISelection: PDFSelection?
-    var activeAIExistingAnnotations: [PDFAnnotation] = []
-    var activeAIExplanationTask: Task<Void, Never>?
-    weak var activeAIWebView: AIExplanationWebView?
-    var activeAIContinuousScrollKey: String?
-    var pendingPopoverContentHeight: CGFloat?
-    var popoverHeightUpdateWorkItem: DispatchWorkItem?
-    weak var hoveredExplanationAnnotation: PDFAnnotation?
-    var hoveredExplanationText: String?
-    var hoveredExplanationKey: String?
-    var suppressedHoverExplanationKey: String?
-    weak var suppressedHoverExplanationAnnotation: PDFAnnotation?
-    var suppressedHoverExplanationText: String?
-    var hoverPopoverHideWorkItem: DispatchWorkItem?
+    let aiInteraction = AIInteractionState()
     var isMouseSelectingText = false
     var textSelectionNavigationState: VimTextSelectionNavigationState?
 
     override var acceptsFirstResponder: Bool { true }
 
     var isAIInteractionActive: Bool {
-        explanationPopover?.isShown == true || activeExplanationModel != nil
+        aiInteraction.isActive
     }
 
     var hasNavigableTextSelection: Bool {
@@ -170,7 +155,7 @@ final class VellumPDFView: PDFView {
 
     override func mouseExited(with event: NSEvent) {
         super.mouseExited(with: event)
-        if hoveredExplanationAnnotation != nil {
+        if aiInteraction.hoveredAnnotation != nil {
             scheduleHoverPopoverHide()
         }
     }

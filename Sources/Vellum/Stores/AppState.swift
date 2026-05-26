@@ -4,30 +4,36 @@ import SwiftUI
 
 @MainActor
 final class AppState: ObservableObject {
-    @Published private(set) var tabs: [PDFTab] = []
-    @Published private(set) var selectedTabID: PDFTab.ID?
+    @Published private var tabStore = TabStore()
     @Published private(set) var isOutlineVisible = false
     @Published private(set) var outlineFocusGeneration = 0
     @Published private(set) var selectedHighlightColor: HighlightColor = .yellow
 
     weak var activePDFView: VellumPDFView?
     var keyMonitor: Any?
-    var keyState = VimKeyState()
+    var vimInput = VimInputController()
+    let vimCommandDispatcher = VimCommandDispatcher()
     var heldKeyTimer: Timer?
-    private var closedPDFTabHistory = ClosedPDFTabHistory()
 
     init() {
         installKeyMonitor()
         installOpenURLObserver()
     }
 
+    var tabs: [PDFTab] {
+        tabStore.tabs
+    }
+
+    var selectedTabID: PDFTab.ID? {
+        tabStore.selectedTabID
+    }
+
     var hasOpenDocuments: Bool {
-        !tabs.isEmpty
+        tabStore.hasOpenDocuments
     }
 
     var selectedTab: PDFTab? {
-        guard let selectedTabID else { return nil }
-        return tabs.first { $0.id == selectedTabID }
+        tabStore.selectedTab
     }
 
     func setActivePDFView(_ view: VellumPDFView?, for tabID: PDFTab.ID) {
@@ -71,9 +77,10 @@ final class AppState: ObservableObject {
     }
 
     func selectTab(_ id: PDFTab.ID) {
-        guard selectedTabID != id, tabs.contains(where: { $0.id == id }) else { return }
+        guard selectedTabID != id else { return }
         saveActiveReaderState()
-        selectedTabID = id
+        guard tabStore.selectTab(id) else { return }
+        activePDFView = nil
         focusActivePDFViewSoon()
     }
 
@@ -98,12 +105,7 @@ final class AppState: ObservableObject {
 
         guard let tab = PDFDocumentLoader.tab(for: url) else { return }
 
-        if let index = selectedIndex {
-            tabs[index] = tab
-        } else {
-            tabs = [tab]
-        }
-        selectedTabID = tab.id
+        tabStore.openInCurrentTab(tab)
         activePDFView = nil
 
         focusActivePDFViewSoon()
@@ -112,16 +114,9 @@ final class AppState: ObservableObject {
     func openInNewTabs(urls: [URL], reusingSelectedBlankTab: Bool) {
         saveActiveReaderState()
 
-        var openedDocument = false
-        for url in urls {
-            guard let tab = PDFDocumentLoader.tab(for: url) else { continue }
+        let newTabs = urls.compactMap(PDFDocumentLoader.tab(for:))
 
-            tabs.append(tab)
-            selectedTabID = tab.id
-            openedDocument = true
-        }
-
-        if openedDocument {
+        if tabStore.openInNewTabs(newTabs) {
             activePDFView = nil
             focusActivePDFViewSoon()
         }
@@ -129,18 +124,12 @@ final class AppState: ObservableObject {
 
     func closeSelectedTab() {
         saveActiveReaderState()
-        guard let selectedTabID,
-              let index = tabs.firstIndex(where: { $0.id == selectedTabID }) else { return }
+        guard tabStore.closeSelectedTab() else { return }
 
-        closedPDFTabHistory.remember(tabs[index])
-        tabs.remove(at: index)
         activePDFView = nil
 
-        if tabs.isEmpty {
-            self.selectedTabID = nil
+        if !tabStore.hasOpenDocuments {
             isOutlineVisible = false
-        } else {
-            self.selectedTabID = tabs[min(index, tabs.count - 1)].id
         }
         focusActivePDFViewSoon()
     }
@@ -148,94 +137,35 @@ final class AppState: ObservableObject {
     func restoreClosedPDFTab() {
         saveActiveReaderState()
 
-        guard let tab = closedPDFTabHistory.restore() else { return }
-        tabs.append(tab)
-        selectedTabID = tab.id
+        guard tabStore.restoreClosedPDFTab() else { return }
         activePDFView = nil
         focusActivePDFViewSoon()
     }
 
     func selectNextTab() {
-        guard let index = selectedIndex, !tabs.isEmpty else { return }
-        selectTab(tabs[(index + 1) % tabs.count].id)
+        saveActiveReaderState()
+        guard tabStore.selectNextTab() else { return }
+        activePDFView = nil
+        focusActivePDFViewSoon()
     }
 
     func selectPreviousTab() {
-        guard let index = selectedIndex, !tabs.isEmpty else { return }
-        selectTab(tabs[(index - 1 + tabs.count) % tabs.count].id)
+        saveActiveReaderState()
+        guard tabStore.selectPreviousTab() else { return }
+        activePDFView = nil
+        focusActivePDFViewSoon()
     }
 
     func handleVimCommand(_ command: VimCommand) {
-        switch command {
-        case .open:
-            openPanel(mode: .currentTab)
-        case .openInNewTab:
-            openPanel(mode: .newTabs)
-        case .closeTab:
-            closeSelectedTab()
-        case .restoreClosedTab:
-            restoreClosedPDFTab()
-        case .nextTab:
-            selectNextTab()
-        case .previousTab:
-            selectPreviousTab()
-        case .scrollDown:
-            activePDFView?.vimScroll(x: 0, y: -28)
-        case .scrollUp:
-            activePDFView?.vimScroll(x: 0, y: 28)
-        case .largeScrollDown:
-            activePDFView?.vimScroll(x: 0, y: -115)
-        case .largeScrollUp:
-            activePDFView?.vimScroll(x: 0, y: 115)
-        case .scrollLeft:
-            activePDFView?.vimScroll(x: -42, y: 0)
-        case .scrollRight:
-            activePDFView?.vimScroll(x: 42, y: 0)
-        case .pageDown:
-            activePDFView?.vimMoveByPage(1)
-        case .pageUp:
-            activePDFView?.vimMoveByPage(-1)
-        case .firstPage:
-            activePDFView?.vimGoToFirstPage()
-        case .lastPage:
-            activePDFView?.vimGoToLastPage()
-        case .jumpToPage(let pageNumber):
-            activePDFView?.vimGoToPage(pageNumber)
-        case .jumpBack:
-            activePDFView?.vimJumpBack()
-        case .jumpForward:
-            activePDFView?.vimJumpForward()
-        case .toggleOutline:
-            toggleOutlineSidebar()
-        case .highlightSelection:
-            activePDFView?.vimHighlightSelection(color: selectedHighlightColor.annotationColor)
-        case .cycleHighlightColor:
-            cycleHighlightColor()
-        case .explainHighlightSelection:
-            activePDFView?.vimExplainSelectedHighlight()
-        case .zoomIn:
-            activePDFView?.vimZoom(by: 1.04)
-        case .zoomOut:
-            activePDFView?.vimZoom(by: 1 / 1.04)
-        case .zoomPageFit:
-            activePDFView?.vimZoomToPageFit()
-        case .zoomFit:
-            activePDFView?.vimZoomToFit()
-        }
+        vimCommandDispatcher.perform(command, in: self)
     }
 
     func snapshotForSelectedTab() -> ReaderSnapshot? {
-        selectedTab?.snapshot
+        tabStore.snapshotForSelectedTab()
     }
 
     func saveSnapshot(_ snapshot: ReaderSnapshot, for tabID: PDFTab.ID) {
-        guard let index = tabs.firstIndex(where: { $0.id == tabID }) else { return }
-        tabs[index].snapshot = snapshot
-    }
-
-    private var selectedIndex: Int? {
-        guard let selectedTabID else { return nil }
-        return tabs.firstIndex { $0.id == selectedTabID }
+        tabStore.saveSnapshot(snapshot, for: tabID)
     }
 
     private func saveActiveReaderState() {
