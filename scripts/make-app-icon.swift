@@ -2,13 +2,14 @@ import AppKit
 import Foundation
 
 let outputDirectory = URL(fileURLWithPath: CommandLine.arguments.dropFirst().first ?? ".")
-let sourceURL = URL(fileURLWithPath: "icon.png")
+let sourcePath = CommandLine.arguments.dropFirst(2).first ?? "Resources/AppIcon/icon.png"
+let sourceURL = URL(fileURLWithPath: sourcePath)
 
 guard let sourceImage = NSImage(contentsOf: sourceURL) else {
     throw NSError(
         domain: "VellumIcon",
         code: 1,
-        userInfo: [NSLocalizedDescriptionKey: "Could not load icon.png"]
+        userInfo: [NSLocalizedDescriptionKey: "Could not load \(sourcePath)"]
     )
 }
 let sourceRect = visibleSourceRect(in: sourceImage)

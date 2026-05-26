@@ -1,48 +1,56 @@
 # Vellum
 
-A native macOS PDF reader built with SwiftUI and PDFKit, designed around Vim-style keyboard navigation and lightweight multi-tab reading.
+Vellum is a native macOS PDF reader built with SwiftUI and PDFKit. It is designed for keyboard-first reading, Vim-style navigation, lightweight tabs, fast outline browsing, highlights, and optional AI explanations for selected passages.
 
-## Run
+## Features
 
-Build a double-clickable release macOS app bundle:
+- Native macOS app powered by SwiftUI, AppKit, and PDFKit
+- Vim-style movement for scrolling, paging, jumping, zooming, and tab switching
+- Multi-tab PDF reading with restore-last-closed-tab support
+- Keyboard-driven outline sidebar with jump history
+- Highlight creation, deletion, and color cycling
+- Optional AI explanations for selected text or highlights through an OpenAI-compatible API
+- Local release app bundle generation with icon packaging and ad-hoc signing
 
-```sh
-scripts/package-app.sh
-```
+## Requirements
 
-The app is created at:
+- macOS 14 or newer
+- Swift 6.2 toolchain or newer
+- Xcode command line tools
 
-```text
-dist/Vellum.app
-```
+## Build And Run
 
-For development, you can also run the executable directly:
+Run the app directly during development:
 
 ```sh
 swift run
 ```
 
-The debug binary is produced at:
+Build a double-clickable release app bundle:
 
-```text
-.build/arm64-apple-macosx/debug/Vellum
+```sh
+scripts/package-app.sh
 ```
 
-## Project Structure
+The packaged app is written to:
 
 ```text
-Sources/Vellum/App       App entry, app delegate, URL relay, and open panels
-Sources/Vellum/AI        AI explanation configuration, client, popovers, and HTML rendering
-Sources/Vellum/Models    Shared reader, outline, tab, highlight, and Vim command models
-Sources/Vellum/PDF       PDFKit integration, highlight geometry, and PDF view behavior
-Sources/Vellum/Services  Document loading services
-Sources/Vellum/Stores    App-wide observable state and input routing
-Sources/Vellum/Support   Shared styling and small extensions
-Sources/Vellum/Views     SwiftUI views and AppKit wrappers
-scripts                  Packaging and icon generation helpers
+dist/Vellum.app
 ```
 
-## Keys
+The packaging script builds the SwiftPM executable, generates `AppIcon.icns` from `Resources/AppIcon/icon.png`, writes a minimal `Info.plist`, and ad-hoc signs the app when `codesign` is available.
+
+## AI Configuration
+
+Open Vellum settings and configure an OpenAI-compatible provider:
+
+- Base URL, for example `https://api.openai.com/v1`
+- API key
+- Model name
+
+The settings screen can fetch available models and test the configured chat completions endpoint. AI features are optional; the core PDF reader works without an API key.
+
+## Keyboard Shortcuts
 
 | Key | Action |
 | --- | --- |
@@ -54,13 +62,15 @@ scripts                  Packaging and icon generation helpers
 | `j` / `k` | Scroll down / up |
 | `d` / `u` | Large scroll down / up; `d` deletes selected highlights when text is selected |
 | `h` / `l` | Scroll left / right |
-| `Space` or `f` | Move forward one page |
+| `Space` / `f` | Move forward one page |
 | `b` | Move back one page |
 | `gg` | First page |
 | `G` | Last page |
 | `[num]G` | Jump to page number |
 | `Control-O` / `Control-I` | Jump back / forward |
 | `m` | Highlight selected text |
+| `a` | Explain selected highlight/text with AI |
+| `c` | Cycle highlight color |
 | `+` / `-` | Zoom in / out |
 | `0` | Fit whole page |
 | `z` | Fit width |
@@ -68,6 +78,37 @@ scripts                  Packaging and icon generation helpers
 | `L` / `H` | Next / previous tab |
 | `gt` / `gT` | Next / previous tab |
 
-When the contents sidebar has focus, `j` / `k` move through outline items, `h` / `l` collapse and expand parent items, and `Enter` jumps to the selected destination. Outline jumps are included in `Control-O` / `Control-I` history.
+When the outline sidebar has focus, `j` / `k` move through outline items, `h` / `l` collapse and expand parent items, and `Enter` jumps to the selected destination. Outline jumps are included in `Control-O` / `Control-I` history.
 
 Standard macOS shortcuts are also wired for opening files, closing tabs, and switching tabs from the menu bar.
+
+## Project Structure
+
+```text
+Resources/AppIcon        Source artwork for the macOS app icon
+Sources/Vellum/App       App entry, app delegate, URL relay, and open panels
+Sources/Vellum/AI        AI explanation configuration, client, popovers, and HTML rendering
+Sources/Vellum/Models    Shared reader, outline, tab, highlight, and Vim command models
+Sources/Vellum/PDF       PDFKit integration, highlight geometry, PDF view behavior, navigation, zoom, and selection logic
+Sources/Vellum/Services  Document loading services
+Sources/Vellum/Stores    App-wide observable state and input routing
+Sources/Vellum/Support   Shared styling and small extensions
+Sources/Vellum/Views     SwiftUI views and AppKit wrappers
+scripts                  Packaging and icon generation helpers
+```
+
+## Development
+
+Useful commands:
+
+```sh
+swift build
+swift run
+scripts/package-app.sh
+```
+
+Generated build outputs live in `.build/` and packaged apps live in `dist/`. Both are ignored by git.
+
+## Status
+
+Vellum is an early-stage personal macOS reader. It is usable for local PDF reading workflows, but distribution packaging is intentionally simple: the app is ad-hoc signed and not notarized.

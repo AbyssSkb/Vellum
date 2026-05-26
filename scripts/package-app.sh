@@ -23,9 +23,10 @@ mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
 cp "$EXECUTABLE" "$MACOS_DIR/$APP_NAME"
 
 ICONSET_DIR="$ROOT_DIR/.build/AppIcon.iconset"
+SOURCE_ICON="$ROOT_DIR/Resources/AppIcon/icon.png"
 rm -rf "$ICONSET_DIR"
 CLANG_MODULE_CACHE_PATH="$ROOT_DIR/.build/ModuleCache" \
-    swift "$ROOT_DIR/scripts/make-app-icon.swift" "$ICONSET_DIR"
+    swift "$ROOT_DIR/scripts/make-app-icon.swift" "$ICONSET_DIR" "$SOURCE_ICON"
 iconutil -c icns "$ICONSET_DIR" -o "$RESOURCES_DIR/AppIcon.icns"
 
 cat > "$CONTENTS_DIR/Info.plist" <<PLIST
