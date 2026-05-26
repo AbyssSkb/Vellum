@@ -118,7 +118,7 @@ struct VimInputController {
     }
 }
 
-enum VimInputAction {
+enum VimInputAction: Equatable {
     case ignored
     case handled
     case command(VimCommand)

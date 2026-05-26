@@ -95,7 +95,7 @@ enum PDFOpenMode {
     case newTabs
 }
 
-enum VimCommand {
+enum VimCommand: Equatable {
     case open
     case openInNewTab
     case closeTab
