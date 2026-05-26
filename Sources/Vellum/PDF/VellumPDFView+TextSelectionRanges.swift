@@ -224,28 +224,14 @@ extension VellumPDFView {
         pageStart: Int,
         to selection: PDFSelection
     ) {
-        let startSlot = min(max(rawStartSlot, 0), line.characters.count)
-        let endSlot = min(max(rawEndSlot, 0), line.characters.count)
-        guard endSlot > startSlot else { return }
-
-        let offsets = line.characters[startSlot..<endSlot]
-            .map { $0.globalOffset - pageStart }
-            .sorted()
-        guard var runStart = offsets.first else { return }
-        var previous = runStart
-
-        for offset in offsets.dropFirst() {
-            if offset == previous + 1 {
-                previous = offset
-                continue
-            }
-
-            addPageSelection(page: page, start: runStart, end: previous + 1, to: selection)
-            runStart = offset
-            previous = offset
+        for range in TextSelectionRangeBuilder.pageRanges(
+            for: line,
+            startSlot: rawStartSlot,
+            endSlot: rawEndSlot,
+            pageStart: pageStart
+        ) {
+            addPageSelection(page: page, start: range.lowerBound, end: range.upperBound, to: selection)
         }
-
-        addPageSelection(page: page, start: runStart, end: previous + 1, to: selection)
     }
 
     func addPageSelection(page: PDFPage, start: Int, end: Int, to selection: PDFSelection) {
