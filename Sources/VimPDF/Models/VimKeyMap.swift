@@ -43,4 +43,82 @@ enum VimKeyMap {
             return nil
         }
     }
+
+    static func command(for key: String) -> VimCommand? {
+        switch key {
+        case "\t", "t":
+            return .toggleOutline
+        case "H":
+            return .previousTab
+        case "L":
+            return .nextTab
+        case "X":
+            return .restoreClosedTab
+        case "O":
+            return .openInNewTab
+        case "j":
+            return .scrollDown
+        case "k":
+            return .scrollUp
+        case "d":
+            return .largeScrollDown
+        case "u":
+            return .largeScrollUp
+        case "h":
+            return .scrollLeft
+        case "l":
+            return .scrollRight
+        case "a":
+            return .explainHighlightSelection
+        case "c":
+            return .cycleHighlightColor
+        case "m":
+            return .highlightSelection
+        case " ", "f":
+            return .pageDown
+        case "b":
+            return .pageUp
+        case "+", "=":
+            return .zoomIn
+        case "-":
+            return .zoomOut
+        case "0":
+            return .zoomPageFit
+        case "z":
+            return .zoomFit
+        case "o":
+            return .open
+        case "x":
+            return .closeTab
+        case "]":
+            return .nextTab
+        case "[":
+            return .previousTab
+        default:
+            return nil
+        }
+    }
+
+    static func continuousCommand(for key: String) -> VimCommand? {
+        switch key {
+        case "j":
+            return .scrollDown
+        case "k":
+            return .scrollUp
+        case "d":
+            return .largeScrollDown
+        case "u":
+            return .largeScrollUp
+        case "h":
+            return .scrollLeft
+        case "l":
+            return .scrollRight
+        case "=":
+            return .zoomIn
+        case "-":
+            return .zoomOut
+        default:
+            return nil
+        }
+    }
 }

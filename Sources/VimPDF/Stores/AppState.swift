@@ -473,62 +473,19 @@ final class AppState: ObservableObject {
         case "g":
             keyState.numericPrefix = ""
             keyState.pendingKey = "g"
-        case "\t", "t":
-            keyState.clearPendingInput()
-            handleVimCommand(.toggleOutline)
         case "G":
             if let pageNumber = consumeNumericPrefix() {
                 handleVimCommand(.jumpToPage(pageNumber))
             } else {
                 handleVimCommand(.lastPage)
             }
-        case "H":
-            handleVimCommand(.previousTab)
-        case "L":
-            handleVimCommand(.nextTab)
-        case "X":
-            handleVimCommand(.restoreClosedTab)
-        case "O":
-            handleVimCommand(.openInNewTab)
-        case "j":
-            handleVimCommand(.scrollDown)
-        case "k":
-            handleVimCommand(.scrollUp)
-        case "d":
-            handleVimCommand(.largeScrollDown)
-        case "u":
-            handleVimCommand(.largeScrollUp)
-        case "h":
-            handleVimCommand(.scrollLeft)
-        case "l":
-            handleVimCommand(.scrollRight)
-        case "a":
-            handleVimCommand(.explainHighlightSelection)
-        case "c":
-            handleVimCommand(.cycleHighlightColor)
-        case "m":
-            handleVimCommand(.highlightSelection)
-        case " ", "f":
-            handleVimCommand(.pageDown)
-        case "b":
-            handleVimCommand(.pageUp)
-        case "+", "=":
-            handleVimCommand(.zoomIn)
-        case "-":
-            handleVimCommand(.zoomOut)
-        case "0":
-            handleVimCommand(.zoomPageFit)
-        case "z":
-            handleVimCommand(.zoomFit)
-        case "o":
-            handleVimCommand(.open)
-        case "x":
-            handleVimCommand(.closeTab)
-        case "]":
-            handleVimCommand(.nextTab)
-        case "[":
-            handleVimCommand(.previousTab)
         default:
+            if let command = VimKeyMap.command(for: key) {
+                keyState.clearPendingInput()
+                handleVimCommand(command)
+                return true
+            }
+
             keyState.numericPrefix = ""
             guard let fallback = VimKeyMap.lowercaseFallback(for: key) else { return false }
             return handleKey(fallback)
@@ -578,25 +535,8 @@ final class AppState: ObservableObject {
             return
         }
 
-        switch key {
-        case "j":
-            handleVimCommand(.scrollDown)
-        case "k":
-            handleVimCommand(.scrollUp)
-        case "d":
-            handleVimCommand(.largeScrollDown)
-        case "u":
-            handleVimCommand(.largeScrollUp)
-        case "h":
-            handleVimCommand(.scrollLeft)
-        case "l":
-            handleVimCommand(.scrollRight)
-        case "=":
-            handleVimCommand(.zoomIn)
-        case "-":
-            handleVimCommand(.zoomOut)
-        default:
-            break
+        if let command = VimKeyMap.continuousCommand(for: key) {
+            handleVimCommand(command)
         }
     }
 
