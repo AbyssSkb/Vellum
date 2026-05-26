@@ -28,6 +28,20 @@ The debug binary is produced at:
 .build/arm64-apple-macosx/debug/Vellum
 ```
 
+## Project Structure
+
+```text
+Sources/Vellum/App       App entry, app delegate, URL relay, and open panels
+Sources/Vellum/AI        AI explanation configuration, client, popovers, and HTML rendering
+Sources/Vellum/Models    Shared reader, outline, tab, highlight, and Vim command models
+Sources/Vellum/PDF       PDFKit integration, highlight geometry, and PDF view behavior
+Sources/Vellum/Services  Document loading services
+Sources/Vellum/Stores    App-wide observable state and input routing
+Sources/Vellum/Support   Shared styling and small extensions
+Sources/Vellum/Views     SwiftUI views and AppKit wrappers
+scripts                  Packaging and icon generation helpers
+```
+
 ## Keys
 
 | Key | Action |

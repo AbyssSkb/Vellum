@@ -1,40 +1,6 @@
 @preconcurrency import AppKit
 import SwiftUI
 
-enum SettingsCategory: String, CaseIterable, Identifiable {
-    case ai
-    case shortcuts
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .ai:
-            return "AI"
-        case .shortcuts:
-            return "Shortcuts"
-        }
-    }
-
-    var subtitle: String {
-        switch self {
-        case .ai:
-            return "Provider and model"
-        case .shortcuts:
-            return "Keyboard map"
-        }
-    }
-
-    var systemImage: String {
-        switch self {
-        case .ai:
-            return "sparkles"
-        case .shortcuts:
-            return "keyboard"
-        }
-    }
-}
-
 enum AIConnectionStatus: Equatable {
     case idle
     case working(String)
