@@ -204,14 +204,10 @@ final class PageOverviewOverlayView: NSView {
     }
 
     private func cellRect(at position: Int, panelRect: NSRect) -> NSRect {
-        if visibleCount == columns {
-            return carouselCellRect(at: position, panelRect: panelRect)
-        }
-
-        let spacing: CGFloat = 16
-        let horizontalInset: CGFloat = 24
-        let bottomInset: CGFloat = 24
-        let headerHeight: CGFloat = 58
+        let spacing: CGFloat = 12
+        let horizontalInset: CGFloat = 16
+        let bottomInset: CGFloat = 16
+        let headerHeight: CGFloat = 46
         let rows = max(1, Int(ceil(Double(visibleCount) / Double(columns))))
         let gridWidth = panelRect.width - horizontalInset * 2
         let gridHeight = panelRect.height - headerHeight - bottomInset
@@ -227,46 +223,6 @@ final class PageOverviewOverlayView: NSView {
             width: cellWidth,
             height: cellHeight
         )
-    }
-
-    private func carouselCellRect(at position: Int, panelRect: NSRect) -> NSRect {
-        let spacing: CGFloat = 18
-        let horizontalInset: CGFloat = 22
-        let bottomInset: CGFloat = 22
-        let headerHeight: CGFloat = 50
-        let area = NSRect(
-            x: panelRect.minX + horizontalInset,
-            y: panelRect.minY + bottomInset,
-            width: panelRect.width - horizontalInset * 2,
-            height: panelRect.height - headerHeight - bottomInset
-        )
-        let centerWidth = min(area.width * 0.64, area.height * 1.68)
-        let sideWidth = max(96, (area.width - centerWidth - spacing * 2) / 2)
-        let sideHeight = area.height * 0.62
-
-        switch position {
-        case 0:
-            return NSRect(
-                x: area.minX,
-                y: area.midY - sideHeight / 2,
-                width: sideWidth,
-                height: sideHeight
-            )
-        case 1:
-            return NSRect(
-                x: area.midX - centerWidth / 2,
-                y: area.minY,
-                width: centerWidth,
-                height: area.height
-            )
-        default:
-            return NSRect(
-                x: area.maxX - sideWidth,
-                y: area.midY - sideHeight / 2,
-                width: sideWidth,
-                height: sideHeight
-            )
-        }
     }
 
     private func drawHeader(in panelRect: NSRect) {
