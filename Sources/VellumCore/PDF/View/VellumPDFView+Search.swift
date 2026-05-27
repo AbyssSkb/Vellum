@@ -93,6 +93,9 @@ final class PDFSearchController {
 
     private func update(query nextQuery: String, resetSelection: Bool) {
         query = nextQuery
+        if resetSelection {
+            removeActiveMatchIndicator()
+        }
 
         guard let pdfView, let document = pdfView.document else {
             matches = []
@@ -154,6 +157,7 @@ final class PDFSearchController {
         committedSelectedIndex = nil
         pdfView?.highlightedSelections = []
         pdfView?.clearSelection()
+        removeActiveMatchIndicator()
     }
 
     private func dismissOverlay(returnFocus: Bool) {
@@ -181,11 +185,13 @@ final class PDFSearchController {
         pdfView.textSelectionNavigationState = nil
         pdfView.clearSelection()
         pdfView.go(to: selection)
+        showActiveMatchIndicator(for: selection)
 
-        DispatchQueue.main.async { [weak pdfView, weak selection] in
+        DispatchQueue.main.async { [weak self, weak pdfView, weak selection] in
             guard let pdfView, let selection else { return }
             pdfView.clearSelection()
             pdfView.go(to: selection)
+            self?.showActiveMatchIndicator(for: selection)
         }
     }
 
@@ -239,6 +245,30 @@ final class PDFSearchController {
         committedSelectedIndex = selectedIndex
     }
 
+    private func showActiveMatchIndicator(for selection: PDFSelection) {
+        guard let pdfView else { return }
+
+        let indicator = pdfView.searchMatchIndicatorView ?? SearchMatchIndicatorView(pdfView: pdfView)
+        indicator.frame = pdfView.bounds
+        indicator.autoresizingMask = [.width, .height]
+        indicator.selection = selection
+
+        if indicator.superview == nil {
+            if let overlay {
+                pdfView.addSubview(indicator, positioned: .below, relativeTo: overlay)
+            } else {
+                pdfView.addSubview(indicator)
+            }
+        }
+
+        pdfView.searchMatchIndicatorView = indicator
+        indicator.needsDisplay = true
+    }
+
+    private func removeActiveMatchIndicator() {
+        pdfView?.searchMatchIndicatorView?.removeFromSuperview()
+        pdfView?.searchMatchIndicatorView = nil
+    }
 }
 
 @MainActor
@@ -460,5 +490,60 @@ private final class SearchCommandTextField: NSTextField {
         default:
             super.keyDown(with: event)
         }
+    }
+}
+
+@MainActor
+final class SearchMatchIndicatorView: NSView {
+    weak var pdfView: VellumPDFView?
+
+    var selection: PDFSelection? {
+        didSet {
+            needsDisplay = true
+        }
+    }
+
+    init(pdfView: VellumPDFView) {
+        self.pdfView = pdfView
+        super.init(frame: pdfView.bounds)
+        wantsLayer = false
+    }
+
+    required init?(coder: NSCoder) {
+        nil
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        nil
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        guard let pdfView, let selection else { return }
+
+        let lineSelections = selection.selectionsByLine()
+        let selections = lineSelections.isEmpty ? [selection] : lineSelections
+        for lineSelection in selections {
+            for page in lineSelection.pages {
+                guard let pageBounds = HighlightGeometry.tightBounds(for: lineSelection, on: page),
+                      let viewRect = pdfView.viewRect(for: pageBounds, on: page) else { continue }
+
+                drawIndicator(in: convert(viewRect, from: pdfView))
+            }
+        }
+    }
+
+    private func drawIndicator(in rect: NSRect) {
+        guard rect.width > 0, rect.height > 0 else { return }
+
+        let indicatorRect = rect.insetBy(dx: -3, dy: -3)
+        let path = NSBezierPath(roundedRect: indicatorRect, xRadius: 4, yRadius: 4)
+
+        TokyoNight.blue.withAlphaComponent(0.14).setFill()
+        path.fill()
+
+        TokyoNight.cyan.withAlphaComponent(0.95).setStroke()
+        path.lineWidth = 2
+        path.stroke()
     }
 }

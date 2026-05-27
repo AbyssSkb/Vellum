@@ -18,6 +18,7 @@ final class VellumPDFView: PDFView {
     var textSelectionNavigationState: VimTextSelectionNavigationState?
     var pageOverviewController: PageOverviewController?
     var searchController: PDFSearchController?
+    var searchMatchIndicatorView: SearchMatchIndicatorView?
 
     override var acceptsFirstResponder: Bool { true }
 
@@ -110,6 +111,8 @@ final class VellumPDFView: PDFView {
     override func layout() {
         super.layout()
         configurePDFScrollers()
+        searchMatchIndicatorView?.frame = bounds
+        searchMatchIndicatorView?.needsDisplay = true
     }
 
     override func updateTrackingAreas() {
