@@ -69,6 +69,7 @@ The settings screen can fetch available models and test the configured chat comp
 | `[num]G` | Jump to page number |
 | `Control-O` / `Control-I` | Jump back / forward |
 | `m` | Highlight selected text |
+| `y` | Copy selected text |
 | `a` | Explain selected highlight/text with AI |
 | `c` | Cycle highlight color |
 | `+` / `-` | Zoom in / out |

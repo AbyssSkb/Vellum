@@ -69,6 +69,7 @@ struct VimCommandDispatcherTests {
         let target = RecordingVimCommandTarget()
 
         dispatcher.perform(.toggleOutline, on: target)
+        dispatcher.perform(.copySelection, on: target)
         dispatcher.perform(.highlightSelection, on: target)
         dispatcher.perform(.cycleHighlightColor, on: target)
         dispatcher.perform(.explainHighlightSelection, on: target)
@@ -79,6 +80,7 @@ struct VimCommandDispatcherTests {
 
         #expect(target.actions == [
             .toggleOutline,
+            .copySelection,
             .highlightSelection,
             .cycleHighlightColor,
             .explainHighlightSelection,
@@ -150,6 +152,10 @@ private final class RecordingVimCommandTarget: VimCommandTarget {
         actions.append(.toggleOutline)
     }
 
+    func copySelection() {
+        actions.append(.copySelection)
+    }
+
     func highlightSelection() {
         actions.append(.highlightSelection)
     }
@@ -189,6 +195,7 @@ private final class RecordingVimCommandTarget: VimCommandTarget {
         case jumpBack
         case jumpForward
         case toggleOutline
+        case copySelection
         case highlightSelection
         case cycleHighlightColor
         case explainHighlightSelection

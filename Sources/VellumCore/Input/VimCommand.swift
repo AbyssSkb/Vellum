@@ -19,6 +19,7 @@ enum VimCommand: Equatable {
     case jumpBack
     case jumpForward
     case toggleOutline
+    case copySelection
     case highlightSelection
     case cycleHighlightColor
     case explainHighlightSelection

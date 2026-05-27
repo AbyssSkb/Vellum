@@ -45,4 +45,12 @@ struct VimInputControllerTests {
         #expect(input.handleKeyUp("j") == .stopContinuousKey)
         #expect(input.heldKey == nil)
     }
+
+    @Test
+    func copySelectionOnlyRoutesWhenSelectionIsNavigable() {
+        var input = VimInputController()
+
+        #expect(input.handleKeyDown("y", isRepeat: false, hasNavigableTextSelection: false) == .ignored)
+        #expect(input.handleKeyDown("y", isRepeat: false, hasNavigableTextSelection: true) == .command(.copySelection))
+    }
 }

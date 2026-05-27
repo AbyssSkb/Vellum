@@ -108,6 +108,14 @@ final class VellumPDFView: PDFView {
         window?.makeFirstResponder(self)
     }
 
+    func vimCopySelection() {
+        guard let selectedText = currentSelection?.string?.nilIfEmpty else { return }
+
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(selectedText, forType: .string)
+        focus()
+    }
+
     override func keyDown(with event: NSEvent) {
         if appState?.handleKeyEvent(event) == true {
             return

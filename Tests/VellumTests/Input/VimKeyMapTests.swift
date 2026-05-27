@@ -17,6 +17,13 @@ struct VimKeyMapTests {
     }
 
     @Test
+    func copyKeyDependsOnNavigableSelection() {
+        #expect(!VimKeyMap.isHandledKey("y", hasNavigableTextSelection: false))
+        #expect(VimKeyMap.isHandledKey("y", hasNavigableTextSelection: true))
+        #expect(VimKeyMap.command(for: "y") == .copySelection)
+    }
+
+    @Test
     func uppercaseFallbackLeavesDedicatedUppercaseCommandsAlone() {
         #expect(VimKeyMap.lowercaseFallback(for: "A") == "a")
         #expect(VimKeyMap.lowercaseFallback(for: "G") == nil)

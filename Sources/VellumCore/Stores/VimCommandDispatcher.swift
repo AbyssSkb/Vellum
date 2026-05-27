@@ -44,6 +44,8 @@ struct VimCommandDispatcher {
             target.jumpForward()
         case .toggleOutline:
             target.toggleOutlineSidebar()
+        case .copySelection:
+            target.copySelection()
         case .highlightSelection:
             target.highlightSelection()
         case .cycleHighlightColor:
@@ -78,6 +80,7 @@ protocol VimCommandTarget {
     func jumpBack()
     func jumpForward()
     func toggleOutlineSidebar()
+    func copySelection()
     func highlightSelection()
     func cycleHighlightColor()
     func explainHighlightSelection()

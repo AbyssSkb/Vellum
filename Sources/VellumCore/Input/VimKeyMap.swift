@@ -21,7 +21,7 @@ enum VimKeyMap {
         switch key {
         case "g", "G", "H", "L", "O", "\t", "a", "c", "j", "k", "d", "u", "h", "l", "m", " ", "f", "b", "+", "=", "-", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "z", "o", "t", "x", "]", "[":
             return true
-        case "w", "e":
+        case "w", "e", "y":
             return hasNavigableTextSelection
         default:
             let lowered = key.lowercased()
@@ -37,7 +37,7 @@ enum VimKeyMap {
         guard lowered != key else { return nil }
 
         switch lowered {
-        case "a", "c", "j", "k", "d", "u", "h", "l", "m", "f", "b", "w", "e", "o", "t", "x", "z":
+        case "a", "c", "j", "k", "d", "u", "h", "l", "m", "f", "b", "w", "e", "o", "t", "x", "y", "z":
             return lowered
         default:
             return nil
@@ -74,6 +74,8 @@ enum VimKeyMap {
             return .cycleHighlightColor
         case "m":
             return .highlightSelection
+        case "y":
+            return .copySelection
         case " ", "f":
             return .pageDown
         case "b":

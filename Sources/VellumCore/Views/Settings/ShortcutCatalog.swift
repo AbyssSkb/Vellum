@@ -38,6 +38,7 @@ enum ShortcutCatalog {
             systemImage: "highlighter",
             items: [
                 ShortcutItem(keys: ["m"], action: "Highlight selection"),
+                ShortcutItem(keys: ["y"], action: "Copy selected text"),
                 ShortcutItem(keys: ["c"], action: "Cycle highlight color"),
                 ShortcutItem(keys: ["d"], action: "Delete selected highlight"),
                 ShortcutItem(keys: ["a"], action: "Explain selected text")

@@ -33,7 +33,7 @@ struct VimInputController {
                     hasNavigableTextSelection: hasNavigableTextSelection
                 ) ? .handled : .ignored
             }
-            return handleKey(key)
+            return handleKey(key, hasNavigableTextSelection: hasNavigableTextSelection)
         }
 
         let normalizedKey = VimKeyMap.normalizedContinuousKey(key)
@@ -52,7 +52,7 @@ struct VimInputController {
         return .stopContinuousKey
     }
 
-    mutating func handleKey(_ key: String) -> VimInputAction {
+    mutating func handleKey(_ key: String, hasNavigableTextSelection: Bool = true) -> VimInputAction {
         if state.handleNumericPrefixKey(key) {
             return .handled
         }
@@ -72,6 +72,9 @@ struct VimInputController {
         }
 
         switch key {
+        case "y" where !hasNavigableTextSelection:
+            state.clearPendingInput()
+            return .ignored
         case "g":
             state.numericPrefix = ""
             state.pendingKey = "g"
@@ -89,7 +92,7 @@ struct VimInputController {
 
             state.numericPrefix = ""
             guard let fallback = VimKeyMap.lowercaseFallback(for: key) else { return .ignored }
-            return handleKey(fallback)
+            return handleKey(fallback, hasNavigableTextSelection: hasNavigableTextSelection)
         }
     }
 

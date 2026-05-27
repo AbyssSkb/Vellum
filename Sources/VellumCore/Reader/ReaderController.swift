@@ -20,6 +20,7 @@ protocol ReaderController: AnyObject {
     func vimGoToDestination(_ destination: PDFDestination)
     func vimJumpBack()
     func vimJumpForward()
+    func vimCopySelection()
     func vimHighlightSelection(color: NSColor)
     func vimExplainSelectedHighlight()
     func vimZoom(by factor: CGFloat)

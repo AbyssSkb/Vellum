@@ -37,6 +37,10 @@ extension AppState: VimCommandTarget {
         activeReaderController?.vimJumpForward()
     }
 
+    func copySelection() {
+        activeReaderController?.vimCopySelection()
+    }
+
     func highlightSelection() {
         activeReaderController?.vimHighlightSelection(color: selectedHighlightColor.annotationColor)
     }

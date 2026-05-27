@@ -22,6 +22,7 @@ struct AppStateReaderControllerTests {
         appState.goToPage(12)
         appState.jumpBack()
         appState.jumpForward()
+        appState.copySelection()
         appState.highlightSelection()
         appState.explainHighlightSelection()
         appState.zoom(by: 1.25)
@@ -36,6 +37,7 @@ struct AppStateReaderControllerTests {
             .goToPage(12),
             .jumpBack,
             .jumpForward,
+            .copySelection,
             .highlightSelection,
             .explainHighlightSelection,
             .zoom(1.25),
@@ -166,6 +168,10 @@ private final class RecordingReaderController: ReaderController {
         actions.append(.jumpForward)
     }
 
+    func vimCopySelection() {
+        actions.append(.copySelection)
+    }
+
     func vimHighlightSelection(color: NSColor) {
         actions.append(.highlightSelection)
     }
@@ -196,6 +202,7 @@ private final class RecordingReaderController: ReaderController {
         case destination
         case jumpBack
         case jumpForward
+        case copySelection
         case highlightSelection
         case explainHighlightSelection
         case zoom(CGFloat)
