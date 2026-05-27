@@ -342,6 +342,23 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
         onQueryChanged?(textField.stringValue)
     }
 
+    func control(
+        _ control: NSControl,
+        textView: NSTextView,
+        doCommandBy commandSelector: Selector
+    ) -> Bool {
+        switch SearchCommandEditingCommand.action(for: commandSelector) {
+        case .commit:
+            onCommit?()
+            return true
+        case .cancel:
+            onCancel?()
+            return true
+        case nil:
+            return false
+        }
+    }
+
     private func configureContainer() {
         container.wantsLayer = true
         container.layer?.backgroundColor = TokyoNight.backgroundDeep.withAlphaComponent(0.96).cgColor
@@ -364,6 +381,7 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
     }
 
     private func configureTextField(query: String) {
+        textField.cell = VerticallyCenteredTextFieldCell(textCell: query)
         textField.stringValue = query
         textField.font = .systemFont(ofSize: 16, weight: .medium)
         textField.textColor = TokyoNight.foreground
@@ -388,6 +406,25 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
     }
 }
 
+enum SearchCommandEditingAction: Equatable {
+    case commit
+    case cancel
+}
+
+enum SearchCommandEditingCommand {
+    static func action(for selector: Selector) -> SearchCommandEditingAction? {
+        switch selector {
+        case #selector(NSResponder.insertNewline(_:)),
+             #selector(NSResponder.insertNewlineIgnoringFieldEditor(_:)):
+            return .commit
+        case #selector(NSResponder.cancelOperation(_:)):
+            return .cancel
+        default:
+            return nil
+        }
+    }
+}
+
 private final class SearchCommandTextField: NSTextField {
     var onCommit: (() -> Void)?
     var onCancel: (() -> Void)?
@@ -401,5 +438,49 @@ private final class SearchCommandTextField: NSTextField {
         default:
             super.keyDown(with: event)
         }
+    }
+}
+
+private final class VerticallyCenteredTextFieldCell: NSTextFieldCell {
+    override func drawingRect(forBounds rect: NSRect) -> NSRect {
+        var drawingRect = super.drawingRect(forBounds: rect)
+        let textHeight = cellSize(forBounds: rect).height
+        drawingRect.origin.y += max(0, (rect.height - textHeight) / 2)
+        drawingRect.size.height = min(rect.height, textHeight)
+        return drawingRect
+    }
+
+    override func select(
+        withFrame rect: NSRect,
+        in controlView: NSView,
+        editor textObj: NSText,
+        delegate: Any?,
+        start selStart: Int,
+        length selLength: Int
+    ) {
+        super.select(
+            withFrame: drawingRect(forBounds: rect),
+            in: controlView,
+            editor: textObj,
+            delegate: delegate,
+            start: selStart,
+            length: selLength
+        )
+    }
+
+    override func edit(
+        withFrame rect: NSRect,
+        in controlView: NSView,
+        editor textObj: NSText,
+        delegate: Any?,
+        event: NSEvent?
+    ) {
+        super.edit(
+            withFrame: drawingRect(forBounds: rect),
+            in: controlView,
+            editor: textObj,
+            delegate: delegate,
+            event: event
+        )
     }
 }
