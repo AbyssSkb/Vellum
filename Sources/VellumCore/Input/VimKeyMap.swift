@@ -19,7 +19,7 @@ enum VimKeyMap {
 
     static func isHandledKey(_ key: String, hasNavigableTextSelection: Bool) -> Bool {
         switch key {
-        case "g", "G", "H", "L", "O", "\t", "a", "c", "j", "k", "d", "u", "h", "l", "m", " ", "f", "b", "+", "=", "-", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "z", "o", "t", "x", "]", "[":
+        case "g", "G", "H", "L", "O", "N", "\t", "/", "a", "c", "j", "k", "d", "u", "h", "l", "m", "n", " ", "f", "b", "+", "=", "-", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "z", "o", "t", "x", "]", "[":
             return true
         case "w", "e", "y":
             return hasNavigableTextSelection
@@ -37,7 +37,7 @@ enum VimKeyMap {
         guard lowered != key else { return nil }
 
         switch lowered {
-        case "a", "c", "j", "k", "d", "u", "h", "l", "m", "f", "b", "w", "e", "o", "t", "x", "y", "z":
+        case "a", "c", "j", "k", "d", "u", "h", "l", "m", "f", "b", "w", "e", "n", "o", "t", "x", "y", "z":
             return lowered
         default:
             return nil
@@ -48,6 +48,12 @@ enum VimKeyMap {
         switch key {
         case "\t", "t":
             return .toggleOutline
+        case "/":
+            return .beginSearch
+        case "n":
+            return .searchNext
+        case "N":
+            return .searchPrevious
         case "H":
             return .previousTab
         case "L":

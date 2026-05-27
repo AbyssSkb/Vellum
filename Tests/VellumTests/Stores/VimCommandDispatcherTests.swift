@@ -45,6 +45,9 @@ struct VimCommandDispatcherTests {
         dispatcher.perform(.jumpToPage(42), on: target)
         dispatcher.perform(.jumpBack, on: target)
         dispatcher.perform(.jumpForward, on: target)
+        dispatcher.perform(.beginSearch, on: target)
+        dispatcher.perform(.searchNext, on: target)
+        dispatcher.perform(.searchPrevious, on: target)
 
         #expect(target.actions == [
             .scroll(x: 0, y: -VimCommandMetrics.lineScrollDelta),
@@ -59,7 +62,10 @@ struct VimCommandDispatcherTests {
             .lastPage,
             .goToPage(42),
             .jumpBack,
-            .jumpForward
+            .jumpForward,
+            .beginSearch,
+            .searchNext,
+            .searchPrevious
         ])
     }
 
@@ -148,6 +154,18 @@ private final class RecordingVimCommandTarget: VimCommandTarget {
         actions.append(.jumpForward)
     }
 
+    func beginSearch() {
+        actions.append(.beginSearch)
+    }
+
+    func searchNext() {
+        actions.append(.searchNext)
+    }
+
+    func searchPrevious() {
+        actions.append(.searchPrevious)
+    }
+
     func toggleOutlineSidebar() {
         actions.append(.toggleOutline)
     }
@@ -194,6 +212,9 @@ private final class RecordingVimCommandTarget: VimCommandTarget {
         case goToPage(Int)
         case jumpBack
         case jumpForward
+        case beginSearch
+        case searchNext
+        case searchPrevious
         case toggleOutline
         case copySelection
         case highlightSelection

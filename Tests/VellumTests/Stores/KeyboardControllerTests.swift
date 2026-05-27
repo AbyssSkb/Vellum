@@ -48,6 +48,21 @@ struct KeyboardControllerTests {
         ])
     }
 
+    @Test
+    func slashRoutesToSearchCommand() {
+        let controller = KeyboardController(
+            installsKeyMonitor: false,
+            installsOpenURLObserver: false
+        )
+        let delegate = RecordingKeyboardDelegate()
+        controller.delegate = delegate
+
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "/", keyCode: 44)))
+
+        #expect(delegate.commands == [.beginSearch])
+        #expect(delegate.reader.actions == [])
+    }
+
     private func keyEvent(
         _ type: NSEvent.EventType,
         key: String,
@@ -115,6 +130,10 @@ private final class RecordingKeyboardReaderController: ReaderController {
         isPageOverviewActive = false
     }
 
+    func beginSearchCommand() {
+        actions.append(.beginSearch)
+    }
+
     func handleAIKeyEvent(_ event: NSEvent) -> Bool { false }
 
     func handleTextSelectionKeyEvent(_ event: NSEvent) -> Bool { false }
@@ -139,6 +158,10 @@ private final class RecordingKeyboardReaderController: ReaderController {
 
     func vimJumpForward() {}
 
+    func vimSearchNext() {}
+
+    func vimSearchPrevious() {}
+
     func vimCopySelection() {}
 
     func vimHighlightSelection(color: NSColor) {}
@@ -155,5 +178,6 @@ private final class RecordingKeyboardReaderController: ReaderController {
         case beginPageOverview
         case movePageOverview(PageOverviewNavigation)
         case finishPageOverview
+        case beginSearch
     }
 }

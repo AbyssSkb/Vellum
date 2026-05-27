@@ -12,6 +12,7 @@ protocol ReaderController: AnyObject {
     func beginPageOverview() -> Bool
     func movePageOverview(_ navigation: PageOverviewNavigation) -> Bool
     func finishPageOverview()
+    func beginSearchCommand()
     func handleAIKeyEvent(_ event: NSEvent) -> Bool
     func handleTextSelectionKeyEvent(_ event: NSEvent) -> Bool
     func handleTextSelectionKey(_ rawKey: String, eventType: NSEvent.EventType) -> Bool
@@ -24,6 +25,8 @@ protocol ReaderController: AnyObject {
     func vimGoToDestination(_ destination: PDFDestination)
     func vimJumpBack()
     func vimJumpForward()
+    func vimSearchNext()
+    func vimSearchPrevious()
     func vimCopySelection()
     func vimHighlightSelection(color: NSColor)
     func vimExplainSelectedHighlight()

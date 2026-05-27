@@ -53,4 +53,13 @@ struct VimInputControllerTests {
         #expect(input.handleKeyDown("y", isRepeat: false, hasNavigableTextSelection: false) == .ignored)
         #expect(input.handleKeyDown("y", isRepeat: false, hasNavigableTextSelection: true) == .command(.copySelection))
     }
+
+    @Test
+    func searchCommandsRouteWithoutSelection() {
+        var input = VimInputController()
+
+        #expect(input.handleKeyDown("/", isRepeat: false, hasNavigableTextSelection: false) == .command(.beginSearch))
+        #expect(input.handleKeyDown("n", isRepeat: false, hasNavigableTextSelection: false) == .command(.searchNext))
+        #expect(input.handleKeyDown("N", isRepeat: false, hasNavigableTextSelection: false) == .command(.searchPrevious))
+    }
 }

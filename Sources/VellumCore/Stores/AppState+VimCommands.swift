@@ -37,6 +37,18 @@ extension AppState: VimCommandTarget {
         activeReaderController?.vimJumpForward()
     }
 
+    func beginSearch() {
+        activeReaderController?.beginSearchCommand()
+    }
+
+    func searchNext() {
+        activeReaderController?.vimSearchNext()
+    }
+
+    func searchPrevious() {
+        activeReaderController?.vimSearchPrevious()
+    }
+
     func copySelection() {
         activeReaderController?.vimCopySelection()
     }

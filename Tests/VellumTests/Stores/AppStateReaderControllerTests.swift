@@ -22,6 +22,9 @@ struct AppStateReaderControllerTests {
         appState.goToPage(12)
         appState.jumpBack()
         appState.jumpForward()
+        appState.beginSearch()
+        appState.searchNext()
+        appState.searchPrevious()
         appState.copySelection()
         appState.highlightSelection()
         appState.explainHighlightSelection()
@@ -37,6 +40,9 @@ struct AppStateReaderControllerTests {
             .goToPage(12),
             .jumpBack,
             .jumpForward,
+            .beginSearch,
+            .searchNext,
+            .searchPrevious,
             .copySelection,
             .highlightSelection,
             .explainHighlightSelection,
@@ -137,6 +143,10 @@ private final class RecordingReaderController: ReaderController {
         isPageOverviewActive = false
     }
 
+    func beginSearchCommand() {
+        actions.append(.beginSearch)
+    }
+
     func handleAIKeyEvent(_ event: NSEvent) -> Bool {
         false
     }
@@ -185,6 +195,14 @@ private final class RecordingReaderController: ReaderController {
         actions.append(.jumpForward)
     }
 
+    func vimSearchNext() {
+        actions.append(.searchNext)
+    }
+
+    func vimSearchPrevious() {
+        actions.append(.searchPrevious)
+    }
+
     func vimCopySelection() {
         actions.append(.copySelection)
     }
@@ -222,6 +240,9 @@ private final class RecordingReaderController: ReaderController {
         case destination
         case jumpBack
         case jumpForward
+        case beginSearch
+        case searchNext
+        case searchPrevious
         case copySelection
         case highlightSelection
         case explainHighlightSelection

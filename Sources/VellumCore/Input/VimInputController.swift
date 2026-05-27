@@ -115,6 +115,9 @@ struct VimInputController {
         case "O":
             state.numericPrefix = ""
             return .command(.openInNewTab)
+        case "N":
+            state.numericPrefix = ""
+            return .command(.searchPrevious)
         default:
             return nil
         }

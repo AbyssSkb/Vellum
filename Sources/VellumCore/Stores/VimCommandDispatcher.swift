@@ -42,6 +42,12 @@ struct VimCommandDispatcher {
             target.jumpBack()
         case .jumpForward:
             target.jumpForward()
+        case .beginSearch:
+            target.beginSearch()
+        case .searchNext:
+            target.searchNext()
+        case .searchPrevious:
+            target.searchPrevious()
         case .toggleOutline:
             target.toggleOutlineSidebar()
         case .copySelection:
@@ -79,6 +85,9 @@ protocol VimCommandTarget {
     func goToPage(_ pageNumber: Int)
     func jumpBack()
     func jumpForward()
+    func beginSearch()
+    func searchNext()
+    func searchPrevious()
     func toggleOutlineSidebar()
     func copySelection()
     func highlightSelection()

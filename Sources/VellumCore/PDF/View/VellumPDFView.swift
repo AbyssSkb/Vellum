@@ -17,6 +17,7 @@ final class VellumPDFView: PDFView {
     var isMouseSelectingText = false
     var textSelectionNavigationState: VimTextSelectionNavigationState?
     var pageOverviewController: PageOverviewController?
+    var searchController: PDFSearchController?
 
     override var acceptsFirstResponder: Bool { true }
 

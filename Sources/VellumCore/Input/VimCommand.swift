@@ -18,6 +18,9 @@ enum VimCommand: Equatable {
     case jumpToPage(Int)
     case jumpBack
     case jumpForward
+    case beginSearch
+    case searchNext
+    case searchPrevious
     case toggleOutline
     case copySelection
     case highlightSelection

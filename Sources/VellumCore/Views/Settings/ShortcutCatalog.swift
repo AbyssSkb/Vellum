@@ -20,6 +20,7 @@ enum ShortcutCatalog {
                 ShortcutItem(keys: ["h", "l"], action: "Horizontal scroll"),
                 ShortcutItem(keys: ["f", "b"], action: "Move exactly one page"),
                 ShortcutItem(keys: ["gg", "G", "[num]G"], action: "Jump to first, last, or numbered page"),
+                ShortcutItem(keys: ["/", "n", "N"], action: "Search and jump between matches"),
                 ShortcutItem(keys: ["Ctrl O", "Ctrl I"], action: "Jump backward or forward")
             ]
         ),
