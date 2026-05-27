@@ -58,9 +58,16 @@ final class VellumPDFView: PDFView {
         let key = rawKey.lowercased()
 
         if key == "\u{1b}" {
-            guard hasAnyTextSelection else { return false }
+            let hasSearchHighlights = searchController?.hasVisibleHighlights == true
+            guard hasAnyTextSelection || hasSearchHighlights else { return false }
             if eventType == .keyDown {
-                clearTextSelectionForVimNavigation()
+                if hasAnyTextSelection {
+                    clearTextSelectionForVimNavigation()
+                }
+                if hasSearchHighlights {
+                    searchController?.clear()
+                    focus()
+                }
             }
             return true
         }

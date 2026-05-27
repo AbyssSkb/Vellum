@@ -37,6 +37,10 @@ final class PDFSearchController {
     private var committedMatches: [PDFSelection] = []
     private var committedSelectedIndex: Int?
 
+    var hasVisibleHighlights: Bool {
+        !matches.isEmpty || !committedMatches.isEmpty
+    }
+
     init(pdfView: VellumPDFView) {
         self.pdfView = pdfView
     }
@@ -137,8 +141,19 @@ final class PDFSearchController {
     }
 
     private func cancel() {
-        restoreCommittedSearchState()
+        clear()
         dismissOverlay(returnFocus: true)
+    }
+
+    func clear() {
+        query = ""
+        matches = []
+        selectedIndex = nil
+        committedQuery = ""
+        committedMatches = []
+        committedSelectedIndex = nil
+        pdfView?.highlightedSelections = []
+        pdfView?.clearSelection()
     }
 
     private func dismissOverlay(returnFocus: Bool) {
@@ -164,12 +179,12 @@ final class PDFSearchController {
         pdfView.stopScrollAnimation()
         pdfView.stopZoomState()
         pdfView.textSelectionNavigationState = nil
-        pdfView.setCurrentSelection(selection, animate: true)
+        pdfView.clearSelection()
         pdfView.go(to: selection)
 
         DispatchQueue.main.async { [weak pdfView, weak selection] in
             guard let pdfView, let selection else { return }
-            pdfView.setCurrentSelection(selection, animate: true)
+            pdfView.clearSelection()
             pdfView.go(to: selection)
         }
     }
@@ -224,12 +239,6 @@ final class PDFSearchController {
         committedSelectedIndex = selectedIndex
     }
 
-    private func restoreCommittedSearchState() {
-        query = committedQuery
-        matches = committedMatches
-        selectedIndex = committedSelectedIndex
-        pdfView?.highlightedSelections = committedMatches
-    }
 }
 
 @MainActor
