@@ -193,8 +193,8 @@ final class PageOverviewOverlayView: NSView {
     }
 
     private func gridPanelRect() -> NSRect {
-        let width = min(bounds.width - 72, 1160)
-        let height = min(bounds.height - 72, 460)
+        let width = min(bounds.width - 24, 1800)
+        let height = min(bounds.height - 24, 760)
         return NSRect(
             x: bounds.midX - width / 2,
             y: bounds.midY - height / 2,
@@ -204,6 +204,10 @@ final class PageOverviewOverlayView: NSView {
     }
 
     private func cellRect(at position: Int, panelRect: NSRect) -> NSRect {
+        if visibleCount == columns {
+            return carouselCellRect(at: position, panelRect: panelRect)
+        }
+
         let spacing: CGFloat = 16
         let horizontalInset: CGFloat = 24
         let bottomInset: CGFloat = 24
@@ -225,6 +229,46 @@ final class PageOverviewOverlayView: NSView {
         )
     }
 
+    private func carouselCellRect(at position: Int, panelRect: NSRect) -> NSRect {
+        let spacing: CGFloat = 18
+        let horizontalInset: CGFloat = 22
+        let bottomInset: CGFloat = 22
+        let headerHeight: CGFloat = 50
+        let area = NSRect(
+            x: panelRect.minX + horizontalInset,
+            y: panelRect.minY + bottomInset,
+            width: panelRect.width - horizontalInset * 2,
+            height: panelRect.height - headerHeight - bottomInset
+        )
+        let centerWidth = min(area.width * 0.64, area.height * 1.68)
+        let sideWidth = max(96, (area.width - centerWidth - spacing * 2) / 2)
+        let sideHeight = area.height * 0.62
+
+        switch position {
+        case 0:
+            return NSRect(
+                x: area.minX,
+                y: area.midY - sideHeight / 2,
+                width: sideWidth,
+                height: sideHeight
+            )
+        case 1:
+            return NSRect(
+                x: area.midX - centerWidth / 2,
+                y: area.minY,
+                width: centerWidth,
+                height: area.height
+            )
+        default:
+            return NSRect(
+                x: area.maxX - sideWidth,
+                y: area.midY - sideHeight / 2,
+                width: sideWidth,
+                height: sideHeight
+            )
+        }
+    }
+
     private func drawHeader(in panelRect: NSRect) {
         let title = "Page \(selectedIndex + 1) of \(document.pageCount)"
         let attributes: [NSAttributedString.Key: Any] = [
@@ -232,7 +276,7 @@ final class PageOverviewOverlayView: NSView {
             .foregroundColor: TokyoNight.foreground
         ]
         title.draw(
-            at: NSPoint(x: panelRect.minX + 24, y: panelRect.maxY - 35),
+            at: NSPoint(x: panelRect.minX + 22, y: panelRect.maxY - 34),
             withAttributes: attributes
         )
     }
@@ -248,7 +292,7 @@ final class PageOverviewOverlayView: NSView {
         path.stroke()
 
         let labelHeight: CGFloat = 26
-        let imageRect = rect.insetBy(dx: 10, dy: 10)
+        let imageRect = rect.insetBy(dx: 6, dy: 6)
             .offsetBy(dx: 0, dy: labelHeight / 2)
             .insetBy(dx: 0, dy: labelHeight / 2)
 
@@ -292,6 +336,6 @@ final class PageOverviewOverlayView: NSView {
 
     private func thumbnail(for index: Int) -> NSImage? {
         guard let page = document.page(at: index) else { return nil }
-        return page.thumbnail(of: NSSize(width: 640, height: 420), for: .cropBox)
+        return page.thumbnail(of: NSSize(width: 960, height: 630), for: .cropBox)
     }
 }

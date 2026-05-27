@@ -23,7 +23,7 @@ final class KeyboardController {
     private var tabPageOverviewActive = false
 
     init(
-        tabPageOverviewDelay: TimeInterval = 0.18,
+        tabPageOverviewDelay: TimeInterval = 0.35,
         installsKeyMonitor: Bool = true,
         installsOpenURLObserver: Bool = true
     ) {
