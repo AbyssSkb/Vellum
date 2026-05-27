@@ -1,4 +1,5 @@
 @preconcurrency import AppKit
+import VellumCore
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {

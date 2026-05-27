@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Vellum
+@testable import VellumCore
 
 @Suite("Animation geometry")
 struct AnimationGeometryTests {

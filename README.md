@@ -88,44 +88,46 @@ Standard macOS shortcuts are also wired for opening files, closing tabs, and swi
 Resources/AppIcon
     Source artwork for the macOS app icon
 Sources/Vellum/App
-    App entry, app delegate, URL relay, and open panels
-Sources/Vellum/AI/Client
+    Thin executable target with the app entry and app delegate
+Sources/VellumCore
+    Main application module used by the executable and tests
+Sources/VellumCore/AI/Client
     OpenAI-compatible requests, responses, streaming, and errors
-Sources/Vellum/AI/Configuration
+Sources/VellumCore/AI/Configuration
     AI provider configuration and persisted settings keys
-Sources/Vellum/AI/Context
+Sources/VellumCore/AI/Context
     Selected-text and annotation context for AI explanations
-Sources/Vellum/AI/UI
+Sources/VellumCore/AI/UI
     AI explanation popovers, WebView rendering, and layout helpers
-Sources/Vellum/Documents
+Sources/VellumCore/Documents
     Document coordination and PDF loading services
-Sources/Vellum/Input
+Sources/VellumCore/Input
     Vim-style key maps, key state, and input controller
-Sources/Vellum/Outline
+Sources/VellumCore/Outline
     Outline data models
-Sources/Vellum/PDF/Geometry
+Sources/VellumCore/PDF/Geometry
     Scroll, zoom, and animation geometry helpers
-Sources/Vellum/PDF/Highlighting
+Sources/VellumCore/PDF/Highlighting
     Highlight geometry and annotation behavior
-Sources/Vellum/PDF/Selection
+Sources/VellumCore/PDF/Selection
     Text selection, word navigation, and visual-line geometry
-Sources/Vellum/PDF/View
+Sources/VellumCore/PDF/View
     PDFKit view integration, navigation, scrolling, zooming, and AI hooks
-Sources/Vellum/Reader
+Sources/VellumCore/Reader
     Shared reader models
-Sources/Vellum/Stores
+Sources/VellumCore/Stores
     App-wide observable state and command dispatching
-Sources/Vellum/Support
+Sources/VellumCore/Support
     Shared styling and small extensions
-Sources/Vellum/Tabs
+Sources/VellumCore/Tabs
     Closed-tab history models
-Sources/Vellum/Views/Reader
+Sources/VellumCore/Views/Reader
     Main reader SwiftUI views and AppKit wrappers
-Sources/Vellum/Views/Settings
+Sources/VellumCore/Views/Settings
     Settings screens and settings view models
-Sources/Vellum/Views/Outline
+Sources/VellumCore/Views/Outline
     Outline AppKit bridge, coordinator, keyboard handling, and row styling
-Sources/Vellum/Views/Components
+Sources/VellumCore/Views/Components
     Reusable SwiftUI/AppKit components
 Tests/VellumTests
     Tests mirrored by feature area

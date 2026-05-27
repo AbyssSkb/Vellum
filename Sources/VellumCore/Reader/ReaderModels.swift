@@ -90,7 +90,7 @@ enum HighlightColor: String, CaseIterable, Identifiable {
     }
 }
 
-enum PDFOpenMode {
+public enum PDFOpenMode {
     case currentTab
     case newTabs
 }

@@ -1,6 +1,6 @@
 import PDFKit
 import Testing
-@testable import Vellum
+@testable import VellumCore
 
 @Suite("Tab store")
 struct TabStoreTests {

@@ -3,7 +3,7 @@ import PDFKit
 import SwiftUI
 
 @MainActor
-final class AppState: ObservableObject {
+public final class AppState: ObservableObject {
     @Published var tabStore = TabStore()
     @Published var isOutlineVisible = false
     @Published var outlineFocusGeneration = 0
@@ -14,7 +14,7 @@ final class AppState: ObservableObject {
 
     weak var activePDFView: VellumPDFView?
 
-    init() {
+    public init() {
         keyboardController.delegate = self
     }
 

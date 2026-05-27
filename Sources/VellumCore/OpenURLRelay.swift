@@ -1,8 +1,8 @@
 import Foundation
 
 @MainActor
-final class OpenURLRelay {
-    static let shared = OpenURLRelay()
+public final class OpenURLRelay {
+    public static let shared = OpenURLRelay()
 
     private var handler: (([URL]) -> Void)?
     private var pendingURLs: [URL] = []
@@ -17,7 +17,7 @@ final class OpenURLRelay {
         handler(urls)
     }
 
-    func open(_ urls: [URL]) {
+    public func open(_ urls: [URL]) {
         let fileURLs = uniqueFreshFileURLs(urls)
         guard !fileURLs.isEmpty else { return }
 

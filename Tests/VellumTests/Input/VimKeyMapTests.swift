@@ -1,5 +1,5 @@
 import Testing
-@testable import Vellum
+@testable import VellumCore
 
 @Suite("Vim key map")
 struct VimKeyMapTests {

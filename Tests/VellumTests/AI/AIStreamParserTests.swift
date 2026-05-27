@@ -1,5 +1,5 @@
 import Testing
-@testable import Vellum
+@testable import VellumCore
 
 @Suite("AI stream parser")
 struct AIStreamParserTests {

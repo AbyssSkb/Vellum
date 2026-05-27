@@ -1,6 +1,6 @@
 @preconcurrency import AppKit
 import Testing
-@testable import Vellum
+@testable import VellumCore
 
 @Suite("Text selection range builder")
 struct TextSelectionRangeBuilderTests {

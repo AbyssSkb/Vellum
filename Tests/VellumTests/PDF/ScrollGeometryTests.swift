@@ -1,6 +1,6 @@
 import Testing
 import AppKit
-@testable import Vellum
+@testable import VellumCore
 
 @Suite("Scroll geometry")
 struct ScrollGeometryTests {

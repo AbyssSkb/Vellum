@@ -8,16 +8,22 @@ let package = Package(
         .macOS(.v14)
     ],
     products: [
-        .executable(name: "Vellum", targets: ["Vellum"])
+        .executable(name: "Vellum", targets: ["Vellum"]),
+        .library(name: "VellumCore", targets: ["VellumCore"])
     ],
     targets: [
+        .target(
+            name: "VellumCore",
+            path: "Sources/VellumCore"
+        ),
         .executableTarget(
             name: "Vellum",
+            dependencies: ["VellumCore"],
             path: "Sources/Vellum"
         ),
         .testTarget(
             name: "VellumTests",
-            dependencies: ["Vellum"],
+            dependencies: ["VellumCore"],
             path: "Tests/VellumTests"
         )
     ]

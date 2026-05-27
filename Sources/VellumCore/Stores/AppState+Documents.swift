@@ -9,7 +9,7 @@ extension AppState {
         focusActivePDFViewSoon()
     }
 
-    func openPanel(mode: PDFOpenMode = .currentTab) {
+    public func openPanel(mode: PDFOpenMode = .currentTab) {
         PDFOpenPanelPresenter.present(mode: mode) { [weak self] urls in
             switch mode {
             case .currentTab:
@@ -47,7 +47,7 @@ extension AppState {
         }
     }
 
-    func closeSelectedTab() {
+    public func closeSelectedTab() {
         saveActiveReaderState()
         guard tabStore.closeSelectedTab() else { return }
 
@@ -67,14 +67,14 @@ extension AppState {
         focusActivePDFViewSoon()
     }
 
-    func selectNextTab() {
+    public func selectNextTab() {
         saveActiveReaderState()
         guard tabStore.selectNextTab() else { return }
         activePDFView = nil
         focusActivePDFViewSoon()
     }
 
-    func selectPreviousTab() {
+    public func selectPreviousTab() {
         saveActiveReaderState()
         guard tabStore.selectPreviousTab() else { return }
         activePDFView = nil

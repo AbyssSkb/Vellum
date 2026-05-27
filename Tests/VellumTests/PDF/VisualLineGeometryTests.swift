@@ -1,6 +1,6 @@
 import AppKit
 import Testing
-@testable import Vellum
+@testable import VellumCore
 
 @Suite("Visual line geometry")
 struct VisualLineGeometryTests {

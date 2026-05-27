@@ -1,10 +1,12 @@
 @preconcurrency import AppKit
 import SwiftUI
 
-struct ContentView: View {
+public struct ContentView: View {
     @EnvironmentObject private var appState: AppState
 
-    var body: some View {
+    public init() {}
+
+    public var body: some View {
         VStack(spacing: 0) {
             if appState.hasOpenDocuments {
                 TabStrip()

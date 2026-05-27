@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Vellum
+@testable import VellumCore
 
 @Suite("AI response parser")
 struct AIResponseParserTests {
