@@ -105,6 +105,7 @@ struct AppStateReaderControllerTests {
 private final class RecordingReaderController: ReaderController {
     var isAIInteractionActive = false
     var hasNavigableTextSelection = false
+    var isPageOverviewActive = false
     private let savedSnapshot: ReaderSnapshot?
     private(set) var actions: [Action] = []
 
@@ -118,6 +119,22 @@ private final class RecordingReaderController: ReaderController {
 
     func focus() {
         actions.append(.focus)
+    }
+
+    func beginPageOverview() -> Bool {
+        actions.append(.beginPageOverview)
+        isPageOverviewActive = true
+        return true
+    }
+
+    func movePageOverview(_ navigation: PageOverviewNavigation) -> Bool {
+        actions.append(.movePageOverview(navigation))
+        return true
+    }
+
+    func finishPageOverview() {
+        actions.append(.finishPageOverview)
+        isPageOverviewActive = false
     }
 
     func handleAIKeyEvent(_ event: NSEvent) -> Bool {
@@ -194,6 +211,9 @@ private final class RecordingReaderController: ReaderController {
 
     enum Action: Equatable {
         case focus
+        case beginPageOverview
+        case movePageOverview(PageOverviewNavigation)
+        case finishPageOverview
         case scroll(x: CGFloat, y: CGFloat)
         case moveByPage(Int)
         case firstPage

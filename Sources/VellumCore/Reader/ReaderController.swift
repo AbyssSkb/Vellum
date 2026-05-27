@@ -5,9 +5,13 @@ import PDFKit
 protocol ReaderController: AnyObject {
     var isAIInteractionActive: Bool { get }
     var hasNavigableTextSelection: Bool { get }
+    var isPageOverviewActive: Bool { get }
 
     func snapshot() -> ReaderSnapshot?
     func focus()
+    func beginPageOverview() -> Bool
+    func movePageOverview(_ navigation: PageOverviewNavigation) -> Bool
+    func finishPageOverview()
     func handleAIKeyEvent(_ event: NSEvent) -> Bool
     func handleTextSelectionKeyEvent(_ event: NSEvent) -> Bool
     func handleTextSelectionKey(_ rawKey: String, eventType: NSEvent.EventType) -> Bool

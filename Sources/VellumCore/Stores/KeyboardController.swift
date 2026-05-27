@@ -12,13 +12,30 @@ protocol KeyboardControllerDelegate: AnyObject {
 final class KeyboardController {
     weak var delegate: KeyboardControllerDelegate?
 
+    private let tabPageOverviewDelay: TimeInterval
+    private let installsKeyMonitor: Bool
+    private let installsOpenURLObserver: Bool
     private var keyMonitor: Any?
     private var vimInput = VimInputController()
     private var heldKeyTimer: Timer?
+    private var tabPageOverviewTimer: Timer?
+    private var tabPageOverviewArmed = false
+    private var tabPageOverviewActive = false
 
-    init() {
-        installKeyMonitor()
-        installOpenURLObserver()
+    init(
+        tabPageOverviewDelay: TimeInterval = 0.18,
+        installsKeyMonitor: Bool = true,
+        installsOpenURLObserver: Bool = true
+    ) {
+        self.tabPageOverviewDelay = tabPageOverviewDelay
+        self.installsKeyMonitor = installsKeyMonitor
+        self.installsOpenURLObserver = installsOpenURLObserver
+        if installsKeyMonitor {
+            installKeyMonitor()
+        }
+        if installsOpenURLObserver {
+            installOpenURLObserver()
+        }
     }
 
     func handleKeyEvent(_ event: NSEvent) -> Bool {
@@ -31,6 +48,14 @@ final class KeyboardController {
         }
 
         guard let key = event.charactersIgnoringModifiers, !key.isEmpty else { return false }
+
+        if handleTabPageOverviewKey(key, event: event) {
+            return true
+        }
+
+        if tabPageOverviewActive {
+            return true
+        }
 
         if delegate?.activeReaderController?.handleTextSelectionKey(key, eventType: event.type) == true {
             stopHeldKeyTimer()
@@ -51,16 +76,11 @@ final class KeyboardController {
     // MARK: - Monitor Installation
 
     private func installKeyMonitor() {
+        guard installsKeyMonitor else { return }
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .keyUp]) { [weak self] event in
             guard let self, NSApp.modalWindow == nil else { return event }
 
             if self.delegate?.activeReaderController?.handleAIKeyEvent(event) == true {
-                return nil
-            }
-
-            if self.delegate?.activeReaderController?.handleTextSelectionKeyEvent(event) == true {
-                self.stopHeldKeyTimer()
-                self.vimInput.clearPendingInput()
                 return nil
             }
 
@@ -154,6 +174,93 @@ final class KeyboardController {
 
     private func handleKeyUp(_ key: String) -> Bool {
         applyVimInputAction(vimInput.handleKeyUp(key))
+    }
+
+    // MARK: - Tab Page Overview
+
+    private func handleTabPageOverviewKey(_ key: String, event: NSEvent) -> Bool {
+        if key == "\t" {
+            switch event.type {
+            case .keyDown:
+                return handleTabPageOverviewKeyDown(isRepeat: event.isARepeat)
+            case .keyUp:
+                return handleTabPageOverviewKeyUp()
+            default:
+                return false
+            }
+        }
+
+        guard tabPageOverviewActive else { return false }
+        guard let navigation = tabPageOverviewNavigation(for: key) else { return true }
+
+        if event.type == .keyDown {
+            _ = delegate?.activeReaderController?.movePageOverview(navigation)
+        }
+        return event.type == .keyDown || event.type == .keyUp
+    }
+
+    private func handleTabPageOverviewKeyDown(isRepeat: Bool) -> Bool {
+        guard !isRepeat else { return true }
+
+        stopHeldKeyTimer()
+        vimInput.clearPendingInput()
+
+        guard !tabPageOverviewArmed, !tabPageOverviewActive else { return true }
+        tabPageOverviewArmed = true
+
+        let timer = Timer(timeInterval: tabPageOverviewDelay, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.activateTabPageOverview()
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        tabPageOverviewTimer = timer
+        return true
+    }
+
+    private func handleTabPageOverviewKeyUp() -> Bool {
+        tabPageOverviewTimer?.invalidate()
+        tabPageOverviewTimer = nil
+
+        if tabPageOverviewActive {
+            tabPageOverviewActive = false
+            tabPageOverviewArmed = false
+            delegate?.activeReaderController?.finishPageOverview()
+            return true
+        }
+
+        if tabPageOverviewArmed {
+            tabPageOverviewArmed = false
+            delegate?.handleVimCommand(.toggleOutline)
+            return true
+        }
+
+        return false
+    }
+
+    private func activateTabPageOverview() {
+        tabPageOverviewTimer = nil
+        guard tabPageOverviewArmed else { return }
+        guard delegate?.activeReaderController?.beginPageOverview() == true else {
+            tabPageOverviewArmed = false
+            return
+        }
+        tabPageOverviewActive = true
+    }
+
+    private func tabPageOverviewNavigation(for key: String) -> PageOverviewNavigation? {
+        switch key.lowercased() {
+        case "h":
+            return .previous
+        case "l":
+            return .next
+        case "k":
+            return .previousRow
+        case "j":
+            return .nextRow
+        default:
+            return nil
+        }
     }
 
     // MARK: - Held Key Timer

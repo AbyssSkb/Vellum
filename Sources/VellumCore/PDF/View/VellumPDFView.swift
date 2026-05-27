@@ -16,6 +16,7 @@ final class VellumPDFView: PDFView {
     let aiInteraction = AIInteractionState()
     var isMouseSelectingText = false
     var textSelectionNavigationState: VimTextSelectionNavigationState?
+    var pageOverviewController: PageOverviewController?
 
     override var acceptsFirstResponder: Bool { true }
 
@@ -36,6 +37,10 @@ final class VellumPDFView: PDFView {
 
     var hasAnyTextSelection: Bool {
         currentSelection != nil
+    }
+
+    var isPageOverviewActive: Bool {
+        pageOverviewController != nil
     }
 
     func handleTextSelectionKeyEvent(_ event: NSEvent) -> Bool {
