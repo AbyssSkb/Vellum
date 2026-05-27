@@ -131,7 +131,7 @@ final class PageOverviewOverlayView: NSView {
         self.document = document
         self.selectedIndex = selectedIndex
         self.columns = columns
-        self.visibleCount = columns * 3
+        self.visibleCount = columns
         super.init(frame: .zero)
         wantsLayer = true
         alphaValue = 0
@@ -193,8 +193,8 @@ final class PageOverviewOverlayView: NSView {
     }
 
     private func gridPanelRect() -> NSRect {
-        let width = min(bounds.width - 72, 920)
-        let height = min(bounds.height - 72, 650)
+        let width = min(bounds.width - 72, 1160)
+        let height = min(bounds.height - 72, 460)
         return NSRect(
             x: bounds.midX - width / 2,
             y: bounds.midY - height / 2,
@@ -292,6 +292,6 @@ final class PageOverviewOverlayView: NSView {
 
     private func thumbnail(for index: Int) -> NSImage? {
         guard let page = document.page(at: index) else { return nil }
-        return page.thumbnail(of: NSSize(width: 320, height: 210), for: .cropBox)
+        return page.thumbnail(of: NSSize(width: 640, height: 420), for: .cropBox)
     }
 }

@@ -4,6 +4,23 @@ import Testing
 @Suite("Page overview window")
 struct PageOverviewWindowTests {
     @Test
+    func threePageWindowKeepsSelectedPageCentered() {
+        let slots = PageOverviewWindow.slots(selectedIndex: 12, pageCount: 40, visibleCount: 3)
+
+        #expect(slots[1] == 12)
+        #expect(slots == [11, 12, 13])
+    }
+
+    @Test
+    func threePageEdgeWindowsKeepSelectionCenteredWithEmptySlots() {
+        let firstPageSlots = PageOverviewWindow.slots(selectedIndex: 0, pageCount: 40, visibleCount: 3)
+        let lastPageSlots = PageOverviewWindow.slots(selectedIndex: 39, pageCount: 40, visibleCount: 3)
+
+        #expect(firstPageSlots == [nil, 0, 1])
+        #expect(lastPageSlots == [38, 39, nil])
+    }
+
+    @Test
     func selectedPageStaysInCenterSlot() {
         let slots = PageOverviewWindow.slots(selectedIndex: 12, pageCount: 40, visibleCount: 9)
 
