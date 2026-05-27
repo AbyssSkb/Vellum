@@ -10,16 +10,12 @@ final class AppState: ObservableObject {
     @Published private(set) var selectedHighlightColor: HighlightColor = .yellow
 
     let documentCoordinator = DocumentCoordinator()
+    let keyboardController = KeyboardController()
 
     weak var activePDFView: VellumPDFView?
-    var keyMonitor: Any?
-    var vimInput = VimInputController()
-    let vimCommandDispatcher = VimCommandDispatcher()
-    var heldKeyTimer: Timer?
 
     init() {
-        installKeyMonitor()
-        installOpenURLObserver()
+        keyboardController.delegate = self
     }
 
     var tabs: [PDFTab] {
@@ -76,4 +72,8 @@ final class AppState: ObservableObject {
     func handleVimCommand(_ command: VimCommand) {
         vimCommandDispatcher.perform(command, on: self)
     }
+
+    private let vimCommandDispatcher = VimCommandDispatcher()
 }
+
+extension AppState: KeyboardControllerDelegate {}
