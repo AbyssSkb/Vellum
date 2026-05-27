@@ -315,9 +315,9 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
         )
         textField.frame = NSRect(
             x: promptLabel.frame.maxX + 8,
-            y: 11,
+            y: 14,
             width: max(80, statusLabel.frame.minX - promptLabel.frame.maxX - 20),
-            height: 30
+            height: 24
         )
     }
 
@@ -328,8 +328,16 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
     }
 
     func focus() {
-        window?.makeFirstResponder(textField)
-        textField.currentEditor()?.selectedRange = NSRange(location: textField.stringValue.count, length: 0)
+        layoutSubtreeIfNeeded()
+
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.window?.makeFirstResponder(self.textField)
+            self.textField.currentEditor()?.selectedRange = NSRange(
+                location: self.textField.stringValue.count,
+                length: 0
+            )
+        }
     }
 
     func update(status: Status) {
@@ -381,7 +389,6 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
     }
 
     private func configureTextField(query: String) {
-        textField.cell = VerticallyCenteredTextFieldCell(textCell: query)
         textField.stringValue = query
         textField.font = .systemFont(ofSize: 16, weight: .medium)
         textField.textColor = TokyoNight.foreground
@@ -395,7 +402,13 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
         textField.isBordered = false
         textField.isBezeled = false
         textField.drawsBackground = false
+        textField.isEditable = true
+        textField.isSelectable = true
+        textField.isEnabled = true
         textField.focusRingType = .none
+        textField.cell?.usesSingleLineMode = true
+        textField.cell?.wraps = false
+        textField.cell?.isScrollable = true
         textField.delegate = self
         textField.onCommit = { [weak self] in
             self?.onCommit?()
@@ -438,49 +451,5 @@ private final class SearchCommandTextField: NSTextField {
         default:
             super.keyDown(with: event)
         }
-    }
-}
-
-private final class VerticallyCenteredTextFieldCell: NSTextFieldCell {
-    override func drawingRect(forBounds rect: NSRect) -> NSRect {
-        var drawingRect = super.drawingRect(forBounds: rect)
-        let textHeight = cellSize(forBounds: rect).height
-        drawingRect.origin.y += max(0, (rect.height - textHeight) / 2)
-        drawingRect.size.height = min(rect.height, textHeight)
-        return drawingRect
-    }
-
-    override func select(
-        withFrame rect: NSRect,
-        in controlView: NSView,
-        editor textObj: NSText,
-        delegate: Any?,
-        start selStart: Int,
-        length selLength: Int
-    ) {
-        super.select(
-            withFrame: drawingRect(forBounds: rect),
-            in: controlView,
-            editor: textObj,
-            delegate: delegate,
-            start: selStart,
-            length: selLength
-        )
-    }
-
-    override func edit(
-        withFrame rect: NSRect,
-        in controlView: NSView,
-        editor textObj: NSText,
-        delegate: Any?,
-        event: NSEvent?
-    ) {
-        super.edit(
-            withFrame: drawingRect(forBounds: rect),
-            in: controlView,
-            editor: textObj,
-            delegate: delegate,
-            event: event
-        )
     }
 }
