@@ -21,7 +21,12 @@ extension AppState {
         saveSnapshot(snapshot, for: selectedTabID)
     }
 
-    func focusActivePDFViewSoon() {
+    func prepareForSelectedReaderChange() {
+        activeReaderController = nil
+        focusActiveReaderSoon()
+    }
+
+    func focusActiveReaderSoon() {
         if isOutlineVisible {
             DispatchQueue.main.async { [weak self] in
                 self?.outlineFocusGeneration += 1

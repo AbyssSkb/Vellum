@@ -17,17 +17,17 @@ struct VimCommandDispatcher {
         case .previousTab:
             target.selectPreviousTab()
         case .scrollDown:
-            target.scrollBy(x: 0, y: -28)
+            target.scrollBy(x: 0, y: -VimCommandMetrics.lineScrollDelta)
         case .scrollUp:
-            target.scrollBy(x: 0, y: 28)
+            target.scrollBy(x: 0, y: VimCommandMetrics.lineScrollDelta)
         case .largeScrollDown:
-            target.scrollBy(x: 0, y: -115)
+            target.scrollBy(x: 0, y: -VimCommandMetrics.largeScrollDelta)
         case .largeScrollUp:
-            target.scrollBy(x: 0, y: 115)
+            target.scrollBy(x: 0, y: VimCommandMetrics.largeScrollDelta)
         case .scrollLeft:
-            target.scrollBy(x: -42, y: 0)
+            target.scrollBy(x: -VimCommandMetrics.horizontalScrollDelta, y: 0)
         case .scrollRight:
-            target.scrollBy(x: 42, y: 0)
+            target.scrollBy(x: VimCommandMetrics.horizontalScrollDelta, y: 0)
         case .pageDown:
             target.moveByPage(1)
         case .pageUp:
@@ -51,9 +51,9 @@ struct VimCommandDispatcher {
         case .explainHighlightSelection:
             target.explainHighlightSelection()
         case .zoomIn:
-            target.zoom(by: 1.04)
+            target.zoom(by: VimCommandMetrics.zoomStepFactor)
         case .zoomOut:
-            target.zoom(by: 1 / 1.04)
+            target.zoom(by: 1 / VimCommandMetrics.zoomStepFactor)
         case .zoomPageFit:
             target.zoomToPageFit()
         case .zoomFit:

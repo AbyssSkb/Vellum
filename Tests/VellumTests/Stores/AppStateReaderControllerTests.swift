@@ -63,6 +63,22 @@ struct AppStateReaderControllerTests {
     }
 
     @Test
+    func changingSelectedTabClearsActiveReaderController() {
+        let appState = AppState()
+        let firstTab = PDFTab(url: URL(fileURLWithPath: "/tmp/first.pdf"), document: nil)
+        let secondTab = PDFTab(url: URL(fileURLWithPath: "/tmp/second.pdf"), document: nil)
+        let reader = RecordingReaderController()
+
+        _ = appState.tabStore.openInNewTabs([firstTab, secondTab])
+        appState.setActiveReaderController(reader, for: secondTab.id)
+        appState.selectPreviousTab()
+        appState.goToPage(7)
+
+        #expect(appState.activeReaderController == nil)
+        #expect(reader.actions == [])
+    }
+
+    @Test
     func activeReaderSnapshotIsSavedForSelectedTab() {
         let appState = AppState()
         let snapshot = ReaderSnapshot(

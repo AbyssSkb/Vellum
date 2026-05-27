@@ -47,12 +47,12 @@ struct VimCommandDispatcherTests {
         dispatcher.perform(.jumpForward, on: target)
 
         #expect(target.actions == [
-            .scroll(x: 0, y: -28),
-            .scroll(x: 0, y: 28),
-            .scroll(x: 0, y: -115),
-            .scroll(x: 0, y: 115),
-            .scroll(x: -42, y: 0),
-            .scroll(x: 42, y: 0),
+            .scroll(x: 0, y: -VimCommandMetrics.lineScrollDelta),
+            .scroll(x: 0, y: VimCommandMetrics.lineScrollDelta),
+            .scroll(x: 0, y: -VimCommandMetrics.largeScrollDelta),
+            .scroll(x: 0, y: VimCommandMetrics.largeScrollDelta),
+            .scroll(x: -VimCommandMetrics.horizontalScrollDelta, y: 0),
+            .scroll(x: VimCommandMetrics.horizontalScrollDelta, y: 0),
             .moveByPage(1),
             .moveByPage(-1),
             .firstPage,
@@ -82,8 +82,8 @@ struct VimCommandDispatcherTests {
             .highlightSelection,
             .cycleHighlightColor,
             .explainHighlightSelection,
-            .zoom(1.04),
-            .zoom(1 / 1.04),
+            .zoom(VimCommandMetrics.zoomStepFactor),
+            .zoom(1 / VimCommandMetrics.zoomStepFactor),
             .zoomPageFit,
             .zoomFit
         ])

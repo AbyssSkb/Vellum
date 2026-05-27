@@ -35,7 +35,7 @@ public final class OpenURLRelay {
 
     private func uniqueFreshFileURLs(_ urls: [URL]) -> [URL] {
         let now = currentTime()
-        recentDeliveries = recentDeliveries.filter { now - $0.value < 1.0 }
+        recentDeliveries = recentDeliveries.filter { now - $0.value < OpenURLRelayTiming.recentDeliveryRetention }
 
         var seen = Set<URL>()
         return urls.compactMap { url in
@@ -44,7 +44,8 @@ public final class OpenURLRelay {
             let normalizedURL = url.standardizedFileURL
             guard seen.insert(normalizedURL).inserted else { return nil }
 
-            if let lastDelivery = recentDeliveries[normalizedURL], now - lastDelivery < 0.5 {
+            if let lastDelivery = recentDeliveries[normalizedURL],
+               now - lastDelivery < OpenURLRelayTiming.duplicateSuppressionInterval {
                 return nil
             }
 
@@ -52,4 +53,9 @@ public final class OpenURLRelay {
             return normalizedURL
         }
     }
+}
+
+private enum OpenURLRelayTiming {
+    static let recentDeliveryRetention: TimeInterval = 1.0
+    static let duplicateSuppressionInterval: TimeInterval = 0.5
 }

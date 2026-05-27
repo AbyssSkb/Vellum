@@ -59,13 +59,13 @@ public final class AppState: ObservableObject {
 
     func selectHighlightColor(_ color: HighlightColor) {
         selectedHighlightColor = color
-        focusActivePDFViewSoon()
+        focusActiveReaderSoon()
     }
 
     func cycleHighlightColor(preserveFocus: Bool = false) {
         selectedHighlightColor = selectedHighlightColor.next
         if !preserveFocus {
-            focusActivePDFViewSoon()
+            focusActiveReaderSoon()
         }
     }
 

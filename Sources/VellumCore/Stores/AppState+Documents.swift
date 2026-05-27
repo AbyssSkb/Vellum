@@ -5,8 +5,7 @@ extension AppState {
         guard selectedTabID != id else { return }
         saveActiveReaderState()
         guard tabStore.selectTab(id) else { return }
-        activeReaderController = nil
-        focusActivePDFViewSoon()
+        prepareForSelectedReaderChange()
     }
 
     public func openPanel(mode: PDFOpenMode = .currentTab) {
@@ -31,9 +30,7 @@ extension AppState {
         guard let tab = documentCoordinator.openTab(for: url) else { return }
 
         tabStore.openInCurrentTab(tab)
-        activeReaderController = nil
-
-        focusActivePDFViewSoon()
+        prepareForSelectedReaderChange()
     }
 
     func openInNewTabs(urls: [URL]) {
@@ -42,8 +39,7 @@ extension AppState {
         let newTabs = documentCoordinator.openTabs(for: urls)
 
         if tabStore.openInNewTabs(newTabs) {
-            activeReaderController = nil
-            focusActivePDFViewSoon()
+            prepareForSelectedReaderChange()
         }
     }
 
@@ -51,33 +47,28 @@ extension AppState {
         saveActiveReaderState()
         guard tabStore.closeSelectedTab() else { return }
 
-        activeReaderController = nil
-
         if !tabStore.hasOpenDocuments {
             isOutlineVisible = false
         }
-        focusActivePDFViewSoon()
+        prepareForSelectedReaderChange()
     }
 
     func restoreClosedPDFTab() {
         saveActiveReaderState()
 
         guard tabStore.restoreClosedPDFTab() else { return }
-        activeReaderController = nil
-        focusActivePDFViewSoon()
+        prepareForSelectedReaderChange()
     }
 
     public func selectNextTab() {
         saveActiveReaderState()
         guard tabStore.selectNextTab() else { return }
-        activeReaderController = nil
-        focusActivePDFViewSoon()
+        prepareForSelectedReaderChange()
     }
 
     public func selectPreviousTab() {
         saveActiveReaderState()
         guard tabStore.selectPreviousTab() else { return }
-        activeReaderController = nil
-        focusActivePDFViewSoon()
+        prepareForSelectedReaderChange()
     }
 }

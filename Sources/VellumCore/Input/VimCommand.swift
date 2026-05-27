@@ -1,0 +1,29 @@
+enum VimCommand: Equatable {
+    case open
+    case openInNewTab
+    case closeTab
+    case restoreClosedTab
+    case nextTab
+    case previousTab
+    case scrollDown
+    case scrollUp
+    case largeScrollDown
+    case largeScrollUp
+    case scrollLeft
+    case scrollRight
+    case pageDown
+    case pageUp
+    case firstPage
+    case lastPage
+    case jumpToPage(Int)
+    case jumpBack
+    case jumpForward
+    case toggleOutline
+    case highlightSelection
+    case cycleHighlightColor
+    case explainHighlightSelection
+    case zoomIn
+    case zoomOut
+    case zoomPageFit
+    case zoomFit
+}

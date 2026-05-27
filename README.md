@@ -91,6 +91,8 @@ Sources/Vellum/App
     Thin executable target with the app entry and app delegate
 Sources/VellumCore
     Main application module used by the executable and tests
+Sources/VellumCore/App
+    Core app services such as open URL relay and PDF open panel presentation
 Sources/VellumCore/AI/Client
     OpenAI-compatible requests, responses, streaming, and errors
 Sources/VellumCore/AI/Configuration
@@ -102,7 +104,7 @@ Sources/VellumCore/AI/UI
 Sources/VellumCore/Documents
     Document coordination and PDF loading services
 Sources/VellumCore/Input
-    Vim-style key maps, key state, and input controller
+    Vim-style commands, key maps, key state, and input controller
 Sources/VellumCore/Outline
     Outline data models
 Sources/VellumCore/PDF/Geometry
@@ -114,7 +116,7 @@ Sources/VellumCore/PDF/Selection
 Sources/VellumCore/PDF/View
     PDFKit view integration, navigation, scrolling, zooming, and AI hooks
 Sources/VellumCore/Reader
-    Shared reader models
+    Shared reader models and the reader controller boundary
 Sources/VellumCore/Stores
     App-wide observable state and command dispatching
 Sources/VellumCore/Support
@@ -130,7 +132,7 @@ Sources/VellumCore/Views/Outline
 Sources/VellumCore/Views/Components
     Reusable SwiftUI/AppKit components
 Tests/VellumTests
-    Tests mirrored by feature area
+    Tests mirrored by feature area, including app relay and reader model coverage
 scripts
     Packaging and icon generation helpers
 ```
