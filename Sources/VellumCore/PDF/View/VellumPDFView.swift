@@ -113,7 +113,7 @@ final class VellumPDFView: PDFView {
 
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(selectedText, forType: .string)
-        focus()
+        clearTextSelectionForVimNavigation()
     }
 
     override func keyDown(with event: NSEvent) {

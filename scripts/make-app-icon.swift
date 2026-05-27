@@ -12,7 +12,7 @@ guard let sourceImage = NSImage(contentsOf: sourceURL) else {
         userInfo: [NSLocalizedDescriptionKey: "Could not load \(sourcePath)"]
     )
 }
-let sourceRect = visibleSourceRect(in: sourceImage)
+let sourceRect = NSRect(origin: .zero, size: sourceImage.size)
 
 try FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
 
@@ -75,72 +75,4 @@ func resize(_ sourceImage: NSImage, from sourceRect: NSRect, pixels: Int) -> NSB
 
     NSGraphicsContext.restoreGraphicsState()
     return rep
-}
-
-func visibleSourceRect(in image: NSImage) -> NSRect {
-    guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil),
-          let dataProvider = cgImage.dataProvider,
-          let data = dataProvider.data,
-          let bytes = CFDataGetBytePtr(data) else {
-        return NSRect(origin: .zero, size: image.size)
-    }
-
-    let width = cgImage.width
-    let height = cgImage.height
-    let bytesPerRow = cgImage.bytesPerRow
-    let bitsPerPixel = cgImage.bitsPerPixel
-    let bitsPerComponent = cgImage.bitsPerComponent
-    guard bitsPerPixel == 32, bitsPerComponent == 8 else {
-        return NSRect(origin: .zero, size: image.size)
-    }
-
-    let alphaInfo = cgImage.alphaInfo
-    let alphaOffset: Int
-    switch alphaInfo {
-    case .premultipliedLast, .last:
-        alphaOffset = 3
-    case .premultipliedFirst, .first:
-        alphaOffset = 0
-    default:
-        return NSRect(origin: .zero, size: image.size)
-    }
-
-    var minX = width
-    var minY = height
-    var maxX = -1
-    var maxY = -1
-    let alphaThreshold: UInt8 = 8
-
-    for y in 0..<height {
-        for x in 0..<width {
-            let offset = y * bytesPerRow + x * 4 + alphaOffset
-            if bytes[offset] > alphaThreshold {
-                minX = min(minX, x)
-                minY = min(minY, y)
-                maxX = max(maxX, x)
-                maxY = max(maxY, y)
-            }
-        }
-    }
-
-    guard maxX >= minX, maxY >= minY else {
-        return NSRect(origin: .zero, size: image.size)
-    }
-
-    let cropWidth = maxX - minX + 1
-    let cropHeight = maxY - minY + 1
-    let side = max(cropWidth, cropHeight)
-    let centerX = CGFloat(minX + maxX) / 2
-    let centerY = CGFloat(minY + maxY) / 2
-    var originX = centerX - CGFloat(side) / 2
-    var originY = centerY - CGFloat(side) / 2
-    originX = min(max(0, originX), CGFloat(width - side))
-    originY = min(max(0, originY), CGFloat(height - side))
-
-    return NSRect(
-        x: originX,
-        y: originY,
-        width: CGFloat(side),
-        height: CGFloat(side)
-    )
 }
