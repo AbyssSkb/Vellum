@@ -237,7 +237,8 @@ final class PageOverviewOverlayView: NSView {
         )
     }
 
-    private func drawCell(pageIndex: Int, in rect: NSRect) {
+    private func drawCell(pageIndex: Int, in slotRect: NSRect) {
+        let rect = fittedCellRect(for: pageIndex, in: slotRect)
         let isSelected = pageIndex == selectedIndex
         let path = NSBezierPath(roundedRect: rect, xRadius: 8, yRadius: 8)
         (isSelected ? TokyoNight.selection : TokyoNight.panel).withAlphaComponent(isSelected ? 0.95 : 0.88).setFill()
@@ -248,15 +249,42 @@ final class PageOverviewOverlayView: NSView {
         path.stroke()
 
         let labelHeight: CGFloat = 26
-        let imageRect = rect.insetBy(dx: 6, dy: 6)
-            .offsetBy(dx: 0, dy: labelHeight / 2)
-            .insetBy(dx: 0, dy: labelHeight / 2)
+        let imageRect = NSRect(
+            x: rect.minX + 6,
+            y: rect.minY + labelHeight + 6,
+            width: rect.width - 12,
+            height: rect.height - labelHeight - 12
+        )
 
         if let image = thumbnailCache[pageIndex] {
             drawImage(image, in: imageRect)
         }
 
         drawPageNumber(pageIndex + 1, in: NSRect(x: rect.minX, y: rect.minY + 8, width: rect.width, height: labelHeight))
+    }
+
+    private func fittedCellRect(for pageIndex: Int, in slotRect: NSRect) -> NSRect {
+        let labelHeight: CGFloat = 26
+        let padding: CGFloat = 6
+        let aspectRatio = pageAspectRatio(for: pageIndex)
+        let maxImageWidth = max(1, slotRect.width - padding * 2)
+        let maxImageHeight = max(1, slotRect.height - labelHeight - padding * 2)
+
+        var imageWidth = maxImageWidth
+        var imageHeight = imageWidth / aspectRatio
+        if imageHeight > maxImageHeight {
+            imageHeight = maxImageHeight
+            imageWidth = imageHeight * aspectRatio
+        }
+
+        let cardWidth = imageWidth + padding * 2
+        let cardHeight = imageHeight + labelHeight + padding * 2
+        return NSRect(
+            x: slotRect.midX - cardWidth / 2,
+            y: slotRect.midY - cardHeight / 2,
+            width: cardWidth,
+            height: cardHeight
+        )
     }
 
     private func drawImage(_ image: NSImage, in rect: NSRect) {
@@ -293,5 +321,12 @@ final class PageOverviewOverlayView: NSView {
     private func thumbnail(for index: Int) -> NSImage? {
         guard let page = document.page(at: index) else { return nil }
         return page.thumbnail(of: NSSize(width: 960, height: 630), for: .cropBox)
+    }
+
+    private func pageAspectRatio(for index: Int) -> CGFloat {
+        guard let page = document.page(at: index) else { return 16 / 9 }
+        let bounds = page.bounds(for: .cropBox)
+        guard bounds.width > 0, bounds.height > 0 else { return 16 / 9 }
+        return bounds.width / bounds.height
     }
 }
