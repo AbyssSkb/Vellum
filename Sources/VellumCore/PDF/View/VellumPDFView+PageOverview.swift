@@ -194,13 +194,27 @@ final class PageOverviewOverlayView: NSView {
 
     private func gridPanelRect() -> NSRect {
         let width = min(bounds.width - 24, 1800)
-        let height = min(bounds.height - 24, 760)
+        let height = min(bounds.height - 24, fittedPanelHeight(for: width))
         return NSRect(
             x: bounds.midX - width / 2,
             y: bounds.midY - height / 2,
             width: width,
             height: height
         )
+    }
+
+    private func fittedPanelHeight(for width: CGFloat) -> CGFloat {
+        let spacing: CGFloat = 12
+        let horizontalInset: CGFloat = 16
+        let bottomInset: CGFloat = 16
+        let headerHeight: CGFloat = 46
+        let labelHeight: CGFloat = 26
+        let padding: CGFloat = 6
+        let gridWidth = width - horizontalInset * 2
+        let cellWidth = (gridWidth - spacing * CGFloat(columns - 1)) / CGFloat(columns)
+        let imageHeight = (cellWidth - padding * 2) / pageAspectRatio(for: selectedIndex)
+        let cardHeight = imageHeight + labelHeight + padding * 2
+        return headerHeight + bottomInset + cardHeight
     }
 
     private func cellRect(at position: Int, panelRect: NSRect) -> NSRect {
