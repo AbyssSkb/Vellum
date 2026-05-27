@@ -4,9 +4,14 @@ import Foundation
 public final class OpenURLRelay {
     public static let shared = OpenURLRelay()
 
+    private let currentTime: () -> TimeInterval
     private var handler: (([URL]) -> Void)?
     private var pendingURLs: [URL] = []
     private var recentDeliveries: [URL: TimeInterval] = [:]
+
+    init(currentTime: @escaping () -> TimeInterval = { Date.timeIntervalSinceReferenceDate }) {
+        self.currentTime = currentTime
+    }
 
     func activate(_ handler: @escaping ([URL]) -> Void) {
         self.handler = handler
@@ -29,7 +34,7 @@ public final class OpenURLRelay {
     }
 
     private func uniqueFreshFileURLs(_ urls: [URL]) -> [URL] {
-        let now = Date.timeIntervalSinceReferenceDate
+        let now = currentTime()
         recentDeliveries = recentDeliveries.filter { now - $0.value < 1.0 }
 
         var seen = Set<URL>()
