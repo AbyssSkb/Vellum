@@ -37,6 +37,9 @@ struct HighlightToolbar: View {
                 }
                 .buttonStyle(.plain)
                 .help(color.helpText)
+                .accessibilityLabel(color.helpText)
+                .accessibilityAddTraits(isSelected ? .isSelected : [])
+                .accessibilityHint("Select this highlight color")
             }
         }
         .padding(.horizontal, 8)

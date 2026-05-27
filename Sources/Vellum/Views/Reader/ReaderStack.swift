@@ -37,6 +37,7 @@ struct EmptyReader: View {
             Image(systemName: "doc.text.magnifyingglass")
                 .font(.system(size: 56, weight: .light))
                 .foregroundStyle(TokyoNight.mutedColor)
+                .accessibilityHidden(true)
 
             Text("Open a PDF")
                 .font(.title2.weight(.semibold))

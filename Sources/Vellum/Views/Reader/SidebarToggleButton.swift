@@ -15,6 +15,9 @@ struct SidebarToggleButton: View {
         }
         .buttonStyle(.plain)
         .help("Toggle Contents")
+        .accessibilityLabel("Toggle Contents Sidebar")
+        .accessibilityValue(appState.isOutlineVisible ? "Open" : "Closed")
+        .accessibilityHint("Shows or hides the document outline")
         .onHover { isHovered = $0 }
     }
 }

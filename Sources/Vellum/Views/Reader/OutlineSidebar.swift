@@ -53,6 +53,7 @@ struct OutlineSidebarHeader: View {
         .frame(height: 44)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(TokyoNight.backgroundDeepColor.opacity(0.34))
+        .accessibilityAddTraits(.isHeader)
     }
 }
 

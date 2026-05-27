@@ -9,6 +9,7 @@ struct TabStrip: View {
         HStack(spacing: 10) {
             Color.clear
                 .frame(width: 84)
+                .accessibilityHidden(true)
 
             SidebarToggleButton()
 
@@ -37,6 +38,8 @@ struct TabStrip: View {
         }
         .frame(height: 46)
         .background(TokyoNight.backgroundDeepColor)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Tab Bar")
     }
 
     private func tabWidth(availableWidth: CGFloat, tabCount: Int) -> CGFloat {

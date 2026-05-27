@@ -25,6 +25,7 @@ struct TabButton: View {
                 }
                 .buttonStyle(.plain)
                 .help("Close Tab")
+                .accessibilityLabel("Close \(tab.title)")
             }
         }
         .padding(.leading, width < 70 ? 6 : 12)
@@ -37,6 +38,12 @@ struct TabButton: View {
             }
         }
         .help(tab.title)
+        .accessibilityLabel(tab.title)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityAction {
+            appState.selectTab(tab.id)
+        }
         .background(isSelected ? TokyoNight.panelElevatedColor : TokyoNight.panelColor.opacity(0.58))
         .overlay(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -48,6 +55,7 @@ struct TabButton: View {
                     .fill(TokyoNight.blueColor.opacity(0.9))
                     .frame(height: 2)
                     .padding(.horizontal, 10)
+                    .accessibilityHidden(true)
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))

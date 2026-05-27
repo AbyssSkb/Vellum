@@ -9,9 +9,11 @@ struct AIConnectionStatusRow: View {
             if isBusy {
                 ProgressView()
                     .controlSize(.small)
+                    .accessibilityLabel("Loading")
             } else {
                 Image(systemName: status.systemImage)
                     .foregroundStyle(status.tint)
+                    .accessibilityHidden(true)
             }
 
             Text(status.text)
