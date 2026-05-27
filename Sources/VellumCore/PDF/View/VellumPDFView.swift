@@ -183,3 +183,5 @@ final class VellumPDFView: PDFView {
         scrollView.backgroundColor = .clear
     }
 }
+
+extension VellumPDFView: ReaderController {}

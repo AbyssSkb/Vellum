@@ -3,7 +3,7 @@ import PDFKit
 
 @MainActor
 protocol KeyboardControllerDelegate: AnyObject {
-    var activePDFView: VellumPDFView? { get }
+    var activeReaderController: ReaderController? { get }
     func handleVimCommand(_ command: VimCommand)
     func open(urls: [URL])
 }
@@ -32,7 +32,7 @@ final class KeyboardController {
 
         guard let key = event.charactersIgnoringModifiers, !key.isEmpty else { return false }
 
-        if delegate?.activePDFView?.handleTextSelectionKey(key, eventType: event.type) == true {
+        if delegate?.activeReaderController?.handleTextSelectionKey(key, eventType: event.type) == true {
             stopHeldKeyTimer()
             vimInput.clearPendingInput()
             return true
@@ -54,11 +54,11 @@ final class KeyboardController {
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .keyUp]) { [weak self] event in
             guard let self, NSApp.modalWindow == nil else { return event }
 
-            if self.delegate?.activePDFView?.handleAIKeyEvent(event) == true {
+            if self.delegate?.activeReaderController?.handleAIKeyEvent(event) == true {
                 return nil
             }
 
-            if self.delegate?.activePDFView?.handleTextSelectionKeyEvent(event) == true {
+            if self.delegate?.activeReaderController?.handleTextSelectionKeyEvent(event) == true {
                 self.stopHeldKeyTimer()
                 self.vimInput.clearPendingInput()
                 return nil
@@ -79,7 +79,7 @@ final class KeyboardController {
     // MARK: - Routing
 
     private func shouldRoute(_ event: NSEvent) -> Bool {
-        guard delegate?.activePDFView?.isAIInteractionActive != true else { return false }
+        guard delegate?.activeReaderController?.isAIInteractionActive != true else { return false }
         guard let window = event.window, window.isVisible, !(window is NSPanel) else { return false }
 
         if let responder = window.firstResponder,
@@ -129,14 +129,14 @@ final class KeyboardController {
     }
 
     private func handleKeyDown(_ key: String, isRepeat: Bool) -> Bool {
-        if delegate?.activePDFView?.handleTextSelectionKey(key, eventType: .keyDown) == true {
+        if delegate?.activeReaderController?.handleTextSelectionKey(key, eventType: .keyDown) == true {
             stopHeldKeyTimer()
             vimInput.clearPendingInput()
             return true
         }
 
         if VimKeyMap.normalizedContinuousKey(key) == "d",
-           delegate?.activePDFView?.vimDeleteHighlightsForSelection() == true {
+           delegate?.activeReaderController?.vimDeleteHighlightsForSelection() == true {
             stopHeldKeyTimer()
             vimInput.beginHeldKey("d")
             vimInput.clearPendingInput()
@@ -147,7 +147,7 @@ final class KeyboardController {
             vimInput.handleKeyDown(
                 key,
                 isRepeat: isRepeat,
-                hasNavigableTextSelection: delegate?.activePDFView?.hasNavigableTextSelection == true
+                hasNavigableTextSelection: delegate?.activeReaderController?.hasNavigableTextSelection == true
             )
         )
     }
@@ -190,7 +190,7 @@ final class KeyboardController {
     private func performContinuousKey(_ key: String?) {
         guard let key else { return }
 
-        if delegate?.activePDFView?.handleTextSelectionKey(key, eventType: .keyDown) == true {
+        if delegate?.activeReaderController?.handleTextSelectionKey(key, eventType: .keyDown) == true {
             return
         }
 

@@ -12,7 +12,7 @@ public final class AppState: ObservableObject {
     let documentCoordinator = DocumentCoordinator()
     let keyboardController = KeyboardController()
 
-    weak var activePDFView: VellumPDFView?
+    weak var activeReaderController: ReaderController?
 
     public init() {
         keyboardController.delegate = self
@@ -54,7 +54,7 @@ public final class AppState: ObservableObject {
     }
 
     func jumpToOutlineDestination(_ destination: PDFDestination) {
-        activePDFView?.vimGoToDestination(destination)
+        activeReaderController?.vimGoToDestination(destination)
     }
 
     func selectHighlightColor(_ color: HighlightColor) {

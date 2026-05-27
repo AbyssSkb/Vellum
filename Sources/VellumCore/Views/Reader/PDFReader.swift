@@ -22,7 +22,7 @@ struct PDFReader: NSViewRepresentable {
         view.displaysPageBreaks = true
         view.document = document
         view.restore(snapshot)
-        appState.setActivePDFView(view, for: tabID)
+        appState.setActiveReaderController(view, for: tabID)
         if isActive, !appState.isOutlineVisible {
             view.focus()
         }
@@ -41,7 +41,7 @@ struct PDFReader: NSViewRepresentable {
             nsView.restore(snapshot)
         }
 
-        appState.setActivePDFView(nsView, for: tabID)
+        appState.setActiveReaderController(nsView, for: tabID)
         if isActive, !appState.isOutlineVisible {
             DispatchQueue.main.async {
                 nsView.focus()

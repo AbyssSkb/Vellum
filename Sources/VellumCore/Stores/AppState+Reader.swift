@@ -1,9 +1,9 @@
 import Foundation
 
 extension AppState {
-    func setActivePDFView(_ view: VellumPDFView?, for tabID: PDFTab.ID) {
+    func setActiveReaderController(_ controller: ReaderController?, for tabID: PDFTab.ID) {
         guard tabID == selectedTabID else { return }
-        activePDFView = view
+        activeReaderController = controller
     }
 
     func snapshotForSelectedTab() -> ReaderSnapshot? {
@@ -15,9 +15,9 @@ extension AppState {
     }
 
     func saveActiveReaderState() {
-        guard let activePDFView,
+        guard let activeReaderController,
               let selectedTabID,
-              let snapshot = activePDFView.snapshot() else { return }
+              let snapshot = activeReaderController.snapshot() else { return }
         saveSnapshot(snapshot, for: selectedTabID)
     }
 
@@ -33,7 +33,7 @@ extension AppState {
 
     func focusReaderSoon() {
         DispatchQueue.main.async { [weak self] in
-            self?.activePDFView?.focus()
+            self?.activeReaderController?.focus()
         }
     }
 }

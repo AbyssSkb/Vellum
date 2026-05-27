@@ -10,35 +10,35 @@ extension AppState: VimCommandTarget {
     }
 
     func scrollBy(x: CGFloat, y: CGFloat) {
-        activePDFView?.vimScroll(x: x, y: y)
+        activeReaderController?.vimScroll(x: x, y: y)
     }
 
     func moveByPage(_ delta: Int) {
-        activePDFView?.vimMoveByPage(delta)
+        activeReaderController?.vimMoveByPage(delta)
     }
 
     func goToFirstPage() {
-        activePDFView?.vimGoToFirstPage()
+        activeReaderController?.vimGoToFirstPage()
     }
 
     func goToLastPage() {
-        activePDFView?.vimGoToLastPage()
+        activeReaderController?.vimGoToLastPage()
     }
 
     func goToPage(_ pageNumber: Int) {
-        activePDFView?.vimGoToPage(pageNumber)
+        activeReaderController?.vimGoToPage(pageNumber)
     }
 
     func jumpBack() {
-        activePDFView?.vimJumpBack()
+        activeReaderController?.vimJumpBack()
     }
 
     func jumpForward() {
-        activePDFView?.vimJumpForward()
+        activeReaderController?.vimJumpForward()
     }
 
     func highlightSelection() {
-        activePDFView?.vimHighlightSelection(color: selectedHighlightColor.annotationColor)
+        activeReaderController?.vimHighlightSelection(color: selectedHighlightColor.annotationColor)
     }
 
     func cycleHighlightColor() {
@@ -46,18 +46,18 @@ extension AppState: VimCommandTarget {
     }
 
     func explainHighlightSelection() {
-        activePDFView?.vimExplainSelectedHighlight()
+        activeReaderController?.vimExplainSelectedHighlight()
     }
 
     func zoom(by factor: CGFloat) {
-        activePDFView?.vimZoom(by: factor)
+        activeReaderController?.vimZoom(by: factor)
     }
 
     func zoomToPageFit() {
-        activePDFView?.vimZoomToPageFit()
+        activeReaderController?.vimZoomToPageFit()
     }
 
     func zoomToFit() {
-        activePDFView?.vimZoomToFit()
+        activeReaderController?.vimZoomToFit()
     }
 }

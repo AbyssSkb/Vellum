@@ -5,7 +5,7 @@ extension AppState {
         guard selectedTabID != id else { return }
         saveActiveReaderState()
         guard tabStore.selectTab(id) else { return }
-        activePDFView = nil
+        activeReaderController = nil
         focusActivePDFViewSoon()
     }
 
@@ -31,7 +31,7 @@ extension AppState {
         guard let tab = documentCoordinator.openTab(for: url) else { return }
 
         tabStore.openInCurrentTab(tab)
-        activePDFView = nil
+        activeReaderController = nil
 
         focusActivePDFViewSoon()
     }
@@ -42,7 +42,7 @@ extension AppState {
         let newTabs = documentCoordinator.openTabs(for: urls)
 
         if tabStore.openInNewTabs(newTabs) {
-            activePDFView = nil
+            activeReaderController = nil
             focusActivePDFViewSoon()
         }
     }
@@ -51,7 +51,7 @@ extension AppState {
         saveActiveReaderState()
         guard tabStore.closeSelectedTab() else { return }
 
-        activePDFView = nil
+        activeReaderController = nil
 
         if !tabStore.hasOpenDocuments {
             isOutlineVisible = false
@@ -63,21 +63,21 @@ extension AppState {
         saveActiveReaderState()
 
         guard tabStore.restoreClosedPDFTab() else { return }
-        activePDFView = nil
+        activeReaderController = nil
         focusActivePDFViewSoon()
     }
 
     public func selectNextTab() {
         saveActiveReaderState()
         guard tabStore.selectNextTab() else { return }
-        activePDFView = nil
+        activeReaderController = nil
         focusActivePDFViewSoon()
     }
 
     public func selectPreviousTab() {
         saveActiveReaderState()
         guard tabStore.selectPreviousTab() else { return }
-        activePDFView = nil
+        activeReaderController = nil
         focusActivePDFViewSoon()
     }
 }
