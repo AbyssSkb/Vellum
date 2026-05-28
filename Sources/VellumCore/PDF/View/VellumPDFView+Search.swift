@@ -1,6 +1,47 @@
 @preconcurrency import AppKit
 import PDFKit
 
+struct SearchResultLocation: Equatable {
+    var pageIndex: Int
+    var boundsInPage: NSRect
+    var documentOrder: Int
+}
+
+struct PDFSearchResult {
+    var selection: PDFSelection
+    var location: SearchResultLocation
+}
+
+struct SearchAnchor: Equatable {
+    var pageIndex: Int
+    var pointInPage: NSPoint
+}
+
+enum SearchResultNavigator {
+    static func firstIndex(atOrAfter anchor: SearchAnchor, in locations: [SearchResultLocation]) -> Int? {
+        locations.firstIndex { isAtOrAfterAnchor($0, anchor: anchor) }
+    }
+
+    private static func isAtOrAfterAnchor(_ location: SearchResultLocation, anchor: SearchAnchor) -> Bool {
+        if location.pageIndex != anchor.pageIndex {
+            return location.pageIndex > anchor.pageIndex
+        }
+
+        let verticalTolerance: CGFloat = 2
+        if location.boundsInPage.maxY < anchor.pointInPage.y - verticalTolerance {
+            return true
+        }
+
+        let sameLine = location.boundsInPage.minY <= anchor.pointInPage.y + verticalTolerance
+            && location.boundsInPage.maxY >= anchor.pointInPage.y - verticalTolerance
+        if sameLine {
+            return location.boundsInPage.midX >= anchor.pointInPage.x
+        }
+
+        return false
+    }
+}
+
 extension VellumPDFView {
     func beginSearchCommand() {
         guard document != nil else { return }
@@ -23,6 +64,9 @@ extension VellumPDFView {
 
 @MainActor
 final class PDFSearchController {
+    private static let debounceDelay: TimeInterval = 0.16
+    private static let jumpCoalescingInterval: TimeInterval = 1.0
+
     enum Direction {
         case next
         case previous
@@ -31,14 +75,16 @@ final class PDFSearchController {
     private weak var pdfView: VellumPDFView?
     private var overlay: SearchCommandOverlayView?
     private var query = ""
-    private var matches: [PDFSelection] = []
-    private var selectedIndex: Int?
-    private var committedQuery = ""
-    private var committedMatches: [PDFSelection] = []
-    private var committedSelectedIndex: Int?
+    private var results: [PDFSearchResult] = []
+    private var activeIndex: Int?
+    private var debounceTimer: Timer?
+    private var searchGeneration = 0
+    private var hasSearchSelection = false
+    private var isSearchPending = false
+    private var lastJumpCheckpointTime: Date?
 
     var hasVisibleHighlights: Bool {
-        !matches.isEmpty || !committedMatches.isEmpty
+        !results.isEmpty
     }
 
     init(pdfView: VellumPDFView) {
@@ -50,9 +96,6 @@ final class PDFSearchController {
 
         pdfView.stopScrollAnimation()
         pdfView.hideAIExplanationPopover()
-        query = committedQuery
-        matches = committedMatches
-        selectedIndex = committedSelectedIndex
 
         let overlay = SearchCommandOverlayView(query: query)
         overlay.frame = pdfView.bounds
@@ -76,84 +119,87 @@ final class PDFSearchController {
     }
 
     func move(_ direction: Direction) {
-        guard !matches.isEmpty else { return }
+        performSearchImmediately(preferAnchor: false)
+        guard !results.isEmpty else { return }
 
-        let current = selectedIndex ?? 0
+        let current = activeIndex ?? anchoredResultIndex() ?? 0
         switch direction {
         case .next:
-            selectedIndex = (current + 1) % matches.count
+            activeIndex = (current + 1) % results.count
         case .previous:
-            selectedIndex = (current + matches.count - 1) % matches.count
+            activeIndex = (current + results.count - 1) % results.count
         }
 
         updateOverlayStatus()
         jumpToSelectedMatch(recordJump: true)
-        commitCurrentSearchState()
     }
 
     private func update(query nextQuery: String, resetSelection: Bool) {
         query = nextQuery
+        searchGeneration += 1
+        debounceTimer?.invalidate()
+        lastJumpCheckpointTime = nil
+
+        if hasSearchSelection {
+            pdfView?.clearSelection()
+            hasSearchSelection = false
+        }
 
         guard let pdfView, let document = pdfView.document else {
-            matches = []
-            selectedIndex = nil
+            results = []
+            activeIndex = nil
+            isSearchPending = false
             updateOverlayStatus()
             return
         }
 
         let term = nextQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !term.isEmpty else {
-            matches = []
-            selectedIndex = nil
+            results = []
+            activeIndex = nil
+            isSearchPending = false
             pdfView.highlightedSelections = []
             updateOverlayStatus()
             return
         }
 
-        matches = document.findString(
-            term,
-            withOptions: [.caseInsensitive, .diacriticInsensitive]
-        )
-        pdfView.highlightedSelections = matches
-
-        if matches.isEmpty {
-            selectedIndex = nil
-        } else if resetSelection {
-            selectedIndex = firstMatchIndexAtOrAfterVisiblePage(in: document)
-        } else if let selectedIndex {
-            self.selectedIndex = min(selectedIndex, matches.count - 1)
-        } else {
-            selectedIndex = 0
-        }
-
+        results = []
+        activeIndex = nil
+        isSearchPending = true
+        pdfView.highlightedSelections = []
+        scheduleSearch(generation: searchGeneration, preferAnchor: resetSelection, document: document)
         updateOverlayStatus()
     }
 
     private func commit() {
-        guard !matches.isEmpty else {
+        performSearchImmediately(preferAnchor: true)
+        guard !results.isEmpty else {
             updateOverlayStatus()
             return
         }
 
         dismissOverlay(returnFocus: true)
         jumpToSelectedMatch(recordJump: true)
-        commitCurrentSearchState()
     }
 
     private func cancel() {
-        clear()
         dismissOverlay(returnFocus: true)
     }
 
     func clear() {
+        debounceTimer?.invalidate()
+        debounceTimer = nil
+        searchGeneration += 1
         query = ""
-        matches = []
-        selectedIndex = nil
-        committedQuery = ""
-        committedMatches = []
-        committedSelectedIndex = nil
+        results = []
+        activeIndex = nil
+        isSearchPending = false
+        lastJumpCheckpointTime = nil
         pdfView?.highlightedSelections = []
-        pdfView?.clearSelection()
+        if hasSearchSelection {
+            pdfView?.clearSelection()
+            hasSearchSelection = false
+        }
     }
 
     private func dismissOverlay(returnFocus: Bool) {
@@ -167,13 +213,13 @@ final class PDFSearchController {
 
     private func jumpToSelectedMatch(recordJump: Bool) {
         guard let pdfView,
-              let selectedIndex,
-              matches.indices.contains(selectedIndex) else { return }
+              let activeIndex,
+              results.indices.contains(activeIndex) else { return }
 
-        let selection = matches[selectedIndex]
+        let selection = results[activeIndex].selection
 
         pdfView.cancelPendingRestore()
-        if recordJump {
+        if recordJump, shouldRecordJumpCheckpoint() {
             pdfView.recordJumpSource()
         }
         pdfView.stopScrollAnimation()
@@ -181,62 +227,165 @@ final class PDFSearchController {
         pdfView.textSelectionNavigationState = nil
         pdfView.go(to: selection)
         pdfView.setCurrentSelection(selection, animate: false)
+        hasSearchSelection = true
 
-        DispatchQueue.main.async { [weak pdfView, weak selection] in
-            guard let pdfView, let selection else { return }
+        DispatchQueue.main.async { [weak self, weak pdfView, weak selection] in
+            guard let self, let pdfView, let selection else { return }
             pdfView.go(to: selection)
             pdfView.setCurrentSelection(selection, animate: false)
+            self.hasSearchSelection = true
         }
     }
 
-    private func firstMatchIndexAtOrAfterVisiblePage(in document: PDFDocument) -> Int {
-        let visiblePageIndex = currentVisiblePageIndex(in: document)
-        return matches.firstIndex { selection in
-            firstPageIndex(for: selection, in: document).map { $0 >= visiblePageIndex } == true
-        } ?? 0
+    private func shouldRecordJumpCheckpoint() -> Bool {
+        let now = Date()
+        defer { lastJumpCheckpointTime = now }
+
+        guard let lastJumpCheckpointTime else { return true }
+        return now.timeIntervalSince(lastJumpCheckpointTime) > Self.jumpCoalescingInterval
     }
 
-    private func firstPageIndex(for selection: PDFSelection, in document: PDFDocument) -> Int? {
-        selection.pages
-            .map { document.index(for: $0) }
-            .filter { $0 != NSNotFound }
-            .min()
+    private func scheduleSearch(generation: Int, preferAnchor: Bool, document: PDFDocument) {
+        let timer = Timer(timeInterval: Self.debounceDelay, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, self.searchGeneration == generation else { return }
+                self.performSearchImmediately(preferAnchor: preferAnchor)
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        debounceTimer = timer
     }
 
-    private func currentVisiblePageIndex(in document: PDFDocument) -> Int {
-        guard let pdfView else { return 0 }
+    private func performSearchImmediately(preferAnchor: Bool) {
+        debounceTimer?.invalidate()
+        debounceTimer = nil
+
+        guard let pdfView, let document = pdfView.document else {
+            results = []
+            activeIndex = nil
+            isSearchPending = false
+            updateOverlayStatus()
+            return
+        }
+
+        let term = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !term.isEmpty else {
+            results = []
+            activeIndex = nil
+            isSearchPending = false
+            pdfView.highlightedSelections = []
+            updateOverlayStatus()
+            return
+        }
+
+        isSearchPending = false
+        let selections = document.findString(
+            term,
+            withOptions: [.caseInsensitive, .diacriticInsensitive]
+        )
+        results = searchResults(from: selections, in: document)
+        pdfView.highlightedSelections = results.map(\.selection)
+
+        if results.isEmpty {
+            activeIndex = nil
+        } else if preferAnchor {
+            activeIndex = anchoredResultIndex() ?? 0
+        } else if let activeIndex {
+            self.activeIndex = min(activeIndex, results.count - 1)
+        } else {
+            activeIndex = anchoredResultIndex() ?? 0
+        }
+
+        updateOverlayStatus()
+    }
+
+    private func searchResults(from selections: [PDFSelection], in document: PDFDocument) -> [PDFSearchResult] {
+        selections.enumerated().compactMap { documentOrder, selection in
+            guard let page = selection.pages.first else { return nil }
+            let pageIndex = document.index(for: page)
+            guard pageIndex != NSNotFound else { return nil }
+
+            let lineSelection = selection.selectionsByLine().first ?? selection
+            let bounds = HighlightGeometry.tightBounds(for: lineSelection, on: page)
+                ?? selection.bounds(for: page)
+            guard bounds.width > 0, bounds.height > 0 else { return nil }
+
+            return PDFSearchResult(
+                selection: selection,
+                location: SearchResultLocation(
+                    pageIndex: pageIndex,
+                    boundsInPage: bounds,
+                    documentOrder: documentOrder
+                )
+            )
+        }
+    }
+
+    private func anchoredResultIndex() -> Int? {
+        guard let pdfView, let document = pdfView.document, !results.isEmpty else { return nil }
+        let anchor = currentSearchAnchor(in: document)
+        return SearchResultNavigator.firstIndex(
+            atOrAfter: anchor,
+            in: results.map(\.location)
+        ) ?? 0
+    }
+
+    private func currentSearchAnchor(in document: PDFDocument) -> SearchAnchor {
+        guard let pdfView else {
+            return SearchAnchor(pageIndex: 0, pointInPage: .zero)
+        }
+
+        if let selection = pdfView.currentSelection,
+           let page = selection.pages.last {
+            let pageIndex = document.index(for: page)
+            if pageIndex != NSNotFound {
+                let bounds = selection.bounds(for: page)
+                if !bounds.isEmpty {
+                    return SearchAnchor(
+                        pageIndex: pageIndex,
+                        pointInPage: NSPoint(x: bounds.maxX, y: bounds.minY)
+                    )
+                }
+            }
+        }
 
         if let snapshot = pdfView.snapshot() {
-            return min(max(snapshot.pageIndex, 0), document.pageCount - 1)
+            return SearchAnchor(
+                pageIndex: min(max(snapshot.pageIndex, 0), document.pageCount - 1),
+                pointInPage: snapshot.pointOnPage
+            )
         }
 
         if let page = pdfView.currentPage {
             let index = document.index(for: page)
             if index != NSNotFound {
-                return min(max(index, 0), document.pageCount - 1)
+                return SearchAnchor(
+                    pageIndex: min(max(index, 0), document.pageCount - 1),
+                    pointInPage: NSPoint(
+                        x: page.bounds(for: .cropBox).midX,
+                        y: page.bounds(for: .cropBox).midY
+                    )
+                )
             }
         }
 
-        return 0
+        return SearchAnchor(pageIndex: 0, pointInPage: .zero)
     }
 
     private func updateOverlayStatus() {
         let status: SearchCommandOverlayView.Status
         if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             status = .hint("Type to search")
-        } else if matches.isEmpty {
+        } else if isSearchPending {
+            status = .hint("Searching")
+        } else if results.isEmpty {
             status = .error("No matches")
         } else {
-            status = .count(current: (selectedIndex ?? 0) + 1, total: matches.count)
+            let displayIndex = activeIndex ?? anchoredResultIndex() ?? 0
+            status = .count(current: displayIndex + 1, total: results.count)
         }
 
         overlay?.update(status: status)
-    }
-
-    private func commitCurrentSearchState() {
-        committedQuery = query
-        committedMatches = matches
-        committedSelectedIndex = selectedIndex
     }
 }
 
