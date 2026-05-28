@@ -13,6 +13,20 @@ struct SearchTextMatch: Equatable {
     var documentOrder: Int
 }
 
+extension SearchTextMatch {
+    static func pageTextOrderSort(_ lhs: SearchTextMatch, _ rhs: SearchTextMatch) -> Bool {
+        if lhs.pageIndex != rhs.pageIndex {
+            return lhs.pageIndex < rhs.pageIndex
+        }
+
+        if lhs.range.location != rhs.range.location {
+            return lhs.range.location < rhs.range.location
+        }
+
+        return lhs.documentOrder < rhs.documentOrder
+    }
+}
+
 enum SearchTextFinder {
     static func matches(
         in text: String,
@@ -529,13 +543,18 @@ final class PDFSearchController {
             var lastPublish = Date.distantPast
             let pageCount = document.pageCount
             let term = self.query.trimmingCharacters(in: .whitespacesAndNewlines)
+            let anchorPageIndex = self.currentSearchAnchor(in: document).pageIndex
+            let pageScanOrder = self.previewPageScanOrder(
+                pageCount: pageCount,
+                anchorPageIndex: anchorPageIndex
+            )
 
             guard !term.isEmpty else {
                 self.publishPreviewResults([], preferAnchor: preferAnchor, isComplete: true)
                 return
             }
 
-            for pageIndex in 0..<pageCount {
+            for (scanIndex, pageIndex) in pageScanOrder.enumerated() {
                 guard !Task.isCancelled, self.searchGeneration == generation else { return }
 
                 if let text = self.pageText(pageIndex: pageIndex, in: document) {
@@ -552,9 +571,9 @@ final class PDFSearchController {
                     )
                 }
 
-                let isComplete = pageIndex == pageCount - 1
+                let isComplete = scanIndex == pageScanOrder.count - 1
                 let shouldPublish = isComplete
-                    || pageIndex == 0
+                    || scanIndex == 0
                     || Date().timeIntervalSince(lastPublish) > 0.035
 
                 if shouldPublish {
@@ -571,21 +590,32 @@ final class PDFSearchController {
         }
     }
 
+    private func previewPageScanOrder(pageCount: Int, anchorPageIndex: Int) -> [Int] {
+        guard pageCount > 0 else { return [] }
+        let anchor = min(max(anchorPageIndex, 0), pageCount - 1)
+        return [anchor] + (0..<pageCount).filter { $0 != anchor }
+    }
+
     private func publishPreviewResults(
         _ nextResults: [PDFSearchResult],
         preferAnchor: Bool,
         isComplete: Bool
     ) {
-        results = nextResults
+        results = nextResults.sorted {
+            SearchTextMatch.pageTextOrderSort($0.match, $1.match)
+        }
         isSearchPending = !isComplete
 
         if results.isEmpty {
             activeIndex = nil
             areMatchesVisible = false
         } else if preferAnchor || activeIndex == nil {
-            activeIndex = anchoredIndex(for: .next, materializeLocations: false) ?? 0
+            activeIndex = anchoredIndex(for: .next, materializeLocations: true) ?? 0
+            areMatchesVisible = true
         } else if let activeIndex {
             self.activeIndex = min(activeIndex, results.count - 1)
+            materializeVisibleMatchesAroundActive()
+            areMatchesVisible = true
         }
 
         applyVisibleHighlights()
