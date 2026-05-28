@@ -137,8 +137,13 @@ struct SearchCommandTests {
     }
 
     @Test
-    func readingAnchorUsesThirtyPercentViewportHeight() {
-        #expect(SearchReadingAnchor.pointY(visibleMinY: 100, visibleHeight: 900) == 370)
+    func readingAnchorUsesThirtyPercentFromVisualTopInFlippedViewport() {
+        #expect(SearchReadingAnchor.pointY(visibleMinY: 100, visibleHeight: 900, isFlipped: true) == 370)
+    }
+
+    @Test
+    func readingAnchorUsesThirtyPercentFromVisualTopInNonFlippedViewport() {
+        #expect(SearchReadingAnchor.pointY(visibleMinY: 100, visibleHeight: 900, isFlipped: false) == 730)
     }
 
     @Test

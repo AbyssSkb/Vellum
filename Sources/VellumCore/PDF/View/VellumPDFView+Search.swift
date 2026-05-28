@@ -500,7 +500,8 @@ final class PDFSearchController {
                 x: clipView.bounds.midX,
                 y: SearchReadingAnchor.pointY(
                     visibleMinY: clipView.bounds.minY,
-                    visibleHeight: clipView.bounds.height
+                    visibleHeight: clipView.bounds.height,
+                    isFlipped: clipView.isFlipped
                 )
             )
             let pointInPDFView = pdfView.convert(anchorPoint, from: clipView)
