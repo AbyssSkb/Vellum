@@ -93,9 +93,6 @@ final class PDFSearchController {
 
     private func update(query nextQuery: String, resetSelection: Bool) {
         query = nextQuery
-        if resetSelection {
-            removeActiveMatchIndicator()
-        }
 
         guard let pdfView, let document = pdfView.document else {
             matches = []
@@ -157,7 +154,6 @@ final class PDFSearchController {
         committedSelectedIndex = nil
         pdfView?.highlightedSelections = []
         pdfView?.clearSelection()
-        removeActiveMatchIndicator()
     }
 
     private func dismissOverlay(returnFocus: Bool) {
@@ -183,15 +179,13 @@ final class PDFSearchController {
         pdfView.stopScrollAnimation()
         pdfView.stopZoomState()
         pdfView.textSelectionNavigationState = nil
-        pdfView.clearSelection()
         pdfView.go(to: selection)
-        showActiveMatchIndicator(for: selection)
+        pdfView.setCurrentSelection(selection, animate: false)
 
-        DispatchQueue.main.async { [weak self, weak pdfView, weak selection] in
+        DispatchQueue.main.async { [weak pdfView, weak selection] in
             guard let pdfView, let selection else { return }
-            pdfView.clearSelection()
             pdfView.go(to: selection)
-            self?.showActiveMatchIndicator(for: selection)
+            pdfView.setCurrentSelection(selection, animate: false)
         }
     }
 
@@ -244,31 +238,6 @@ final class PDFSearchController {
         committedMatches = matches
         committedSelectedIndex = selectedIndex
     }
-
-    private func showActiveMatchIndicator(for selection: PDFSelection) {
-        guard let pdfView else { return }
-
-        let indicator = pdfView.searchMatchIndicatorView ?? SearchMatchIndicatorView(pdfView: pdfView)
-        indicator.frame = pdfView.bounds
-        indicator.autoresizingMask = [.width, .height]
-        indicator.selection = selection
-
-        if indicator.superview == nil {
-            if let overlay {
-                pdfView.addSubview(indicator, positioned: .below, relativeTo: overlay)
-            } else {
-                pdfView.addSubview(indicator)
-            }
-        }
-
-        pdfView.searchMatchIndicatorView = indicator
-        indicator.needsDisplay = true
-    }
-
-    private func removeActiveMatchIndicator() {
-        pdfView?.searchMatchIndicatorView?.removeFromSuperview()
-        pdfView?.searchMatchIndicatorView = nil
-    }
 }
 
 @MainActor
@@ -303,7 +272,8 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
     var onCommit: (() -> Void)?
     var onCancel: (() -> Void)?
 
-    private let container = NSView()
+    private let container = NSVisualEffectView()
+    private let iconView = NSImageView()
     private let promptLabel = NSTextField(labelWithString: "/")
     private let textField = SearchCommandTextField()
     private let statusLabel = NSTextField(labelWithString: "Type to search")
@@ -316,6 +286,7 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
         configureTextField(query: query)
 
         addSubview(container)
+        container.addSubview(iconView)
         container.addSubview(promptLabel)
         container.addSubview(textField)
         container.addSubview(statusLabel)
@@ -334,28 +305,29 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
     override func layout() {
         super.layout()
 
-        let width = min(max(bounds.width * 0.52, 420), 720)
-        let height: CGFloat = 52
+        let width = min(max(bounds.width * 0.44, 380), 640)
+        let height: CGFloat = 46
         container.frame = NSRect(
             x: bounds.midX - width / 2,
-            y: bounds.minY + 22,
+            y: bounds.maxY - height - 18,
             width: width,
             height: height
         )
 
-        promptLabel.frame = NSRect(x: 18, y: 13, width: 18, height: 26)
+        iconView.frame = NSRect(x: 15, y: 14, width: 18, height: 18)
+        promptLabel.frame = NSRect(x: iconView.frame.maxX + 10, y: 12, width: 16, height: 22)
         statusLabel.sizeToFit()
-        let statusWidth = min(max(statusLabel.frame.width, 74), 140)
+        let statusWidth = min(max(statusLabel.frame.width, 64), 128)
         statusLabel.frame = NSRect(
-            x: container.bounds.maxX - statusWidth - 18,
-            y: 15,
+            x: container.bounds.maxX - statusWidth - 16,
+            y: 12,
             width: statusWidth,
             height: 22
         )
         textField.frame = NSRect(
-            x: promptLabel.frame.maxX + 8,
-            y: 14,
-            width: max(80, statusLabel.frame.minX - promptLabel.frame.maxX - 20),
+            x: promptLabel.frame.maxX + 10,
+            y: 11,
+            width: max(80, statusLabel.frame.minX - promptLabel.frame.maxX - 22),
             height: 24
         )
     }
@@ -407,35 +379,42 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
     }
 
     private func configureContainer() {
+        container.material = .hudWindow
+        container.blendingMode = .withinWindow
+        container.state = .active
         container.wantsLayer = true
-        container.layer?.backgroundColor = TokyoNight.backgroundDeep.withAlphaComponent(0.96).cgColor
-        container.layer?.borderColor = TokyoNight.border.withAlphaComponent(0.82).cgColor
+        container.layer?.backgroundColor = TokyoNight.panelElevated.withAlphaComponent(0.74).cgColor
+        container.layer?.borderColor = TokyoNight.blue.withAlphaComponent(0.24).cgColor
         container.layer?.borderWidth = 1
-        container.layer?.cornerRadius = 12
+        container.layer?.cornerRadius = 14
         container.layer?.shadowColor = NSColor.black.cgColor
-        container.layer?.shadowOpacity = 0.25
-        container.layer?.shadowRadius = 16
-        container.layer?.shadowOffset = NSSize(width: 0, height: -3)
+        container.layer?.shadowOpacity = 0.22
+        container.layer?.shadowRadius = 18
+        container.layer?.shadowOffset = NSSize(width: 0, height: -6)
     }
 
     private func configureLabels() {
-        promptLabel.font = .monospacedSystemFont(ofSize: 20, weight: .semibold)
-        promptLabel.textColor = TokyoNight.blue
+        iconView.image = NSImage(systemSymbolName: "magnifyingglass", accessibilityDescription: nil)
+        iconView.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 15, weight: .medium)
+        iconView.contentTintColor = TokyoNight.cyan.withAlphaComponent(0.92)
+
+        promptLabel.font = .monospacedSystemFont(ofSize: 14, weight: .semibold)
+        promptLabel.textColor = TokyoNight.muted
 
         statusLabel.font = .monospacedDigitSystemFont(ofSize: 12, weight: .medium)
-        statusLabel.textColor = TokyoNight.muted
+        statusLabel.textColor = TokyoNight.muted.withAlphaComponent(0.95)
         statusLabel.alignment = .right
     }
 
     private func configureTextField(query: String) {
         textField.stringValue = query
-        textField.font = .systemFont(ofSize: 16, weight: .medium)
+        textField.font = .systemFont(ofSize: 15, weight: .medium)
         textField.textColor = TokyoNight.foreground
         textField.placeholderAttributedString = NSAttributedString(
-            string: "Search in document",
+            string: "Search",
             attributes: [
                 .foregroundColor: TokyoNight.muted,
-                .font: NSFont.systemFont(ofSize: 16, weight: .regular)
+                .font: NSFont.systemFont(ofSize: 15, weight: .regular)
             ]
         )
         textField.isBordered = false
@@ -490,60 +469,5 @@ private final class SearchCommandTextField: NSTextField {
         default:
             super.keyDown(with: event)
         }
-    }
-}
-
-@MainActor
-final class SearchMatchIndicatorView: NSView {
-    weak var pdfView: VellumPDFView?
-
-    var selection: PDFSelection? {
-        didSet {
-            needsDisplay = true
-        }
-    }
-
-    init(pdfView: VellumPDFView) {
-        self.pdfView = pdfView
-        super.init(frame: pdfView.bounds)
-        wantsLayer = false
-    }
-
-    required init?(coder: NSCoder) {
-        nil
-    }
-
-    override func hitTest(_ point: NSPoint) -> NSView? {
-        nil
-    }
-
-    override func draw(_ dirtyRect: NSRect) {
-        super.draw(dirtyRect)
-        guard let pdfView, let selection else { return }
-
-        let lineSelections = selection.selectionsByLine()
-        let selections = lineSelections.isEmpty ? [selection] : lineSelections
-        for lineSelection in selections {
-            for page in lineSelection.pages {
-                guard let pageBounds = HighlightGeometry.tightBounds(for: lineSelection, on: page),
-                      let viewRect = pdfView.viewRect(for: pageBounds, on: page) else { continue }
-
-                drawIndicator(in: convert(viewRect, from: pdfView))
-            }
-        }
-    }
-
-    private func drawIndicator(in rect: NSRect) {
-        guard rect.width > 0, rect.height > 0 else { return }
-
-        let indicatorRect = rect.insetBy(dx: -3, dy: -3)
-        let path = NSBezierPath(roundedRect: indicatorRect, xRadius: 4, yRadius: 4)
-
-        TokyoNight.blue.withAlphaComponent(0.14).setFill()
-        path.fill()
-
-        TokyoNight.cyan.withAlphaComponent(0.95).setStroke()
-        path.lineWidth = 2
-        path.stroke()
     }
 }
