@@ -1,10 +1,62 @@
 @preconcurrency import AppKit
-import PDFKit
+@preconcurrency import PDFKit
 
 struct SearchResultLocation: Equatable {
     var pageIndex: Int
     var boundsInPage: NSRect
     var documentOrder: Int
+}
+
+struct SearchTextMatch: Equatable {
+    var pageIndex: Int
+    var range: NSRange
+    var documentOrder: Int
+}
+
+enum SearchTextFinder {
+    static func matches(
+        in text: String,
+        term: String,
+        pageIndex: Int,
+        startingDocumentOrder: Int
+    ) -> [SearchTextMatch] {
+        guard !term.isEmpty else { return [] }
+
+        let haystack = text as NSString
+        let needleLength = (term as NSString).length
+        guard haystack.length > 0, needleLength > 0 else { return [] }
+
+        var matches: [SearchTextMatch] = []
+        var searchRange = NSRange(location: 0, length: haystack.length)
+        var documentOrder = startingDocumentOrder
+
+        while searchRange.length > 0 {
+            let foundRange = haystack.range(
+                of: term,
+                options: [.caseInsensitive, .diacriticInsensitive],
+                range: searchRange
+            )
+            guard foundRange.location != NSNotFound, foundRange.length > 0 else { break }
+
+            matches.append(
+                SearchTextMatch(
+                    pageIndex: pageIndex,
+                    range: foundRange,
+                    documentOrder: documentOrder
+                )
+            )
+            documentOrder += 1
+
+            let nextLocation = foundRange.location + foundRange.length
+            guard nextLocation < haystack.length else { break }
+            searchRange = NSRange(
+                location: nextLocation,
+                length: haystack.length - nextLocation
+            )
+        }
+
+        return matches
+    }
 }
 
 extension SearchResultLocation {
@@ -27,8 +79,25 @@ extension SearchResultLocation {
 }
 
 struct PDFSearchResult {
-    var selection: PDFSelection
-    var location: SearchResultLocation
+    var match: SearchTextMatch
+    var selection: PDFSelection?
+    var location: SearchResultLocation?
+
+    var pageIndex: Int {
+        match.pageIndex
+    }
+
+    var documentOrder: Int {
+        match.documentOrder
+    }
+
+    var searchLocation: SearchResultLocation {
+        location ?? SearchResultLocation(
+            pageIndex: match.pageIndex,
+            boundsInPage: NSRect(x: 0, y: CGFloat.greatestFiniteMagnitude, width: 1, height: 1),
+            documentOrder: match.documentOrder
+        )
+    }
 }
 
 struct SearchAnchor: Equatable {
@@ -128,16 +197,18 @@ final class PDFSearchController {
     private var areMatchesVisible = false
     private var shouldAnchorNextMove = false
     private var debounceTimer: Timer?
+    private var previewSearchTask: Task<Void, Never>?
     private var searchGeneration = 0
     private var isSearchPending = false
     private var lastJumpCheckpointTime: Date?
+    private var pageTextCache: [Int: String] = [:]
 
     var hasVisibleHighlights: Bool {
         areMatchesVisible && !results.isEmpty
     }
 
     var hasTextTarget: Bool {
-        activeSearchSelection != nil
+        activeIndex != nil && !results.isEmpty
     }
 
     var canHandleEscape: Bool {
@@ -176,14 +247,19 @@ final class PDFSearchController {
     }
 
     func move(_ direction: Direction) {
-        performSearchImmediately(preferAnchor: false)
+        if results.isEmpty || isSearchPending {
+            performSearchImmediately(preferAnchor: false, materializeVisibleMatches: false)
+        } else {
+            cancelScheduledSearch()
+            isSearchPending = false
+        }
         guard !results.isEmpty else { return }
 
         areMatchesVisible = true
         if shouldAnchorNextMove {
-            activeIndex = anchoredIndex(for: direction) ?? activeIndex ?? 0
+            activeIndex = anchoredIndex(for: direction, materializeLocations: true) ?? activeIndex ?? 0
         } else {
-            let current = activeIndex ?? anchoredIndex(for: direction) ?? 0
+            let current = activeIndex ?? anchoredIndex(for: direction, materializeLocations: true) ?? 0
             switch direction {
             case .next:
                 activeIndex = (current + 1) % results.count
@@ -251,16 +327,17 @@ final class PDFSearchController {
 
     var activeSearchSelection: PDFSelection? {
         guard let activeIndex, results.indices.contains(activeIndex) else { return nil }
-        return results[activeIndex].selection
+        return materializedSelection(at: activeIndex)
     }
 
     private func update(query nextQuery: String, resetSelection: Bool) {
         query = nextQuery
         searchGeneration += 1
         debounceTimer?.invalidate()
+        previewSearchTask?.cancel()
         lastJumpCheckpointTime = nil
 
-        guard let pdfView, let document = pdfView.document else {
+        guard let pdfView, pdfView.document != nil else {
             results = []
             activeIndex = nil
             areMatchesVisible = false
@@ -279,22 +356,29 @@ final class PDFSearchController {
             isSearchPending = false
             pdfView.highlightedSelections = []
             updateOverlayStatus()
+            previewSearchTask = nil
             return
         }
 
         isSearchPending = true
-        scheduleSearch(generation: searchGeneration, preferAnchor: resetSelection, document: document)
+        results = []
+        activeIndex = nil
+        areMatchesVisible = false
+        shouldAnchorNextMove = false
+        pdfView.highlightedSelections = []
+        scheduleSearch(generation: searchGeneration, preferAnchor: resetSelection)
         updateOverlayStatus()
     }
 
     private func commit() {
-        performSearchImmediately(preferAnchor: true)
+        performSearchImmediately(preferAnchor: true, materializeVisibleMatches: true)
         guard !results.isEmpty else {
             updateOverlayStatus()
             return
         }
 
         areMatchesVisible = true
+        materializeVisibleMatchesAroundActive()
         applyVisibleHighlights()
         updateOverlayStatus()
         overlay?.showMini(query: query.trimmingCharacters(in: .whitespacesAndNewlines))
@@ -307,8 +391,7 @@ final class PDFSearchController {
     }
 
     func clear() {
-        debounceTimer?.invalidate()
-        debounceTimer = nil
+        cancelScheduledSearch()
         searchGeneration += 1
         query = ""
         results = []
@@ -341,7 +424,10 @@ final class PDFSearchController {
               let activeIndex,
               results.indices.contains(activeIndex) else { return }
 
-        let selection = results[activeIndex].selection
+        guard let selection = materializedSelection(at: activeIndex) else {
+            NSSound.beep()
+            return
+        }
 
         pdfView.cancelPendingRestore()
         if recordJump, shouldRecordJumpCheckpoint() {
@@ -366,20 +452,24 @@ final class PDFSearchController {
         return now.timeIntervalSince(lastJumpCheckpointTime) > Self.jumpCoalescingInterval
     }
 
-    private func scheduleSearch(generation: Int, preferAnchor: Bool, document: PDFDocument) {
+    private func scheduleSearch(generation: Int, preferAnchor: Bool) {
+        previewSearchTask?.cancel()
         let timer = Timer(timeInterval: Self.debounceDelay, repeats: false) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self, self.searchGeneration == generation else { return }
-                self.performSearchImmediately(preferAnchor: preferAnchor)
+                self.startPreviewSearch(
+                    generation: generation,
+                    preferAnchor: preferAnchor
+                )
             }
         }
         RunLoop.main.add(timer, forMode: .common)
         debounceTimer = timer
     }
 
-    private func performSearchImmediately(preferAnchor: Bool) {
-        debounceTimer?.invalidate()
-        debounceTimer = nil
+    private func performSearchImmediately(preferAnchor: Bool, materializeVisibleMatches: Bool) {
+        cancelScheduledSearch()
+        searchGeneration += 1
 
         guard let pdfView, let document = pdfView.document else {
             results = []
@@ -404,62 +494,194 @@ final class PDFSearchController {
         }
 
         isSearchPending = false
-        let selections = document.findString(
-            term,
-            withOptions: [.caseInsensitive, .diacriticInsensitive]
-        )
-        results = searchResults(from: selections, in: document)
+        let matches = textMatches(for: term, in: document)
+        results = matches.map { PDFSearchResult(match: $0, selection: nil, location: nil) }
 
         if results.isEmpty {
             activeIndex = nil
             areMatchesVisible = false
         } else if preferAnchor {
-            activeIndex = anchoredIndex(for: .next) ?? 0
+            activeIndex = anchoredIndex(for: .next, materializeLocations: materializeVisibleMatches) ?? 0
             areMatchesVisible = true
         } else if let activeIndex {
             self.activeIndex = min(activeIndex, results.count - 1)
         } else {
-            activeIndex = anchoredIndex(for: .next) ?? 0
+            activeIndex = anchoredIndex(for: .next, materializeLocations: materializeVisibleMatches) ?? 0
+        }
+
+        if materializeVisibleMatches {
+            materializeVisibleMatchesAroundActive()
+        }
+        applyVisibleHighlights()
+        updateOverlayStatus()
+    }
+
+    private func startPreviewSearch(generation: Int, preferAnchor: Bool) {
+        previewSearchTask?.cancel()
+        previewSearchTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            guard let document = self.pdfView?.document else {
+                self.publishPreviewResults([], preferAnchor: preferAnchor, isComplete: true)
+                return
+            }
+
+            var previewResults: [PDFSearchResult] = []
+            var lastPublish = Date.distantPast
+            let pageCount = document.pageCount
+            let term = self.query.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            guard !term.isEmpty else {
+                self.publishPreviewResults([], preferAnchor: preferAnchor, isComplete: true)
+                return
+            }
+
+            for pageIndex in 0..<pageCount {
+                guard !Task.isCancelled, self.searchGeneration == generation else { return }
+
+                if let text = self.pageText(pageIndex: pageIndex, in: document) {
+                    let pageMatches = SearchTextFinder.matches(
+                        in: text,
+                        term: term,
+                        pageIndex: pageIndex,
+                        startingDocumentOrder: previewResults.count
+                    )
+                    previewResults.append(
+                        contentsOf: pageMatches.map {
+                            PDFSearchResult(match: $0, selection: nil, location: nil)
+                        }
+                    )
+                }
+
+                let isComplete = pageIndex == pageCount - 1
+                let shouldPublish = isComplete
+                    || pageIndex == 0
+                    || Date().timeIntervalSince(lastPublish) > 0.035
+
+                if shouldPublish {
+                    self.publishPreviewResults(
+                        previewResults,
+                        preferAnchor: preferAnchor,
+                        isComplete: isComplete
+                    )
+                    lastPublish = Date()
+                }
+
+                await Task.yield()
+            }
+        }
+    }
+
+    private func publishPreviewResults(
+        _ nextResults: [PDFSearchResult],
+        preferAnchor: Bool,
+        isComplete: Bool
+    ) {
+        results = nextResults
+        isSearchPending = !isComplete
+
+        if results.isEmpty {
+            activeIndex = nil
+            areMatchesVisible = false
+        } else if preferAnchor || activeIndex == nil {
+            activeIndex = anchoredIndex(for: .next, materializeLocations: false) ?? 0
+        } else if let activeIndex {
+            self.activeIndex = min(activeIndex, results.count - 1)
         }
 
         applyVisibleHighlights()
         updateOverlayStatus()
     }
 
-    private func searchResults(from selections: [PDFSelection], in document: PDFDocument) -> [PDFSearchResult] {
-        selections.enumerated().compactMap { documentOrder, selection in
-            guard let page = selection.pages.first else { return nil }
-            let pageIndex = document.index(for: page)
-            guard pageIndex != NSNotFound else { return nil }
+    private func cancelScheduledSearch() {
+        debounceTimer?.invalidate()
+        debounceTimer = nil
+        previewSearchTask?.cancel()
+        previewSearchTask = nil
+    }
 
-            let lineSelection = selection.selectionsByLine().first ?? selection
-            let bounds = HighlightGeometry.tightBounds(for: lineSelection, on: page)
-                ?? selection.bounds(for: page)
-            guard bounds.width > 0, bounds.height > 0 else { return nil }
-
-            return PDFSearchResult(
-                selection: selection,
-                location: SearchResultLocation(
-                    pageIndex: pageIndex,
-                    boundsInPage: bounds,
-                    documentOrder: documentOrder
-                )
+    private func textMatches(for term: String, in document: PDFDocument) -> [SearchTextMatch] {
+        var matches: [SearchTextMatch] = []
+        for pageIndex in 0..<document.pageCount {
+            guard let text = pageText(pageIndex: pageIndex, in: document) else { continue }
+            let pageMatches = SearchTextFinder.matches(
+                in: text,
+                term: term,
+                pageIndex: pageIndex,
+                startingDocumentOrder: matches.count
             )
+            matches.append(contentsOf: pageMatches)
         }
-        .sorted {
-            SearchResultLocation.documentOrderSort($0.location, $1.location)
+        return matches
+    }
+
+    private func pageText(pageIndex: Int, in document: PDFDocument) -> String? {
+        if let cached = pageTextCache[pageIndex] {
+            return cached
+        }
+
+        guard let text = document.page(at: pageIndex)?.string else { return nil }
+        pageTextCache[pageIndex] = text
+        return text
+    }
+
+    private func materializedSelectionIfCached(at index: Int) -> PDFSelection? {
+        guard results.indices.contains(index) else { return nil }
+        return results[index].selection
+    }
+
+    private func materializedSelection(at index: Int) -> PDFSelection? {
+        guard let pdfView, let document = pdfView.document, results.indices.contains(index) else { return nil }
+        if let selection = results[index].selection {
+            return selection
+        }
+
+        guard let page = document.page(at: results[index].match.pageIndex),
+              let selection = page.selection(for: results[index].match.range) else {
+            return nil
+        }
+
+        let lineSelection = selection.selectionsByLine().first ?? selection
+        let bounds = HighlightGeometry.tightBounds(for: lineSelection, on: page)
+            ?? selection.bounds(for: page)
+        guard bounds.width > 0, bounds.height > 0 else { return nil }
+
+        results[index].selection = selection
+        results[index].location = SearchResultLocation(
+            pageIndex: results[index].match.pageIndex,
+            boundsInPage: bounds,
+            documentOrder: results[index].match.documentOrder
+        )
+        return selection
+    }
+
+    private func materializeVisibleMatchesAroundActive() {
+        guard let activeIndex, results.indices.contains(activeIndex) else { return }
+        _ = materializedSelection(at: activeIndex)
+        let activePageIndex = results[activeIndex].pageIndex
+        for index in results.indices {
+            guard abs(results[index].pageIndex - activePageIndex) <= 1 else { continue }
+            _ = materializedSelection(at: index)
         }
     }
 
-    private func anchoredIndex(for direction: Direction) -> Int? {
+    private func anchoredIndex(for direction: Direction, materializeLocations: Bool) -> Int? {
         guard let pdfView, let document = pdfView.document, !results.isEmpty else { return nil }
         let anchor = currentSearchAnchor(in: document)
-        let locations = results.map(\.location)
+        if materializeLocations {
+            materializeMatches(on: anchor.pageIndex)
+        }
+        let locations = results.map(\.searchLocation)
         switch direction {
         case .next:
             return SearchResultNavigator.firstIndex(atOrAfter: anchor, in: locations) ?? 0
         case .previous:
             return SearchResultNavigator.lastIndex(beforeOrAt: anchor, in: locations) ?? results.count - 1
+        }
+    }
+
+    private func materializeMatches(on pageIndex: Int) {
+        for index in results.indices where results[index].pageIndex == pageIndex {
+            _ = materializedSelection(at: index)
         }
     }
 
@@ -470,11 +692,12 @@ final class PDFSearchController {
             return
         }
 
-        let highlighted = results.enumerated().map { index, result in
-            result.selection.color = index == activeIndex
+        let highlighted = results.indices.compactMap { index -> PDFSelection? in
+            guard let selection = materializedSelectionIfCached(at: index) else { return nil }
+            selection.color = index == activeIndex
                 ? Self.activeMatchColor
                 : Self.inactiveMatchColor
-            return result.selection
+            return selection
         }
         pdfView.highlightedSelections = highlighted
     }
@@ -544,12 +767,15 @@ final class PDFSearchController {
     private func overlayStatus() -> SearchCommandOverlayView.Status {
         if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return .hint("type")
+        } else if isSearchPending, !results.isEmpty {
+            let displayIndex = activeIndex ?? anchoredIndex(for: .next, materializeLocations: false) ?? 0
+            return .hint("\(displayIndex + 1)/\(results.count)...")
         } else if isSearchPending {
             return .hint("...")
         } else if results.isEmpty {
             return .error("no match")
         } else {
-            let displayIndex = activeIndex ?? anchoredIndex(for: .next) ?? 0
+            let displayIndex = activeIndex ?? anchoredIndex(for: .next, materializeLocations: false) ?? 0
             return .count(current: displayIndex + 1, total: results.count)
         }
     }

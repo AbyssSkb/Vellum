@@ -137,6 +137,54 @@ struct SearchCommandTests {
     }
 
     @Test
+    func textFinderMatchesCaseAndDiacriticsInsensitively() {
+        let matches = SearchTextFinder.matches(
+            in: "Cafe CAFÉ cafe",
+            term: "café",
+            pageIndex: 4,
+            startingDocumentOrder: 7
+        )
+
+        #expect(matches.map(\.pageIndex) == [4, 4, 4])
+        #expect(matches.map(\.documentOrder) == [7, 8, 9])
+        #expect(matches.map(\.range.location) == [0, 5, 10])
+    }
+
+    @Test
+    func textFinderFindsMultipleMatchesOnOnePage() {
+        let matches = SearchTextFinder.matches(
+            in: "alpha beta alpha alpha",
+            term: "alpha",
+            pageIndex: 2,
+            startingDocumentOrder: 3
+        )
+
+        #expect(matches.map(\.range.location) == [0, 11, 17])
+        #expect(matches.map(\.range.length) == [5, 5, 5])
+        #expect(matches.map(\.documentOrder) == [3, 4, 5])
+    }
+
+    @Test
+    func textFinderRejectsEmptyInputs() {
+        #expect(
+            SearchTextFinder.matches(
+                in: "",
+                term: "needle",
+                pageIndex: 0,
+                startingDocumentOrder: 0
+            ).isEmpty
+        )
+        #expect(
+            SearchTextFinder.matches(
+                in: "haystack",
+                term: "",
+                pageIndex: 0,
+                startingDocumentOrder: 0
+            ).isEmpty
+        )
+    }
+
+    @Test
     func readingAnchorUsesThirtyPercentFromVisualTopInFlippedViewport() {
         #expect(SearchReadingAnchor.pointY(visibleMinY: 100, visibleHeight: 900, isFlipped: true) == 370)
     }
