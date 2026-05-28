@@ -194,6 +194,7 @@ final class PDFSearchController {
         shouldAnchorNextMove = false
 
         applyVisibleHighlights()
+        ensureMiniOverlay()
         updateOverlayStatus()
         jumpToSelectedMatch(recordJump: true)
     }
@@ -293,9 +294,11 @@ final class PDFSearchController {
             return
         }
 
-        dismissOverlay(returnFocus: true)
         areMatchesVisible = true
         applyVisibleHighlights()
+        updateOverlayStatus()
+        overlay?.showMini(query: query.trimmingCharacters(in: .whitespacesAndNewlines))
+        pdfView?.focus()
         jumpToSelectedMatch(recordJump: true)
     }
 
@@ -320,6 +323,7 @@ final class PDFSearchController {
     private func hideMatches() {
         areMatchesVisible = false
         pdfView?.highlightedSelections = []
+        dismissOverlay(returnFocus: false)
         updateOverlayStatus()
     }
 
@@ -534,24 +538,42 @@ final class PDFSearchController {
     }
 
     private func updateOverlayStatus() {
-        let status: SearchCommandOverlayView.Status
+        overlay?.update(status: overlayStatus())
+    }
+
+    private func overlayStatus() -> SearchCommandOverlayView.Status {
         if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            status = .hint("type")
+            return .hint("type")
         } else if isSearchPending {
-            status = .hint("...")
+            return .hint("...")
         } else if results.isEmpty {
-            status = .error("no match")
+            return .error("no match")
         } else {
             let displayIndex = activeIndex ?? anchoredIndex(for: .next) ?? 0
-            status = .count(current: displayIndex + 1, total: results.count)
+            return .count(current: displayIndex + 1, total: results.count)
         }
+    }
 
-        overlay?.update(status: status)
+    private func ensureMiniOverlay() {
+        guard overlay == nil, let pdfView else { return }
+
+        let overlay = SearchCommandOverlayView(query: query)
+        overlay.frame = pdfView.bounds
+        overlay.autoresizingMask = [.width, .height]
+        pdfView.addSubview(overlay)
+        self.overlay = overlay
+        overlay.update(status: overlayStatus())
+        overlay.showMini(query: query.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 }
 
 @MainActor
 private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
+    private enum Presentation {
+        case editing
+        case mini
+    }
+
     enum Status {
         case hint(String)
         case error(String)
@@ -594,11 +616,16 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
     var onCancel: (() -> Void)?
 
     private let container = NSVisualEffectView()
+    private let miniContainer = NSVisualEffectView()
+    private let miniLabel = NSTextField(labelWithString: "")
     private let iconView = NSImageView()
     private let promptLabel = NSTextField(labelWithString: "/")
     private let textField = SearchCommandTextField()
     private let statusPill = NSVisualEffectView()
     private let statusLabel = NSTextField(labelWithString: "type")
+    private var presentation: Presentation = .editing
+    private var currentStatus: Status = .hint("type")
+    private var miniQuery = ""
 
     init(query: String) {
         super.init(frame: .zero)
@@ -608,11 +635,14 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
         configureTextField(query: query)
 
         addSubview(container)
+        addSubview(miniContainer)
         container.addSubview(iconView)
         container.addSubview(promptLabel)
         container.addSubview(textField)
         container.addSubview(statusPill)
         statusPill.addSubview(statusLabel)
+        miniContainer.addSubview(miniLabel)
+        updatePresentation(animated: false)
 
         alphaValue = 0
         NSAnimationContext.runAnimationGroup { context in
@@ -629,37 +659,57 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
         super.layout()
 
         let horizontalMargin: CGFloat = 20
-        let width = min(max(bounds.width * 0.42, 420), bounds.width - horizontalMargin * 2, 680)
-        let height: CGFloat = 40
+        let height: CGFloat = 44
+        let width = min(max(bounds.width * 0.46, 460), bounds.width - horizontalMargin * 2, 720)
         container.frame = NSRect(
             x: bounds.midX - width / 2,
-            y: 22,
+            y: 24,
             width: width,
             height: height
         )
 
         let centerY = container.bounds.midY
-        iconView.frame = NSRect(x: 15, y: centerY - 8, width: 16, height: 16)
-        promptLabel.frame = NSRect(x: iconView.frame.maxX + 9, y: centerY - 11, width: 16, height: 22)
+        iconView.frame = centeredFrame(x: 16, size: NSSize(width: 16, height: 16), in: container.bounds)
+        promptLabel.frame = centeredTextFrame(
+            x: iconView.frame.maxX + 10,
+            width: 16,
+            height: 22,
+            in: container.bounds
+        )
         statusLabel.sizeToFit()
-        let statusPillWidth = min(max(statusLabel.frame.width + 22, 58), 126)
+        let statusPillWidth = min(max(statusLabel.frame.width + 24, 62), 130)
         statusPill.frame = NSRect(
-            x: container.bounds.maxX - statusPillWidth - 10,
-            y: centerY - 13,
+            x: container.bounds.maxX - statusPillWidth - 12,
+            y: centerY - 14,
             width: statusPillWidth,
-            height: 26
+            height: 28
         )
         statusLabel.frame = NSRect(
-            x: 11,
-            y: 2,
-            width: statusPill.bounds.width - 22,
+            x: 12,
+            y: (statusPill.bounds.height - 22) / 2,
+            width: statusPill.bounds.width - 24,
             height: 22
         )
         textField.frame = NSRect(
-            x: promptLabel.frame.maxX + 8,
+            x: promptLabel.frame.maxX + 10,
             y: centerY - 12,
-            width: max(80, statusPill.frame.minX - promptLabel.frame.maxX - 18),
+            width: max(120, statusPill.frame.minX - promptLabel.frame.maxX - 22),
             height: 24
+        )
+
+        miniLabel.sizeToFit()
+        let miniWidth = min(max(miniLabel.frame.width + 34, 128), bounds.width - horizontalMargin * 2, 360)
+        miniContainer.frame = NSRect(
+            x: bounds.midX - miniWidth / 2,
+            y: 24,
+            width: miniWidth,
+            height: 34
+        )
+        miniLabel.frame = centeredTextFrame(
+            x: 17,
+            width: miniContainer.bounds.width - 34,
+            height: 22,
+            in: miniContainer.bounds
         )
     }
 
@@ -671,6 +721,7 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
 
     func focus() {
         layoutSubtreeIfNeeded()
+        showEditing()
 
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
@@ -683,10 +734,25 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
     }
 
     func update(status: Status) {
+        currentStatus = status
         statusLabel.stringValue = status.text
         statusLabel.textColor = status.color
         statusPill.layer?.borderColor = status.accentColor.cgColor
+        updateMiniLabel()
         needsLayout = true
+    }
+
+    func showMini(query: String) {
+        miniQuery = query
+        updateMiniLabel()
+        presentation = .mini
+        updatePresentation(animated: true)
+        needsLayout = true
+    }
+
+    private func showEditing() {
+        presentation = .editing
+        updatePresentation(animated: false)
     }
 
     func controlTextDidChange(_ notification: Notification) {
@@ -715,14 +781,27 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
         container.blendingMode = .withinWindow
         container.state = .active
         container.wantsLayer = true
-        container.layer?.backgroundColor = TokyoNight.panelElevated.withAlphaComponent(0.12).cgColor
-        container.layer?.borderColor = NSColor.white.withAlphaComponent(0.22).cgColor
+        container.layer?.backgroundColor = TokyoNight.panelElevated.withAlphaComponent(0.10).cgColor
+        container.layer?.borderColor = NSColor.white.withAlphaComponent(0.24).cgColor
         container.layer?.borderWidth = 1
-        container.layer?.cornerRadius = 12
+        container.layer?.cornerRadius = 14
         container.layer?.shadowColor = NSColor.black.cgColor
-        container.layer?.shadowOpacity = 0.16
-        container.layer?.shadowRadius = 18
+        container.layer?.shadowOpacity = 0.18
+        container.layer?.shadowRadius = 20
         container.layer?.shadowOffset = NSSize(width: 0, height: 6)
+
+        miniContainer.material = .hudWindow
+        miniContainer.blendingMode = .withinWindow
+        miniContainer.state = .active
+        miniContainer.wantsLayer = true
+        miniContainer.layer?.backgroundColor = TokyoNight.panelElevated.withAlphaComponent(0.12).cgColor
+        miniContainer.layer?.borderColor = NSColor.white.withAlphaComponent(0.24).cgColor
+        miniContainer.layer?.borderWidth = 1
+        miniContainer.layer?.cornerRadius = 17
+        miniContainer.layer?.shadowColor = NSColor.black.cgColor
+        miniContainer.layer?.shadowOpacity = 0.16
+        miniContainer.layer?.shadowRadius = 16
+        miniContainer.layer?.shadowOffset = NSSize(width: 0, height: 5)
     }
 
     private func configureLabels() {
@@ -736,6 +815,10 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
         statusLabel.font = .monospacedDigitSystemFont(ofSize: 12, weight: .semibold)
         statusLabel.textColor = TokyoNight.muted.withAlphaComponent(0.95)
         statusLabel.alignment = .center
+        miniLabel.font = .monospacedDigitSystemFont(ofSize: 12, weight: .semibold)
+        miniLabel.textColor = TokyoNight.foreground.withAlphaComponent(0.94)
+        miniLabel.alignment = .center
+        miniLabel.lineBreakMode = .byTruncatingMiddle
 
         statusPill.material = .hudWindow
         statusPill.blendingMode = .withinWindow
@@ -775,6 +858,59 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
         textField.onCancel = { [weak self] in
             self?.onCancel?()
         }
+    }
+
+    private func updateMiniLabel() {
+        let queryText = miniQuery.isEmpty ? textField.stringValue : miniQuery
+        let statusText = currentStatus.text
+        miniLabel.stringValue = queryText.isEmpty ? statusText : "\(queryText)  \(statusText)"
+    }
+
+    private func updatePresentation(animated: Bool) {
+        let showEditing = presentation == .editing
+        let changes = {
+            self.container.alphaValue = showEditing ? 1 : 0
+            self.miniContainer.alphaValue = showEditing ? 0 : 1
+        }
+
+        container.isHidden = false
+        miniContainer.isHidden = false
+        guard animated else {
+            changes()
+            container.isHidden = !showEditing
+            miniContainer.isHidden = showEditing
+            return
+        }
+
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.12
+            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            changes()
+        } completionHandler: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.container.isHidden = !showEditing
+                self.miniContainer.isHidden = showEditing
+            }
+        }
+    }
+
+    private func centeredFrame(x: CGFloat, size: NSSize, in bounds: NSRect) -> NSRect {
+        NSRect(
+            x: x,
+            y: bounds.midY - size.height / 2,
+            width: size.width,
+            height: size.height
+        )
+    }
+
+    private func centeredTextFrame(x: CGFloat, width: CGFloat, height: CGFloat, in bounds: NSRect) -> NSRect {
+        NSRect(
+            x: x,
+            y: bounds.midY - height / 2,
+            width: width,
+            height: height
+        )
     }
 }
 
