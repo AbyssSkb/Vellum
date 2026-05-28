@@ -107,6 +107,42 @@ struct SearchCommandTests {
     }
 
     @Test
+    func anchoredMoveAdvancesWhenAnchorResolvesToCurrentNextResult() {
+        let index = SearchResultNavigator.resolvedAnchoredMoveIndex(
+            anchoredIndex: 2,
+            activeIndex: 2,
+            resultCount: 5,
+            direction: .next
+        )
+
+        #expect(index == 3)
+    }
+
+    @Test
+    func anchoredMoveAdvancesWhenAnchorResolvesToCurrentPreviousResult() {
+        let index = SearchResultNavigator.resolvedAnchoredMoveIndex(
+            anchoredIndex: 2,
+            activeIndex: 2,
+            resultCount: 5,
+            direction: .previous
+        )
+
+        #expect(index == 1)
+    }
+
+    @Test
+    func anchoredMoveUsesRecomputedAnchorWhenItChanged() {
+        let index = SearchResultNavigator.resolvedAnchoredMoveIndex(
+            anchoredIndex: 4,
+            activeIndex: 2,
+            resultCount: 5,
+            direction: .next
+        )
+
+        #expect(index == 4)
+    }
+
+    @Test
     func resultLocationsSortByPageReadingPositionAndX() {
         let locations = [
             SearchResultLocation(

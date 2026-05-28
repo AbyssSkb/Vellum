@@ -120,12 +120,35 @@ struct SearchAnchor: Equatable {
 }
 
 enum SearchResultNavigator {
+    enum Direction {
+        case next
+        case previous
+    }
+
     static func firstIndex(atOrAfter anchor: SearchAnchor, in locations: [SearchResultLocation]) -> Int? {
         locations.firstIndex { isAtOrAfterAnchor($0, anchor: anchor) }
     }
 
     static func lastIndex(beforeOrAt anchor: SearchAnchor, in locations: [SearchResultLocation]) -> Int? {
         locations.lastIndex { isBeforeOrAtAnchor($0, anchor: anchor) }
+    }
+
+    static func resolvedAnchoredMoveIndex(
+        anchoredIndex: Int?,
+        activeIndex: Int?,
+        resultCount: Int,
+        direction: Direction
+    ) -> Int? {
+        guard resultCount > 0 else { return nil }
+        guard let anchoredIndex else { return activeIndex ?? 0 }
+        guard anchoredIndex == activeIndex else { return anchoredIndex }
+
+        switch direction {
+        case .next:
+            return (anchoredIndex + 1) % resultCount
+        case .previous:
+            return (anchoredIndex + resultCount - 1) % resultCount
+        }
     }
 
     private static func isAtOrAfterAnchor(_ location: SearchResultLocation, anchor: SearchAnchor) -> Bool {
@@ -203,6 +226,15 @@ final class PDFSearchController {
         case previous
     }
 
+    private func navigatorDirection(for direction: Direction) -> SearchResultNavigator.Direction {
+        switch direction {
+        case .next:
+            return .next
+        case .previous:
+            return .previous
+        }
+    }
+
     private weak var pdfView: VellumPDFView?
     private var overlay: SearchCommandOverlayView?
     private var query = ""
@@ -271,7 +303,12 @@ final class PDFSearchController {
 
         areMatchesVisible = true
         if shouldAnchorNextMove {
-            activeIndex = anchoredIndex(for: direction, materializeLocations: true) ?? activeIndex ?? 0
+            activeIndex = SearchResultNavigator.resolvedAnchoredMoveIndex(
+                anchoredIndex: anchoredIndex(for: direction, materializeLocations: true),
+                activeIndex: activeIndex,
+                resultCount: results.count,
+                direction: navigatorDirection(for: direction)
+            )
         } else {
             let current = activeIndex ?? anchoredIndex(for: direction, materializeLocations: true) ?? 0
             switch direction {
