@@ -536,11 +536,11 @@ final class PDFSearchController {
     private func updateOverlayStatus() {
         let status: SearchCommandOverlayView.Status
         if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            status = .hint("Type to search")
+            status = .hint("type")
         } else if isSearchPending {
-            status = .hint("Searching")
+            status = .hint("...")
         } else if results.isEmpty {
-            status = .error("No matches")
+            status = .error("no match")
         } else {
             let displayIndex = activeIndex ?? anchoredIndex(for: .next) ?? 0
             status = .count(current: displayIndex + 1, total: results.count)
@@ -586,7 +586,8 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
     private let iconView = NSImageView()
     private let promptLabel = NSTextField(labelWithString: "/")
     private let textField = SearchCommandTextField()
-    private let statusLabel = NSTextField(labelWithString: "Type to search")
+    private let statusLabel = NSTextField(labelWithString: "type")
+    private let divider = NSView()
 
     init(query: String) {
         super.init(frame: .zero)
@@ -599,6 +600,7 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
         container.addSubview(iconView)
         container.addSubview(promptLabel)
         container.addSubview(textField)
+        container.addSubview(divider)
         container.addSubview(statusLabel)
 
         alphaValue = 0
@@ -615,29 +617,36 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
     override func layout() {
         super.layout()
 
-        let width = min(max(bounds.width * 0.44, 380), 640)
-        let height: CGFloat = 46
+        let horizontalMargin: CGFloat = 20
+        let width = min(max(bounds.width * 0.42, 420), bounds.width - horizontalMargin * 2, 680)
+        let height: CGFloat = 40
         container.frame = NSRect(
             x: bounds.midX - width / 2,
-            y: bounds.maxY - height - 18,
+            y: 22,
             width: width,
             height: height
         )
 
-        iconView.frame = NSRect(x: 15, y: 14, width: 18, height: 18)
-        promptLabel.frame = NSRect(x: iconView.frame.maxX + 10, y: 12, width: 16, height: 22)
+        iconView.frame = NSRect(x: 15, y: 12, width: 16, height: 16)
+        promptLabel.frame = NSRect(x: iconView.frame.maxX + 9, y: 9, width: 16, height: 22)
         statusLabel.sizeToFit()
-        let statusWidth = min(max(statusLabel.frame.width, 64), 128)
+        let statusWidth = min(max(statusLabel.frame.width, 46), 112)
         statusLabel.frame = NSRect(
-            x: container.bounds.maxX - statusWidth - 16,
-            y: 12,
+            x: container.bounds.maxX - statusWidth - 14,
+            y: 9,
             width: statusWidth,
             height: 22
         )
-        textField.frame = NSRect(
-            x: promptLabel.frame.maxX + 10,
+        divider.frame = NSRect(
+            x: statusLabel.frame.minX - 12,
             y: 11,
-            width: max(80, statusLabel.frame.minX - promptLabel.frame.maxX - 22),
+            width: 1,
+            height: 18
+        )
+        textField.frame = NSRect(
+            x: promptLabel.frame.maxX + 8,
+            y: 8,
+            width: max(80, divider.frame.minX - promptLabel.frame.maxX - 18),
             height: 24
         )
     }
@@ -693,38 +702,41 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
         container.blendingMode = .withinWindow
         container.state = .active
         container.wantsLayer = true
-        container.layer?.backgroundColor = TokyoNight.panelElevated.withAlphaComponent(0.74).cgColor
-        container.layer?.borderColor = TokyoNight.blue.withAlphaComponent(0.24).cgColor
+        container.layer?.backgroundColor = TokyoNight.panelElevated.withAlphaComponent(0.32).cgColor
+        container.layer?.borderColor = TokyoNight.cyan.withAlphaComponent(0.34).cgColor
         container.layer?.borderWidth = 1
-        container.layer?.cornerRadius = 14
+        container.layer?.cornerRadius = 12
         container.layer?.shadowColor = NSColor.black.cgColor
-        container.layer?.shadowOpacity = 0.22
-        container.layer?.shadowRadius = 18
-        container.layer?.shadowOffset = NSSize(width: 0, height: -6)
+        container.layer?.shadowOpacity = 0.18
+        container.layer?.shadowRadius = 16
+        container.layer?.shadowOffset = NSSize(width: 0, height: 6)
     }
 
     private func configureLabels() {
         iconView.image = NSImage(systemSymbolName: "magnifyingglass", accessibilityDescription: nil)
-        iconView.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 15, weight: .medium)
-        iconView.contentTintColor = TokyoNight.cyan.withAlphaComponent(0.92)
+        iconView.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 13, weight: .medium)
+        iconView.contentTintColor = TokyoNight.cyan.withAlphaComponent(0.78)
 
-        promptLabel.font = .monospacedSystemFont(ofSize: 14, weight: .semibold)
-        promptLabel.textColor = TokyoNight.muted
+        promptLabel.font = .monospacedSystemFont(ofSize: 14, weight: .medium)
+        promptLabel.textColor = TokyoNight.cyan.withAlphaComponent(0.88)
 
-        statusLabel.font = .monospacedDigitSystemFont(ofSize: 12, weight: .medium)
+        statusLabel.font = .monospacedDigitSystemFont(ofSize: 12, weight: .semibold)
         statusLabel.textColor = TokyoNight.muted.withAlphaComponent(0.95)
         statusLabel.alignment = .right
+
+        divider.wantsLayer = true
+        divider.layer?.backgroundColor = TokyoNight.blue.withAlphaComponent(0.22).cgColor
     }
 
     private func configureTextField(query: String) {
         textField.stringValue = query
-        textField.font = .systemFont(ofSize: 15, weight: .medium)
+        textField.font = .systemFont(ofSize: 14, weight: .medium)
         textField.textColor = TokyoNight.foreground
         textField.placeholderAttributedString = NSAttributedString(
             string: "Search",
             attributes: [
                 .foregroundColor: TokyoNight.muted,
-                .font: NSFont.systemFont(ofSize: 15, weight: .regular)
+                .font: NSFont.systemFont(ofSize: 14, weight: .regular)
             ]
         )
         textField.isBordered = false
