@@ -60,14 +60,16 @@ jobs:
       - name: Create release disk image
         shell: bash
         run: |
-          cd dist
+          mkdir -p dist/dmg-root
+          cp -R dist/Vellum.app dist/dmg-root/
+          ln -s /Applications dist/dmg-root/Applications
           hdiutil create \
             -volname Vellum \
-            -srcfolder Vellum.app \
+            -srcfolder dist/dmg-root \
             -ov \
             -format UDZO \
-            "${{ steps.version.outputs.archive_name }}.dmg"
-          shasum -a 256 "${{ steps.version.outputs.archive_name }}.dmg" > "${{ steps.version.outputs.archive_name }}.dmg.sha256"
+            "dist/${{ steps.version.outputs.archive_name }}.dmg"
+          shasum -a 256 "dist/${{ steps.version.outputs.archive_name }}.dmg" > "dist/${{ steps.version.outputs.archive_name }}.dmg.sha256"
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2

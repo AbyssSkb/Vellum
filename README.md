@@ -17,6 +17,8 @@ Vellum is a native macOS PDF reader shaped around fast, keyboard-first reading. 
 
 ## Quick Start
 
+[Download the latest release](https://github.com/AbyssSkb/Vellum/releases/latest), open the DMG, and launch Vellum.
+
 Open a PDF, then use the reading keys:
 
 | Key | Action |
@@ -36,7 +38,10 @@ Open a PDF, then use the reading keys:
 Read the full guide:
 
 - [User Guide](docs/USER_GUIDE.md)
-- [中文使用文档](docs/USER_GUIDE.zh-CN.md)
+
+## Feedback
+
+If you run into any problem while using Vellum, please feel welcome to send feedback through [GitHub Issues](https://github.com/AbyssSkb/Vellum/issues).
 
 ## Screenshots
 

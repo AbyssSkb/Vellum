@@ -17,6 +17,8 @@ Vellum 是一款原生 macOS PDF 阅读器，围绕快速、键盘优先的阅�
 
 ## 快速开始
 
+[下载最新版本](https://github.com/AbyssSkb/Vellum/releases/latest)，打开 DMG 后启动 Vellum。
+
 打开 PDF 后，可以先记住这些常用按键：
 
 | 按键 | 功能 |
@@ -36,7 +38,10 @@ Vellum 是一款原生 macOS PDF 阅读器，围绕快速、键盘优先的阅�
 阅读完整文档：
 
 - [中文使用文档](docs/USER_GUIDE.zh-CN.md)
-- [User Guide](docs/USER_GUIDE.md)
+
+## 反馈
+
+如果使用中遇到任何问题，欢迎通过 [GitHub Issues](https://github.com/AbyssSkb/Vellum/issues) 向我反馈。
 
 ## 截图
 
