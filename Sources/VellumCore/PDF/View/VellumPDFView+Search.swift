@@ -576,6 +576,17 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
                 return TokyoNight.cyan
             }
         }
+
+        var accentColor: NSColor {
+            switch self {
+            case .hint:
+                return TokyoNight.blue.withAlphaComponent(0.18)
+            case .error:
+                return TokyoNight.red.withAlphaComponent(0.24)
+            case .count:
+                return TokyoNight.cyan.withAlphaComponent(0.24)
+            }
+        }
     }
 
     var onQueryChanged: ((String) -> Void)?
@@ -586,8 +597,8 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
     private let iconView = NSImageView()
     private let promptLabel = NSTextField(labelWithString: "/")
     private let textField = SearchCommandTextField()
+    private let statusPill = NSVisualEffectView()
     private let statusLabel = NSTextField(labelWithString: "type")
-    private let divider = NSView()
 
     init(query: String) {
         super.init(frame: .zero)
@@ -600,8 +611,8 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
         container.addSubview(iconView)
         container.addSubview(promptLabel)
         container.addSubview(textField)
-        container.addSubview(divider)
-        container.addSubview(statusLabel)
+        container.addSubview(statusPill)
+        statusPill.addSubview(statusLabel)
 
         alphaValue = 0
         NSAnimationContext.runAnimationGroup { context in
@@ -627,26 +638,27 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
             height: height
         )
 
-        iconView.frame = NSRect(x: 15, y: 12, width: 16, height: 16)
-        promptLabel.frame = NSRect(x: iconView.frame.maxX + 9, y: 9, width: 16, height: 22)
+        let centerY = container.bounds.midY
+        iconView.frame = NSRect(x: 15, y: centerY - 8, width: 16, height: 16)
+        promptLabel.frame = NSRect(x: iconView.frame.maxX + 9, y: centerY - 11, width: 16, height: 22)
         statusLabel.sizeToFit()
-        let statusWidth = min(max(statusLabel.frame.width, 46), 112)
-        statusLabel.frame = NSRect(
-            x: container.bounds.maxX - statusWidth - 14,
-            y: 9,
-            width: statusWidth,
-            height: 22
+        let statusPillWidth = min(max(statusLabel.frame.width + 22, 58), 126)
+        statusPill.frame = NSRect(
+            x: container.bounds.maxX - statusPillWidth - 10,
+            y: centerY - 13,
+            width: statusPillWidth,
+            height: 26
         )
-        divider.frame = NSRect(
-            x: statusLabel.frame.minX - 12,
-            y: 11,
-            width: 1,
-            height: 18
+        statusLabel.frame = NSRect(
+            x: 11,
+            y: 2,
+            width: statusPill.bounds.width - 22,
+            height: 22
         )
         textField.frame = NSRect(
             x: promptLabel.frame.maxX + 8,
-            y: 8,
-            width: max(80, divider.frame.minX - promptLabel.frame.maxX - 18),
+            y: centerY - 12,
+            width: max(80, statusPill.frame.minX - promptLabel.frame.maxX - 18),
             height: 24
         )
     }
@@ -673,6 +685,7 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
     func update(status: Status) {
         statusLabel.stringValue = status.text
         statusLabel.textColor = status.color
+        statusPill.layer?.borderColor = status.accentColor.cgColor
         needsLayout = true
     }
 
@@ -702,13 +715,13 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
         container.blendingMode = .withinWindow
         container.state = .active
         container.wantsLayer = true
-        container.layer?.backgroundColor = TokyoNight.panelElevated.withAlphaComponent(0.32).cgColor
-        container.layer?.borderColor = TokyoNight.cyan.withAlphaComponent(0.34).cgColor
+        container.layer?.backgroundColor = TokyoNight.panelElevated.withAlphaComponent(0.12).cgColor
+        container.layer?.borderColor = NSColor.white.withAlphaComponent(0.22).cgColor
         container.layer?.borderWidth = 1
         container.layer?.cornerRadius = 12
         container.layer?.shadowColor = NSColor.black.cgColor
-        container.layer?.shadowOpacity = 0.18
-        container.layer?.shadowRadius = 16
+        container.layer?.shadowOpacity = 0.16
+        container.layer?.shadowRadius = 18
         container.layer?.shadowOffset = NSSize(width: 0, height: 6)
     }
 
@@ -722,10 +735,16 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
 
         statusLabel.font = .monospacedDigitSystemFont(ofSize: 12, weight: .semibold)
         statusLabel.textColor = TokyoNight.muted.withAlphaComponent(0.95)
-        statusLabel.alignment = .right
+        statusLabel.alignment = .center
 
-        divider.wantsLayer = true
-        divider.layer?.backgroundColor = TokyoNight.blue.withAlphaComponent(0.22).cgColor
+        statusPill.material = .hudWindow
+        statusPill.blendingMode = .withinWindow
+        statusPill.state = .active
+        statusPill.wantsLayer = true
+        statusPill.layer?.backgroundColor = TokyoNight.backgroundDeep.withAlphaComponent(0.22).cgColor
+        statusPill.layer?.borderColor = NSColor.white.withAlphaComponent(0.16).cgColor
+        statusPill.layer?.borderWidth = 1
+        statusPill.layer?.cornerRadius = 13
     }
 
     private func configureTextField(query: String) {
