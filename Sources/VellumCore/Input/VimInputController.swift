@@ -20,7 +20,8 @@ struct VimInputController {
     mutating func handleKeyDown(
         _ key: String,
         isRepeat: Bool,
-        hasNavigableTextSelection: Bool
+        hasNavigableTextSelection: Bool,
+        hasTextActionTarget: Bool
     ) -> VimInputAction {
         if let action = handleUppercaseCommand(key) {
             return action
@@ -30,10 +31,15 @@ struct VimInputController {
             if isRepeat {
                 return VimKeyMap.isHandledKey(
                     key,
-                    hasNavigableTextSelection: hasNavigableTextSelection
+                    hasNavigableTextSelection: hasNavigableTextSelection,
+                    hasTextActionTarget: hasTextActionTarget
                 ) ? .handled : .ignored
             }
-            return handleKey(key, hasNavigableTextSelection: hasNavigableTextSelection)
+            return handleKey(
+                key,
+                hasNavigableTextSelection: hasNavigableTextSelection,
+                hasTextActionTarget: hasTextActionTarget
+            )
         }
 
         let normalizedKey = VimKeyMap.normalizedContinuousKey(key)
@@ -52,7 +58,11 @@ struct VimInputController {
         return .stopContinuousKey
     }
 
-    mutating func handleKey(_ key: String, hasNavigableTextSelection: Bool = true) -> VimInputAction {
+    mutating func handleKey(
+        _ key: String,
+        hasNavigableTextSelection: Bool = true,
+        hasTextActionTarget: Bool = true
+    ) -> VimInputAction {
         if state.handleNumericPrefixKey(key) {
             return .handled
         }
@@ -72,7 +82,7 @@ struct VimInputController {
         }
 
         switch key {
-        case "y" where !hasNavigableTextSelection:
+        case "y" where !hasTextActionTarget:
             state.clearPendingInput()
             return .ignored
         case "g":
@@ -92,7 +102,11 @@ struct VimInputController {
 
             state.numericPrefix = ""
             guard let fallback = VimKeyMap.lowercaseFallback(for: key) else { return .ignored }
-            return handleKey(fallback, hasNavigableTextSelection: hasNavigableTextSelection)
+            return handleKey(
+                fallback,
+                hasNavigableTextSelection: hasNavigableTextSelection,
+                hasTextActionTarget: hasTextActionTarget
+            )
         }
     }
 

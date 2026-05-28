@@ -17,17 +17,22 @@ enum VimKeyMap {
         }
     }
 
-    static func isHandledKey(_ key: String, hasNavigableTextSelection: Bool) -> Bool {
+    static func isHandledKey(
+        _ key: String,
+        hasNavigableTextSelection: Bool,
+        hasTextActionTarget: Bool
+    ) -> Bool {
         switch key {
-        case "g", "G", "H", "L", "O", "N", "\t", "/", "a", "c", "j", "k", "d", "u", "h", "l", "m", "n", " ", "f", "b", "+", "=", "-", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "z", "o", "t", "x", "]", "[":
+        case "g", "G", "H", "L", "O", "N", "\t", "/", "a", "c", "j", "k", "d", "u", "h", "l", "m", "n", " ", "f", "b", "v", "+", "=", "-", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "z", "o", "t", "x", "]", "[":
             return true
         case "w", "e", "y":
-            return hasNavigableTextSelection
+            return key == "y" ? hasTextActionTarget : hasNavigableTextSelection
         default:
             let lowered = key.lowercased()
             return lowered != key && isHandledKey(
                 lowered,
-                hasNavigableTextSelection: hasNavigableTextSelection
+                hasNavigableTextSelection: hasNavigableTextSelection,
+                hasTextActionTarget: hasTextActionTarget
             )
         }
     }
@@ -37,7 +42,7 @@ enum VimKeyMap {
         guard lowered != key else { return nil }
 
         switch lowered {
-        case "a", "c", "j", "k", "d", "u", "h", "l", "m", "f", "b", "w", "e", "n", "o", "t", "x", "y", "z":
+        case "a", "c", "j", "k", "d", "u", "h", "l", "m", "f", "b", "v", "w", "e", "n", "o", "t", "x", "y", "z":
             return lowered
         default:
             return nil
@@ -80,6 +85,8 @@ enum VimKeyMap {
             return .cycleHighlightColor
         case "m":
             return .highlightSelection
+        case "v":
+            return .materializeSearchSelection
         case "y":
             return .copySelection
         case " ", "f":

@@ -48,6 +48,8 @@ struct VimCommandDispatcher {
             target.searchNext()
         case .searchPrevious:
             target.searchPrevious()
+        case .materializeSearchSelection:
+            target.materializeSearchSelection()
         case .toggleOutline:
             target.toggleOutlineSidebar()
         case .copySelection:
@@ -88,6 +90,7 @@ protocol VimCommandTarget {
     func beginSearch()
     func searchNext()
     func searchPrevious()
+    func materializeSearchSelection()
     func toggleOutlineSidebar()
     func copySelection()
     func highlightSelection()

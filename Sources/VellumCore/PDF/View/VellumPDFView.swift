@@ -36,6 +36,10 @@ final class VellumPDFView: PDFView {
         }
     }
 
+    var hasSearchTextTarget: Bool {
+        searchController?.hasTextTarget == true
+    }
+
     var hasAnyTextSelection: Bool {
         currentSelection != nil
     }
@@ -58,14 +62,12 @@ final class VellumPDFView: PDFView {
         let key = rawKey.lowercased()
 
         if key == "\u{1b}" {
-            let hasSearchHighlights = searchController?.hasVisibleHighlights == true
-            guard hasAnyTextSelection || hasSearchHighlights else { return false }
+            let canHandleSearchEscape = searchController?.canHandleEscape == true
+            guard hasAnyTextSelection || canHandleSearchEscape else { return false }
             if eventType == .keyDown {
                 if hasAnyTextSelection {
                     clearTextSelectionForVimNavigation()
-                }
-                if hasSearchHighlights {
-                    searchController?.clear()
+                } else if searchController?.handleEscape() == true {
                     focus()
                 }
             }
@@ -122,11 +124,18 @@ final class VellumPDFView: PDFView {
     }
 
     func vimCopySelection() {
-        guard let selectedText = currentSelection?.string?.nilIfEmpty else { return }
+        if let selection = currentSelection,
+           let selectedText = selection.string?.nilIfEmpty {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(selectedText, forType: .string)
+            clearTextSelectionForVimNavigation()
+            return
+        }
+
+        guard let selectedText = searchController?.activeSearchSelection?.string?.nilIfEmpty else { return }
 
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(selectedText, forType: .string)
-        clearTextSelectionForVimNavigation()
     }
 
     override func keyDown(with event: NSEvent) {
@@ -150,6 +159,7 @@ final class VellumPDFView: PDFView {
 
     override func mouseDown(with event: NSEvent) {
         isMouseSelectingText = true
+        searchController?.markReaderNavigated()
         textSelectionNavigationState = nil
         hideAIExplanationPopover()
         super.mouseDown(with: event)
@@ -157,8 +167,14 @@ final class VellumPDFView: PDFView {
 
     override func mouseDragged(with event: NSEvent) {
         isMouseSelectingText = true
+        searchController?.markReaderNavigated()
         hideAIExplanationPopover()
         super.mouseDragged(with: event)
+    }
+
+    override func scrollWheel(with event: NSEvent) {
+        searchController?.markReaderNavigated()
+        super.scrollWheel(with: event)
     }
 
     override func mouseUp(with event: NSEvent) {

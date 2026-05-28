@@ -163,11 +163,16 @@ final class KeyboardController {
             return true
         }
 
+        let hasNavigableTextSelection = delegate?.activeReaderController?.hasNavigableTextSelection == true
+        let hasTextActionTarget = hasNavigableTextSelection
+            || delegate?.activeReaderController?.hasSearchTextTarget == true
+
         return applyVimInputAction(
             vimInput.handleKeyDown(
                 key,
                 isRepeat: isRepeat,
-                hasNavigableTextSelection: delegate?.activeReaderController?.hasNavigableTextSelection == true
+                hasNavigableTextSelection: hasNavigableTextSelection,
+                hasTextActionTarget: hasTextActionTarget
             )
         )
     }

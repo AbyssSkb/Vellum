@@ -3,6 +3,7 @@ import PDFKit
 
 extension VellumPDFView {
     func vimGoToFirstPage() {
+        searchController?.markReaderNavigated()
         cancelPendingRestore()
         recordJumpSource()
         stopScrollAnimation()
@@ -14,6 +15,7 @@ extension VellumPDFView {
     }
 
     func vimGoToLastPage() {
+        searchController?.markReaderNavigated()
         cancelPendingRestore()
         recordJumpSource()
         stopScrollAnimation()
@@ -30,6 +32,7 @@ extension VellumPDFView {
         let pageIndex = min(max(pageNumber - 1, 0), document.pageCount - 1)
         guard let page = document.page(at: pageIndex) else { return }
 
+        searchController?.markReaderNavigated()
         cancelPendingRestore()
         recordJumpSource()
         stopScrollAnimation()
@@ -45,6 +48,7 @@ extension VellumPDFView {
     func vimGoToDestination(_ destination: PDFDestination) {
         let horizontalOrigin = currentHorizontalOrigin()
 
+        searchController?.markReaderNavigated()
         cancelPendingRestore()
         recordJumpSource()
         stopScrollAnimation()
@@ -65,6 +69,7 @@ extension VellumPDFView {
     func vimJumpBack() {
         guard let targetSnapshot = jumpBackStack.popLast() else { return }
 
+        searchController?.markReaderNavigated()
         cancelPendingRestore()
         if let current = self.snapshot() {
             jumpForwardStack.append(current)
@@ -77,6 +82,7 @@ extension VellumPDFView {
     func vimJumpForward() {
         guard let targetSnapshot = jumpForwardStack.popLast() else { return }
 
+        searchController?.markReaderNavigated()
         cancelPendingRestore()
         if let current = self.snapshot() {
             jumpBackStack.append(current)

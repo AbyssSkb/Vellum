@@ -48,6 +48,7 @@ struct VimCommandDispatcherTests {
         dispatcher.perform(.beginSearch, on: target)
         dispatcher.perform(.searchNext, on: target)
         dispatcher.perform(.searchPrevious, on: target)
+        dispatcher.perform(.materializeSearchSelection, on: target)
 
         #expect(target.actions == [
             .scroll(x: 0, y: -VimCommandMetrics.lineScrollDelta),
@@ -65,7 +66,8 @@ struct VimCommandDispatcherTests {
             .jumpForward,
             .beginSearch,
             .searchNext,
-            .searchPrevious
+            .searchPrevious,
+            .materializeSearchSelection
         ])
     }
 
@@ -166,6 +168,10 @@ private final class RecordingVimCommandTarget: VimCommandTarget {
         actions.append(.searchPrevious)
     }
 
+    func materializeSearchSelection() {
+        actions.append(.materializeSearchSelection)
+    }
+
     func toggleOutlineSidebar() {
         actions.append(.toggleOutline)
     }
@@ -215,6 +221,7 @@ private final class RecordingVimCommandTarget: VimCommandTarget {
         case beginSearch
         case searchNext
         case searchPrevious
+        case materializeSearchSelection
         case toggleOutline
         case copySelection
         case highlightSelection

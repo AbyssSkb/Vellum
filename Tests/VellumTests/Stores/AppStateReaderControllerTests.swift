@@ -25,6 +25,7 @@ struct AppStateReaderControllerTests {
         appState.beginSearch()
         appState.searchNext()
         appState.searchPrevious()
+        appState.materializeSearchSelection()
         appState.copySelection()
         appState.highlightSelection()
         appState.explainHighlightSelection()
@@ -43,6 +44,7 @@ struct AppStateReaderControllerTests {
             .beginSearch,
             .searchNext,
             .searchPrevious,
+            .materializeSearchSelection,
             .copySelection,
             .highlightSelection,
             .explainHighlightSelection,
@@ -111,6 +113,7 @@ struct AppStateReaderControllerTests {
 private final class RecordingReaderController: ReaderController {
     var isAIInteractionActive = false
     var hasNavigableTextSelection = false
+    var hasSearchTextTarget = false
     var isPageOverviewActive = false
     private let savedSnapshot: ReaderSnapshot?
     private(set) var actions: [Action] = []
@@ -203,6 +206,10 @@ private final class RecordingReaderController: ReaderController {
         actions.append(.searchPrevious)
     }
 
+    func vimMaterializeSearchSelection() {
+        actions.append(.materializeSearchSelection)
+    }
+
     func vimCopySelection() {
         actions.append(.copySelection)
     }
@@ -243,6 +250,7 @@ private final class RecordingReaderController: ReaderController {
         case beginSearch
         case searchNext
         case searchPrevious
+        case materializeSearchSelection
         case copySelection
         case highlightSelection
         case explainHighlightSelection

@@ -2,7 +2,8 @@
 import PDFKit
 extension VellumPDFView {
     func vimHighlightSelection(color: NSColor) {
-        guard let selection = currentSelection else {
+        let usedSearchSelection = currentSelection == nil
+        guard let selection = currentSelection ?? searchController?.activeSearchSelection else {
             NSSound.beep()
             return
         }
@@ -13,7 +14,12 @@ extension VellumPDFView {
             return
         }
 
-        clearSelection()
+        if currentSelection != nil {
+            clearSelection()
+        }
+        if usedSearchSelection {
+            searchController?.hideMatchesAfterTextAction()
+        }
         textSelectionNavigationState = nil
         needsDisplay = true
         persistAnnotationsIfPossible()
@@ -52,7 +58,8 @@ extension VellumPDFView {
     }
 
     func vimDeleteHighlightsForSelection() -> Bool {
-        guard let selection = currentSelection else { return false }
+        let usedSearchSelection = currentSelection == nil
+        guard let selection = currentSelection ?? searchController?.activeSearchSelection else { return false }
 
         let selectionsByPage = highlightSelectionBoundsByPage(for: selection)
         var didRemoveHighlight = false
@@ -69,14 +76,19 @@ extension VellumPDFView {
             return true
         }
 
-        clearSelection()
+        if currentSelection != nil {
+            clearSelection()
+        }
+        if usedSearchSelection {
+            searchController?.hideMatchesAfterTextAction()
+        }
         needsDisplay = true
         persistAnnotationsIfPossible()
         return true
     }
 
     func vimExplainSelectedHighlight() {
-        guard let selection = currentSelection,
+        guard let selection = currentSelection ?? searchController?.activeSearchSelection,
               let selectedText = selection.string?
                 .trimmingCharacters(in: .whitespacesAndNewlines),
               !selectedText.isEmpty else {

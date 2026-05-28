@@ -3,6 +3,7 @@ import PDFKit
 extension VellumPDFView {
     func vimScroll(x: CGFloat, y: CGFloat) {
         guard let scrollView = pdfScrollView else { return }
+        searchController?.markReaderNavigated()
         cancelPendingRestore()
         let clipView = scrollView.contentView
         let documentSize = scrollView.documentView?.bounds.size ?? .zero
@@ -34,6 +35,7 @@ extension VellumPDFView {
               let pageState = currentPageState(),
               let targetPage = document.page(at: pageState.pageIndex + delta) else { return }
 
+        searchController?.markReaderNavigated()
         cancelPendingRestore()
         stopScrollAnimation()
         stopZoomState()

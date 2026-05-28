@@ -21,6 +21,7 @@ enum VimCommand: Equatable {
     case beginSearch
     case searchNext
     case searchPrevious
+    case materializeSearchSelection
     case toggleOutline
     case copySelection
     case highlightSelection

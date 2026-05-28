@@ -79,6 +79,64 @@ struct SearchCommandTests {
     }
 
     @Test
+    func resultNavigatorChoosesPreviousResultFromAnchor() {
+        let locations = [
+            SearchResultLocation(
+                pageIndex: 1,
+                boundsInPage: NSRect(x: 40, y: 760, width: 40, height: 18),
+                documentOrder: 0
+            ),
+            SearchResultLocation(
+                pageIndex: 1,
+                boundsInPage: NSRect(x: 40, y: 300, width: 40, height: 18),
+                documentOrder: 1
+            ),
+            SearchResultLocation(
+                pageIndex: 2,
+                boundsInPage: NSRect(x: 40, y: 760, width: 40, height: 18),
+                documentOrder: 2
+            )
+        ]
+
+        let index = SearchResultNavigator.lastIndex(
+            beforeOrAt: SearchAnchor(pageIndex: 1, pointInPage: NSPoint(x: 0, y: 620)),
+            in: locations
+        )
+
+        #expect(index == 0)
+    }
+
+    @Test
+    func resultLocationsSortByPageReadingPositionAndX() {
+        let locations = [
+            SearchResultLocation(
+                pageIndex: 2,
+                boundsInPage: NSRect(x: 20, y: 700, width: 40, height: 18),
+                documentOrder: 3
+            ),
+            SearchResultLocation(
+                pageIndex: 1,
+                boundsInPage: NSRect(x: 140, y: 500, width: 40, height: 18),
+                documentOrder: 2
+            ),
+            SearchResultLocation(
+                pageIndex: 1,
+                boundsInPage: NSRect(x: 40, y: 500, width: 40, height: 18),
+                documentOrder: 1
+            ),
+            SearchResultLocation(
+                pageIndex: 1,
+                boundsInPage: NSRect(x: 20, y: 760, width: 40, height: 18),
+                documentOrder: 0
+            )
+        ]
+
+        let sorted = locations.sorted(by: SearchResultLocation.documentOrderSort)
+
+        #expect(sorted.map(\.documentOrder) == [0, 1, 2, 3])
+    }
+
+    @Test
     func fieldEditorCommandsMapEnterAndEscape() {
         #expect(
             SearchCommandEditingCommand.action(

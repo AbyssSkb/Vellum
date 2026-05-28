@@ -5,6 +5,7 @@ import PDFKit
 protocol ReaderController: AnyObject {
     var isAIInteractionActive: Bool { get }
     var hasNavigableTextSelection: Bool { get }
+    var hasSearchTextTarget: Bool { get }
     var isPageOverviewActive: Bool { get }
 
     func snapshot() -> ReaderSnapshot?
@@ -27,6 +28,7 @@ protocol ReaderController: AnyObject {
     func vimJumpForward()
     func vimSearchNext()
     func vimSearchPrevious()
+    func vimMaterializeSearchSelection()
     func vimCopySelection()
     func vimHighlightSelection(color: NSColor)
     func vimExplainSelectedHighlight()

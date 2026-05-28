@@ -49,6 +49,10 @@ extension AppState: VimCommandTarget {
         activeReaderController?.vimSearchPrevious()
     }
 
+    func materializeSearchSelection() {
+        activeReaderController?.vimMaterializeSearchSelection()
+    }
+
     func copySelection() {
         activeReaderController?.vimCopySelection()
     }

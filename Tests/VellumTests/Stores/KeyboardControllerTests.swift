@@ -107,6 +107,7 @@ private final class RecordingKeyboardDelegate: KeyboardControllerDelegate {
 private final class RecordingKeyboardReaderController: ReaderController {
     var isAIInteractionActive = false
     var hasNavigableTextSelection = false
+    var hasSearchTextTarget = false
     var isPageOverviewActive = false
     private(set) var actions: [Action] = []
 
@@ -161,6 +162,8 @@ private final class RecordingKeyboardReaderController: ReaderController {
     func vimSearchNext() {}
 
     func vimSearchPrevious() {}
+
+    func vimMaterializeSearchSelection() {}
 
     func vimCopySelection() {}
 
