@@ -114,6 +114,17 @@ enum VimKeyMap {
         }
     }
 
+    static func repeatableCommand(for key: String) -> VimCommand? {
+        switch key {
+        case "n":
+            return .searchNext
+        case "N":
+            return .searchPrevious
+        default:
+            return nil
+        }
+    }
+
     static func continuousCommand(for key: String) -> VimCommand? {
         switch key {
         case "j":

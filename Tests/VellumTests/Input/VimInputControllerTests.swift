@@ -63,4 +63,12 @@ struct VimInputControllerTests {
         #expect(input.handleKeyDown("N", isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .command(.searchPrevious))
         #expect(input.handleKeyDown("v", isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .command(.materializeSearchSelection))
     }
+
+    @Test
+    func searchNavigationRepeatsRouteAsCommands() {
+        var input = VimInputController()
+
+        #expect(input.handleKeyDown("n", isRepeat: true, hasNavigableTextSelection: false, hasTextActionTarget: false) == .command(.searchNext))
+        #expect(input.handleKeyDown("N", isRepeat: true, hasNavigableTextSelection: false, hasTextActionTarget: false) == .command(.searchPrevious))
+    }
 }

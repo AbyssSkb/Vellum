@@ -29,6 +29,10 @@ struct VimInputController {
 
         guard VimKeyMap.isContinuousKey(key) else {
             if isRepeat {
+                if let command = VimKeyMap.repeatableCommand(for: key) {
+                    state.clearPendingInput()
+                    return .command(command)
+                }
                 return VimKeyMap.isHandledKey(
                     key,
                     hasNavigableTextSelection: hasNavigableTextSelection,

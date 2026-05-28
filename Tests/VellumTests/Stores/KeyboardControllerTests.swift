@@ -64,6 +64,23 @@ struct KeyboardControllerTests {
     }
 
     @Test
+    func repeatedNSearchKeyRoutesEveryEvent() {
+        let controller = KeyboardController(
+            installsKeyMonitor: false,
+            installsOpenURLObserver: false
+        )
+        let delegate = RecordingKeyboardDelegate()
+        controller.delegate = delegate
+
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "n", keyCode: 45)))
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "n", keyCode: 45, isRepeat: true)))
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "N", keyCode: 45, isRepeat: true)))
+
+        #expect(delegate.commands == [.searchNext, .searchNext, .searchPrevious])
+        #expect(delegate.reader.actions == [])
+    }
+
+    @Test
     func dScrollsWhenOnlySearchTargetExists() {
         let controller = KeyboardController(
             installsKeyMonitor: false,

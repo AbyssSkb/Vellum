@@ -31,6 +31,8 @@ struct VimKeyMapTests {
         #expect(VimKeyMap.command(for: "/") == .beginSearch)
         #expect(VimKeyMap.command(for: "n") == .searchNext)
         #expect(VimKeyMap.command(for: "N") == .searchPrevious)
+        #expect(VimKeyMap.repeatableCommand(for: "n") == .searchNext)
+        #expect(VimKeyMap.repeatableCommand(for: "N") == .searchPrevious)
     }
 
     @Test
