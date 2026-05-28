@@ -63,6 +63,40 @@ struct KeyboardControllerTests {
         #expect(delegate.reader.actions == [])
     }
 
+    @Test
+    func dScrollsWhenOnlySearchTargetExists() {
+        let controller = KeyboardController(
+            installsKeyMonitor: false,
+            installsOpenURLObserver: false
+        )
+        let delegate = RecordingKeyboardDelegate()
+        delegate.reader.hasSearchTextTarget = true
+        delegate.reader.deleteHighlightsResult = true
+        controller.delegate = delegate
+
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "d", keyCode: 2)))
+
+        #expect(delegate.commands == [.largeScrollDown])
+        #expect(delegate.reader.actions == [])
+    }
+
+    @Test
+    func dDeletesHighlightWhenTextSelectionExists() {
+        let controller = KeyboardController(
+            installsKeyMonitor: false,
+            installsOpenURLObserver: false
+        )
+        let delegate = RecordingKeyboardDelegate()
+        delegate.reader.hasNavigableTextSelection = true
+        delegate.reader.deleteHighlightsResult = true
+        controller.delegate = delegate
+
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "d", keyCode: 2)))
+
+        #expect(delegate.commands == [])
+        #expect(delegate.reader.actions == [.deleteHighlights])
+    }
+
     private func keyEvent(
         _ type: NSEvent.EventType,
         key: String,
@@ -109,6 +143,7 @@ private final class RecordingKeyboardReaderController: ReaderController {
     var hasNavigableTextSelection = false
     var hasSearchTextTarget = false
     var isPageOverviewActive = false
+    var deleteHighlightsResult = false
     private(set) var actions: [Action] = []
 
     func snapshot() -> ReaderSnapshot? { nil }
@@ -141,7 +176,10 @@ private final class RecordingKeyboardReaderController: ReaderController {
 
     func handleTextSelectionKey(_ rawKey: String, eventType: NSEvent.EventType) -> Bool { false }
 
-    func vimDeleteHighlightsForSelection() -> Bool { false }
+    func vimDeleteHighlightsForSelection() -> Bool {
+        actions.append(.deleteHighlights)
+        return deleteHighlightsResult
+    }
 
     func vimScroll(x: CGFloat, y: CGFloat) {}
 
@@ -182,5 +220,6 @@ private final class RecordingKeyboardReaderController: ReaderController {
         case movePageOverview(PageOverviewNavigation)
         case finishPageOverview
         case beginSearch
+        case deleteHighlights
     }
 }
