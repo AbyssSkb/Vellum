@@ -271,6 +271,10 @@ final class PDFSearchController {
         pdfView.stopScrollAnimation()
         pdfView.hideAIExplanationPopover()
 
+        if !hasVisibleHighlights {
+            resetSearchStateForNewCommand()
+        }
+
         let overlay = SearchCommandOverlayView(query: query)
         overlay.frame = pdfView.bounds
         overlay.autoresizingMask = [.width, .height]
@@ -443,6 +447,11 @@ final class PDFSearchController {
 
     func clear() {
         cancelScheduledSearch()
+        resetSearchStateForNewCommand()
+        pdfView?.highlightedSelections = []
+    }
+
+    private func resetSearchStateForNewCommand() {
         searchGeneration += 1
         query = ""
         results = []
@@ -451,7 +460,6 @@ final class PDFSearchController {
         shouldAnchorNextMove = false
         isSearchPending = false
         lastJumpCheckpointTime = nil
-        pdfView?.highlightedSelections = []
     }
 
     private func hideMatches() {
