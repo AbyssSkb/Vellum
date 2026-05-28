@@ -617,12 +617,11 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
 
     private let container = NSVisualEffectView()
     private let miniContainer = NSVisualEffectView()
-    private let miniLabel = NSTextField(labelWithString: "")
+    private let miniLabel = CenteredTextLabel(text: "")
     private let iconView = NSImageView()
-    private let promptLabel = CenteredTextLabel(text: "/")
     private let textField = SearchCommandTextField()
     private let statusPill = NSVisualEffectView()
-    private let statusLabel = NSTextField(labelWithString: "type")
+    private let statusLabel = CenteredTextLabel(text: "type")
     private var presentation: Presentation = .editing
     private var currentStatus: Status = .hint("type")
     private var miniQuery = ""
@@ -637,7 +636,6 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
         addSubview(container)
         addSubview(miniContainer)
         container.addSubview(iconView)
-        container.addSubview(promptLabel)
         container.addSubview(textField)
         container.addSubview(statusPill)
         statusPill.addSubview(statusLabel)
@@ -670,9 +668,7 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
 
         let centerY = container.bounds.midY
         iconView.frame = centeredFrame(x: 16, size: NSSize(width: 16, height: 16), in: container.bounds)
-        promptLabel.frame = centeredFrame(x: iconView.frame.maxX + 10, size: NSSize(width: 16, height: 24), in: container.bounds)
-        statusLabel.sizeToFit()
-        let statusPillWidth = min(max(statusLabel.frame.width + 24, 62), 130)
+        let statusPillWidth = min(max(measuredWidth(statusLabel.stringValue, font: statusLabel.font) + 24, 62), 130)
         statusPill.frame = NSRect(
             x: container.bounds.maxX - statusPillWidth - 12,
             y: centerY - 14,
@@ -681,19 +677,18 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
         )
         statusLabel.frame = NSRect(
             x: 12,
-            y: (statusPill.bounds.height - 22) / 2,
+            y: 0,
             width: statusPill.bounds.width - 24,
-            height: 22
+            height: statusPill.bounds.height
         )
         textField.frame = NSRect(
-            x: promptLabel.frame.maxX + 10,
+            x: iconView.frame.maxX + 14,
             y: centerY - 13,
-            width: max(120, statusPill.frame.minX - promptLabel.frame.maxX - 22),
+            width: max(120, statusPill.frame.minX - iconView.frame.maxX - 28),
             height: 26
         )
 
-        miniLabel.sizeToFit()
-        let miniWidth = min(max(miniLabel.frame.width + 34, 128), bounds.width - horizontalMargin * 2, 360)
+        let miniWidth = min(max(measuredWidth(miniLabel.stringValue, font: miniLabel.font) + 34, 128), bounds.width - horizontalMargin * 2, 360)
         miniContainer.frame = NSRect(
             x: bounds.midX - miniWidth / 2,
             y: 24,
@@ -703,7 +698,7 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
         miniLabel.frame = centeredTextFrame(
             x: 17,
             width: miniContainer.bounds.width - 34,
-            height: 22,
+            height: miniContainer.bounds.height,
             in: miniContainer.bounds
         )
     }
@@ -804,15 +799,10 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
         iconView.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 13, weight: .medium)
         iconView.contentTintColor = TokyoNight.cyan.withAlphaComponent(0.78)
 
-        promptLabel.font = .monospacedSystemFont(ofSize: 14, weight: .medium)
-        promptLabel.textColor = TokyoNight.cyan.withAlphaComponent(0.88)
-
         statusLabel.font = .monospacedDigitSystemFont(ofSize: 12, weight: .semibold)
         statusLabel.textColor = TokyoNight.muted.withAlphaComponent(0.95)
-        statusLabel.alignment = .center
         miniLabel.font = .monospacedDigitSystemFont(ofSize: 12, weight: .semibold)
         miniLabel.textColor = TokyoNight.foreground.withAlphaComponent(0.94)
-        miniLabel.alignment = .center
         miniLabel.lineBreakMode = .byTruncatingMiddle
 
         statusPill.material = .hudWindow
@@ -908,6 +898,10 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
             height: height
         )
     }
+
+    private func measuredWidth(_ text: String, font: NSFont) -> CGFloat {
+        ceil(text.size(withAttributes: [.font: font]).width)
+    }
 }
 
 enum SearchCommandEditingAction: Equatable {
@@ -942,6 +936,10 @@ private final class CenteredTextLabel: NSView {
         didSet { needsDisplay = true }
     }
 
+    var lineBreakMode: NSLineBreakMode = .byClipping {
+        didSet { needsDisplay = true }
+    }
+
     init(text: String) {
         self.stringValue = text
         super.init(frame: .zero)
@@ -958,16 +956,22 @@ private final class CenteredTextLabel: NSView {
 
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.alignment = .center
+        paragraphStyle.lineBreakMode = lineBreakMode
         let attributes: [NSAttributedString.Key: Any] = [
             .font: font,
-            .foregroundColor: textColor
+            .foregroundColor: textColor,
+            .paragraphStyle: paragraphStyle
         ]
         let size = stringValue.size(withAttributes: attributes)
-        let origin = NSPoint(
-            x: (bounds.width - size.width) / 2,
-            y: (bounds.height - size.height) / 2
+        let drawRect = NSRect(
+            x: 0,
+            y: (bounds.height - size.height) / 2,
+            width: bounds.width,
+            height: size.height
         )
-        stringValue.draw(at: origin, withAttributes: attributes)
+        stringValue.draw(in: drawRect, withAttributes: attributes)
     }
 }
 
