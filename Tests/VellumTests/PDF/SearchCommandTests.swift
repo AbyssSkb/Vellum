@@ -137,6 +137,11 @@ struct SearchCommandTests {
     }
 
     @Test
+    func readingAnchorUsesThirtyPercentViewportHeight() {
+        #expect(SearchReadingAnchor.pointY(visibleMinY: 100, visibleHeight: 900) == 370)
+    }
+
+    @Test
     func fieldEditorCommandsMapEnterAndEscape() {
         #expect(
             SearchCommandEditingCommand.action(

@@ -235,6 +235,7 @@ final class PDFSearchController {
         }
 
         let materializedSelection = selection.copy() as? PDFSelection ?? selection
+        materializedSelection.color = nil
         hideMatches()
         pdfView.textSelectionNavigationState = nil
         pdfView.setCurrentSelection(materializedSelection, animate: false)
@@ -493,11 +494,26 @@ final class PDFSearchController {
             }
         }
 
-        if let snapshot = pdfView.snapshot() {
-            return SearchAnchor(
-                pageIndex: min(max(snapshot.pageIndex, 0), document.pageCount - 1),
-                pointInPage: snapshot.pointOnPage
+        if let scrollView = pdfView.pdfScrollView {
+            let clipView = scrollView.contentView
+            let anchorPoint = NSPoint(
+                x: clipView.bounds.midX,
+                y: SearchReadingAnchor.pointY(
+                    visibleMinY: clipView.bounds.minY,
+                    visibleHeight: clipView.bounds.height
+                )
             )
+            let pointInPDFView = pdfView.convert(anchorPoint, from: clipView)
+
+            if let page = pdfView.page(for: pointInPDFView, nearest: true) {
+                let pageIndex = document.index(for: page)
+                if pageIndex != NSNotFound {
+                    return SearchAnchor(
+                        pageIndex: min(max(pageIndex, 0), document.pageCount - 1),
+                        pointInPage: pdfView.convert(pointInPDFView, to: page)
+                    )
+                }
+            }
         }
 
         if let page = pdfView.currentPage {
