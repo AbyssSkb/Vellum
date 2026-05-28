@@ -183,6 +183,7 @@ final class PDFSearchController {
     }
 
     private func cancel() {
+        clear()
         dismissOverlay(returnFocus: true)
     }
 
