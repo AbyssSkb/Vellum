@@ -619,7 +619,7 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
     private let miniContainer = NSVisualEffectView()
     private let miniLabel = NSTextField(labelWithString: "")
     private let iconView = NSImageView()
-    private let promptLabel = NSTextField(labelWithString: "/")
+    private let promptLabel = CenteredTextLabel(text: "/")
     private let textField = SearchCommandTextField()
     private let statusPill = NSVisualEffectView()
     private let statusLabel = NSTextField(labelWithString: "type")
@@ -670,12 +670,7 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
 
         let centerY = container.bounds.midY
         iconView.frame = centeredFrame(x: 16, size: NSSize(width: 16, height: 16), in: container.bounds)
-        promptLabel.frame = centeredTextFrame(
-            x: iconView.frame.maxX + 10,
-            width: 16,
-            height: 22,
-            in: container.bounds
-        )
+        promptLabel.frame = centeredFrame(x: iconView.frame.maxX + 10, size: NSSize(width: 16, height: 24), in: container.bounds)
         statusLabel.sizeToFit()
         let statusPillWidth = min(max(statusLabel.frame.width + 24, 62), 130)
         statusPill.frame = NSRect(
@@ -692,9 +687,9 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
         )
         textField.frame = NSRect(
             x: promptLabel.frame.maxX + 10,
-            y: centerY - 12,
+            y: centerY - 13,
             width: max(120, statusPill.frame.minX - promptLabel.frame.maxX - 22),
-            height: 24
+            height: 26
         )
 
         miniLabel.sizeToFit()
@@ -831,6 +826,7 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
     }
 
     private func configureTextField(query: String) {
+        textField.cell = VerticallyCenteredTextFieldCell(textCell: "")
         textField.stringValue = query
         textField.font = .systemFont(ofSize: 14, weight: .medium)
         textField.textColor = TokyoNight.foreground
@@ -930,6 +926,87 @@ enum SearchCommandEditingCommand {
         default:
             return nil
         }
+    }
+}
+
+private final class CenteredTextLabel: NSView {
+    var stringValue: String {
+        didSet { needsDisplay = true }
+    }
+
+    var font: NSFont = .systemFont(ofSize: NSFont.systemFontSize) {
+        didSet { needsDisplay = true }
+    }
+
+    var textColor: NSColor = .labelColor {
+        didSet { needsDisplay = true }
+    }
+
+    init(text: String) {
+        self.stringValue = text
+        super.init(frame: .zero)
+        wantsLayer = false
+    }
+
+    required init?(coder: NSCoder) {
+        nil
+    }
+
+    override var isFlipped: Bool {
+        true
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: textColor
+        ]
+        let size = stringValue.size(withAttributes: attributes)
+        let origin = NSPoint(
+            x: (bounds.width - size.width) / 2,
+            y: (bounds.height - size.height) / 2
+        )
+        stringValue.draw(at: origin, withAttributes: attributes)
+    }
+}
+
+private final class VerticallyCenteredTextFieldCell: NSTextFieldCell {
+    override func drawingRect(forBounds rect: NSRect) -> NSRect {
+        verticallyCenteredRect(super.drawingRect(forBounds: rect))
+    }
+
+    override func edit(withFrame rect: NSRect, in controlView: NSView, editor textObj: NSText, delegate: Any?, event: NSEvent?) {
+        super.edit(
+            withFrame: verticallyCenteredRect(rect),
+            in: controlView,
+            editor: textObj,
+            delegate: delegate,
+            event: event
+        )
+    }
+
+    override func select(withFrame rect: NSRect, in controlView: NSView, editor textObj: NSText, delegate: Any?, start selStart: Int, length selLength: Int) {
+        super.select(
+            withFrame: verticallyCenteredRect(rect),
+            in: controlView,
+            editor: textObj,
+            delegate: delegate,
+            start: selStart,
+            length: selLength
+        )
+    }
+
+    private func verticallyCenteredRect(_ rect: NSRect) -> NSRect {
+        let font = font ?? NSFont.systemFont(ofSize: NSFont.systemFontSize)
+        let textHeight = ceil(font.boundingRectForFont.height) + 2
+        let height = min(rect.height, textHeight)
+        return NSRect(
+            x: rect.minX,
+            y: rect.midY - height / 2,
+            width: rect.width,
+            height: height
+        )
     }
 }
 
