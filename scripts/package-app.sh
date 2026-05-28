@@ -3,9 +3,9 @@ set -eu
 
 ROOT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 APP_NAME="Vellum"
+APP_VERSION="${APP_VERSION:-0.1.1}"
+BUILD_NUMBER="${BUILD_NUMBER:-2}"
 BUILD_CONFIG="${BUILD_CONFIG:-release}"
-PRODUCT_DIR="$ROOT_DIR/.build/arm64-apple-macosx/$BUILD_CONFIG"
-EXECUTABLE="$PRODUCT_DIR/$APP_NAME"
 DIST_DIR="$ROOT_DIR/dist"
 APP_DIR="$DIST_DIR/$APP_NAME.app"
 CONTENTS_DIR="$APP_DIR/Contents"
@@ -16,6 +16,8 @@ cd "$ROOT_DIR"
 
 CLANG_MODULE_CACHE_PATH="$ROOT_DIR/.build/ModuleCache" \
     swift build --configuration "$BUILD_CONFIG" --cache-path "$ROOT_DIR/.build/SwiftPMCache"
+PRODUCT_DIR="$(CLANG_MODULE_CACHE_PATH="$ROOT_DIR/.build/ModuleCache" swift build --configuration "$BUILD_CONFIG" --cache-path "$ROOT_DIR/.build/SwiftPMCache" --show-bin-path)"
+EXECUTABLE="$PRODUCT_DIR/$APP_NAME"
 
 rm -rf "$APP_DIR"
 mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
@@ -51,9 +53,9 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>0.1.1</string>
+    <string>$APP_VERSION</string>
     <key>CFBundleVersion</key>
-    <string>2</string>
+    <string>$BUILD_NUMBER</string>
     <key>LSMinimumSystemVersion</key>
     <string>14.0</string>
     <key>NSHighResolutionCapable</key>

@@ -1,0 +1,81 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version, for example 0.1.2"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    name: Build macOS release
+    runs-on: macos-15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Resolve version
+        id: version
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            VERSION="${{ inputs.version }}"
+            TAG="v${VERSION#v}"
+          else
+            TAG="${GITHUB_REF_NAME}"
+            VERSION="${TAG#v}"
+          fi
+
+          BUILD_NUMBER="${GITHUB_RUN_NUMBER}"
+          ARCHIVE_NAME="Vellum-${VERSION}-macOS"
+
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "build_number=${BUILD_NUMBER}" >> "$GITHUB_OUTPUT"
+          echo "archive_name=${ARCHIVE_NAME}" >> "$GITHUB_OUTPUT"
+
+      - name: Run tests
+        run: swift test
+
+      - name: Package app
+        env:
+          APP_VERSION: ${{ steps.version.outputs.version }}
+          BUILD_NUMBER: ${{ steps.version.outputs.build_number }}
+        run: scripts/package-app.sh
+
+      - name: Create release disk image
+        shell: bash
+        run: |
+          cd dist
+          hdiutil create \
+            -volname Vellum \
+            -srcfolder Vellum.app \
+            -ov \
+            -format UDZO \
+            "${{ steps.version.outputs.archive_name }}.dmg"
+          shasum -a 256 "${{ steps.version.outputs.archive_name }}.dmg" > "${{ steps.version.outputs.archive_name }}.dmg.sha256"
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: Vellum ${{ steps.version.outputs.version }}
+          generate_release_notes: true
+          files: |
+            dist/${{ steps.version.outputs.archive_name }}.dmg
+            dist/${{ steps.version.outputs.archive_name }}.dmg.sha256
