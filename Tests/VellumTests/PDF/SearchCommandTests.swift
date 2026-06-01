@@ -79,6 +79,29 @@ struct SearchCommandTests {
     }
 
     @Test
+    func resultNavigatorKeepsMatchWhenAnchorIsAtMatchStart() {
+        let locations = [
+            SearchResultLocation(
+                pageIndex: 1,
+                boundsInPage: NSRect(x: 40, y: 300, width: 40, height: 18),
+                documentOrder: 0
+            ),
+            SearchResultLocation(
+                pageIndex: 1,
+                boundsInPage: NSRect(x: 160, y: 300, width: 40, height: 18),
+                documentOrder: 1
+            )
+        ]
+
+        let index = SearchResultNavigator.firstIndex(
+            atOrAfter: SearchAnchor(pageIndex: 1, pointInPage: NSPoint(x: 40, y: 300)),
+            in: locations
+        )
+
+        #expect(index == 0)
+    }
+
+    @Test
     func resultNavigatorChoosesPreviousResultFromAnchor() {
         let locations = [
             SearchResultLocation(

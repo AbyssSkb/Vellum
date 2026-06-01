@@ -257,8 +257,6 @@ final class PDFSearchController {
     private var isSearchPending = false
     private var lastJumpCheckpointTime: Date?
     private var pageTextCache: [Int: String] = [:]
-    private var searchOriginSnapshot: ReaderSnapshot?
-    private var didCommitCurrentSearch = false
 
     var hasVisibleHighlights: Bool {
         areMatchesVisible && !results.isEmpty
@@ -285,8 +283,6 @@ final class PDFSearchController {
         if !hasVisibleHighlights {
             resetSearchStateForNewCommand()
         }
-        searchOriginSnapshot = pdfView.snapshot()
-        didCommitCurrentSearch = false
 
         let overlay = SearchCommandOverlayView(query: query)
         overlay.frame = pdfView.bounds
@@ -351,15 +347,11 @@ final class PDFSearchController {
     @discardableResult
     func handleEscape() -> Bool {
         if overlay != nil {
-            let shouldRestoreOrigin = !didCommitCurrentSearch
             dismissOverlay(returnFocus: true)
             if results.isEmpty {
                 clear()
             } else {
                 hideMatches()
-            }
-            if shouldRestoreOrigin {
-                restoreSearchOrigin()
             }
             return true
         }
@@ -444,8 +436,6 @@ final class PDFSearchController {
     }
 
     private func commit() {
-        searchOriginSnapshot = nil
-        didCommitCurrentSearch = true
         performSearchImmediately(preferAnchor: true, materializeVisibleMatches: true)
         guard !results.isEmpty else {
             updateOverlayStatus()
@@ -480,8 +470,6 @@ final class PDFSearchController {
         shouldAnchorNextMove = false
         isSearchPending = false
         lastJumpCheckpointTime = nil
-        searchOriginSnapshot = nil
-        didCommitCurrentSearch = false
     }
 
     private func hideMatches() {
@@ -498,13 +486,6 @@ final class PDFSearchController {
         if returnFocus {
             pdfView?.focus()
         }
-    }
-
-    private func restoreSearchOrigin() {
-        guard let snapshot = searchOriginSnapshot else { return }
-        searchOriginSnapshot = nil
-        didCommitCurrentSearch = false
-        pdfView?.restore(snapshot)
     }
 
     private func jumpToSelectedMatch(recordJump: Bool) {
@@ -852,7 +833,7 @@ final class PDFSearchController {
         if let scrollView = pdfView.pdfScrollView {
             let clipView = scrollView.contentView
             let anchorPoint = NSPoint(
-                x: clipView.bounds.midX,
+                x: clipView.bounds.minX,
                 y: SearchReadingAnchor.pointY(
                     visibleMinY: clipView.bounds.minY,
                     visibleHeight: clipView.bounds.height,
