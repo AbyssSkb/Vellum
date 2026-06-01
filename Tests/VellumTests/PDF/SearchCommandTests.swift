@@ -233,7 +233,7 @@ struct SearchCommandTests {
         let activeMatch = SearchTextMatch(
             pageIndex: 2,
             range: NSRange(location: 40, length: 3),
-            documentOrder: 4
+            documentOrder: 0
         )
         let results = [
             PDFSearchResult(
@@ -242,7 +242,7 @@ struct SearchCommandTests {
                 location: nil
             ),
             PDFSearchResult(
-                match: activeMatch,
+                match: SearchTextMatch(pageIndex: 2, range: NSRange(location: 40, length: 3), documentOrder: 4),
                 selection: nil,
                 location: nil
             ),
