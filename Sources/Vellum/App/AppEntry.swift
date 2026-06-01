@@ -14,6 +14,12 @@ struct VellumApp: App {
         }
         .windowStyle(.hiddenTitleBar)
         .commands {
+            CommandGroup(after: .appInfo) {
+                Button("Check for Updates...") {
+                    appDelegate.checkForUpdates()
+                }
+            }
+
             CommandGroup(replacing: .newItem) {
                 Button("Open...") {
                     appState.openPanel(mode: .currentTab)

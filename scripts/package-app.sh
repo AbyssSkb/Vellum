@@ -3,8 +3,6 @@ set -eu
 
 ROOT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 APP_NAME="Vellum"
-APP_VERSION="${APP_VERSION:-0.1.1}"
-BUILD_NUMBER="${BUILD_NUMBER:-2}"
 BUILD_CONFIG="${BUILD_CONFIG:-release}"
 DIST_DIR="$ROOT_DIR/dist"
 APP_DIR="$DIST_DIR/$APP_NAME.app"
@@ -13,6 +11,15 @@ MACOS_DIR="$CONTENTS_DIR/MacOS"
 RESOURCES_DIR="$CONTENTS_DIR/Resources"
 
 cd "$ROOT_DIR"
+
+if [ -z "${APP_VERSION:-}" ]; then
+    APP_VERSION="$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null | sed 's/^v//')"
+    APP_VERSION="${APP_VERSION:-0.1.1}"
+fi
+
+if [ -z "${BUILD_NUMBER:-}" ]; then
+    BUILD_NUMBER="$(git rev-list --count HEAD 2>/dev/null || printf '1')"
+fi
 
 CLANG_MODULE_CACHE_PATH="$ROOT_DIR/.build/ModuleCache" \
     swift build --configuration "$BUILD_CONFIG" --cache-path "$ROOT_DIR/.build/SwiftPMCache"

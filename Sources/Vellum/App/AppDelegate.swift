@@ -3,9 +3,12 @@ import VellumCore
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    private let updateChecker = GitHubUpdateChecker()
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.appearance = NSAppearance(named: .darkAqua)
         UserDefaults.standard.set(false, forKey: "NSQuitAlwaysKeepsWindows")
+        updateChecker.checkAutomaticallySoon()
         DispatchQueue.main.async {
             self.closeDuplicateMainWindows()
         }
@@ -38,6 +41,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func application(_ sender: NSApplication, openFiles filenames: [String]) {
         OpenURLRelay.shared.open(filenames.map(URL.init(fileURLWithPath:)))
         sender.reply(toOpenOrPrint: .success)
+    }
+
+    func checkForUpdates() {
+        updateChecker.checkForUpdates(.manual)
     }
 
     private func closeDuplicateMainWindows() {
