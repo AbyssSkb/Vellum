@@ -235,6 +235,11 @@ final class PDFSearchController {
         }
     }
 
+    nonisolated static func index(of activeMatch: SearchTextMatch?, in results: [PDFSearchResult]) -> Int? {
+        guard let activeMatch else { return nil }
+        return results.firstIndex { $0.match == activeMatch }
+    }
+
     private weak var pdfView: VellumPDFView?
     private var overlay: SearchCommandOverlayView?
     private var query = ""
@@ -530,6 +535,9 @@ final class PDFSearchController {
     private func performSearchImmediately(preferAnchor: Bool, materializeVisibleMatches: Bool) {
         cancelScheduledSearch()
         searchGeneration += 1
+        let activeMatch = activeIndex.flatMap { index in
+            results.indices.contains(index) ? results[index].match : nil
+        }
 
         guard let pdfView, let document = pdfView.document else {
             results = []
@@ -561,10 +569,13 @@ final class PDFSearchController {
             activeIndex = nil
             areMatchesVisible = false
         } else if preferAnchor {
-            activeIndex = anchoredIndex(for: .next, materializeLocations: materializeVisibleMatches) ?? 0
+            activeIndex = Self.index(of: activeMatch, in: results)
+                ?? anchoredIndex(for: .next, materializeLocations: materializeVisibleMatches)
+                ?? 0
             areMatchesVisible = true
         } else if let activeIndex {
-            self.activeIndex = min(activeIndex, results.count - 1)
+            self.activeIndex = Self.index(of: activeMatch, in: results)
+                ?? min(activeIndex, results.count - 1)
         } else {
             activeIndex = anchoredIndex(for: .next, materializeLocations: materializeVisibleMatches) ?? 0
         }

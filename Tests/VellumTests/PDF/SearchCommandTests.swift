@@ -229,6 +229,34 @@ struct SearchCommandTests {
     }
 
     @Test
+    func activePreviewMatchIsPreservedWhenFullResultsArePublished() {
+        let activeMatch = SearchTextMatch(
+            pageIndex: 2,
+            range: NSRange(location: 40, length: 3),
+            documentOrder: 4
+        )
+        let results = [
+            PDFSearchResult(
+                match: SearchTextMatch(pageIndex: 0, range: NSRange(location: 12, length: 3), documentOrder: 0),
+                selection: nil,
+                location: nil
+            ),
+            PDFSearchResult(
+                match: activeMatch,
+                selection: nil,
+                location: nil
+            ),
+            PDFSearchResult(
+                match: SearchTextMatch(pageIndex: 2, range: NSRange(location: 90, length: 3), documentOrder: 5),
+                selection: nil,
+                location: nil
+            )
+        ]
+
+        #expect(PDFSearchController.index(of: activeMatch, in: results) == 1)
+    }
+
+    @Test
     func readingAnchorUsesVisualTopInFlippedViewport() {
         #expect(SearchReadingAnchor.pointY(visibleMinY: 100, visibleHeight: 900, isFlipped: true) == 100)
     }
