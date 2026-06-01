@@ -221,6 +221,14 @@ struct SearchCommandTests {
     }
 
     @Test
+    func previewSearchScansForwardFromCurrentPageBeforeWrapping() {
+        #expect(PDFSearchController.previewPageScanOrder(pageCount: 5, anchorPageIndex: 2) == [2, 3, 4, 0, 1])
+        #expect(PDFSearchController.previewPageScanOrder(pageCount: 5, anchorPageIndex: -3) == [0, 1, 2, 3, 4])
+        #expect(PDFSearchController.previewPageScanOrder(pageCount: 5, anchorPageIndex: 12) == [4, 0, 1, 2, 3])
+        #expect(PDFSearchController.previewPageScanOrder(pageCount: 0, anchorPageIndex: 2) == [])
+    }
+
+    @Test
     func readingAnchorUsesVisualTopInFlippedViewport() {
         #expect(SearchReadingAnchor.pointY(visibleMinY: 100, visibleHeight: 900, isFlipped: true) == 100)
     }

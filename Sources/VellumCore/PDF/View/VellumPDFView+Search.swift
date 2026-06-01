@@ -324,6 +324,7 @@ final class PDFSearchController {
         }
         shouldAnchorNextMove = false
 
+        materializeVisibleMatchesAroundActive()
         applyVisibleHighlights()
         ensureMiniOverlay()
         updateOverlayStatus()
@@ -589,7 +590,7 @@ final class PDFSearchController {
             let pageCount = document.pageCount
             let term = self.query.trimmingCharacters(in: .whitespacesAndNewlines)
             let anchorPageIndex = self.currentSearchAnchor(in: document).pageIndex
-            let pageScanOrder = self.previewPageScanOrder(
+            let pageScanOrder = Self.previewPageScanOrder(
                 pageCount: pageCount,
                 anchorPageIndex: anchorPageIndex
             )
@@ -635,10 +636,12 @@ final class PDFSearchController {
         }
     }
 
-    private func previewPageScanOrder(pageCount: Int, anchorPageIndex: Int) -> [Int] {
+    nonisolated static func previewPageScanOrder(pageCount: Int, anchorPageIndex: Int) -> [Int] {
         guard pageCount > 0 else { return [] }
         let anchor = min(max(anchorPageIndex, 0), pageCount - 1)
-        return [anchor] + (0..<pageCount).filter { $0 != anchor }
+        return [anchor]
+            + Array((anchor + 1)..<pageCount)
+            + Array(0..<anchor)
     }
 
     private func publishPreviewResults(
@@ -646,6 +649,7 @@ final class PDFSearchController {
         preferAnchor: Bool,
         isComplete: Bool
     ) {
+        let hadActiveResult = activeIndex != nil && !results.isEmpty
         results = nextResults.sorted {
             SearchTextMatch.pageTextOrderSort($0.match, $1.match)
         }
@@ -663,8 +667,15 @@ final class PDFSearchController {
             areMatchesVisible = true
         }
 
+        if areMatchesVisible {
+            materializeVisibleMatchesAroundActive()
+        }
         applyVisibleHighlights()
         updateOverlayStatus()
+
+        if preferAnchor, !hadActiveResult, activeIndex != nil {
+            jumpToSelectedMatch(recordJump: false)
+        }
     }
 
     private func cancelScheduledSearch() {
