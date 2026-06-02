@@ -48,6 +48,7 @@ final class GitHubUpdateChecker {
 
     private let session: URLSession
     private var task: Task<Void, Never>?
+    private var downloadWindow: UpdateDownloadWindowController?
 
     init(session: URLSession = .shared) {
         self.session = session
@@ -197,8 +198,8 @@ final class GitHubUpdateChecker {
         let alert = NSAlert()
         alert.messageText = "Vellum \(update.version) is available"
         if update.downloadURL != nil {
-            alert.informativeText = "You are currently using Vellum \(currentVersion). Download the latest installer now."
-            alert.addButton(withTitle: "Download Update")
+            alert.informativeText = "You are currently using Vellum \(currentVersion). Download and install the latest version now."
+            alert.addButton(withTitle: "Download and Install")
             alert.addButton(withTitle: "Open GitHub")
             alert.addButton(withTitle: "Later")
         } else {
@@ -257,27 +258,64 @@ final class GitHubUpdateChecker {
         }
 
         task?.cancel()
+        let window = UpdateDownloadWindowController(version: update.version)
+        downloadWindow = window
+        window.onCancel = { [weak self] in
+            self?.task?.cancel()
+            self?.downloadWindow?.finish()
+            self?.downloadWindow = nil
+        }
+        window.show()
+
         task = Task { [weak self] in
             guard let self else { return }
             do {
-                let fileURL = try await downloadInstaller(from: downloadURL, version: update.version)
+                let fileURL = try await downloadInstaller(
+                    from: downloadURL,
+                    version: update.version
+                ) { [weak window] receivedBytes, totalBytes in
+                    window?.updateProgress(receivedBytes: receivedBytes, totalBytes: totalBytes)
+                }
                 await MainActor.run {
-                    _ = NSWorkspace.shared.open(fileURL)
+                    window.updateStatus(
+                        "Installing Vellum \(update.version)",
+                        detail: "Vellum will quit, update itself, and reopen.",
+                        indeterminate: true,
+                        canCancel: false
+                    )
                     self.markPromptedIfNeeded(update: update, mode: mode)
+                    do {
+                        try AppUpdateInstaller.installAndRelaunch(from: fileURL)
+                    } catch {
+                        window.finish()
+                        self.downloadWindow = nil
+                        self.showInstallError(error, diskImageURL: fileURL)
+                    }
+                }
+            } catch is CancellationError {
+                await MainActor.run {
+                    window.finish()
+                    self.downloadWindow = nil
                 }
             } catch {
                 await MainActor.run {
+                    window.finish()
+                    self.downloadWindow = nil
                     self.showDownloadError(error, releaseURL: update.releaseURL)
                 }
             }
         }
     }
 
-    private func downloadInstaller(from url: URL, version: String) async throws -> URL {
+    private func downloadInstaller(
+        from url: URL,
+        version: String,
+        progress: @MainActor @escaping (Int64, Int64?) -> Void
+    ) async throws -> URL {
         var request = URLRequest(url: url)
         request.setValue("Vellum", forHTTPHeaderField: "User-Agent")
 
-        let (temporaryURL, response) = try await session.download(for: request)
+        let (bytes, response) = try await session.bytes(for: request)
         guard let httpResponse = response as? HTTPURLResponse,
               (200..<300).contains(httpResponse.statusCode) else {
             throw URLError(.badServerResponse)
@@ -287,11 +325,64 @@ final class GitHubUpdateChecker {
             ?? FileManager.default.temporaryDirectory
         let fileName = installerFileName(from: url, version: version)
         let destinationURL = downloadsDirectory.appendingPathComponent(fileName)
+        let temporaryDownloadURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("vellum-\(UUID().uuidString).download")
+
+        FileManager.default.createFile(atPath: temporaryDownloadURL.path, contents: nil)
+        let fileHandle = try FileHandle(forWritingTo: temporaryDownloadURL)
+        var shouldRemoveTemporaryDownload = true
+        defer {
+            if shouldRemoveTemporaryDownload {
+                try? FileManager.default.removeItem(at: temporaryDownloadURL)
+            }
+        }
+
+        defer {
+            try? fileHandle.close()
+        }
+
+        let totalBytes = response.expectedContentLength > 0 ? response.expectedContentLength : nil
+        var receivedBytes: Int64 = 0
+        var lastReportedBytes: Int64 = 0
+        var buffer = Data()
+        buffer.reserveCapacity(64 * 1024)
+
+        await MainActor.run {
+            progress(receivedBytes, totalBytes)
+        }
+
+        for try await byte in bytes {
+            try Task.checkCancellation()
+            buffer.append(byte)
+            receivedBytes += 1
+
+            if buffer.count >= 64 * 1024 {
+                try fileHandle.write(contentsOf: buffer)
+                buffer.removeAll(keepingCapacity: true)
+            }
+
+            if receivedBytes - lastReportedBytes >= 256 * 1024 {
+                lastReportedBytes = receivedBytes
+                await MainActor.run {
+                    progress(receivedBytes, totalBytes)
+                }
+            }
+        }
+
+        if !buffer.isEmpty {
+            try fileHandle.write(contentsOf: buffer)
+        }
+        try fileHandle.close()
 
         if FileManager.default.fileExists(atPath: destinationURL.path) {
             try FileManager.default.removeItem(at: destinationURL)
         }
-        try FileManager.default.moveItem(at: temporaryURL, to: destinationURL)
+        try FileManager.default.moveItem(at: temporaryDownloadURL, to: destinationURL)
+        shouldRemoveTemporaryDownload = false
+
+        await MainActor.run {
+            progress(receivedBytes, totalBytes)
+        }
         return destinationURL
     }
 
@@ -312,6 +403,18 @@ final class GitHubUpdateChecker {
 
         if alert.runModal() == .alertFirstButtonReturn {
             NSWorkspace.shared.open(releaseURL)
+        }
+    }
+
+    private func showInstallError(_ error: Error, diskImageURL: URL) {
+        let alert = NSAlert()
+        alert.messageText = "Unable to install the update"
+        alert.informativeText = "\(error.localizedDescription)\n\nThe installer was downloaded. Open the disk image and install it manually."
+        alert.addButton(withTitle: "Open Disk Image")
+        alert.addButton(withTitle: "Cancel")
+
+        if alert.runModal() == .alertFirstButtonReturn {
+            NSWorkspace.shared.open(diskImageURL)
         }
     }
 }
