@@ -36,6 +36,8 @@ struct VimCommandDispatcherTests {
         dispatcher.perform(.scrollUp, on: target)
         dispatcher.perform(.largeScrollDown, on: target)
         dispatcher.perform(.largeScrollUp, on: target)
+        dispatcher.perform(.extraLargeScrollDown, on: target)
+        dispatcher.perform(.extraLargeScrollUp, on: target)
         dispatcher.perform(.scrollLeft, on: target)
         dispatcher.perform(.scrollRight, on: target)
         dispatcher.perform(.pageDown, on: target)
@@ -50,11 +52,13 @@ struct VimCommandDispatcherTests {
         dispatcher.perform(.searchPrevious, on: target)
         dispatcher.perform(.materializeSearchSelection, on: target)
 
-        #expect(target.actions == [
+        let expectedActions: [RecordingVimCommandTarget.Action] = [
             .scroll(x: 0, y: -VimCommandMetrics.lineScrollDelta),
             .scroll(x: 0, y: VimCommandMetrics.lineScrollDelta),
             .scroll(x: 0, y: -VimCommandMetrics.largeScrollDelta),
             .scroll(x: 0, y: VimCommandMetrics.largeScrollDelta),
+            .scroll(x: 0, y: -VimCommandMetrics.extraLargeScrollDelta),
+            .scroll(x: 0, y: VimCommandMetrics.extraLargeScrollDelta),
             .scroll(x: -VimCommandMetrics.horizontalScrollDelta, y: 0),
             .scroll(x: VimCommandMetrics.horizontalScrollDelta, y: 0),
             .moveByPage(1),
@@ -68,7 +72,8 @@ struct VimCommandDispatcherTests {
             .searchNext,
             .searchPrevious,
             .materializeSearchSelection
-        ])
+        ]
+        #expect(target.actions == expectedActions)
     }
 
     @Test

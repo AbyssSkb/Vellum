@@ -35,6 +35,7 @@ Vellum uses Vim-style movement for reading. Short taps move a little; holding mo
 | --- | --- |
 | `j` / `k` | Smooth scroll down / up |
 | `d` / `u` | Large smooth scroll down / up |
+| `D` / `U` | Extra large smooth scroll down / up |
 | `h` / `l` | Horizontal scroll left / right |
 | `Space` / `f` | Move forward one page |
 | `b` | Move back one page |

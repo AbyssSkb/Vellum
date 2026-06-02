@@ -26,6 +26,7 @@ Open a PDF, then use the reading keys:
 | `o` / `O` | Open a PDF in the current tab / new tabs |
 | `j` / `k` | Scroll down / up |
 | `d` / `u` | Large scroll down / up |
+| `D` / `U` | Extra large scroll down / up |
 | `Space` / `f` / `b` | Page forward / backward |
 | `gg` / `G` / `[num]G` | First page / last page / page number |
 | `/` / `n` / `N` | Search / next match / previous match |

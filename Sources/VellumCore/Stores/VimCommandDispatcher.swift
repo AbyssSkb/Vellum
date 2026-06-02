@@ -24,6 +24,10 @@ struct VimCommandDispatcher {
             target.scrollBy(x: 0, y: -VimCommandMetrics.largeScrollDelta)
         case .largeScrollUp:
             target.scrollBy(x: 0, y: VimCommandMetrics.largeScrollDelta)
+        case .extraLargeScrollDown:
+            target.scrollBy(x: 0, y: -VimCommandMetrics.extraLargeScrollDelta)
+        case .extraLargeScrollUp:
+            target.scrollBy(x: 0, y: VimCommandMetrics.extraLargeScrollDelta)
         case .scrollLeft:
             target.scrollBy(x: -VimCommandMetrics.horizontalScrollDelta, y: 0)
         case .scrollRight:

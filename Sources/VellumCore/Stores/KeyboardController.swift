@@ -158,7 +158,7 @@ final class KeyboardController {
         let hasNavigableTextSelection = delegate?.activeReaderController?.hasNavigableTextSelection == true
 
         if hasNavigableTextSelection,
-           VimKeyMap.normalizedContinuousKey(key) == "d",
+           key == "d",
            delegate?.activeReaderController?.vimDeleteHighlightsForSelection() == true {
             stopHeldKeyTimer()
             vimInput.beginHeldKey("d")

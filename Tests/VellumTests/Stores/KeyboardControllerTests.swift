@@ -114,6 +114,23 @@ struct KeyboardControllerTests {
         #expect(delegate.reader.actions == [.deleteHighlights])
     }
 
+    @Test
+    func uppercaseDScrollsEvenWhenTextSelectionExists() {
+        let controller = KeyboardController(
+            installsKeyMonitor: false,
+            installsOpenURLObserver: false
+        )
+        let delegate = RecordingKeyboardDelegate()
+        delegate.reader.hasNavigableTextSelection = true
+        delegate.reader.deleteHighlightsResult = true
+        controller.delegate = delegate
+
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "D", keyCode: 2)))
+
+        #expect(delegate.commands == [.extraLargeScrollDown])
+        #expect(delegate.reader.actions == [])
+    }
+
     private func keyEvent(
         _ type: NSEvent.EventType,
         key: String,

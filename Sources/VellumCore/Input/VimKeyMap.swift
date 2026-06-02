@@ -3,6 +3,8 @@ enum VimKeyMap {
         switch key {
         case "+":
             return "="
+        case "D", "U":
+            return key
         default:
             return key.lowercased()
         }
@@ -10,7 +12,7 @@ enum VimKeyMap {
 
     static func isContinuousKey(_ key: String) -> Bool {
         switch normalizedContinuousKey(key) {
-        case "j", "k", "d", "u", "h", "l", "=", "-":
+        case "j", "k", "d", "u", "D", "U", "h", "l", "=", "-":
             return true
         default:
             return false
@@ -23,7 +25,7 @@ enum VimKeyMap {
         hasTextActionTarget: Bool
     ) -> Bool {
         switch key {
-        case "g", "G", "H", "L", "O", "N", "\t", "/", "a", "c", "j", "k", "d", "u", "h", "l", "m", "n", " ", "f", "b", "v", "+", "=", "-", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "z", "o", "t", "x", "]", "[":
+        case "g", "G", "H", "L", "O", "N", "\t", "/", "a", "c", "j", "k", "d", "u", "D", "U", "h", "l", "m", "n", " ", "f", "b", "v", "+", "=", "-", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "z", "o", "t", "x", "]", "[":
             return true
         case "w", "e", "y":
             return key == "y" ? hasTextActionTarget : hasNavigableTextSelection
@@ -75,6 +77,10 @@ enum VimKeyMap {
             return .largeScrollDown
         case "u":
             return .largeScrollUp
+        case "D":
+            return .extraLargeScrollDown
+        case "U":
+            return .extraLargeScrollUp
         case "h":
             return .scrollLeft
         case "l":
@@ -135,6 +141,10 @@ enum VimKeyMap {
             return .largeScrollDown
         case "u":
             return .largeScrollUp
+        case "D":
+            return .extraLargeScrollDown
+        case "U":
+            return .extraLargeScrollUp
         case "h":
             return .scrollLeft
         case "l":

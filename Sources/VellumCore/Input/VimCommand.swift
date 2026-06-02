@@ -13,6 +13,8 @@ enum VimCommand: Equatable {
     case scrollRight
     case pageDown
     case pageUp
+    case extraLargeScrollDown
+    case extraLargeScrollUp
     case firstPage
     case lastPage
     case jumpToPage(Int)

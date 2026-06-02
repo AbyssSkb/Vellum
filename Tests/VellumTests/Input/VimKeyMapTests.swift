@@ -11,6 +11,16 @@ struct VimKeyMapTests {
     }
 
     @Test
+    func uppercaseDAndUAreExtraLargeContinuousScrollKeys() {
+        #expect(VimKeyMap.normalizedContinuousKey("D") == "D")
+        #expect(VimKeyMap.normalizedContinuousKey("U") == "U")
+        #expect(VimKeyMap.isContinuousKey("D"))
+        #expect(VimKeyMap.isContinuousKey("U"))
+        #expect(VimKeyMap.continuousCommand(for: "D") == .extraLargeScrollDown)
+        #expect(VimKeyMap.continuousCommand(for: "U") == .extraLargeScrollUp)
+    }
+
+    @Test
     func wordMotionKeysDependOnNavigableSelection() {
         #expect(!VimKeyMap.isHandledKey("w", hasNavigableTextSelection: false, hasTextActionTarget: true))
         #expect(VimKeyMap.isHandledKey("w", hasNavigableTextSelection: true, hasTextActionTarget: true))

@@ -21,6 +21,7 @@ enum ShortcutCatalog {
             items: [
                 ShortcutItem(keys: ["j", "k"], action: "Smooth scroll"),
                 ShortcutItem(keys: ["u", "d"], action: "Large smooth scroll"),
+                ShortcutItem(keys: ["U", "D"], action: "Extra large smooth scroll"),
                 ShortcutItem(keys: ["h", "l"], action: "Horizontal scroll"),
                 ShortcutItem(keys: ["f", "b"], action: "Move exactly one page"),
                 ShortcutItem(keys: ["Space"], action: "Move forward one page"),
