@@ -52,7 +52,7 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
     <key>CFBundleExecutable</key>
     <string>Vellum</string>
     <key>CFBundleIdentifier</key>
-    <string>dev.local.vellum</string>
+    <string>com.abyssskb.vellum</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>

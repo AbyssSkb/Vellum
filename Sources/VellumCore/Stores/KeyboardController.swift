@@ -15,10 +15,10 @@ final class KeyboardController {
     private let tabPageOverviewDelay: TimeInterval
     private let installsKeyMonitor: Bool
     private let installsOpenURLObserver: Bool
-    private var keyMonitor: Any?
+    nonisolated(unsafe) private var keyMonitor: Any?
     private var vimInput = VimInputController()
-    private var heldKeyTimer: Timer?
-    private var tabPageOverviewTimer: Timer?
+    nonisolated(unsafe) private var heldKeyTimer: Timer?
+    nonisolated(unsafe) private var tabPageOverviewTimer: Timer?
     private var tabPageOverviewArmed = false
     private var tabPageOverviewActive = false
 
@@ -36,6 +36,14 @@ final class KeyboardController {
         if installsOpenURLObserver {
             installOpenURLObserver()
         }
+    }
+
+    deinit {
+        if let keyMonitor {
+            NSEvent.removeMonitor(keyMonitor)
+        }
+        heldKeyTimer?.invalidate()
+        tabPageOverviewTimer?.invalidate()
     }
 
     func handleKeyEvent(_ event: NSEvent) -> Bool {

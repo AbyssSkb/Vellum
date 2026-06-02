@@ -190,11 +190,10 @@ final class GitHubUpdateChecker {
             return
         }
 
-        UserDefaults.standard.set(update.version, forKey: Self.lastPromptedVersionKey)
-        showUpdateAvailable(update: update, currentVersion: currentVersion)
+        showUpdateAvailable(update: update, currentVersion: currentVersion, mode: mode)
     }
 
-    private func showUpdateAvailable(update: AppUpdateInfo, currentVersion: String) {
+    private func showUpdateAvailable(update: AppUpdateInfo, currentVersion: String, mode: CheckMode) {
         let alert = NSAlert()
         alert.messageText = "Vellum \(update.version) is available"
         if update.downloadURL != nil {
@@ -211,13 +210,24 @@ final class GitHubUpdateChecker {
         let response = alert.runModal()
         if update.downloadURL != nil {
             if response == .alertFirstButtonReturn {
-                downloadAndOpenInstaller(for: update)
+                downloadAndOpenInstaller(for: update, mode: mode)
             } else if response == .alertSecondButtonReturn {
+                markPromptedIfNeeded(update: update, mode: mode)
                 NSWorkspace.shared.open(update.releaseURL)
+            } else if response == .alertThirdButtonReturn {
+                markPromptedIfNeeded(update: update, mode: mode)
             }
         } else if response == .alertFirstButtonReturn {
+            markPromptedIfNeeded(update: update, mode: mode)
             NSWorkspace.shared.open(update.releaseURL)
+        } else if response == .alertSecondButtonReturn {
+            markPromptedIfNeeded(update: update, mode: mode)
         }
+    }
+
+    private func markPromptedIfNeeded(update: AppUpdateInfo, mode: CheckMode) {
+        guard mode == .automatic else { return }
+        UserDefaults.standard.set(update.version, forKey: Self.lastPromptedVersionKey)
     }
 
     private func showNoUpdate(currentVersion: String) {
@@ -240,7 +250,7 @@ final class GitHubUpdateChecker {
         }
     }
 
-    private func downloadAndOpenInstaller(for update: AppUpdateInfo) {
+    private func downloadAndOpenInstaller(for update: AppUpdateInfo, mode: CheckMode) {
         guard let downloadURL = update.downloadURL else {
             NSWorkspace.shared.open(update.releaseURL)
             return
@@ -253,6 +263,7 @@ final class GitHubUpdateChecker {
                 let fileURL = try await downloadInstaller(from: downloadURL, version: update.version)
                 await MainActor.run {
                     _ = NSWorkspace.shared.open(fileURL)
+                    self.markPromptedIfNeeded(update: update, mode: mode)
                 }
             } catch {
                 await MainActor.run {
@@ -293,9 +304,9 @@ final class GitHubUpdateChecker {
     }
 
     private func showDownloadError(_ error: Error, releaseURL: URL) {
-        let alert = NSAlert(error: error)
+        let alert = NSAlert()
         alert.messageText = "Unable to download the update"
-        alert.informativeText = "Open the release page to download it manually."
+        alert.informativeText = "\(error.localizedDescription)\n\nOpen the release page to download it manually."
         alert.addButton(withTitle: "Open GitHub")
         alert.addButton(withTitle: "Cancel")
 
