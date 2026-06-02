@@ -42,7 +42,8 @@ final class GitHubUpdateChecker {
     private static let latestReleaseURL = URL(string: "https://api.github.com/repos/AbyssSkb/Vellum/releases/latest")!
     private static let tagsAPIURL = URL(string: "https://api.github.com/repos/AbyssSkb/Vellum/tags")!
     private static let tagsPageURL = URL(string: "https://github.com/AbyssSkb/Vellum/tags")!
-    private static let defaultDownloadURL = URL(string: "https://github.com/AbyssSkb/Vellum/releases/latest")!
+    private static let repositoryURL = URL(string: "https://github.com/AbyssSkb/Vellum")!
+    private static let defaultDownloadURL = repositoryURL.appendingPathComponent("releases").appendingPathComponent("latest")
     private static let lastPromptedVersionKey = "VellumLastPromptedUpdateVersion"
 
     private let session: URLSession
@@ -95,7 +96,11 @@ final class GitHubUpdateChecker {
         do {
             return try await fetchLatestReleaseUpdate()
         } catch {
-            return try await fetchLatestTaggedUpdate()
+            do {
+                return try await fetchLatestReleaseRedirectUpdate()
+            } catch {
+                return try await fetchLatestTaggedUpdate()
+            }
         }
     }
 
@@ -126,6 +131,27 @@ final class GitHubUpdateChecker {
             releaseURL: release.htmlURL,
             downloadURL: installerAsset?.downloadURL
         )
+    }
+
+    private func fetchLatestReleaseRedirectUpdate() async throws -> AppUpdateInfo {
+        var request = URLRequest(url: Self.defaultDownloadURL)
+        request.setValue("Vellum", forHTTPHeaderField: "User-Agent")
+
+        let (_, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200..<300).contains(httpResponse.statusCode),
+              let finalURL = httpResponse.url else {
+            throw URLError(.badServerResponse)
+        }
+
+        let tagName = finalURL.lastPathComponent
+        guard !tagName.isEmpty,
+              tagName != "latest",
+              tagName.hasPrefix("v") || tagName.hasPrefix("V") else {
+            throw URLError(.cannotParseResponse)
+        }
+
+        return AppUpdateCatalog.githubReleaseUpdate(tagName: tagName, repositoryURL: Self.repositoryURL)
     }
 
     private func fetchLatestTaggedUpdate() async throws -> AppUpdateInfo {
@@ -203,9 +229,9 @@ final class GitHubUpdateChecker {
     }
 
     private func showUpdateError(_ error: Error) {
-        let alert = NSAlert(error: error)
+        let alert = NSAlert()
         alert.messageText = "Unable to check for updates"
-        alert.informativeText = "Open the releases page to check manually."
+        alert.informativeText = "GitHub may be unreachable or rate-limited right now. You can open the releases page and try again later."
         alert.addButton(withTitle: "Open Releases")
         alert.addButton(withTitle: "Cancel")
 

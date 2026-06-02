@@ -61,6 +61,27 @@ public struct AppReleaseAsset: Equatable {
 }
 
 public enum AppUpdateCatalog {
+    public static func githubReleaseUpdate(tagName: String, repositoryURL: URL) -> AppUpdateInfo {
+        let version = tagName.hasPrefix("v") || tagName.hasPrefix("V")
+            ? String(tagName.dropFirst())
+            : tagName
+        let releaseURL = repositoryURL
+            .appendingPathComponent("releases")
+            .appendingPathComponent("tag")
+            .appendingPathComponent(tagName)
+        let downloadURL = repositoryURL
+            .appendingPathComponent("releases")
+            .appendingPathComponent("download")
+            .appendingPathComponent(tagName)
+            .appendingPathComponent("Vellum-\(version)-macOS.dmg")
+
+        return AppUpdateInfo(
+            version: tagName,
+            releaseURL: releaseURL,
+            downloadURL: downloadURL
+        )
+    }
+
     public static func latestTaggedVersion(
         in tagNames: [String],
         tagsURL: URL

@@ -35,6 +35,16 @@ struct UpdateVersionTests {
     }
 
     @Test
+    func updateCatalogBuildsGitHubReleaseDownloadURL() {
+        let repositoryURL = URL(string: "https://github.com/AbyssSkb/Vellum")!
+        let update = AppUpdateCatalog.githubReleaseUpdate(tagName: "v0.2.6", repositoryURL: repositoryURL)
+
+        #expect(update.version == "v0.2.6")
+        #expect(update.releaseURL == URL(string: "https://github.com/AbyssSkb/Vellum/releases/tag/v0.2.6"))
+        #expect(update.downloadURL == URL(string: "https://github.com/AbyssSkb/Vellum/releases/download/v0.2.6/Vellum-0.2.6-macOS.dmg"))
+    }
+
+    @Test
     func updateCatalogPrefersMacOSDiskImageAsset() {
         let genericDMG = AppReleaseAsset(
             name: "Other.dmg",
