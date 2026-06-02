@@ -14,12 +14,24 @@ final class GitHubUpdateChecker {
         let htmlURL: URL
         let draft: Bool
         let prerelease: Bool
+        let assets: [ReleaseAsset]
 
         enum CodingKeys: String, CodingKey {
             case tagName = "tag_name"
             case htmlURL = "html_url"
             case draft
             case prerelease
+            case assets
+        }
+    }
+
+    private struct ReleaseAsset: Decodable {
+        let name: String
+        let browserDownloadURL: URL
+
+        enum CodingKeys: String, CodingKey {
+            case name
+            case browserDownloadURL = "browser_download_url"
         }
     }
 
@@ -103,7 +115,17 @@ final class GitHubUpdateChecker {
             throw URLError(.cannotParseResponse)
         }
 
-        return AppUpdateInfo(version: release.tagName, releaseURL: release.htmlURL)
+        let installerAsset = AppUpdateCatalog.preferredInstallerAsset(
+            in: release.assets.map {
+                AppReleaseAsset(name: $0.name, downloadURL: $0.browserDownloadURL)
+            }
+        )
+
+        return AppUpdateInfo(
+            version: release.tagName,
+            releaseURL: release.htmlURL,
+            downloadURL: installerAsset?.downloadURL
+        )
     }
 
     private func fetchLatestTaggedUpdate() async throws -> AppUpdateInfo {
@@ -149,11 +171,25 @@ final class GitHubUpdateChecker {
     private func showUpdateAvailable(update: AppUpdateInfo, currentVersion: String) {
         let alert = NSAlert()
         alert.messageText = "Vellum \(update.version) is available"
-        alert.informativeText = "You are currently using Vellum \(currentVersion). Open GitHub to download the latest version."
-        alert.addButton(withTitle: "Open GitHub")
-        alert.addButton(withTitle: "Later")
+        if update.downloadURL != nil {
+            alert.informativeText = "You are currently using Vellum \(currentVersion). Download the latest installer now."
+            alert.addButton(withTitle: "Download Update")
+            alert.addButton(withTitle: "Open GitHub")
+            alert.addButton(withTitle: "Later")
+        } else {
+            alert.informativeText = "You are currently using Vellum \(currentVersion). Open GitHub to download the latest version."
+            alert.addButton(withTitle: "Open GitHub")
+            alert.addButton(withTitle: "Later")
+        }
 
-        if alert.runModal() == .alertFirstButtonReturn {
+        let response = alert.runModal()
+        if update.downloadURL != nil {
+            if response == .alertFirstButtonReturn {
+                downloadAndOpenInstaller(for: update)
+            } else if response == .alertSecondButtonReturn {
+                NSWorkspace.shared.open(update.releaseURL)
+            }
+        } else if response == .alertFirstButtonReturn {
             NSWorkspace.shared.open(update.releaseURL)
         }
     }
@@ -175,6 +211,70 @@ final class GitHubUpdateChecker {
 
         if alert.runModal() == .alertFirstButtonReturn {
             NSWorkspace.shared.open(Self.defaultDownloadURL)
+        }
+    }
+
+    private func downloadAndOpenInstaller(for update: AppUpdateInfo) {
+        guard let downloadURL = update.downloadURL else {
+            NSWorkspace.shared.open(update.releaseURL)
+            return
+        }
+
+        task?.cancel()
+        task = Task { [weak self] in
+            guard let self else { return }
+            do {
+                let fileURL = try await downloadInstaller(from: downloadURL, version: update.version)
+                await MainActor.run {
+                    _ = NSWorkspace.shared.open(fileURL)
+                }
+            } catch {
+                await MainActor.run {
+                    self.showDownloadError(error, releaseURL: update.releaseURL)
+                }
+            }
+        }
+    }
+
+    private func downloadInstaller(from url: URL, version: String) async throws -> URL {
+        var request = URLRequest(url: url)
+        request.setValue("Vellum", forHTTPHeaderField: "User-Agent")
+
+        let (temporaryURL, response) = try await session.download(for: request)
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200..<300).contains(httpResponse.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+
+        let downloadsDirectory = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
+        let fileName = installerFileName(from: url, version: version)
+        let destinationURL = downloadsDirectory.appendingPathComponent(fileName)
+
+        if FileManager.default.fileExists(atPath: destinationURL.path) {
+            try FileManager.default.removeItem(at: destinationURL)
+        }
+        try FileManager.default.moveItem(at: temporaryURL, to: destinationURL)
+        return destinationURL
+    }
+
+    private func installerFileName(from url: URL, version: String) -> String {
+        let lastPathComponent = url.lastPathComponent.removingPercentEncoding ?? url.lastPathComponent
+        if !lastPathComponent.isEmpty {
+            return lastPathComponent
+        }
+        return "Vellum-\(version)-macOS.dmg"
+    }
+
+    private func showDownloadError(_ error: Error, releaseURL: URL) {
+        let alert = NSAlert(error: error)
+        alert.messageText = "Unable to download the update"
+        alert.informativeText = "Open the release page to download it manually."
+        alert.addButton(withTitle: "Open GitHub")
+        alert.addButton(withTitle: "Cancel")
+
+        if alert.runModal() == .alertFirstButtonReturn {
+            NSWorkspace.shared.open(releaseURL)
         }
     }
 }

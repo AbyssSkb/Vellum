@@ -28,6 +28,54 @@ jobs:
         with:
           xcode-version: latest-stable
 
+      - name: Configure Developer ID signing
+        id: signing
+        shell: bash
+        env:
+          DEVELOPER_ID_CERTIFICATE_BASE64: ${{ secrets.DEVELOPER_ID_CERTIFICATE_BASE64 }}
+          DEVELOPER_ID_CERTIFICATE_PASSWORD: ${{ secrets.DEVELOPER_ID_CERTIFICATE_PASSWORD }}
+          DEVELOPER_ID_SIGNING_IDENTITY: ${{ secrets.DEVELOPER_ID_SIGNING_IDENTITY }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          if [[ -z "$DEVELOPER_ID_CERTIFICATE_BASE64" || -z "$DEVELOPER_ID_CERTIFICATE_PASSWORD" || -z "$KEYCHAIN_PASSWORD" ]]; then
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Developer ID signing secrets are not configured; the release will use ad-hoc signing."
+            exit 0
+          fi
+
+          KEYCHAIN_PATH="$RUNNER_TEMP/vellum-signing.keychain-db"
+          CERTIFICATE_PATH="$RUNNER_TEMP/developer-id.p12"
+
+          echo "$DEVELOPER_ID_CERTIFICATE_BASE64" | base64 -D > "$CERTIFICATE_PATH"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERTIFICATE_PATH" \
+            -P "$DEVELOPER_ID_CERTIFICATE_PASSWORD" \
+            -A \
+            -t cert \
+            -f pkcs12 \
+            -k "$KEYCHAIN_PATH" \
+            -T /usr/bin/codesign \
+            -T /usr/bin/security
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH"
+
+          IDENTITY="$DEVELOPER_ID_SIGNING_IDENTITY"
+          if [[ -z "$IDENTITY" ]]; then
+            IDENTITY="$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" | awk -F '"' '/Developer ID Application/ { print $2; exit }')"
+          fi
+
+          if [[ -z "$IDENTITY" ]]; then
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::No Developer ID Application identity was found; the release will use ad-hoc signing."
+            exit 0
+          fi
+
+          echo "available=true" >> "$GITHUB_OUTPUT"
+          echo "identity=$IDENTITY" >> "$GITHUB_OUTPUT"
+          echo "keychain=$KEYCHAIN_PATH" >> "$GITHUB_OUTPUT"
+
       - name: Resolve version
         id: version
         shell: bash
@@ -55,9 +103,13 @@ jobs:
         env:
           APP_VERSION: ${{ steps.version.outputs.version }}
           BUILD_NUMBER: ${{ steps.version.outputs.build_number }}
+          CODE_SIGN_IDENTITY: ${{ steps.signing.outputs.identity }}
         run: scripts/package-app.sh
 
       - name: Create release disk image
+        env:
+          SIGNING_AVAILABLE: ${{ steps.signing.outputs.available }}
+          CODE_SIGN_IDENTITY: ${{ steps.signing.outputs.identity }}
         shell: bash
         run: |
           mkdir -p dist/dmg-root
@@ -69,7 +121,30 @@ jobs:
             -ov \
             -format UDZO \
             "dist/${{ steps.version.outputs.archive_name }}.dmg"
+          if [[ "$SIGNING_AVAILABLE" == "true" ]]; then
+            codesign --force --timestamp --sign "$CODE_SIGN_IDENTITY" "dist/${{ steps.version.outputs.archive_name }}.dmg"
+          fi
           shasum -a 256 "dist/${{ steps.version.outputs.archive_name }}.dmg" > "dist/${{ steps.version.outputs.archive_name }}.dmg.sha256"
+
+      - name: Notarize release disk image
+        if: steps.signing.outputs.available == 'true'
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+        shell: bash
+        run: |
+          if [[ -z "$APPLE_ID" || -z "$APPLE_TEAM_ID" || -z "$APPLE_APP_SPECIFIC_PASSWORD" ]]; then
+            echo "::warning::Apple notarization secrets are not configured; the release disk image will not be notarized."
+            exit 0
+          fi
+
+          xcrun notarytool submit "dist/${{ steps.version.outputs.archive_name }}.dmg" \
+            --apple-id "$APPLE_ID" \
+            --team-id "$APPLE_TEAM_ID" \
+            --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+            --wait
+          xcrun stapler staple "dist/${{ steps.version.outputs.archive_name }}.dmg"
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v3.0.0
@@ -81,3 +156,11 @@ jobs:
           files: |
             dist/${{ steps.version.outputs.archive_name }}.dmg
             dist/${{ steps.version.outputs.archive_name }}.dmg.sha256
+
+      - name: Delete signing keychain
+        if: always() && steps.signing.outputs.available == 'true'
+        env:
+          KEYCHAIN_PATH: ${{ steps.signing.outputs.keychain }}
+        shell: bash
+        run: |
+          security delete-keychain "$KEYCHAIN_PATH"

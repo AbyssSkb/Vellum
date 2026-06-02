@@ -33,4 +33,22 @@ struct UpdateVersionTests {
 
         #expect(update == AppUpdateInfo(version: "v0.2.10", releaseURL: tagsURL))
     }
+
+    @Test
+    func updateCatalogPrefersMacOSDiskImageAsset() {
+        let genericDMG = AppReleaseAsset(
+            name: "Other.dmg",
+            downloadURL: URL(string: "https://example.com/other.dmg")!
+        )
+        let checksum = AppReleaseAsset(
+            name: "Vellum-0.2.6-macOS.dmg.sha256",
+            downloadURL: URL(string: "https://example.com/vellum.dmg.sha256")!
+        )
+        let macOSDMG = AppReleaseAsset(
+            name: "Vellum-0.2.6-macOS.dmg",
+            downloadURL: URL(string: "https://example.com/vellum.dmg")!
+        )
+
+        #expect(AppUpdateCatalog.preferredInstallerAsset(in: [genericDMG, checksum, macOSDMG]) == macOSDMG)
+    }
 }

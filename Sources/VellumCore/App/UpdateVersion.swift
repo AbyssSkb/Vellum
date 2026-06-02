@@ -37,14 +37,26 @@ public struct UpdateVersion: Comparable, Equatable {
 public struct AppUpdateInfo: Equatable {
     public let version: String
     public let releaseURL: URL
+    public let downloadURL: URL?
 
-    public init(version: String, releaseURL: URL) {
+    public init(version: String, releaseURL: URL, downloadURL: URL? = nil) {
         self.version = version
         self.releaseURL = releaseURL
+        self.downloadURL = downloadURL
     }
 
     public func isNewer(than currentVersion: String) -> Bool {
         UpdateVersion(version) > UpdateVersion(currentVersion)
+    }
+}
+
+public struct AppReleaseAsset: Equatable {
+    public let name: String
+    public let downloadURL: URL
+
+    public init(name: String, downloadURL: URL) {
+        self.name = name
+        self.downloadURL = downloadURL
     }
 }
 
@@ -57,5 +69,19 @@ public enum AppUpdateCatalog {
             .filter { !$0.isEmpty && ($0.hasPrefix("v") || $0.hasPrefix("V")) }
             .max { UpdateVersion($0) < UpdateVersion($1) }
             .map { AppUpdateInfo(version: $0, releaseURL: tagsURL) }
+    }
+
+    public static func preferredInstallerAsset(in assets: [AppReleaseAsset]) -> AppReleaseAsset? {
+        let diskImages = assets.filter { asset in
+            let lowercasedName = asset.name.lowercased()
+            return lowercasedName.hasSuffix(".dmg")
+        }
+
+        return diskImages.first { asset in
+            let lowercasedName = asset.name.lowercased()
+            return lowercasedName.contains("vellum") && lowercasedName.contains("macos")
+        } ?? diskImages.first { asset in
+            asset.name.lowercased().contains("vellum")
+        } ?? diskImages.first
     }
 }

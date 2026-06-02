@@ -100,7 +100,11 @@ PLIST
 printf "APPL????" > "$CONTENTS_DIR/PkgInfo"
 
 if command -v codesign >/dev/null 2>&1; then
-    codesign --force --deep --sign - "$APP_DIR" >/dev/null
+    if [ -n "${CODE_SIGN_IDENTITY:-}" ]; then
+        codesign --force --deep --timestamp --options runtime --sign "$CODE_SIGN_IDENTITY" "$APP_DIR" >/dev/null
+    else
+        codesign --force --deep --sign - "$APP_DIR" >/dev/null
+    fi
 fi
 
 echo "$APP_DIR"
