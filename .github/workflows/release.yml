@@ -21,7 +21,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6.0.2
 
       - name: Select Xcode
         uses: maxim-lobanov/setup-xcode@v1
@@ -72,7 +72,7 @@ jobs:
           shasum -a 256 "dist/${{ steps.version.outputs.archive_name }}.dmg" > "dist/${{ steps.version.outputs.archive_name }}.dmg.sha256"
 
       - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3.0.0
         with:
           tag_name: ${{ steps.version.outputs.tag }}
           target_commitish: ${{ github.sha }}
