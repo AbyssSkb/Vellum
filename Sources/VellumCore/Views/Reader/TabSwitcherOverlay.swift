@@ -1,8 +1,8 @@
+@preconcurrency import AppKit
 import SwiftUI
 
 struct TabSwitcherOverlay: View {
     @EnvironmentObject private var appState: AppState
-    @FocusState private var isSearchFocused: Bool
     @State private var query = ""
     @State private var selectedIndex = 0
 
@@ -18,72 +18,41 @@ struct TabSwitcherOverlay: View {
 
     var body: some View {
         ZStack {
-            Color.black.opacity(0.28)
+            Rectangle()
+                .fill(TokyoNight.backgroundDeepColor.opacity(0.80))
                 .ignoresSafeArea()
+                .contentShape(Rectangle())
                 .onTapGesture {
                     appState.hideTabSwitcher()
                 }
 
             VStack(spacing: 0) {
-                HStack(spacing: 10) {
-                    Image(systemName: "magnifyingglass")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(TokyoNight.mutedColor)
+                searchHeader
 
-                    TextField("Search tabs", text: $query)
-                        .textFieldStyle(.plain)
-                        .font(.system(size: 18, weight: .medium))
-                        .foregroundStyle(TokyoNight.foregroundColor)
-                        .focused($isSearchFocused)
-                        .onSubmit {
-                            openSelectedMatch()
-                        }
-                }
-                .frame(height: 56)
-                .padding(.horizontal, 18)
-                .background(TokyoNight.panelElevatedColor)
+                Rectangle()
+                    .fill(TokyoNight.borderColor.opacity(0.72))
+                    .frame(height: 1)
 
-                TokyoNightDivider(axis: .horizontal)
-
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        LazyVStack(spacing: 0) {
-                            ForEach(Array(matches.enumerated()), id: \.element.id) { index, tab in
-                                TabSwitcherRow(
-                                    tab: tab,
-                                    isSelected: index == selectedIndex,
-                                    isCurrent: tab.id == appState.selectedTabID
-                                )
-                                .id(tab.id)
-                                .contentShape(Rectangle())
-                                .onTapGesture {
-                                    open(tab)
-                                }
-                            }
-                        }
-                    }
-                    .frame(maxHeight: 322)
-                    .onChange(of: selectedTabIDForScroll) { _, id in
-                        guard let id else { return }
-                        withAnimation(.easeOut(duration: 0.12)) {
-                            proxy.scrollTo(id, anchor: .center)
-                        }
-                    }
+                tabList
+            }
+            .frame(maxWidth: 620)
+            .background {
+                ZStack {
+                    TabSwitcherVisualEffectBackground()
+                    TokyoNight.panelElevatedColor.opacity(0.86)
                 }
             }
-            .frame(maxWidth: 560)
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .stroke(TokyoNight.borderColor.opacity(0.95), lineWidth: 1)
             }
-            .shadow(color: .black.opacity(0.35), radius: 22, y: 14)
+            .shadow(color: .black.opacity(0.55), radius: 28, y: 18)
             .padding(.horizontal, 28)
         }
-        .transition(.opacity.combined(with: .scale(scale: 0.98)))
+        .transition(.opacity.combined(with: .scale(scale: 0.985)))
         .onAppear {
             selectedIndex = selectedIndexForCurrentTab()
-            isSearchFocused = true
         }
         .onChange(of: query) { _, _ in
             selectedIndex = 0
@@ -95,12 +64,101 @@ struct TabSwitcherOverlay: View {
             }
             selectedIndex = min(selectedIndex, ids.count - 1)
         }
-        .onMoveCommand { direction in
-            moveSelection(direction)
+    }
+
+    private var searchHeader: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(TokyoNight.cyanColor.opacity(0.95))
+                .frame(width: 24, height: 24)
+
+            TabSwitcherSearchField(
+                text: $query,
+                onMoveUp: { moveSelection(.up) },
+                onMoveDown: { moveSelection(.down) },
+                onCommit: openSelectedMatch,
+                onCancel: {
+                    appState.hideTabSwitcher()
+                }
+            )
+            .frame(height: 34)
+
+            matchCount
         }
-        .onExitCommand {
-            appState.hideTabSwitcher()
+        .padding(.horizontal, 18)
+        .frame(height: 64)
+        .background(TokyoNight.panelColor.opacity(0.92))
+    }
+
+    private var matchCount: some View {
+        Text("\(matches.count)")
+            .font(.system(size: 12, weight: .semibold, design: .monospaced))
+            .foregroundStyle(matches.isEmpty ? TokyoNight.redColor : TokyoNight.cyanColor)
+            .frame(minWidth: 34, minHeight: 24)
+            .padding(.horizontal, 8)
+            .background(TokyoNight.backgroundDeepColor)
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .stroke(
+                        matches.isEmpty
+                            ? TokyoNight.redColor.opacity(0.42)
+                            : TokyoNight.cyanColor.opacity(0.28),
+                        lineWidth: 1
+                    )
+            }
+    }
+
+    private var tabList: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    if matches.isEmpty {
+                        emptyRow
+                    } else {
+                        ForEach(Array(matches.enumerated()), id: \.element.id) { index, tab in
+                            TabSwitcherRow(
+                                tab: tab,
+                                isSelected: index == selectedIndex,
+                                isCurrent: tab.id == appState.selectedTabID
+                            )
+                            .id(tab.id)
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                open(tab)
+                            }
+                        }
+                    }
+                }
+            }
+            .scrollIndicators(.visible)
+            .frame(maxHeight: 360)
+            .background(TokyoNight.panelElevatedColor.opacity(0.82))
+            .onChange(of: selectedTabIDForScroll) { _, id in
+                guard let id else { return }
+                withAnimation(.easeOut(duration: 0.12)) {
+                    proxy.scrollTo(id, anchor: .center)
+                }
+            }
         }
+    }
+
+    private var emptyRow: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "doc.text.magnifyingglass")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(TokyoNight.mutedColor)
+                .frame(width: 22)
+
+            Text("No matching tabs")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(TokyoNight.mutedColor)
+
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .frame(height: 58)
     }
 
     private var selectedTabIDForScroll: PDFTab.ID? {
@@ -139,6 +197,190 @@ struct TabSwitcherOverlay: View {
     }
 }
 
+private struct TabSwitcherSearchField: NSViewRepresentable {
+    @Binding var text: String
+    let onMoveUp: () -> Void
+    let onMoveDown: () -> Void
+    let onCommit: () -> Void
+    let onCancel: () -> Void
+
+    func makeNSView(context: Context) -> TabSwitcherTextField {
+        let textField = TabSwitcherTextField()
+        textField.delegate = context.coordinator
+        textField.onMoveUp = onMoveUp
+        textField.onMoveDown = onMoveDown
+        textField.onCommit = onCommit
+        textField.onCancel = onCancel
+        textField.configure()
+        focus(textField)
+        return textField
+    }
+
+    func updateNSView(_ nsView: TabSwitcherTextField, context: Context) {
+        nsView.onMoveUp = onMoveUp
+        nsView.onMoveDown = onMoveDown
+        nsView.onCommit = onCommit
+        nsView.onCancel = onCancel
+
+        if nsView.stringValue != text {
+            nsView.stringValue = text
+        }
+
+        context.coordinator.text = $text
+        focus(nsView)
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(text: $text)
+    }
+
+    private func focus(_ textField: TabSwitcherTextField) {
+        DispatchQueue.main.async {
+            guard textField.window?.firstResponder !== textField.currentEditor() else { return }
+            textField.window?.makeFirstResponder(textField)
+            textField.currentEditor()?.selectedRange = NSRange(
+                location: textField.stringValue.count,
+                length: 0
+            )
+        }
+    }
+
+    final class Coordinator: NSObject, NSTextFieldDelegate {
+        var text: Binding<String>
+
+        init(text: Binding<String>) {
+            self.text = text
+        }
+
+        func controlTextDidChange(_ notification: Notification) {
+            guard let textField = notification.object as? NSTextField else { return }
+            text.wrappedValue = textField.stringValue
+        }
+
+        func control(
+            _ control: NSControl,
+            textView: NSTextView,
+            doCommandBy commandSelector: Selector
+        ) -> Bool {
+            guard let textField = control as? TabSwitcherTextField else { return false }
+            return textField.performCommand(commandSelector)
+        }
+    }
+}
+
+private struct TabSwitcherVisualEffectBackground: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = .hudWindow
+        view.blendingMode = .withinWindow
+        view.state = .active
+        view.isEmphasized = false
+        return view
+    }
+
+    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
+        nsView.material = .hudWindow
+        nsView.blendingMode = .withinWindow
+        nsView.state = .active
+        nsView.isEmphasized = false
+    }
+}
+
+private final class TabSwitcherTextField: NSTextField {
+    var onMoveUp: (() -> Void)?
+    var onMoveDown: (() -> Void)?
+    var onCommit: (() -> Void)?
+    var onCancel: (() -> Void)?
+
+    override var acceptsFirstResponder: Bool { true }
+
+    func configure() {
+        cell = TabSwitcherTextFieldCell(textCell: "")
+        font = .systemFont(ofSize: 22, weight: .medium)
+        textColor = TokyoNight.foreground
+        placeholderAttributedString = NSAttributedString(
+            string: "Search open tabs",
+            attributes: [
+                .foregroundColor: TokyoNight.muted.withAlphaComponent(0.92),
+                .font: NSFont.systemFont(ofSize: 22, weight: .regular)
+            ]
+        )
+        backgroundColor = .clear
+        isBordered = false
+        isBezeled = false
+        drawsBackground = false
+        isEditable = true
+        isSelectable = true
+        isEnabled = true
+        focusRingType = .none
+        cell?.usesSingleLineMode = true
+        cell?.wraps = false
+        cell?.isScrollable = true
+    }
+
+    override func keyDown(with event: NSEvent) {
+        if event.keyCode == 53 || event.charactersIgnoringModifiers == "\u{1b}" {
+            onCancel?()
+            return
+        }
+
+        switch event.specialKey {
+        case .upArrow:
+            onMoveUp?()
+        case .downArrow:
+            onMoveDown?()
+        case .carriageReturn, .newline:
+            onCommit?()
+        default:
+            super.keyDown(with: event)
+        }
+    }
+
+    func performCommand(_ commandSelector: Selector) -> Bool {
+        switch commandSelector {
+        case #selector(NSResponder.moveUp(_:)):
+            onMoveUp?()
+            return true
+        case #selector(NSResponder.moveDown(_:)):
+            onMoveDown?()
+            return true
+        case #selector(NSResponder.insertNewline(_:)):
+            onCommit?()
+            return true
+        case #selector(NSResponder.cancelOperation(_:)):
+            onCancel?()
+            return true
+        default:
+            return false
+        }
+    }
+}
+
+private final class TabSwitcherTextFieldCell: NSTextFieldCell {
+    override func drawingRect(forBounds rect: NSRect) -> NSRect {
+        var drawingRect = super.drawingRect(forBounds: rect)
+        let textHeight = cellSize(forBounds: rect).height
+        drawingRect.origin.y += max(0, (rect.height - textHeight) / 2)
+        drawingRect.size.height = min(drawingRect.height, textHeight)
+        return drawingRect
+    }
+
+    override func edit(withFrame rect: NSRect, in controlView: NSView, editor textObj: NSText, delegate: Any?, event: NSEvent?) {
+        super.edit(withFrame: drawingRect(forBounds: rect), in: controlView, editor: textObj, delegate: delegate, event: event)
+    }
+
+    override func select(withFrame rect: NSRect, in controlView: NSView, editor textObj: NSText, delegate: Any?, start selStart: Int, length selLength: Int) {
+        super.select(
+            withFrame: drawingRect(forBounds: rect),
+            in: controlView,
+            editor: textObj,
+            delegate: delegate,
+            start: selStart,
+            length: selLength
+        )
+    }
+}
+
 private struct TabSwitcherRow: View {
     let tab: PDFTab
     let isSelected: Bool
@@ -148,7 +390,7 @@ private struct TabSwitcherRow: View {
         HStack(spacing: 12) {
             Image(systemName: isCurrent ? "doc.fill" : "doc")
                 .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(isSelected ? TokyoNight.cyanColor : TokyoNight.blueColor)
+                .foregroundStyle(iconColor)
                 .frame(width: 22)
 
             VStack(alignment: .leading, spacing: 4) {
@@ -175,6 +417,25 @@ private struct TabSwitcherRow: View {
         }
         .padding(.horizontal, 16)
         .frame(height: 58)
-        .background(isSelected ? TokyoNight.selectionColor.opacity(0.62) : Color.clear)
+        .background(rowBackground)
+        .overlay(alignment: .leading) {
+            if isSelected {
+                Rectangle()
+                    .fill(TokyoNight.cyanColor)
+                    .frame(width: 3)
+            }
+        }
+    }
+
+    private var iconColor: Color {
+        if isSelected {
+            return TokyoNight.cyanColor
+        }
+        return isCurrent ? TokyoNight.blueColor : TokyoNight.mutedColor
+    }
+
+    private var rowBackground: some View {
+        Rectangle()
+            .fill(isSelected ? TokyoNight.selectionColor.opacity(0.82) : Color.clear)
     }
 }
