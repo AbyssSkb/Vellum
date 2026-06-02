@@ -22,4 +22,15 @@ struct UpdateVersionTests {
         #expect(update.isNewer(than: "0.2.2"))
         #expect(!update.isNewer(than: "0.2.3"))
     }
+
+    @Test
+    func updateCatalogChoosesLatestVersionTag() {
+        let tagsURL = URL(string: "https://github.com/AbyssSkb/Vellum/tags")!
+        let update = AppUpdateCatalog.latestTaggedVersion(
+            in: ["preview", "v0.2.8", "v0.2.10", "v0.1.0"],
+            tagsURL: tagsURL
+        )
+
+        #expect(update == AppUpdateInfo(version: "v0.2.10", releaseURL: tagsURL))
+    }
 }

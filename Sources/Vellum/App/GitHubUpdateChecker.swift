@@ -23,7 +23,13 @@ final class GitHubUpdateChecker {
         }
     }
 
+    private struct RepositoryTag: Decodable {
+        let name: String
+    }
+
     private static let latestReleaseURL = URL(string: "https://api.github.com/repos/AbyssSkb/Vellum/releases/latest")!
+    private static let tagsAPIURL = URL(string: "https://api.github.com/repos/AbyssSkb/Vellum/tags")!
+    private static let tagsPageURL = URL(string: "https://github.com/AbyssSkb/Vellum/tags")!
     private static let defaultDownloadURL = URL(string: "https://github.com/AbyssSkb/Vellum/releases/latest")!
     private static let lastPromptedVersionKey = "VellumLastPromptedUpdateVersion"
 
@@ -74,6 +80,14 @@ final class GitHubUpdateChecker {
     }
 
     private func fetchLatestUpdate() async throws -> AppUpdateInfo {
+        do {
+            return try await fetchLatestReleaseUpdate()
+        } catch {
+            return try await fetchLatestTaggedUpdate()
+        }
+    }
+
+    private func fetchLatestReleaseUpdate() async throws -> AppUpdateInfo {
         var request = URLRequest(url: Self.latestReleaseURL)
         request.setValue("Vellum", forHTTPHeaderField: "User-Agent")
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
@@ -90,6 +104,28 @@ final class GitHubUpdateChecker {
         }
 
         return AppUpdateInfo(version: release.tagName, releaseURL: release.htmlURL)
+    }
+
+    private func fetchLatestTaggedUpdate() async throws -> AppUpdateInfo {
+        var request = URLRequest(url: Self.tagsAPIURL)
+        request.setValue("Vellum", forHTTPHeaderField: "User-Agent")
+        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200..<300).contains(httpResponse.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+
+        let tags = try JSONDecoder().decode([RepositoryTag].self, from: data)
+        guard let update = AppUpdateCatalog.latestTaggedVersion(
+            in: tags.map(\.name),
+            tagsURL: Self.tagsPageURL
+        ) else {
+            throw URLError(.cannotParseResponse)
+        }
+
+        return update
     }
 
     private func handle(update: AppUpdateInfo, mode: CheckMode) {
@@ -113,8 +149,8 @@ final class GitHubUpdateChecker {
     private func showUpdateAvailable(update: AppUpdateInfo, currentVersion: String) {
         let alert = NSAlert()
         alert.messageText = "Vellum \(update.version) is available"
-        alert.informativeText = "You are currently using Vellum \(currentVersion). Open the releases page to download the latest version."
-        alert.addButton(withTitle: "Open Releases")
+        alert.informativeText = "You are currently using Vellum \(currentVersion). Open GitHub to download the latest version."
+        alert.addButton(withTitle: "Open GitHub")
         alert.addButton(withTitle: "Later")
 
         if alert.runModal() == .alertFirstButtonReturn {

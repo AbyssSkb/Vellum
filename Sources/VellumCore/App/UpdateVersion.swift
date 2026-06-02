@@ -47,3 +47,15 @@ public struct AppUpdateInfo: Equatable {
         UpdateVersion(version) > UpdateVersion(currentVersion)
     }
 }
+
+public enum AppUpdateCatalog {
+    public static func latestTaggedVersion(
+        in tagNames: [String],
+        tagsURL: URL
+    ) -> AppUpdateInfo? {
+        tagNames
+            .filter { !$0.isEmpty && ($0.hasPrefix("v") || $0.hasPrefix("V")) }
+            .max { UpdateVersion($0) < UpdateVersion($1) }
+            .map { AppUpdateInfo(version: $0, releaseURL: tagsURL) }
+    }
+}
