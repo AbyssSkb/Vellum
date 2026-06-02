@@ -8,6 +8,12 @@ extension AppState {
         prepareForSelectedReaderChange()
     }
 
+    func selectTabFromSwitcher(_ id: PDFTab.ID) {
+        isTabSwitcherPresented = false
+        selectTab(id)
+        focusActiveReaderSoon()
+    }
+
     public func openPanel(mode: PDFOpenMode = .currentTab) {
         PDFOpenPanelPresenter.present(mode: mode) { [weak self] urls in
             switch mode {

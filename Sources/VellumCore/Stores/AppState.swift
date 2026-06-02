@@ -6,6 +6,7 @@ import SwiftUI
 public final class AppState: ObservableObject {
     @Published var tabStore = TabStore()
     @Published var isOutlineVisible = false
+    @Published var isTabSwitcherPresented = false
     @Published var outlineFocusGeneration = 0
     @Published private(set) var selectedHighlightColor: HighlightColor = .yellow
 
@@ -71,6 +72,16 @@ public final class AppState: ObservableObject {
 
     func handleVimCommand(_ command: VimCommand) {
         vimCommandDispatcher.perform(command, on: self)
+    }
+
+    func showTabSwitcher() {
+        guard hasOpenDocuments else { return }
+        isTabSwitcherPresented = true
+    }
+
+    func hideTabSwitcher() {
+        isTabSwitcherPresented = false
+        focusActiveReaderSoon()
     }
 
     private let vimCommandDispatcher = VimCommandDispatcher()

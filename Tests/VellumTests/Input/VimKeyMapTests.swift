@@ -52,6 +52,12 @@ struct VimKeyMapTests {
     }
 
     @Test
+    func uppercaseTOpensTabSwitcher() {
+        #expect(VimKeyMap.isHandledKey("T", hasNavigableTextSelection: false, hasTextActionTarget: false))
+        #expect(VimKeyMap.command(for: "T") == .showTabSwitcher)
+    }
+
+    @Test
     func uppercaseFallbackLeavesDedicatedUppercaseCommandsAlone() {
         #expect(VimKeyMap.lowercaseFallback(for: "A") == "a")
         #expect(VimKeyMap.lowercaseFallback(for: "G") == nil)

@@ -16,6 +16,7 @@ struct VimCommandDispatcherTests {
         dispatcher.perform(.restoreClosedTab, on: target)
         dispatcher.perform(.nextTab, on: target)
         dispatcher.perform(.previousTab, on: target)
+        dispatcher.perform(.showTabSwitcher, on: target)
 
         #expect(target.actions == [
             .openCurrent,
@@ -23,7 +24,8 @@ struct VimCommandDispatcherTests {
             .closeTab,
             .restoreClosedTab,
             .nextTab,
-            .previousTab
+            .previousTab,
+            .showTabSwitcher
         ])
     }
 
@@ -133,6 +135,10 @@ private final class RecordingVimCommandTarget: VimCommandTarget {
         actions.append(.previousTab)
     }
 
+    func showTabSwitcher() {
+        actions.append(.showTabSwitcher)
+    }
+
     func scrollBy(x: CGFloat, y: CGFloat) {
         actions.append(.scroll(x: x, y: y))
     }
@@ -216,6 +222,7 @@ private final class RecordingVimCommandTarget: VimCommandTarget {
         case restoreClosedTab
         case nextTab
         case previousTab
+        case showTabSwitcher
         case scroll(x: CGFloat, y: CGFloat)
         case moveByPage(Int)
         case firstPage

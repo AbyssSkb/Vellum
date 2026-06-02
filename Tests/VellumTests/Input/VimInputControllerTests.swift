@@ -90,6 +90,15 @@ struct VimInputControllerTests {
     }
 
     @Test
+    func uppercaseTOpensTabSwitcherButGTStillRoutesPreviousTab() {
+        var input = VimInputController()
+
+        #expect(input.handleKeyDown("T", isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .command(.showTabSwitcher))
+        #expect(input.handleKeyDown("g", isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .handled)
+        #expect(input.handleKeyDown("T", isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .command(.previousTab))
+    }
+
+    @Test
     func searchNavigationRepeatsRouteAsCommands() {
         var input = VimInputController()
 

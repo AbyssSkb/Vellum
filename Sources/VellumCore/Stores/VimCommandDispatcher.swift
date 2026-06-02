@@ -16,6 +16,8 @@ struct VimCommandDispatcher {
             target.selectNextTab()
         case .previousTab:
             target.selectPreviousTab()
+        case .showTabSwitcher:
+            target.showTabSwitcher()
         case .scrollDown:
             target.scrollBy(x: 0, y: -VimCommandMetrics.lineScrollDelta)
         case .scrollUp:
@@ -84,6 +86,7 @@ protocol VimCommandTarget {
     func restoreClosedPDFTab()
     func selectNextTab()
     func selectPreviousTab()
+    func showTabSwitcher()
     func scrollBy(x: CGFloat, y: CGFloat)
     func moveByPage(_ delta: Int)
     func goToFirstPage()

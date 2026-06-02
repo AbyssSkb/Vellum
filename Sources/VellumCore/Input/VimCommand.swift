@@ -5,6 +5,7 @@ enum VimCommand: Equatable {
     case restoreClosedTab
     case nextTab
     case previousTab
+    case showTabSwitcher
     case scrollDown
     case scrollUp
     case largeScrollDown

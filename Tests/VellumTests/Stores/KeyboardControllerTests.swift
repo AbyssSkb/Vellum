@@ -131,6 +131,21 @@ struct KeyboardControllerTests {
         #expect(delegate.reader.actions == [])
     }
 
+    @Test
+    func uppercaseTRoutesToTabSwitcherCommand() {
+        let controller = KeyboardController(
+            installsKeyMonitor: false,
+            installsOpenURLObserver: false
+        )
+        let delegate = RecordingKeyboardDelegate()
+        controller.delegate = delegate
+
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "T", keyCode: 17)))
+
+        #expect(delegate.commands == [.showTabSwitcher])
+        #expect(delegate.reader.actions == [])
+    }
+
     private func keyEvent(
         _ type: NSEvent.EventType,
         key: String,

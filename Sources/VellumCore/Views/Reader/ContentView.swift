@@ -7,21 +7,27 @@ public struct ContentView: View {
     public init() {}
 
     public var body: some View {
-        VStack(spacing: 0) {
-            if appState.hasOpenDocuments {
-                TabStrip()
-                TokyoNightDivider(axis: .horizontal)
-            }
-
-            HStack(spacing: 0) {
-                if appState.isOutlineVisible, appState.hasOpenDocuments {
-                    OutlineSidebar(tab: appState.selectedTab)
-                        .frame(width: 280)
-                    TokyoNightDivider(axis: .vertical)
+        ZStack {
+            VStack(spacing: 0) {
+                if appState.hasOpenDocuments {
+                    TabStrip()
+                    TokyoNightDivider(axis: .horizontal)
                 }
 
-                ReaderStack()
-                    .clipped()
+                HStack(spacing: 0) {
+                    if appState.isOutlineVisible, appState.hasOpenDocuments {
+                        OutlineSidebar(tab: appState.selectedTab)
+                            .frame(width: 280)
+                        TokyoNightDivider(axis: .vertical)
+                    }
+
+                    ReaderStack()
+                        .clipped()
+                }
+            }
+
+            if appState.isTabSwitcherPresented {
+                TabSwitcherOverlay()
             }
         }
         .foregroundStyle(TokyoNight.foregroundColor)
