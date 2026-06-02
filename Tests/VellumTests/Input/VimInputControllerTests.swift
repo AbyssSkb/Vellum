@@ -59,6 +59,19 @@ struct VimInputControllerTests {
     }
 
     @Test
+    func uppercaseContinuousScrollStopsWhenShiftIsReleasedFirst() {
+        var input = VimInputController()
+
+        #expect(input.handleKeyDown("D", isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .continuousKey("D"))
+        #expect(input.handleKeyUp("d") == .stopContinuousKey)
+        #expect(input.heldKey == nil)
+
+        #expect(input.handleKeyDown("U", isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .continuousKey("U"))
+        #expect(input.handleKeyUp("u") == .stopContinuousKey)
+        #expect(input.heldKey == nil)
+    }
+
+    @Test
     func copySelectionOnlyRoutesWhenSelectionIsNavigable() {
         var input = VimInputController()
 

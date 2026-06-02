@@ -56,8 +56,8 @@ struct VimInputController {
     }
 
     mutating func handleKeyUp(_ key: String) -> VimInputAction {
-        guard VimKeyMap.isContinuousKey(key),
-              state.heldKey == VimKeyMap.normalizedContinuousKey(key) else { return .ignored }
+        guard let heldKey = state.heldKey,
+              VimKeyMap.isReleaseForHeldContinuousKey(key, heldKey: heldKey) else { return .ignored }
         state.clearHeldKey()
         return .stopContinuousKey
     }
