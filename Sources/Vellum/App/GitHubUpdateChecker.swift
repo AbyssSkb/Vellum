@@ -343,7 +343,10 @@ final class GitHubUpdateChecker {
 
         let totalBytes = response.expectedContentLength > 0 ? response.expectedContentLength : nil
         var receivedBytes: Int64 = 0
+        let progressReportByteInterval: Int64 = 32 * 1024
+        let progressReportTimeInterval: TimeInterval = 0.05
         var lastReportedBytes: Int64 = 0
+        var lastProgressReportDate = Date()
         var buffer = Data()
         buffer.reserveCapacity(64 * 1024)
 
@@ -361,8 +364,11 @@ final class GitHubUpdateChecker {
                 buffer.removeAll(keepingCapacity: true)
             }
 
-            if receivedBytes - lastReportedBytes >= 256 * 1024 {
+            let now = Date()
+            if receivedBytes - lastReportedBytes >= progressReportByteInterval
+                || now.timeIntervalSince(lastProgressReportDate) >= progressReportTimeInterval {
                 lastReportedBytes = receivedBytes
+                lastProgressReportDate = now
                 await MainActor.run {
                     progress(receivedBytes, totalBytes)
                 }

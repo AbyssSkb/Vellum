@@ -9,6 +9,7 @@ final class UpdateDownloadWindowController: NSWindowController {
     private let progressIndicator = NSProgressIndicator()
     private let cancelButton = NSButton(title: "Cancel", target: nil, action: nil)
     private var shouldCancelOnClose = true
+    private var lastProgressValue = 0.0
 
     init(version: String) {
         let window = NSWindow(
@@ -41,8 +42,9 @@ final class UpdateDownloadWindowController: NSWindowController {
         progressIndicator.maxValue = 1
 
         if let totalBytes, totalBytes > 0 {
-            progressIndicator.doubleValue = min(1, Double(receivedBytes) / Double(totalBytes))
-            detailLabel.stringValue = "\(Self.formattedBytes(receivedBytes)) of \(Self.formattedBytes(totalBytes))"
+            let progress = min(1, Double(receivedBytes) / Double(totalBytes))
+            updateDeterminateProgress(progress)
+            detailLabel.stringValue = "\(Self.formattedPercent(progress)) - \(Self.formattedBytes(receivedBytes)) of \(Self.formattedBytes(totalBytes))"
         } else {
             progressIndicator.isIndeterminate = true
             progressIndicator.startAnimation(nil)
@@ -85,6 +87,7 @@ final class UpdateDownloadWindowController: NSWindowController {
 
         progressIndicator.style = .bar
         progressIndicator.isIndeterminate = true
+        progressIndicator.controlSize = .large
         progressIndicator.startAnimation(nil)
 
         cancelButton.target = self
@@ -116,6 +119,21 @@ final class UpdateDownloadWindowController: NSWindowController {
 
     private static func formattedBytes(_ bytes: Int64) -> String {
         ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+    }
+
+    private func updateDeterminateProgress(_ progress: Double) {
+        guard abs(progress - lastProgressValue) > 0.0001 || progress >= 1 else { return }
+        lastProgressValue = progress
+
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.12
+            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            progressIndicator.animator().doubleValue = progress
+        }
+    }
+
+    private static func formattedPercent(_ progress: Double) -> String {
+        "\(Int((progress * 100).rounded()))%"
     }
 }
 
