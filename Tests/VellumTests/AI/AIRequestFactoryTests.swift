@@ -22,6 +22,23 @@ struct AIRequestFactoryTests {
     }
 
     @Test
+    func anthropicModelsRequestUsesMessagesAuthentication() throws {
+        let configuration = try AIConfiguration(
+            baseURLString: "https://api.anthropic.com/v1",
+            model: "claude-3-5-haiku-latest",
+            apiKey: "secret",
+            providerFormat: .anthropicMessages
+        )
+
+        let request = AIRequestFactory.modelsRequest(configuration: configuration)
+
+        #expect(request.url?.absoluteString == "https://api.anthropic.com/v1/models")
+        #expect(request.value(forHTTPHeaderField: "x-api-key") == "secret")
+        #expect(request.value(forHTTPHeaderField: "anthropic-version") == "2023-06-01")
+        #expect(request.value(forHTTPHeaderField: "Authorization") == nil)
+    }
+
+    @Test
     func testConnectionRequestBuildsCompactChatCompletionBody() throws {
         let configuration = try AIConfiguration(
             baseURLString: "https://api.example.com/v1",
@@ -41,6 +58,28 @@ struct AIRequestFactoryTests {
         #expect(body["temperature"] as? Double == 0)
         #expect(body["max_tokens"] as? Int == 8)
         #expect(body["stream"] == nil)
+    }
+
+    @Test
+    func anthropicFunctionTestUsesMessagesEndpoint() throws {
+        let configuration = try AIConfiguration(
+            baseURLString: "https://api.anthropic.com/v1",
+            model: "claude-3-5-haiku-latest",
+            apiKey: "secret",
+            providerFormat: .anthropicMessages
+        )
+
+        let request = try AIRequestFactory.functionTestRequest(configuration: configuration)
+        let body = try requestBody(request)
+        let messages = try #require(body["messages"] as? [[String: String]])
+
+        #expect(request.url?.absoluteString == "https://api.anthropic.com/v1/messages")
+        #expect(request.httpMethod == "POST")
+        #expect(request.value(forHTTPHeaderField: "x-api-key") == "secret")
+        #expect(request.value(forHTTPHeaderField: "anthropic-version") == "2023-06-01")
+        #expect(body["model"] as? String == "claude-3-5-haiku-latest")
+        #expect(body["max_tokens"] as? Int == 8)
+        #expect(messages.first?["content"] == "Reply with OK.")
     }
 
     @Test
@@ -82,6 +121,30 @@ struct AIRequestFactoryTests {
         let body = try requestBody(request)
 
         #expect(body["enable_thinking"] as? Bool == false)
+    }
+
+    @Test
+    func anthropicExplanationUsesSystemAndUserMessages() throws {
+        let configuration = try AIConfiguration(
+            baseURLString: "https://api.anthropic.com/v1",
+            model: "claude-3-5-haiku-latest",
+            apiKey: "secret",
+            providerFormat: .anthropicMessages
+        )
+        let context = makeContext()
+
+        let request = try AIRequestFactory.explanationRequest(
+            context: context,
+            configuration: configuration
+        )
+        let body = try requestBody(request)
+        let messages = try #require(body["messages"] as? [[String: String]])
+
+        #expect(request.url?.absoluteString == "https://api.anthropic.com/v1/messages")
+        #expect(body["system"] as? String != nil)
+        #expect(body["max_tokens"] as? Int == 1200)
+        #expect(messages.last?["role"] == "user")
+        #expect(messages.last?["content"] == context.prompt)
     }
 
     private func requestBody(_ request: URLRequest) throws -> [String: Any] {

@@ -15,6 +15,6 @@ public struct AISettingsView: View {
                     Label("Shortcuts", systemImage: "keyboard")
                 }
         }
-        .frame(width: 620, height: 520)
+        .frame(width: 760, height: 660)
     }
 }

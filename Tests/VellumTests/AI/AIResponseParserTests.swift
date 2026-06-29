@@ -12,6 +12,13 @@ struct AIResponseParserTests {
     }
 
     @Test
+    func anthropicMessageTextJoinsTextBlocks() throws {
+        let data = Data(#"{"content":[{"type":"text","text":"  hello"},{"type":"text","text":" world\n"}]}"#.utf8)
+
+        #expect(try AIResponseParser.completionText(from: data, providerFormat: .anthropicMessages) == "hello world")
+    }
+
+    @Test
     func completionTextRejectsEmptyContent() throws {
         let data = Data(#"{"choices":[{"message":{"role":"assistant","content":"  "}}]}"#.utf8)
 

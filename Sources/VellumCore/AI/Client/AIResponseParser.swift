@@ -1,11 +1,35 @@
 import Foundation
 
 enum AIResponseParser {
-    static func completionText(from data: Data) throws -> String {
+    static func completionText(from data: Data, providerFormat: AIProviderFormat = .openAICompatible) throws -> String {
+        switch providerFormat {
+        case .openAICompatible:
+            return try openAICompatibleCompletionText(from: data)
+        case .anthropicMessages:
+            return try anthropicMessageText(from: data)
+        }
+    }
+
+    private static func openAICompatibleCompletionText(from data: Data) throws -> String {
         let completion = try JSONDecoder().decode(ChatCompletionResponse.self, from: data)
         guard let text = completion.choices.first?.message.content
             .trimmingCharacters(in: .whitespacesAndNewlines),
               !text.isEmpty else {
+            throw AIExplanationError.emptyResponse
+        }
+
+        return text
+    }
+
+    private static func anthropicMessageText(from data: Data) throws -> String {
+        let message = try JSONDecoder().decode(AnthropicMessageResponse.self, from: data)
+        let text = message.content
+            .filter { $0.type == "text" }
+            .map(\.text)
+            .joined()
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !text.isEmpty else {
             throw AIExplanationError.emptyResponse
         }
 
@@ -33,6 +57,15 @@ enum AIResponseParser {
 
         struct Model: Decodable {
             var id: String
+        }
+    }
+
+    private struct AnthropicMessageResponse: Decodable {
+        var content: [Content]
+
+        struct Content: Decodable {
+            var type: String
+            var text: String
         }
     }
 }

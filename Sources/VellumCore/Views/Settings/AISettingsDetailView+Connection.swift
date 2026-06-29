@@ -8,10 +8,27 @@ extension AISettingsDetailView {
             defer { isTestingConnection = false }
 
             do {
+                let configuration = try currentConfiguration(requireModel: false)
+                status = .working("Checking endpoint...")
+                let message = try await AIExplanationClient.testConnection(configuration: configuration)
+                status = .success(message)
+            } catch {
+                status = .failure(error.localizedDescription)
+            }
+        }
+    }
+
+    func testFunction() {
+        isTestingFunction = true
+
+        Task { @MainActor in
+            defer { isTestingFunction = false }
+
+            do {
                 let configuration = try currentConfiguration(requireModel: true)
-                status = .working("Testing \(configuration.model)...")
-                _ = try await AIExplanationClient.testConnection(configuration: configuration)
-                status = .success("Model ready: \(configuration.model)")
+                status = .working("Asking \(configuration.model)...")
+                let message = try await AIExplanationClient.testFunction(configuration: configuration)
+                status = .success(message)
             } catch {
                 status = .failure(error.localizedDescription)
             }

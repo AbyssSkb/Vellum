@@ -3,6 +3,7 @@ import Foundation
 
 protocol AIExplaining: Sendable {
     func testConnection(configuration: AIConfiguration) async throws -> String
+    func testFunction(configuration: AIConfiguration) async throws -> String
     func fetchModels(configuration: AIConfiguration) async throws -> [String]
     func explain(context: AIExplanationContext, configuration: AIConfiguration) async throws -> String
     func streamExplanation(
@@ -14,12 +15,21 @@ protocol AIExplaining: Sendable {
 
 struct OpenAICompatibleAIExplanationClient: AIExplaining {
     func testConnection(configuration: AIConfiguration) async throws -> String {
-        let request = try AIRequestFactory.testConnectionRequest(configuration: configuration)
+        let request = AIRequestFactory.connectionTestRequest(configuration: configuration)
         let (data, response) = try await data(for: request)
         try validate(data: data, response: response)
 
-        _ = try AIResponseParser.completionText(from: data)
-        return "模型可用：\(configuration.model)"
+        let models = try AIResponseParser.modelIDs(from: data)
+        return models.isEmpty ? "Endpoint responded. No models returned." : "Endpoint responded. \(models.count) models available."
+    }
+
+    func testFunction(configuration: AIConfiguration) async throws -> String {
+        let request = try AIRequestFactory.functionTestRequest(configuration: configuration)
+        let (data, response) = try await data(for: request)
+        try validate(data: data, response: response)
+
+        let text = try AIResponseParser.completionText(from: data, providerFormat: configuration.providerFormat)
+        return "Model responded: \(text)"
     }
 
     func fetchModels(configuration: AIConfiguration) async throws -> [String] {
@@ -37,7 +47,7 @@ struct OpenAICompatibleAIExplanationClient: AIExplaining {
         )
         let (data, response) = try await data(for: request)
         try validate(data: data, response: response)
-        return try AIResponseParser.completionText(from: data)
+        return try AIResponseParser.completionText(from: data, providerFormat: configuration.providerFormat)
     }
 
     func streamExplanation(
@@ -45,6 +55,14 @@ struct OpenAICompatibleAIExplanationClient: AIExplaining {
         configuration: AIConfiguration,
         onChunk: @escaping @MainActor (String) -> Void
     ) async throws -> String {
+        if configuration.providerFormat == .anthropicMessages {
+            let explanation = try await explain(context: context, configuration: configuration)
+            await MainActor.run {
+                onChunk(explanation)
+            }
+            return explanation
+        }
+
         let request = try AIRequestFactory.streamingExplanationRequest(
             context: context,
             configuration: configuration
@@ -113,6 +131,10 @@ enum AIExplanationClient {
 
     static func testConnection(configuration: AIConfiguration) async throws -> String {
         try await shared.testConnection(configuration: configuration)
+    }
+
+    static func testFunction(configuration: AIConfiguration) async throws -> String {
+        try await shared.testFunction(configuration: configuration)
     }
 
     static func fetchModels(configuration: AIConfiguration) async throws -> [String] {
