@@ -26,12 +26,15 @@ public struct AISettingsView: View {
         .foregroundStyle(TokyoNight.foregroundColor)
         .tint(TokyoNight.cyanColor)
         .preferredColorScheme(.dark)
+        .background(WindowChromeConfigurator())
+        .ignoresSafeArea(.container, edges: .top)
     }
 
     private var settingsSidebar: some View {
         VStack(alignment: .leading, spacing: 16) {
             Color.clear
-                .frame(height: 18)
+                .frame(height: 46)
+                .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text("Vellum")
@@ -108,9 +111,11 @@ private struct SettingsSidebarRow: View {
                 Spacer()
             }
             .padding(.horizontal, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .frame(height: 34)
             .background(isSelected ? TokyoNight.selectionColor.opacity(0.58) : .clear)
             .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }

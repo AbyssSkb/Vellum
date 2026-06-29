@@ -75,7 +75,7 @@ struct WindowChromeConfigurator: NSViewRepresentable {
             window.titlebarAppearsTransparent = true
             window.styleMask.insert(.fullSizeContentView)
             window.toolbar = nil
-            window.isMovableByWindowBackground = false
+            window.isMovableByWindowBackground = true
             window.isOpaque = false
             window.backgroundColor = .clear
             DispatchQueue.main.async { [weak window] in

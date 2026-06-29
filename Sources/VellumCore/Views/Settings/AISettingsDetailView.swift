@@ -441,6 +441,7 @@ private struct ProviderPresetRow: View {
                 }
             }
             .padding(.horizontal, 12)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .frame(height: 50)
             .background(isSelected ? TokyoNight.selectionColor.opacity(0.58) : TokyoNight.backgroundDeepColor.opacity(0.58))
             .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
@@ -448,6 +449,7 @@ private struct ProviderPresetRow: View {
                 RoundedRectangle(cornerRadius: 7, style: .continuous)
                     .stroke(isSelected ? TokyoNight.cyanColor.opacity(0.58) : TokyoNight.borderColor.opacity(0.52), lineWidth: 1)
             }
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
@@ -482,6 +484,7 @@ private struct ModelChoiceGrid: View {
                         }
                     }
                     .padding(.horizontal, 10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .frame(height: 30)
                     .background(selection == model ? TokyoNight.selectionColor.opacity(0.5) : TokyoNight.backgroundDeepColor.opacity(0.6))
                     .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
@@ -489,6 +492,7 @@ private struct ModelChoiceGrid: View {
                         RoundedRectangle(cornerRadius: 6, style: .continuous)
                             .stroke(selection == model ? TokyoNight.cyanColor.opacity(0.55) : TokyoNight.borderColor.opacity(0.45), lineWidth: 1)
                     }
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
