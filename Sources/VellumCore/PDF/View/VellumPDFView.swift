@@ -15,6 +15,7 @@ final class VellumPDFView: PDFView {
     var explanationTrackingArea: NSTrackingArea?
     let aiInteraction = AIInteractionState()
     var isMouseSelectingText = false
+    var pendingDoubleClickTextSelectionPoint: NSPoint?
     var textSelectionNavigationState: VimTextSelectionNavigationState?
     var pageOverviewController: PageOverviewController?
     var searchController: PDFSearchController?
@@ -159,6 +160,7 @@ final class VellumPDFView: PDFView {
 
     override func mouseDown(with event: NSEvent) {
         isMouseSelectingText = true
+        pendingDoubleClickTextSelectionPoint = doubleClickTextSelectionPoint(for: event)
         searchController?.markReaderNavigated()
         textSelectionNavigationState = nil
         hideAIExplanationPopover()
@@ -167,6 +169,7 @@ final class VellumPDFView: PDFView {
 
     override func mouseDragged(with event: NSEvent) {
         isMouseSelectingText = true
+        pendingDoubleClickTextSelectionPoint = nil
         searchController?.markReaderNavigated()
         hideAIExplanationPopover()
         super.mouseDragged(with: event)
@@ -179,8 +182,12 @@ final class VellumPDFView: PDFView {
 
     override func mouseUp(with event: NSEvent) {
         super.mouseUp(with: event)
+        let doubleClickPoint = pendingDoubleClickTextSelectionPoint
+        pendingDoubleClickTextSelectionPoint = nil
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) { [weak self] in
-            self?.isMouseSelectingText = false
+            guard let self else { return }
+            self.isMouseSelectingText = false
+            self.explainDoubleClickedTextIfNeeded(at: doubleClickPoint)
         }
     }
 
@@ -218,6 +225,43 @@ final class VellumPDFView: PDFView {
         scrollView.hasHorizontalScroller = true
         scrollView.drawsBackground = false
         scrollView.backgroundColor = .clear
+    }
+
+    private func doubleClickTextSelectionPoint(for event: NSEvent) -> NSPoint? {
+        guard event.clickCount == 2,
+              event.modifierFlags.intersection([.command, .control, .option]).isEmpty else {
+            return nil
+        }
+
+        return convert(event.locationInWindow, from: nil)
+    }
+
+    private func explainDoubleClickedTextIfNeeded(at point: NSPoint?) {
+        guard let point,
+              aiInteraction.isActive == false,
+              let selection = currentSelection,
+              selectionCovers(point, selection: selection),
+              selection.string?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
+            return
+        }
+
+        vimExplainSelectedHighlight()
+    }
+
+    private func selectionCovers(_ pointInView: NSPoint, selection: PDFSelection) -> Bool {
+        guard let page = page(for: pointInView, nearest: false),
+              selection.pages.contains(page) else {
+            return false
+        }
+
+        let pointOnPage = convert(pointInView, to: page)
+        let lineSelections = selection.selectionsByLine()
+        let selections = lineSelections.isEmpty ? [selection] : lineSelections
+
+        return selections.contains { lineSelection in
+            lineSelection.pages.contains(page)
+                && lineSelection.bounds(for: page).insetBy(dx: -2, dy: -2).contains(pointOnPage)
+        }
     }
 }
 
