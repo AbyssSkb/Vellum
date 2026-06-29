@@ -220,34 +220,20 @@ final class GitHubUpdateChecker {
     }
 
     private func showUpdateAvailable(update: AppUpdateInfo, currentVersion: String, mode: CheckMode) {
-        let alert = NSAlert()
-        alert.messageText = "Vellum \(update.version) is available"
-        let releaseNotesSummary = releaseNotesSummary(update.releaseNotes)
-        if update.downloadURL != nil {
-            alert.informativeText = "You are currently using Vellum \(currentVersion). Download and install the latest version now.\(releaseNotesSummary)"
-            alert.addButton(withTitle: "Download and Install")
-            alert.addButton(withTitle: "Open GitHub")
-            alert.addButton(withTitle: "Later")
-        } else {
-            alert.informativeText = "You are currently using Vellum \(currentVersion). Open GitHub to download the latest version.\(releaseNotesSummary)"
-            alert.addButton(withTitle: "Open GitHub")
-            alert.addButton(withTitle: "Later")
-        }
+        let alert = UpdateAvailableWindowController(
+            updateVersion: update.version,
+            currentVersion: currentVersion,
+            canInstall: update.downloadURL != nil,
+            releaseNotes: releaseNoteLines(update.releaseNotes)
+        )
 
-        let response = alert.runModal()
-        if update.downloadURL != nil {
-            if response == .alertFirstButtonReturn {
-                downloadAndOpenInstaller(for: update, mode: mode)
-            } else if response == .alertSecondButtonReturn {
-                markPromptedIfNeeded(update: update, mode: mode)
-                NSWorkspace.shared.open(update.releaseURL)
-            } else if response == .alertThirdButtonReturn {
-                markPromptedIfNeeded(update: update, mode: mode)
-            }
-        } else if response == .alertFirstButtonReturn {
+        switch alert.runModal() {
+        case .install:
+            downloadAndOpenInstaller(for: update, mode: mode)
+        case .openGitHub:
             markPromptedIfNeeded(update: update, mode: mode)
             NSWorkspace.shared.open(update.releaseURL)
-        } else if response == .alertSecondButtonReturn {
+        case .later:
             markPromptedIfNeeded(update: update, mode: mode)
         }
     }
@@ -271,14 +257,13 @@ final class GitHubUpdateChecker {
         return notes
     }
 
-    private func releaseNotesSummary(_ releaseNotes: String?) -> String {
-        guard let releaseNotes else { return "" }
-        let lines = releaseNotes
+    private func releaseNoteLines(_ releaseNotes: String?) -> [String] {
+        guard let releaseNotes else { return [] }
+        return releaseNotes
             .split(whereSeparator: \.isNewline)
             .compactMap(cleanReleaseNoteLine)
-
-        guard !lines.isEmpty else { return "" }
-        return "\n\nWhat's new:\n" + lines.prefix(4).joined(separator: "\n")
+            .prefix(8)
+            .map { $0 }
     }
 
     private func cleanReleaseNoteLine(_ rawLine: Substring) -> String? {
