@@ -1,20 +1,117 @@
 import SwiftUI
 
 public struct AISettingsView: View {
+    @State private var selection: SettingsSection = .ai
+
     public init() {}
 
     public var body: some View {
-        TabView {
-            AISettingsDetailView()
-                .tabItem {
-                    Label("AI", systemImage: "sparkles")
-                }
+        HStack(spacing: 0) {
+            settingsSidebar
 
-            ShortcutSettingsView()
-                .tabItem {
-                    Label("Shortcuts", systemImage: "keyboard")
+            TokyoNightDivider(axis: .vertical)
+
+            Group {
+                switch selection {
+                case .ai:
+                    AISettingsDetailView()
+                case .shortcuts:
+                    ShortcutSettingsView()
                 }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(width: 760, height: 660)
+        .frame(width: 820, height: 680)
+        .background(TokyoNight.backgroundColor)
+        .foregroundStyle(TokyoNight.foregroundColor)
+        .tint(TokyoNight.cyanColor)
+        .preferredColorScheme(.dark)
+    }
+
+    private var settingsSidebar: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Color.clear
+                .frame(height: 18)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Vellum")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(TokyoNight.foregroundColor)
+
+                Text("Settings")
+                    .font(.system(size: 12))
+                    .foregroundStyle(TokyoNight.mutedColor)
+            }
+            .padding(.horizontal, 18)
+
+            VStack(spacing: 6) {
+                ForEach(SettingsSection.allCases) { section in
+                    SettingsSidebarRow(
+                        section: section,
+                        isSelected: selection == section
+                    ) {
+                        selection = section
+                    }
+                }
+            }
+            .padding(.horizontal, 10)
+
+            Spacer()
+        }
+        .frame(width: 188)
+        .background(TokyoNight.backgroundDeepColor)
+    }
+}
+
+private enum SettingsSection: String, CaseIterable, Identifiable {
+    case ai
+    case shortcuts
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .ai:
+            return "AI"
+        case .shortcuts:
+            return "Shortcuts"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .ai:
+            return "sparkles"
+        case .shortcuts:
+            return "keyboard"
+        }
+    }
+}
+
+private struct SettingsSidebarRow: View {
+    let section: SettingsSection
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 9) {
+                Image(systemName: section.systemImage)
+                    .font(.system(size: 13, weight: .semibold))
+                    .frame(width: 17)
+                    .foregroundStyle(isSelected ? TokyoNight.cyanColor : TokyoNight.mutedColor)
+
+                Text(section.title)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(TokyoNight.foregroundColor)
+
+                Spacer()
+            }
+            .padding(.horizontal, 10)
+            .frame(height: 34)
+            .background(isSelected ? TokyoNight.selectionColor.opacity(0.58) : .clear)
+            .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+        }
+        .buttonStyle(.plain)
     }
 }

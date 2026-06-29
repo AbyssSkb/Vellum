@@ -6,6 +6,22 @@ enum AISettingsKeys {
     static let baseURL = "AIBaseURL"
     static let model = "AIModel"
     static let apiKey = "AIApiKey"
+
+    static func baseURLKey(for providerID: String) -> String {
+        providerScopedKey("BaseURL", providerID: providerID)
+    }
+
+    static func modelKey(for providerID: String) -> String {
+        providerScopedKey("Model", providerID: providerID)
+    }
+
+    static func apiKeyKey(for providerID: String) -> String {
+        providerScopedKey("APIKey", providerID: providerID)
+    }
+
+    private static func providerScopedKey(_ name: String, providerID: String) -> String {
+        "AIProvider.\(providerID).\(name)"
+    }
 }
 
 enum AIProviderFormat: String, CaseIterable, Identifiable, Sendable {
@@ -47,7 +63,7 @@ struct AIProviderPreset: Identifiable, Equatable {
         AIProviderPreset(
             id: "openai",
             name: "OpenAI",
-            summary: "Official OpenAI API",
+            summary: "Official OpenAI API.",
             baseURL: "https://api.openai.com/v1",
             defaultModel: "gpt-4.1-mini",
             format: .openAICompatible
@@ -55,7 +71,7 @@ struct AIProviderPreset: Identifiable, Equatable {
         AIProviderPreset(
             id: "deepseek",
             name: "DeepSeek",
-            summary: "OpenAI-compatible DeepSeek API",
+            summary: "DeepSeek API with OpenAI-compatible requests.",
             baseURL: "https://api.deepseek.com",
             defaultModel: "deepseek-v4-flash",
             format: .openAICompatible
@@ -63,7 +79,7 @@ struct AIProviderPreset: Identifiable, Equatable {
         AIProviderPreset(
             id: "anthropic",
             name: "Anthropic",
-            summary: "Official Claude Messages API",
+            summary: "Official Claude API.",
             baseURL: "https://api.anthropic.com/v1",
             defaultModel: "claude-3-5-haiku-latest",
             format: .anthropicMessages
@@ -71,12 +87,17 @@ struct AIProviderPreset: Identifiable, Equatable {
         AIProviderPreset(
             id: customID,
             name: "Custom",
-            summary: "Bring your own compatible endpoint",
+            summary: "Any OpenAI-compatible endpoint.",
             baseURL: AIConfiguration.defaultBaseURL,
             defaultModel: AIConfiguration.defaultModel,
             format: .openAICompatible
         )
     ]
+
+    static func preset(for id: String) -> AIProviderPreset {
+        presets.first { $0.id == id }
+            ?? presets.first { $0.id == customID }!
+    }
 }
 
 struct AIConfiguration: Sendable {
@@ -90,25 +111,53 @@ struct AIConfiguration: Sendable {
 
     static func current(requireModel: Bool = true) throws -> AIConfiguration {
         let defaults = UserDefaults.standard
-        let providerFormat = defaults.string(forKey: AISettingsKeys.providerFormat)
-            .flatMap(AIProviderFormat.init(rawValue:))
-            ?? .openAICompatible
-        let baseURLString = defaults.string(forKey: AISettingsKeys.baseURL)?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .nilIfEmpty ?? defaultBaseURL
-        let model = defaults.string(forKey: AISettingsKeys.model)?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .nilIfEmpty ?? defaultModel
-        let apiKey = defaults.string(forKey: AISettingsKeys.apiKey)?
-            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let providerID = defaults.string(forKey: AISettingsKeys.providerID)
+            ?? AIProviderPreset.presets.first?.id
+            ?? AIProviderPreset.customID
+        let provider = AIProviderPreset.preset(for: providerID)
+        let baseURLString = providerScopedValue(
+            forKey: AISettingsKeys.baseURLKey(for: provider.id),
+            legacyKey: AISettingsKeys.baseURL,
+            defaultValue: provider.baseURL,
+            defaults: defaults
+        )
+        let model = providerScopedValue(
+            forKey: AISettingsKeys.modelKey(for: provider.id),
+            legacyKey: AISettingsKeys.model,
+            defaultValue: provider.defaultModel,
+            defaults: defaults
+        )
+        let apiKey = providerScopedValue(
+            forKey: AISettingsKeys.apiKeyKey(for: provider.id),
+            legacyKey: AISettingsKeys.apiKey,
+            defaultValue: "",
+            defaults: defaults
+        )
 
         return try AIConfiguration(
             baseURLString: baseURLString,
             model: model,
             apiKey: apiKey,
-            providerFormat: providerFormat,
+            providerFormat: provider.format,
             requireModel: requireModel
         )
+    }
+
+    private static func providerScopedValue(
+        forKey key: String,
+        legacyKey: String,
+        defaultValue: String,
+        defaults: UserDefaults
+    ) -> String {
+        if defaults.object(forKey: key) != nil {
+            let scopedValue = defaults.string(forKey: key) ?? ""
+            return scopedValue
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        return defaults.string(forKey: legacyKey)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .nilIfEmpty ?? defaultValue
     }
 
     init(

@@ -5,6 +5,40 @@ import Testing
 @Suite("AI request factory")
 struct AIRequestFactoryTests {
     @Test
+    func currentConfigurationReadsSelectedProviderSettings() throws {
+        let defaults = UserDefaults.standard
+        let providerID = "anthropic"
+        let keys = [
+            AISettingsKeys.providerID,
+            AISettingsKeys.baseURL,
+            AISettingsKeys.model,
+            AISettingsKeys.apiKey,
+            AISettingsKeys.baseURLKey(for: providerID),
+            AISettingsKeys.modelKey(for: providerID),
+            AISettingsKeys.apiKeyKey(for: providerID)
+        ]
+        keys.forEach { defaults.removeObject(forKey: $0) }
+        defer {
+            keys.forEach { defaults.removeObject(forKey: $0) }
+        }
+
+        defaults.set(providerID, forKey: AISettingsKeys.providerID)
+        defaults.set("https://legacy.example.com/v1", forKey: AISettingsKeys.baseURL)
+        defaults.set("legacy-model", forKey: AISettingsKeys.model)
+        defaults.set("legacy-key", forKey: AISettingsKeys.apiKey)
+        defaults.set("https://api.anthropic.com/v1", forKey: AISettingsKeys.baseURLKey(for: providerID))
+        defaults.set("claude-test", forKey: AISettingsKeys.modelKey(for: providerID))
+        defaults.set("anthropic-key", forKey: AISettingsKeys.apiKeyKey(for: providerID))
+
+        let configuration = try AIConfiguration.current()
+
+        #expect(configuration.baseURL.absoluteString == "https://api.anthropic.com/v1")
+        #expect(configuration.model == "claude-test")
+        #expect(configuration.apiKey == "anthropic-key")
+        #expect(configuration.providerFormat == .anthropicMessages)
+    }
+
+    @Test
     func modelsRequestUsesModelsEndpointAndAuthorization() throws {
         let configuration = try AIConfiguration(
             baseURLString: "https://api.example.com/v1",

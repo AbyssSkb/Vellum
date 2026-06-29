@@ -7,7 +7,7 @@ struct ShortcutRow: View {
         VStack(alignment: .leading, spacing: 7) {
             Text(item.action)
                 .font(.system(size: 12.5, weight: .medium))
-                .foregroundStyle(.primary)
+                .foregroundStyle(TokyoNight.foregroundColor)
                 .fixedSize(horizontal: false, vertical: true)
 
             HStack(spacing: 5) {
