@@ -3,6 +3,7 @@ import VellumCore
 
 @main
 struct VellumApp: App {
+    @Environment(\.openWindow) private var openWindow
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var appState = AppState()
 
@@ -18,6 +19,13 @@ struct VellumApp: App {
                 Button("Check for Updates...") {
                     appDelegate.checkForUpdates()
                 }
+            }
+
+            CommandGroup(replacing: .appSettings) {
+                Button("Settings...") {
+                    openWindow(id: "settings")
+                }
+                .keyboardShortcut(",", modifiers: [.command])
             }
 
             CommandGroup(replacing: .newItem) {
@@ -47,7 +55,7 @@ struct VellumApp: App {
             }
         }
 
-        Settings {
+        Window("Settings", id: "settings") {
             AISettingsView()
         }
         .windowStyle(.hiddenTitleBar)
