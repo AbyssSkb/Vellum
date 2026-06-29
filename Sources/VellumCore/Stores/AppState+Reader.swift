@@ -12,6 +12,7 @@ extension AppState {
 
     func saveSnapshot(_ snapshot: ReaderSnapshot, for tabID: PDFTab.ID) {
         tabStore.saveSnapshot(snapshot, for: tabID)
+        AppSessionPersistence.save(tabs: tabs, selectedTabID: selectedTabID)
     }
 
     func saveActiveReaderState() {

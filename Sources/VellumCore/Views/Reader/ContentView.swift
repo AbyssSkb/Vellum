@@ -44,7 +44,10 @@ public struct ContentView: View {
             guard url.isFileURL else { return }
             OpenURLRelay.shared.open([url])
         }
-    }
+        .onAppear {
+            appState.restorePreviousTabsIfNeeded()
+        }
+}
 }
 
 struct WindowChromeConfigurator: NSViewRepresentable {

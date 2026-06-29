@@ -42,6 +42,20 @@ struct TabStore {
         return true
     }
 
+    mutating func restoreSessionTabs(_ restoredTabs: [PDFTab], selectedURLPath: String?) -> Bool {
+        guard !restoredTabs.isEmpty else { return false }
+        tabs = restoredTabs
+
+        if let selectedURLPath,
+           let selectedTab = restoredTabs.first(where: { $0.url?.standardizedFileURL.path == selectedURLPath }) {
+            selectedTabID = selectedTab.id
+        } else {
+            selectedTabID = restoredTabs.first?.id
+        }
+
+        return true
+    }
+
     mutating func closeSelectedTab() -> Bool {
         guard let selectedTabID,
               let index = tabs.firstIndex(where: { $0.id == selectedTabID }) else { return false }

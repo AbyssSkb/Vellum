@@ -136,6 +136,19 @@ struct TabStoreTests {
         #expect(store.snapshotForSelectedTab() == nil)
     }
 
+    @Test
+    func restoredSessionTabsSelectSavedURLPath() {
+        var store = TabStore()
+        let first = tab(named: "first")
+        let second = tab(named: "second")
+
+        let restored = store.restoreSessionTabs([first, second], selectedURLPath: second.url?.standardizedFileURL.path)
+
+        #expect(restored)
+        #expect(store.tabs.map(\.id) == [first.id, second.id])
+        #expect(store.selectedTabID == second.id)
+    }
+
     private func tab(named name: String) -> PDFTab {
         PDFTab(
             id: UUID(),

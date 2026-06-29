@@ -29,7 +29,7 @@ struct VellumApp: App {
 
             CommandGroup(replacing: .newItem) {
                 Button("Open...") {
-                    appState.openPanel(mode: .currentTab)
+                    appState.openPanel(mode: DefaultOpenModePreference.saved().pdfOpenMode)
                 }
                 .keyboardShortcut("o", modifiers: [.command])
             }

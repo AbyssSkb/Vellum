@@ -5,6 +5,7 @@ extension AppState {
         guard selectedTabID != id else { return }
         saveActiveReaderState()
         guard tabStore.selectTab(id) else { return }
+        saveCurrentSession()
         prepareForSelectedReaderChange()
     }
 
@@ -36,6 +37,7 @@ extension AppState {
         guard let tab = documentCoordinator.openTab(for: url) else { return }
 
         tabStore.openInCurrentTab(tab)
+        saveCurrentSession()
         prepareForSelectedReaderChange()
     }
 
@@ -45,6 +47,7 @@ extension AppState {
         let newTabs = documentCoordinator.openTabs(for: urls)
 
         if tabStore.openInNewTabs(newTabs) {
+            saveCurrentSession()
             prepareForSelectedReaderChange()
         }
     }
@@ -52,6 +55,7 @@ extension AppState {
     public func closeSelectedTab() {
         saveActiveReaderState()
         guard tabStore.closeSelectedTab() else { return }
+        saveCurrentSession()
 
         if !tabStore.hasOpenDocuments {
             isOutlineVisible = false
@@ -63,18 +67,47 @@ extension AppState {
         saveActiveReaderState()
 
         guard tabStore.restoreClosedPDFTab() else { return }
+        saveCurrentSession()
         prepareForSelectedReaderChange()
     }
 
     public func selectNextTab() {
         saveActiveReaderState()
         guard tabStore.selectNextTab() else { return }
+        saveCurrentSession()
         prepareForSelectedReaderChange()
     }
 
     public func selectPreviousTab() {
         saveActiveReaderState()
         guard tabStore.selectPreviousTab() else { return }
+        saveCurrentSession()
         prepareForSelectedReaderChange()
+    }
+
+    func restorePreviousTabsIfNeeded() {
+        guard !didRestorePreviousTabs,
+              !hasOpenDocuments,
+              AppPreferences.restoresPreviousTabs(),
+              let session = AppSessionPersistence.load() else {
+            didRestorePreviousTabs = true
+            return
+        }
+
+        didRestorePreviousTabs = true
+        let tabs = session.tabs.compactMap { persistedTab -> PDFTab? in
+            let url = URL(fileURLWithPath: persistedTab.path)
+            guard var tab = documentCoordinator.openTab(for: url) else { return nil }
+            tab.snapshot = persistedTab.snapshot ?? .initial
+            return tab
+        }
+
+        guard tabStore.restoreSessionTabs(tabs, selectedURLPath: session.selectedURLPath) else { return }
+        prepareForSelectedReaderChange()
+    }
+
+    func saveCurrentSession() {
+        saveActiveReaderState()
+        AppSessionPersistence.save(tabs: tabs, selectedTabID: selectedTabID)
     }
 }

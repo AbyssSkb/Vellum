@@ -44,7 +44,7 @@ struct EmptyReader: View {
                 .foregroundStyle(TokyoNight.foregroundColor)
 
             Button {
-                appState.openPanel(mode: .currentTab)
+                appState.openPanel(mode: DefaultOpenModePreference.saved().pdfOpenMode)
             } label: {
                 Label("Choose File", systemImage: "folder")
             }

@@ -238,6 +238,7 @@ final class VellumPDFView: PDFView {
 
     private func explainDoubleClickedTextIfNeeded(at point: NSPoint?) {
         guard let point,
+              AppPreferences.doubleClickTranslatesSelection(),
               aiInteraction.isActive == false,
               let selection = currentSelection,
               selectionCovers(point, selection: selection),

@@ -1,7 +1,7 @@
 import SwiftUI
 
 public struct AISettingsView: View {
-    @State private var selection: SettingsSection = .ai
+    @State private var selection: SettingsSection = .general
 
     public init() {}
 
@@ -13,6 +13,8 @@ public struct AISettingsView: View {
 
             Group {
                 switch selection {
+                case .general:
+                    GeneralSettingsView()
                 case .ai:
                     AISettingsDetailView()
                 case .shortcuts:
@@ -72,6 +74,7 @@ public struct AISettingsView: View {
 }
 
 private enum SettingsSection: String, CaseIterable, Identifiable {
+    case general
     case ai
     case shortcuts
 
@@ -79,6 +82,8 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
+        case .general:
+            return "General"
         case .ai:
             return "AI"
         case .shortcuts:
@@ -88,6 +93,8 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
 
     var systemImage: String {
         switch self {
+        case .general:
+            return "gearshape"
         case .ai:
             return "sparkles"
         case .shortcuts:

@@ -5,11 +5,23 @@ import VellumCore
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let updateChecker = GitHubUpdateChecker()
     private var settingsWindowController: SettingsWindowController?
+    private var checkForUpdatesObserver: NSObjectProtocol?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.appearance = NSAppearance(named: .darkAqua)
         UserDefaults.standard.set(false, forKey: "NSQuitAlwaysKeepsWindows")
-        updateChecker.checkAutomaticallySoon()
+        checkForUpdatesObserver = NotificationCenter.default.addObserver(
+            forName: VellumAppNotification.checkForUpdatesRequested,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.checkForUpdates()
+            }
+        }
+        if AppPreferences.automaticallyChecksForUpdates() {
+            updateChecker.checkAutomaticallySoon()
+        }
         DispatchQueue.main.async {
             self.closeDuplicateMainWindows()
         }
@@ -44,7 +56,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         sender.reply(toOpenOrPrint: .success)
     }
 
-    func checkForUpdates() {
+    @objc func checkForUpdates() {
         updateChecker.checkForUpdates(.manual)
     }
 
@@ -62,6 +74,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         for window in mainWindows.dropFirst() {
             window.close()
+        }
+    }
+
+    deinit {
+        if let checkForUpdatesObserver {
+            NotificationCenter.default.removeObserver(checkForUpdatesObserver)
         }
     }
 }
