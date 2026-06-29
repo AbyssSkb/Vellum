@@ -205,7 +205,7 @@ struct AISettingsDetailView: View {
                     Text(modelsSummary)
                         .font(.system(size: 12))
                         .foregroundStyle(TokyoNight.mutedColor)
-                        .lineLimit(1)
+                        .fixedSize(horizontal: false, vertical: true)
 
                     Spacer()
                 }
@@ -495,8 +495,9 @@ private struct ProviderPresetRow: View {
                     Text(preset.summary)
                         .font(.system(size: 11.5))
                         .foregroundStyle(TokyoNight.mutedColor)
-                        .lineLimit(1)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
 
                 Spacer()
 
@@ -508,7 +509,7 @@ private struct ProviderPresetRow: View {
             }
             .padding(.horizontal, 12)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .frame(height: 50)
+            .frame(minHeight: 50)
             .background(isSelected ? TokyoNight.selectionColor.opacity(0.58) : TokyoNight.backgroundDeepColor.opacity(0.58))
             .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
             .overlay {

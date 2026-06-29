@@ -5,11 +5,12 @@ import VellumCore
 @MainActor
 final class SettingsWindowController: NSWindowController {
     private static let contentSize = NSSize(width: 820, height: 680)
+    private static let minimumContentSize = NSSize(width: 720, height: 560)
 
     init() {
         let window = NSWindow(
             contentRect: NSRect(origin: .zero, size: Self.contentSize),
-            styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
+            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
@@ -21,9 +22,8 @@ final class SettingsWindowController: NSWindowController {
         window.isMovableByWindowBackground = true
         window.isOpaque = false
         window.backgroundColor = .clear
-        window.contentMinSize = Self.contentSize
-        window.contentMaxSize = Self.contentSize
-        window.standardWindowButton(.zoomButton)?.isEnabled = false
+        window.contentMinSize = Self.minimumContentSize
+        window.standardWindowButton(.zoomButton)?.isEnabled = true
 
         let hostingView = NSHostingView(rootView: AISettingsView())
         hostingView.frame = NSRect(origin: .zero, size: Self.contentSize)

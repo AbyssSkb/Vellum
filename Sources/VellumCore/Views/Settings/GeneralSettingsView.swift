@@ -177,8 +177,9 @@ private struct GeneralToggleRow: View {
                     Text(subtitle)
                         .font(.system(size: 12))
                         .foregroundStyle(TokyoNight.mutedColor)
-                        .lineLimit(1)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
 
                 Spacer()
 
@@ -228,8 +229,9 @@ private struct GeneralOptionRow<Content: View>: View {
                 Text(subtitle)
                     .font(.system(size: 12))
                     .foregroundStyle(TokyoNight.mutedColor)
-                    .lineLimit(1)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             Spacer()
 
