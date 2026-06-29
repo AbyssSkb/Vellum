@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct SidebarToggleButton: View {
+    @Environment(\.appUILanguage) private var language
     @EnvironmentObject private var appState: AppState
     @State private var isHovered = false
 
@@ -14,10 +15,10 @@ struct SidebarToggleButton: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .help("Toggle Contents")
-        .accessibilityLabel("Toggle Contents Sidebar")
+        .help(language.text(.toggleContents))
+        .accessibilityLabel(language.text(.toggleContentsSidebar))
         .accessibilityValue(appState.isOutlineVisible ? "Open" : "Closed")
-        .accessibilityHint("Shows or hides the document outline")
+        .accessibilityHint(language.text(.toggleContentsHint))
         .onHover { isHovered = $0 }
     }
 }

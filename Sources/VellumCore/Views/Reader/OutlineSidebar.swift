@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct OutlineSidebar: View {
+    @Environment(\.appUILanguage) private var language
     @EnvironmentObject private var appState: AppState
     let tab: PDFTab?
 
@@ -12,7 +13,7 @@ struct OutlineSidebar: View {
                 TokyoNightDivider(axis: .horizontal)
 
                 if items.isEmpty {
-                    OutlinePlaceholder(text: "No contents")
+                    OutlinePlaceholder(text: language.text(.noContents))
                 } else {
                     PDFOutlineView(
                         items: items,
@@ -23,7 +24,7 @@ struct OutlineSidebar: View {
             } else {
                 OutlineSidebarHeader()
                 TokyoNightDivider(axis: .horizontal)
-                OutlinePlaceholder(text: "No document")
+                OutlinePlaceholder(text: language.text(.noDocument))
             }
         }
         .background {
@@ -41,9 +42,11 @@ struct OutlineSidebar: View {
 }
 
 struct OutlineSidebarHeader: View {
+    @Environment(\.appUILanguage) private var language
+
     var body: some View {
         HStack(spacing: 8) {
-            Text("Contents")
+            Text(language.text(.contents))
                 .font(.system(size: 13.5, weight: .semibold))
                 .foregroundStyle(TokyoNight.foregroundColor)
 
@@ -67,4 +70,3 @@ struct OutlinePlaceholder: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
-

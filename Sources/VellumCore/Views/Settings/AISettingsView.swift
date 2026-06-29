@@ -1,6 +1,7 @@
 import SwiftUI
 
 public struct AISettingsView: View {
+    @AppStorage(AppPreferenceKeys.appLanguage) private var appLanguage = AppUILanguage.systemDefault().rawValue
     @State private var selection: SettingsSection = .general
 
     public init() {}
@@ -33,7 +34,12 @@ public struct AISettingsView: View {
         .foregroundStyle(TokyoNight.foregroundColor)
         .tint(TokyoNight.cyanColor)
         .preferredColorScheme(.dark)
+        .environment(\.appUILanguage, language)
         .ignoresSafeArea()
+    }
+
+    private var language: AppUILanguage {
+        AppUILanguage.saved(rawValue: appLanguage)
     }
 
     private var settingsSidebar: some View {
@@ -47,7 +53,7 @@ public struct AISettingsView: View {
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(TokyoNight.foregroundColor)
 
-                Text("Settings")
+                Text(language.text(.settings))
                     .font(.system(size: 12))
                     .foregroundStyle(TokyoNight.mutedColor)
             }
@@ -80,14 +86,14 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    var title: String {
+    func title(language: AppUILanguage) -> String {
         switch self {
         case .general:
-            return "General"
+            return language.text(.general)
         case .ai:
-            return "AI"
+            return language.text(.ai)
         case .shortcuts:
-            return "Shortcuts"
+            return language.text(.shortcuts)
         }
     }
 
@@ -104,6 +110,7 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
 }
 
 private struct SettingsSidebarRow: View {
+    @Environment(\.appUILanguage) private var language
     let section: SettingsSection
     let isSelected: Bool
     let action: () -> Void
@@ -116,7 +123,7 @@ private struct SettingsSidebarRow: View {
                     .frame(width: 17)
                     .foregroundStyle(isSelected ? TokyoNight.cyanColor : TokyoNight.mutedColor)
 
-                Text(section.title)
+                Text(section.title(language: language))
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(TokyoNight.foregroundColor)
 

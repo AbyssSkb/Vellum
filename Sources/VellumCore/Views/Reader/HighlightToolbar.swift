@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct HighlightToolbar: View {
+    @Environment(\.appUILanguage) private var language
     @EnvironmentObject private var appState: AppState
     @State private var hoveredColor: HighlightColor?
 
@@ -43,10 +44,10 @@ struct HighlightToolbar: View {
                     .animation(.easeInOut(duration: 0.1), value: isHovered)
                 }
                 .buttonStyle(.plain)
-                .help(color.helpText)
-                .accessibilityLabel(color.helpText)
+                .help(color.helpText(language: language))
+                .accessibilityLabel(color.helpText(language: language))
                 .accessibilityAddTraits(isSelected ? .isSelected : [])
-                .accessibilityHint("Select this highlight color")
+                .accessibilityHint(language.text(.selectHighlightColorHint))
                 .onHover { hoveredColor = $0 ? color : (hoveredColor == color ? nil : hoveredColor) }
             }
         }

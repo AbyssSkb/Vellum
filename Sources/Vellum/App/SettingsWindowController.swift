@@ -14,7 +14,7 @@ final class SettingsWindowController: NSWindowController {
             backing: .buffered,
             defer: false
         )
-        window.title = "Settings"
+        window.title = AppUILanguage.saved().text(.settings)
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.toolbar = nil

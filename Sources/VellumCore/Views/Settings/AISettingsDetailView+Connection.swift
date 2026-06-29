@@ -9,7 +9,7 @@ extension AISettingsDetailView {
 
             do {
                 let configuration = try currentConfiguration(requireModel: false)
-                status = .working(configuration.providerFormat.usesCodexExecutable ? "Checking Codex..." : "Checking endpoint...")
+                status = .working(configuration.providerFormat.usesCodexExecutable ? language.text(.checkingCodex) : language.text(.checkingEndpoint))
                 let message = try await AIExplanationClient.testConnection(configuration: configuration)
                 status = .success(message)
             } catch {
@@ -29,7 +29,7 @@ extension AISettingsDetailView {
                 let target = configuration.providerFormat.usesCodexExecutable
                     ? "Codex"
                     : configuration.model
-                status = .working("Asking \(target)...")
+                status = .working(language.text(.askingTarget(target)))
                 let message = try await AIExplanationClient.testFunction(configuration: configuration)
                 status = .success(message)
             } catch {
@@ -46,11 +46,11 @@ extension AISettingsDetailView {
 
             do {
                 let configuration = try currentConfiguration(requireModel: false)
-                status = .working("Fetching models...")
+                status = .working(language.text(.fetchingModels))
                 availableModels = try await AIExplanationClient.fetchModels(configuration: configuration)
                 status = availableModels.isEmpty
-                    ? .success("Connected. No models returned.")
-                    : .success("\(availableModels.count) models loaded.")
+                    ? .success(language.text(.connectedNoModels))
+                    : .success(language.text(.modelsLoaded(availableModels.count)))
             } catch {
                 status = .failure(error.localizedDescription)
             }

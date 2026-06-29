@@ -30,6 +30,7 @@ struct ReaderStack: View {
 }
 
 struct EmptyReader: View {
+    @Environment(\.appUILanguage) private var language
     @EnvironmentObject private var appState: AppState
 
     var body: some View {
@@ -39,14 +40,14 @@ struct EmptyReader: View {
                 .foregroundStyle(TokyoNight.mutedColor)
                 .accessibilityHidden(true)
 
-            Text("Open a PDF")
+            Text(language.text(.openPDF))
                 .font(.title2.weight(.semibold))
                 .foregroundStyle(TokyoNight.foregroundColor)
 
             Button {
                 appState.openPanel(mode: DefaultOpenModePreference.saved().pdfOpenMode)
             } label: {
-                Label("Choose File", systemImage: "folder")
+                Label(language.text(.chooseFile), systemImage: "folder")
             }
             .keyboardShortcut("o", modifiers: [.command])
             .tint(TokyoNight.blueColor)

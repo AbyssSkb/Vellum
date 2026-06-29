@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct GeneralSettingsView: View {
+    @Environment(\.appUILanguage) private var language
+    @AppStorage(AppPreferenceKeys.appLanguage) private var appLanguage = AppUILanguage.systemDefault().rawValue
     @AppStorage(AppPreferenceKeys.automaticallyCheckForUpdates) private var automaticallyCheckForUpdates = true
     @AppStorage(AppPreferenceKeys.defaultOpenMode) private var defaultOpenMode = DefaultOpenModePreference.currentTab.rawValue
     @AppStorage(AppPreferenceKeys.defaultHighlightColor) private var defaultHighlightColor = HighlightColor.yellow.rawValue
@@ -12,6 +14,7 @@ struct GeneralSettingsView: View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: 16) {
                 header
+                interfaceSection
                 startupSection
                 readingSection
                 updatesSection
@@ -37,11 +40,11 @@ struct GeneralSettingsView: View {
                 }
 
             VStack(alignment: .leading, spacing: 3) {
-                Text("General")
+                Text(language.text(.general))
                     .font(.system(size: 20, weight: .semibold))
                     .foregroundStyle(TokyoNight.foregroundColor)
 
-                Text("Set startup, reading, and update behavior.")
+                Text(language.text(.generalHeaderSubtitle))
                     .font(.system(size: 12.5))
                     .foregroundStyle(TokyoNight.mutedColor)
             }
@@ -50,19 +53,28 @@ struct GeneralSettingsView: View {
         }
     }
 
+    private var interfaceSection: some View {
+        GeneralSettingsPanel(title: language.text(.appUI), systemImage: "globe") {
+            GeneralOptionRow(title: language.text(.appLanguage), subtitle: language.text(.appLanguageSubtitle)) {
+                LanguageSegmentedControl(selection: $appLanguage)
+            }
+        }
+    }
+
     private var startupSection: some View {
-        GeneralSettingsPanel(title: "Startup", systemImage: "power") {
+        GeneralSettingsPanel(title: language.text(.startup), systemImage: "power") {
             VStack(spacing: 10) {
                 GeneralToggleRow(
-                    title: "Restore Previous Tabs",
-                    subtitle: "Reopen PDFs and reading positions from the last session.",
+                    title: language.text(.restorePreviousTabs),
+                    subtitle: language.text(.restorePreviousTabsSubtitle),
                     isOn: $restorePreviousTabs
                 )
 
-                GeneralOptionRow(title: "Default Open Mode", subtitle: "Choose where the Open command places PDFs.") {
+                GeneralOptionRow(title: language.text(.defaultOpenMode), subtitle: language.text(.defaultOpenModeSubtitle)) {
                     GeneralSegmentedControl(
                         selection: $defaultOpenMode,
-                        options: DefaultOpenModePreference.allCases
+                        options: DefaultOpenModePreference.allCases,
+                        language: language
                     )
                 }
             }
@@ -70,37 +82,37 @@ struct GeneralSettingsView: View {
     }
 
     private var readingSection: some View {
-        GeneralSettingsPanel(title: "Reading", systemImage: "doc.text.magnifyingglass") {
+        GeneralSettingsPanel(title: language.text(.reading), systemImage: "doc.text.magnifyingglass") {
             VStack(spacing: 10) {
                 GeneralToggleRow(
-                    title: "Double-Click Translate",
-                    subtitle: "Translate the selected word after a text double-click.",
+                    title: language.text(.doubleClickTranslate),
+                    subtitle: language.text(.doubleClickTranslateSubtitle),
                     isOn: $doubleClickTranslatesSelection
                 )
 
-                GeneralOptionRow(title: "Open File Zoom", subtitle: "Choose the initial zoom for newly opened PDFs.") {
-                    OpenFileZoomSegmentedControl(selection: $openFileZoomBehavior)
+                GeneralOptionRow(title: language.text(.openFileZoom), subtitle: language.text(.openFileZoomSubtitle)) {
+                    OpenFileZoomSegmentedControl(selection: $openFileZoomBehavior, language: language)
                 }
 
-                GeneralOptionRow(title: "Default Highlight", subtitle: "Pick the highlight color used by new markings.") {
-                    HighlightColorPicker(selection: $defaultHighlightColor)
+                GeneralOptionRow(title: language.text(.defaultHighlight), subtitle: language.text(.defaultHighlightSubtitle)) {
+                    HighlightColorPicker(selection: $defaultHighlightColor, language: language)
                 }
             }
         }
     }
 
     private var updatesSection: some View {
-        GeneralSettingsPanel(title: "Updates", systemImage: "arrow.triangle.2.circlepath") {
+        GeneralSettingsPanel(title: language.text(.updates), systemImage: "arrow.triangle.2.circlepath") {
             VStack(spacing: 10) {
                 GeneralToggleRow(
-                    title: "Automatically Check",
-                    subtitle: "Look for new releases shortly after launch.",
+                    title: language.text(.automaticallyCheck),
+                    subtitle: language.text(.automaticallyCheckSubtitle),
                     isOn: $automaticallyCheckForUpdates
                 )
 
                 HStack(spacing: 12) {
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("Current Version")
+                        Text(language.text(.currentVersion))
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundStyle(TokyoNight.foregroundColor)
 
@@ -114,7 +126,7 @@ struct GeneralSettingsView: View {
                     Button {
                         NotificationCenter.default.post(name: VellumAppNotification.checkForUpdatesRequested, object: nil)
                     } label: {
-                        Label("Check Now", systemImage: "arrow.clockwise")
+                        Label(language.text(.checkNow), systemImage: "arrow.clockwise")
                     }
                     .buttonStyle(GeneralActionButtonStyle())
                 }
@@ -253,12 +265,13 @@ private struct GeneralOptionRow<Content: View>: View {
 private struct GeneralSegmentedControl: View {
     @Binding var selection: String
     let options: [DefaultOpenModePreference]
+    let language: AppUILanguage
 
     var body: some View {
         HStack(spacing: 4) {
             ForEach(options) { option in
                 GeneralSegmentButton(
-                    title: option.title,
+                    title: option.title(language: language),
                     systemImage: option.systemImage,
                     isSelected: selection == option.rawValue
                 ) {
@@ -277,16 +290,41 @@ private struct GeneralSegmentedControl: View {
 
 private struct OpenFileZoomSegmentedControl: View {
     @Binding var selection: String
+    let language: AppUILanguage
 
     var body: some View {
         HStack(spacing: 4) {
             ForEach(OpenFileZoomPreference.allCases) { option in
                 GeneralSegmentButton(
-                    title: option.title,
+                    title: option.title(language: language),
                     systemImage: option.systemImage,
                     isSelected: selection == option.rawValue
                 ) {
                     selection = option.rawValue
+                }
+            }
+        }
+        .padding(3)
+        .background(TokyoNight.panelColor.opacity(0.86), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .stroke(TokyoNight.borderColor.opacity(0.54), lineWidth: 1)
+        }
+    }
+}
+
+private struct LanguageSegmentedControl: View {
+    @Binding var selection: String
+
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(AppUILanguage.allCases) { language in
+                GeneralSegmentButton(
+                    title: language.displayName,
+                    systemImage: language.systemImage,
+                    isSelected: selection == language.rawValue
+                ) {
+                    selection = language.rawValue
                 }
             }
         }
@@ -330,13 +368,15 @@ private struct GeneralSegmentButton: View {
 
 private struct HighlightColorPicker: View {
     @Binding var selection: String
+    let language: AppUILanguage
 
     var body: some View {
         HStack(spacing: 7) {
             ForEach(HighlightColor.allCases) { color in
                 HighlightColorButton(
                     color: color,
-                    isSelected: selection == color.rawValue
+                    isSelected: selection == color.rawValue,
+                    language: language
                 ) {
                     selection = color.rawValue
                     NotificationCenter.default.post(
@@ -360,6 +400,7 @@ private struct HighlightColorPicker: View {
 private struct HighlightColorButton: View {
     let color: HighlightColor
     let isSelected: Bool
+    let language: AppUILanguage
     let action: () -> Void
     @State private var isHovered = false
 
@@ -384,7 +425,7 @@ private struct HighlightColorButton: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .help(color.helpText)
+        .help(color.helpText(language: language))
         .onHover { isHovered = $0 }
     }
 }

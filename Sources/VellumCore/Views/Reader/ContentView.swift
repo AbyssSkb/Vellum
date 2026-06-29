@@ -3,6 +3,7 @@ import SwiftUI
 
 public struct ContentView: View {
     @EnvironmentObject private var appState: AppState
+    @AppStorage(AppPreferenceKeys.appLanguage) private var appLanguage = AppUILanguage.systemDefault().rawValue
 
     public init() {}
 
@@ -38,6 +39,7 @@ public struct ContentView: View {
         .tint(TokyoNight.blueColor)
         .background(TokyoNight.backgroundColor)
         .preferredColorScheme(.dark)
+        .environment(\.appUILanguage, AppUILanguage.saved(rawValue: appLanguage))
         .background(WindowChromeConfigurator())
         .ignoresSafeArea(.container, edges: .top)
         .onOpenURL { url in

@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct ShortcutSettingsView: View {
+    @Environment(\.appUILanguage) private var language
+
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: 16) {
@@ -16,11 +18,11 @@ struct ShortcutSettingsView: View {
                         }
 
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("Shortcuts")
+                        Text(language.text(.shortcuts))
                             .font(.system(size: 20, weight: .semibold))
                             .foregroundStyle(TokyoNight.foregroundColor)
 
-                        Text("Keyboard commands available in the reader.")
+                        Text(language.text(.shortcutsHeaderSubtitle))
                             .font(.system(size: 12.5))
                             .foregroundStyle(TokyoNight.mutedColor)
                     }
@@ -28,7 +30,7 @@ struct ShortcutSettingsView: View {
                     Spacer()
                 }
 
-                ForEach(ShortcutCatalog.groups) { group in
+                ForEach(ShortcutCatalog.groups(language: language)) { group in
                     ShortcutGroupCard(group: group)
                 }
             }

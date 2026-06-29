@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct TabStrip: View {
+    @Environment(\.appUILanguage) private var language
     @EnvironmentObject private var appState: AppState
     private let preferredTabWidth: CGFloat = 220
     private let tabSpacing: CGFloat = 2
@@ -39,7 +40,7 @@ struct TabStrip: View {
         .frame(height: 46)
         .background(TokyoNight.backgroundDeepColor)
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("Tab Bar")
+        .accessibilityLabel(language.text(.filesAndTabs))
     }
 
     private func tabWidth(availableWidth: CGFloat, tabCount: Int) -> CGFloat {

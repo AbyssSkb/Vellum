@@ -4,6 +4,7 @@ import VellumCore
 @main
 struct VellumApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+    @AppStorage(AppPreferenceKeys.appLanguage) private var appLanguage = AppUILanguage.systemDefault().rawValue
     @StateObject private var appState = AppState()
 
     var body: some Scene {
@@ -15,43 +16,47 @@ struct VellumApp: App {
         .windowStyle(.hiddenTitleBar)
         .commands {
             CommandGroup(after: .appInfo) {
-                Button("Check for Updates...") {
+                Button(language.text(.checkForUpdatesMenu)) {
                     appDelegate.checkForUpdates()
                 }
             }
 
             CommandGroup(replacing: .appSettings) {
-                Button("Settings...") {
+                Button(language.text(.settingsMenu)) {
                     appDelegate.openSettings()
                 }
                 .keyboardShortcut(",", modifiers: [.command])
             }
 
             CommandGroup(replacing: .newItem) {
-                Button("Open...") {
+                Button(language.text(.openMenu)) {
                     appState.openPanel(mode: DefaultOpenModePreference.saved().pdfOpenMode)
                 }
                 .keyboardShortcut("o", modifiers: [.command])
             }
 
             CommandGroup(after: .newItem) {
-                Button("Close Tab") {
+                Button(language.text(.closeTab)) {
                     appState.closeSelectedTab()
                 }
                 .keyboardShortcut("w", modifiers: [.command])
             }
 
-            CommandMenu("Navigate") {
-                Button("Next Tab") {
+            CommandMenu(language.text(.navigate)) {
+                Button(language.text(.nextTab)) {
                     appState.selectNextTab()
                 }
                 .keyboardShortcut("]", modifiers: [.command])
 
-                Button("Previous Tab") {
+                Button(language.text(.previousTab)) {
                     appState.selectPreviousTab()
                 }
                 .keyboardShortcut("[", modifiers: [.command])
             }
         }
+    }
+
+    private var language: AppUILanguage {
+        AppUILanguage.saved(rawValue: appLanguage)
     }
 }

@@ -1,4 +1,5 @@
 @preconcurrency import AppKit
+import VellumCore
 
 @MainActor
 final class UpdateAvailableWindowController: NSWindowController {
@@ -15,6 +16,7 @@ final class UpdateAvailableWindowController: NSWindowController {
     }
 
     private let canInstall: Bool
+    private let language = AppUILanguage.saved()
     private var response: Response = .later
 
     init(updateVersion: String, currentVersion: String, canInstall: Bool, releaseNotes: [String]) {
@@ -26,7 +28,7 @@ final class UpdateAvailableWindowController: NSWindowController {
             backing: .buffered,
             defer: false
         )
-        window.title = "Vellum Update"
+        window.title = AppUILanguage.saved().text(.updateWindowTitle)
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.styleMask.insert(.fullSizeContentView)
@@ -70,22 +72,22 @@ final class UpdateAvailableWindowController: NSWindowController {
         iconView.imageScaling = .scaleProportionallyUpOrDown
         iconView.translatesAutoresizingMaskIntoConstraints = false
 
-        let titleLabel = label("Vellum \(updateVersion) is available", size: 17, weight: .semibold)
+        let titleLabel = label(language.text(.updateAvailableTitle(updateVersion)), size: 17, weight: .semibold)
         titleLabel.alignment = .center
 
         let detailText = canInstall
-            ? "You are currently using Vellum \(currentVersion). Download and install the latest version now."
-            : "You are currently using Vellum \(currentVersion). Open GitHub to download the latest version."
+            ? language.text(.updateAvailableInstallDetail(current: currentVersion))
+            : language.text(.updateAvailableGitHubDetail(current: currentVersion))
         let detailLabel = label(detailText, size: 13, color: mutedColor)
         detailLabel.alignment = .center
         detailLabel.maximumNumberOfLines = 3
 
-        let notesTitle = label("What's new", size: 13, weight: .semibold)
+        let notesTitle = label(language.text(.whatsNew), size: 13, weight: .semibold)
         notesTitle.alignment = .left
 
         let notesLabel = label(
             releaseNotes.isEmpty
-                ? "Release notes are still syncing. Open GitHub to view the full changelog."
+                ? language.text(.releaseNotesFallback)
                 : releaseNotes.joined(separator: "\n"),
             size: 12.5,
             color: foregroundColor
@@ -99,11 +101,11 @@ final class UpdateAvailableWindowController: NSWindowController {
         notesPanel.layer?.cornerRadius = 8
         notesPanel.addSubview(notesLabel)
 
-        let primaryButton = button(canInstall ? "Download and Install" : "Open GitHub", action: #selector(primaryAction))
+        let primaryButton = button(canInstall ? language.text(.downloadAndInstall) : language.text(.openGitHub), action: #selector(primaryAction))
         primaryButton.bezelColor = NSColor(calibratedRed: 0.122, green: 0.467, blue: 0.902, alpha: 1)
 
-        let githubButton = button(canInstall ? "Open GitHub" : "Later", action: canInstall ? #selector(openGitHubAction) : #selector(laterAction))
-        let laterButton = button("Later", action: #selector(laterAction))
+        let githubButton = button(canInstall ? language.text(.openGitHub) : language.text(.later), action: canInstall ? #selector(openGitHubAction) : #selector(laterAction))
+        let laterButton = button(language.text(.later), action: #selector(laterAction))
 
         let buttonViews = canInstall ? [primaryButton, githubButton, laterButton] : [primaryButton, githubButton]
         let buttonsStack = NSStackView(views: buttonViews)

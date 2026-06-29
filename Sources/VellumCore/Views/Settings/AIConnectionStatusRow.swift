@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct AIConnectionStatusRow: View {
+    @Environment(\.appUILanguage) private var language
     let status: AIConnectionStatus
     let isBusy: Bool
 
@@ -9,14 +10,14 @@ struct AIConnectionStatusRow: View {
             if isBusy {
                 ProgressView()
                     .controlSize(.small)
-                    .accessibilityLabel("Loading")
+                    .accessibilityLabel(language.text(.loading))
             } else {
                 Image(systemName: status.systemImage)
                     .foregroundStyle(Color(nsColor: status.color))
                     .accessibilityHidden(true)
             }
 
-            Text(status.text)
+            Text(status.text(language: language))
                 .font(.system(size: 12.5))
                 .foregroundStyle(status.isIdle ? TokyoNight.mutedColor : TokyoNight.foregroundColor)
                 .textSelection(.enabled)

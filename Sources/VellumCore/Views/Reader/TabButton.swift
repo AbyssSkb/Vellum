@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct TabButton: View {
+    @Environment(\.appUILanguage) private var language
     @EnvironmentObject private var appState: AppState
     let tab: PDFTab
     let isSelected: Bool
@@ -34,8 +35,8 @@ struct TabButton: View {
                         .contentShape(Circle())
                 }
                 .buttonStyle(.plain)
-                .help("Close Tab")
-                .accessibilityLabel("Close \(tab.title)")
+                .help(language.text(.closeTab))
+                .accessibilityLabel(language.text(.closeTabNamed(tab.title)))
                 .onHover { isCloseHovered = $0 }
             }
         }

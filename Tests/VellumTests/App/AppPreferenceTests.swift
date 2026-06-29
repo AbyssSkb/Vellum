@@ -37,6 +37,28 @@ struct AppPreferenceTests {
     }
 
     @Test
+    func appLanguageUsesSavedValueAndSystemFallback() {
+        let defaults = isolatedDefaults()
+
+        #expect(AppUILanguage.systemDefault(preferredLanguages: ["zh-Hans-CN"]) == .chinese)
+        #expect(AppUILanguage.systemDefault(preferredLanguages: ["en-US"]) == .english)
+
+        defaults.set(AppUILanguage.chinese.rawValue, forKey: AppPreferenceKeys.appLanguage)
+        #expect(AppPreferences.appLanguage(in: defaults) == .chinese)
+
+        defaults.set("fr", forKey: AppPreferenceKeys.appLanguage)
+        #expect(AppPreferences.appLanguage(in: defaults) == AppUILanguage.systemDefault())
+    }
+
+    @Test
+    func appLanguageLocalizesCommonInterfaceText() {
+        #expect(AppUILanguage.english.text(.settings) == "Settings")
+        #expect(AppUILanguage.chinese.text(.settings) == "设置")
+        #expect(DefaultOpenModePreference.newTabs.title(language: .chinese) == "新标签页")
+        #expect(OpenFileZoomPreference.fitWidth.title(language: .chinese) == "适合宽度")
+    }
+
+    @Test
     func sessionPersistenceRoundTripsTabsAndSnapshots() {
         let defaults = isolatedDefaults()
         let selectedID = UUID()

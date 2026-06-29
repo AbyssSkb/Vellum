@@ -875,14 +875,14 @@ final class PDFSearchController {
 
     private func overlayStatus() -> SearchCommandOverlayView.Status {
         if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return .hint("type")
+            return .hint(AppUILanguage.saved().text(.searchTypeHint))
         } else if isSearchPending, !results.isEmpty {
             let displayIndex = activeIndex ?? anchoredIndex(for: .next, materializeLocations: false) ?? 0
             return .hint("\(displayIndex + 1)/\(results.count)...")
         } else if isSearchPending {
             return .hint("...")
         } else if results.isEmpty {
-            return .error("no match")
+            return .error(AppUILanguage.saved().text(.searchNoMatch))
         } else {
             let displayIndex = activeIndex ?? anchoredIndex(for: .next, materializeLocations: false) ?? 0
             return .count(current: displayIndex + 1, total: results.count)
@@ -956,14 +956,16 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
     private let iconView = NSImageView()
     private let textField = SearchCommandTextField()
     private let statusPill = NSVisualEffectView()
-    private let statusLabel = CenteredTextLabel(text: "type")
+    private let statusLabel = CenteredTextLabel(text: "")
     private var presentation: Presentation = .editing
-    private var currentStatus: Status = .hint("type")
+    private var currentStatus: Status = .hint("")
     private var miniQuery = ""
 
     init(query: String) {
         super.init(frame: .zero)
         wantsLayer = false
+        currentStatus = .hint(AppUILanguage.saved().text(.searchTypeHint))
+        statusLabel.stringValue = currentStatus.text
         configureContainer()
         configureLabels()
         configureTextField(query: query)
@@ -1156,7 +1158,7 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
         textField.font = .systemFont(ofSize: 14, weight: .medium)
         textField.textColor = TokyoNight.foreground
         textField.placeholderAttributedString = NSAttributedString(
-            string: "Search",
+            string: AppUILanguage.saved().text(.search),
             attributes: [
                 .foregroundColor: TokyoNight.muted,
                 .font: NSFont.systemFont(ofSize: 14, weight: .regular)

@@ -39,18 +39,18 @@ enum HighlightColor: String, CaseIterable, Identifiable {
         return colors[(index + 1) % colors.count]
     }
 
-    var helpText: String {
+    func helpText(language: AppUILanguage = AppUILanguage.saved()) -> String {
         switch self {
         case .yellow:
-            return "Yellow highlight"
+            return language.text(.yellowHighlight)
         case .green:
-            return "Green highlight"
+            return language.text(.greenHighlight)
         case .cyan:
-            return "Cyan highlight"
+            return language.text(.cyanHighlight)
         case .purple:
-            return "Purple highlight"
+            return language.text(.purpleHighlight)
         case .pink:
-            return "Pink highlight"
+            return language.text(.pinkHighlight)
         }
     }
 }

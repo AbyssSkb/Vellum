@@ -291,9 +291,10 @@ final class GitHubUpdateChecker {
     }
 
     private func showNoUpdate(currentVersion: String, latestVersion: String) {
+        let language = AppUILanguage.saved()
         let alert = NSAlert()
-        alert.messageText = "Vellum is up to date"
-        alert.informativeText = "You are using Vellum \(currentVersion). The latest release found is \(latestVersion)."
+        alert.messageText = language.text(.upToDate)
+        alert.informativeText = language.text(.upToDateDetail(current: currentVersion, latest: latestVersion))
         alert.addButton(withTitle: "OK")
         alert.runModal()
     }
@@ -363,11 +364,12 @@ final class GitHubUpdateChecker {
     }
 
     private func showUpdateError(_ error: Error) {
+        let language = AppUILanguage.saved()
         let alert = NSAlert()
-        alert.messageText = "Unable to check for updates"
-        alert.informativeText = "GitHub may be unreachable or rate-limited right now. You can open the releases page and try again later."
-        alert.addButton(withTitle: "Open Releases")
-        alert.addButton(withTitle: "Cancel")
+        alert.messageText = language.text(.unableToCheckUpdates)
+        alert.informativeText = language.text(.unableToCheckUpdatesDetail)
+        alert.addButton(withTitle: language.text(.openReleases))
+        alert.addButton(withTitle: language.text(.cancel))
 
         if alert.runModal() == .alertFirstButtonReturn {
             NSWorkspace.shared.open(Self.defaultDownloadURL)
@@ -401,8 +403,8 @@ final class GitHubUpdateChecker {
                 }
                 await MainActor.run {
                     window.updateStatus(
-                        "Installing Vellum \(update.version)",
-                        detail: "Vellum will quit, update itself, and reopen.",
+                        AppUILanguage.saved().text(.installingVersion(update.version)),
+                        detail: AppUILanguage.saved().text(.installingDetail),
                         indeterminate: true,
                         canCancel: false
                     )
@@ -524,11 +526,12 @@ final class GitHubUpdateChecker {
     }
 
     private func showDownloadError(_ error: Error, releaseURL: URL) {
+        let language = AppUILanguage.saved()
         let alert = NSAlert()
-        alert.messageText = "Unable to download the update"
-        alert.informativeText = "\(error.localizedDescription)\n\nOpen the release page to download it manually."
-        alert.addButton(withTitle: "Open GitHub")
-        alert.addButton(withTitle: "Cancel")
+        alert.messageText = language.text(.unableToDownloadUpdate)
+        alert.informativeText = language.text(.unableToDownloadUpdateDetail(error.localizedDescription))
+        alert.addButton(withTitle: language.text(.openGitHub))
+        alert.addButton(withTitle: language.text(.cancel))
 
         if alert.runModal() == .alertFirstButtonReturn {
             NSWorkspace.shared.open(releaseURL)
@@ -536,11 +539,12 @@ final class GitHubUpdateChecker {
     }
 
     private func showInstallError(_ error: Error, diskImageURL: URL) {
+        let language = AppUILanguage.saved()
         let alert = NSAlert()
-        alert.messageText = "Unable to install the update"
-        alert.informativeText = "\(error.localizedDescription)\n\nThe installer was downloaded. Open the disk image and install it manually."
-        alert.addButton(withTitle: "Open Disk Image")
-        alert.addButton(withTitle: "Cancel")
+        alert.messageText = language.text(.unableToInstallUpdate)
+        alert.informativeText = language.text(.unableToInstallUpdateDetail(error.localizedDescription))
+        alert.addButton(withTitle: language.text(.openDiskImage))
+        alert.addButton(withTitle: language.text(.cancel))
 
         if alert.runModal() == .alertFirstButtonReturn {
             NSWorkspace.shared.open(diskImageURL)

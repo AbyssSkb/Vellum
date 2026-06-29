@@ -1,4 +1,5 @@
 @preconcurrency import AppKit
+import VellumCore
 
 @MainActor
 final class UpdateDownloadWindowController: NSWindowController {
@@ -7,7 +8,8 @@ final class UpdateDownloadWindowController: NSWindowController {
     private let titleLabel = NSTextField(labelWithString: "")
     private let detailLabel = NSTextField(labelWithString: "")
     private let progressIndicator = NSProgressIndicator()
-    private let cancelButton = NSButton(title: "Cancel", target: nil, action: nil)
+    private let language = AppUILanguage.saved()
+    private lazy var cancelButton = NSButton(title: language.text(.cancel), target: nil, action: nil)
     private var shouldCancelOnClose = true
     private var lastProgressValue = 0.0
 
@@ -18,7 +20,7 @@ final class UpdateDownloadWindowController: NSWindowController {
             backing: .buffered,
             defer: false
         )
-        window.title = "Vellum Update"
+        window.title = AppUILanguage.saved().text(.updateWindowTitle)
         window.isReleasedWhenClosed = false
         super.init(window: window)
         window.delegate = self
@@ -48,7 +50,7 @@ final class UpdateDownloadWindowController: NSWindowController {
         } else {
             progressIndicator.isIndeterminate = true
             progressIndicator.startAnimation(nil)
-            detailLabel.stringValue = "\(Self.formattedBytes(receivedBytes)) downloaded"
+            detailLabel.stringValue = language.text(.downloadedBytes(Self.formattedBytes(receivedBytes)))
         }
     }
 
@@ -76,11 +78,11 @@ final class UpdateDownloadWindowController: NSWindowController {
     private func buildContent(version: String) {
         guard let contentView = window?.contentView else { return }
 
-        titleLabel.stringValue = "Downloading Vellum \(version)"
+        titleLabel.stringValue = language.text(.downloadingVersion(version))
         titleLabel.font = .systemFont(ofSize: 15, weight: .semibold)
         titleLabel.lineBreakMode = .byTruncatingTail
 
-        detailLabel.stringValue = "Preparing download..."
+        detailLabel.stringValue = language.text(.preparingDownload)
         detailLabel.textColor = .secondaryLabelColor
         detailLabel.font = .systemFont(ofSize: 12)
         detailLabel.lineBreakMode = .byTruncatingMiddle

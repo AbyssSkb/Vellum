@@ -2,6 +2,7 @@
 import SwiftUI
 
 struct TabSwitcherOverlay: View {
+    @Environment(\.appUILanguage) private var language
     @EnvironmentObject private var appState: AppState
     @State private var query = ""
     @State private var selectedIndex = 0
@@ -75,6 +76,7 @@ struct TabSwitcherOverlay: View {
 
             TabSwitcherSearchField(
                 text: $query,
+                language: language,
                 onMoveUp: { moveSelection(.up) },
                 onMoveDown: { moveSelection(.down) },
                 onCommit: openSelectedMatch,
@@ -151,7 +153,7 @@ struct TabSwitcherOverlay: View {
                 .foregroundStyle(TokyoNight.mutedColor)
                 .frame(width: 22)
 
-            Text("No matching tabs")
+            Text(language.text(.noMatchingTabs))
                 .font(.system(size: 14, weight: .medium))
                 .foregroundStyle(TokyoNight.mutedColor)
 
@@ -199,6 +201,7 @@ struct TabSwitcherOverlay: View {
 
 private struct TabSwitcherSearchField: NSViewRepresentable {
     @Binding var text: String
+    let language: AppUILanguage
     let onMoveUp: () -> Void
     let onMoveDown: () -> Void
     let onCommit: () -> Void
@@ -211,7 +214,7 @@ private struct TabSwitcherSearchField: NSViewRepresentable {
         textField.onMoveDown = onMoveDown
         textField.onCommit = onCommit
         textField.onCancel = onCancel
-        textField.configure()
+        textField.configure(language: language)
         focus(textField)
         return textField
     }
@@ -221,6 +224,7 @@ private struct TabSwitcherSearchField: NSViewRepresentable {
         nsView.onMoveDown = onMoveDown
         nsView.onCommit = onCommit
         nsView.onCancel = onCancel
+        nsView.configurePlaceholder(language: language)
 
         if nsView.stringValue != text {
             nsView.stringValue = text
@@ -294,17 +298,11 @@ private final class TabSwitcherTextField: NSTextField {
 
     override var acceptsFirstResponder: Bool { true }
 
-    func configure() {
+    func configure(language: AppUILanguage) {
         cell = TabSwitcherTextFieldCell(textCell: "")
         font = .systemFont(ofSize: 22, weight: .medium)
         textColor = TokyoNight.foreground
-        placeholderAttributedString = NSAttributedString(
-            string: "Search open tabs",
-            attributes: [
-                .foregroundColor: TokyoNight.muted.withAlphaComponent(0.92),
-                .font: NSFont.systemFont(ofSize: 22, weight: .regular)
-            ]
-        )
+        configurePlaceholder(language: language)
         backgroundColor = .clear
         isBordered = false
         isBezeled = false
@@ -316,6 +314,16 @@ private final class TabSwitcherTextField: NSTextField {
         cell?.usesSingleLineMode = true
         cell?.wraps = false
         cell?.isScrollable = true
+    }
+
+    func configurePlaceholder(language: AppUILanguage) {
+        placeholderAttributedString = NSAttributedString(
+            string: language.text(.searchOpenTabs),
+            attributes: [
+                .foregroundColor: TokyoNight.muted.withAlphaComponent(0.92),
+                .font: NSFont.systemFont(ofSize: 22, weight: .regular)
+            ]
+        )
     }
 
     override func keyDown(with event: NSEvent) {
@@ -382,6 +390,7 @@ private final class TabSwitcherTextFieldCell: NSTextFieldCell {
 }
 
 private struct TabSwitcherRow: View {
+    @Environment(\.appUILanguage) private var language
     let tab: PDFTab
     let isSelected: Bool
     let isCurrent: Bool
@@ -399,7 +408,7 @@ private struct TabSwitcherRow: View {
                     .foregroundStyle(TokyoNight.foregroundColor)
                     .lineLimit(1)
 
-                Text(tab.url?.path ?? "Untitled")
+                Text(tab.url?.path ?? language.text(.untitled))
                     .font(.system(size: 11))
                     .foregroundStyle(TokyoNight.mutedColor)
                     .lineLimit(1)

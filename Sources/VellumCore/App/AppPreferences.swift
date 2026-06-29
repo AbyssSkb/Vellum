@@ -1,6 +1,7 @@
 import Foundation
 
 public enum AppPreferenceKeys {
+    public static let appLanguage = "VellumAppLanguage"
     public static let automaticallyCheckForUpdates = "VellumAutomaticallyCheckForUpdates"
     public static let defaultOpenMode = "VellumDefaultOpenMode"
     public static let defaultHighlightColor = "VellumDefaultHighlightColor"
@@ -20,12 +21,12 @@ public enum DefaultOpenModePreference: String, CaseIterable, Identifiable {
 
     public var id: String { rawValue }
 
-    public var title: String {
+    public func title(language: AppUILanguage = AppUILanguage.saved()) -> String {
         switch self {
         case .currentTab:
-            return "Current Tab"
+            return language.text(.currentTab)
         case .newTabs:
-            return "New Tabs"
+            return language.text(.newTabs)
         }
     }
 
@@ -62,12 +63,12 @@ public enum OpenFileZoomPreference: String, CaseIterable, Identifiable {
 
     public var id: String { rawValue }
 
-    public var title: String {
+    public func title(language: AppUILanguage = AppUILanguage.saved()) -> String {
         switch self {
         case .fitWidth:
-            return "Fit Width"
+            return language.text(.fitWidth)
         case .fitPage:
-            return "Fit Page"
+            return language.text(.fitPage)
         }
     }
 
@@ -90,6 +91,10 @@ public enum OpenFileZoomPreference: String, CaseIterable, Identifiable {
 }
 
 public enum AppPreferences {
+    public static func appLanguage(in defaults: UserDefaults = .standard) -> AppUILanguage {
+        AppUILanguage.saved(in: defaults)
+    }
+
     public static func automaticallyChecksForUpdates(in defaults: UserDefaults = .standard) -> Bool {
         defaults.object(forKey: AppPreferenceKeys.automaticallyCheckForUpdates) as? Bool ?? true
     }

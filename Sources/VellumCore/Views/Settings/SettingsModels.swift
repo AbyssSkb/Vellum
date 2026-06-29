@@ -7,10 +7,10 @@ enum AIConnectionStatus: Equatable {
     case success(String)
     case failure(String)
 
-    var text: String {
+    func text(language: AppUILanguage = AppUILanguage.saved()) -> String {
         switch self {
         case .idle:
-            return "Not checked"
+            return language.text(.notChecked)
         case .working(let message), .success(let message), .failure(let message):
             return message
         }

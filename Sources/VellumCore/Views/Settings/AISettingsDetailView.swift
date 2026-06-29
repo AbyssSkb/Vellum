@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct AISettingsDetailView: View {
+    @Environment(\.appUILanguage) var language
     @AppStorage(AISettingsKeys.providerID) var providerID = "openai"
     @State var baseURL = ""
     @State var model = ""
@@ -79,7 +80,7 @@ struct AISettingsDetailView: View {
 
     var trimmedModelText: String {
         let trimmed = model.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? "Not set" : trimmed
+        return trimmed.isEmpty ? language.text(.notSet) : trimmed
     }
 
     var chatEndpointText: String {
@@ -117,11 +118,11 @@ struct AISettingsDetailView: View {
                 }
 
             VStack(alignment: .leading, spacing: 3) {
-                Text("AI")
+                Text(language.text(.ai))
                     .font(.system(size: 20, weight: .semibold))
                     .foregroundStyle(TokyoNight.foregroundColor)
 
-                Text("Choose a provider, enter its key, then pick the model Vellum should use.")
+                Text(language.text(.aiHeaderSubtitle))
                     .font(.system(size: 12.5))
                     .foregroundStyle(TokyoNight.mutedColor)
             }
@@ -131,7 +132,7 @@ struct AISettingsDetailView: View {
     }
 
     private var providerSection: some View {
-        SettingsPanel(title: "Provider", systemImage: "building.2") {
+        SettingsPanel(title: language.text(.provider), systemImage: "building.2") {
             VStack(alignment: .leading, spacing: 8) {
                 ForEach(AIProviderPreset.presets) { preset in
                     ProviderPresetRow(
@@ -146,9 +147,9 @@ struct AISettingsDetailView: View {
     }
 
     private var endpointSection: some View {
-        SettingsPanel(title: "Endpoint", systemImage: "network") {
+        SettingsPanel(title: language.text(.endpoint), systemImage: "network") {
             VStack(alignment: .leading, spacing: 14) {
-                LabeledSettingsField(title: "Base URL") {
+                LabeledSettingsField(title: language.text(.baseURL)) {
                     StyledTextField(
                         text: $baseURL,
                         placeholder: selectedPreset.baseURL,
@@ -156,7 +157,7 @@ struct AISettingsDetailView: View {
                     )
                 }
 
-                LabeledSettingsField(title: "API Key") {
+                LabeledSettingsField(title: language.text(.apiKey)) {
                     StyledSecureField(
                         text: $apiKey,
                         placeholder: selectedPreset.id == "anthropic" ? "sk-ant-..." : "sk-..."
@@ -167,9 +168,9 @@ struct AISettingsDetailView: View {
     }
 
     private var codexSection: some View {
-        SettingsPanel(title: "Codex", systemImage: "terminal") {
+        SettingsPanel(title: language.text(.codex), systemImage: "terminal") {
             VStack(alignment: .leading, spacing: 14) {
-                LabeledSettingsField(title: "Executable") {
+                LabeledSettingsField(title: language.text(.executable)) {
                     StyledTextField(
                         text: $baseURL,
                         placeholder: selectedPreset.baseURL,
@@ -177,10 +178,10 @@ struct AISettingsDetailView: View {
                     )
                 }
 
-                LabeledSettingsField(title: "Profile") {
+                LabeledSettingsField(title: language.text(.profile)) {
                     StyledTextField(
                         text: $apiKey,
-                        placeholder: "Use default profile",
+                        placeholder: language.text(.useDefaultProfile),
                         systemImage: "person.crop.circle"
                     )
                 }
@@ -189,18 +190,18 @@ struct AISettingsDetailView: View {
     }
 
     private var modelFieldTitle: String {
-        selectedPreset.format.usesCodexExecutable ? "Model Override" : "Current Model"
+        selectedPreset.format.usesCodexExecutable ? language.text(.modelOverride) : language.text(.currentModel)
     }
 
     private var modelFieldPlaceholder: String {
         if selectedPreset.format.usesCodexExecutable {
-            return "Use Codex default"
+            return language.text(.useCodexDefault)
         }
         return selectedPreset.defaultModel
     }
 
     private var modelSection: some View {
-        SettingsPanel(title: "Model", systemImage: "cpu") {
+        SettingsPanel(title: language.text(.model), systemImage: "cpu") {
             VStack(alignment: .leading, spacing: 14) {
                 LabeledSettingsField(title: modelFieldTitle) {
                     StyledTextField(
@@ -214,7 +215,7 @@ struct AISettingsDetailView: View {
                     Button {
                         fetchModels()
                     } label: {
-                        Label(isFetchingModels ? "Fetching" : "Fetch Models", systemImage: "arrow.clockwise")
+                        Label(isFetchingModels ? language.text(.fetching) : language.text(.fetchModels), systemImage: "arrow.clockwise")
                     }
                     .buttonStyle(SettingsActionButtonStyle())
                     .disabled(isBusy)
@@ -235,9 +236,9 @@ struct AISettingsDetailView: View {
     }
 
     private var promptSection: some View {
-        SettingsPanel(title: "Prompt", systemImage: "text.bubble") {
+        SettingsPanel(title: language.text(.prompt), systemImage: "text.bubble") {
             VStack(alignment: .leading, spacing: 14) {
-                LabeledSettingsField(title: "Target Output Language") {
+                LabeledSettingsField(title: language.text(.promptTargetLanguage)) {
                     StyledTextField(
                         text: $targetLanguage,
                         placeholder: AIPromptSettings.defaultTargetLanguage,
@@ -245,7 +246,7 @@ struct AISettingsDetailView: View {
                     )
                 }
 
-                LabeledSettingsField(title: "Template") {
+                LabeledSettingsField(title: language.text(.promptTemplate)) {
                     StyledPromptEditor(text: $promptTemplate)
                 }
 
@@ -255,7 +256,7 @@ struct AISettingsDetailView: View {
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(TokyoNight.cyanColor)
 
-                        Text("Variables")
+                        Text(language.text(.promptVariables))
                             .font(.system(size: 11.5, weight: .semibold))
                             .foregroundStyle(TokyoNight.mutedColor)
                     }
@@ -271,11 +272,11 @@ struct AISettingsDetailView: View {
                     Button {
                         resetPromptSettings()
                     } label: {
-                        Label("Reset Prompt", systemImage: "arrow.counterclockwise")
+                        Label(language.text(.promptReset), systemImage: "arrow.counterclockwise")
                     }
                     .buttonStyle(SettingsActionButtonStyle())
 
-                    Text("Use variables like {{selectedText}} and {{targetLanguage}}.")
+                    Text(language.text(.promptVariablesHint))
                         .font(.system(size: 12))
                         .foregroundStyle(TokyoNight.mutedColor)
                         .fixedSize(horizontal: false, vertical: true)
@@ -287,13 +288,13 @@ struct AISettingsDetailView: View {
     }
 
     private var validationSection: some View {
-        SettingsPanel(title: "Validation", systemImage: "checkmark.seal") {
+        SettingsPanel(title: language.text(.validation), systemImage: "checkmark.seal") {
             VStack(alignment: .leading, spacing: 14) {
                 HStack(spacing: 10) {
                     Button {
                         testConnection()
                     } label: {
-                        Label(isTestingConnection ? "Testing" : connectionTestTitle, systemImage: connectionTestIcon)
+                        Label(isTestingConnection ? language.text(.testing) : connectionTestTitle, systemImage: connectionTestIcon)
                     }
                     .buttonStyle(SettingsActionButtonStyle())
                     .disabled(isBusy)
@@ -301,7 +302,7 @@ struct AISettingsDetailView: View {
                     Button {
                         testFunction()
                     } label: {
-                        Label(isTestingFunction ? "Testing" : "Test Model", systemImage: "sparkles")
+                        Label(isTestingFunction ? language.text(.testing) : language.text(.testModel), systemImage: "sparkles")
                     }
                     .buttonStyle(SettingsPrimaryButtonStyle())
                     .disabled(isBusy)
@@ -315,7 +316,7 @@ struct AISettingsDetailView: View {
                     ForEach(diagnosticRows, id: \.title) { row in
                         diagnosticRow(row.title, row.value)
                     }
-                    diagnosticRow("Selected", trimmedModelText)
+                    diagnosticRow(language.text(.selected), trimmedModelText)
                 }
                 .padding(.top, 2)
             }
@@ -324,20 +325,20 @@ struct AISettingsDetailView: View {
 
     var modelsSummary: String {
         if isFetchingModels {
-            return "Loading models from \(selectedPreset.name)..."
+            return language.text(.fetchingModelsFrom(selectedPreset.name))
         }
 
         if availableModels.isEmpty {
             return selectedPreset.format.usesCodexExecutable
-                ? "Leave Model Override empty to use Codex default."
-                : "Fetched models will appear as choices for Current Model."
+                ? language.text(.modelOverrideHint)
+                : language.text(.modelChoicesHint)
         }
 
-        return "\(availableModels.count) models loaded."
+        return language.text(.modelsLoaded(availableModels.count))
     }
 
     var connectionTestTitle: String {
-        selectedPreset.format.usesCodexExecutable ? "Test Codex" : "Test Endpoint"
+        selectedPreset.format.usesCodexExecutable ? language.text(.testCodex) : language.text(.testEndpoint)
     }
 
     var connectionTestIcon: String {
@@ -347,14 +348,14 @@ struct AISettingsDetailView: View {
     var diagnosticRows: [(title: String, value: String)] {
         if selectedPreset.format.usesCodexExecutable {
             return [
-                ("Command", baseURL.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty ?? selectedPreset.baseURL),
-                ("Profile", apiKey.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty ?? "Default")
+                (language.text(.command), baseURL.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty ?? selectedPreset.baseURL),
+                (language.text(.profile), apiKey.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty ?? language.text(.defaultStatus))
             ]
         }
 
         return [
-            ("Request", chatEndpointText),
-            ("Models", modelsEndpointText)
+            (language.text(.diagnosticsRequest), chatEndpointText),
+            (language.text(.diagnosticsModels), modelsEndpointText)
         ]
     }
 
@@ -621,6 +622,7 @@ private extension View {
 }
 
 private struct ProviderPresetRow: View {
+    @Environment(\.appUILanguage) private var language
     let preset: AIProviderPreset
     let isSelected: Bool
     let action: () -> Void
@@ -633,7 +635,7 @@ private struct ProviderPresetRow: View {
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(TokyoNight.foregroundColor)
 
-                    Text(preset.summary)
+                    Text(preset.localizedSummary(language: language))
                         .font(.system(size: 11.5))
                         .foregroundStyle(TokyoNight.mutedColor)
                         .fixedSize(horizontal: false, vertical: true)
@@ -661,6 +663,28 @@ private struct ProviderPresetRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+}
+
+private extension AIProviderPreset {
+    func localizedSummary(language: AppUILanguage) -> String {
+        switch language {
+        case .english:
+            return summary
+        case .chinese:
+            switch id {
+            case "openai":
+                return "OpenAI 官方 API。"
+            case "deepseek":
+                return "使用 DeepSeek 的 OpenAI 兼容 API。"
+            case "anthropic":
+                return "Claude 官方 API。"
+            case "codex-cli":
+                return "使用本地 Codex，支持私密的流式解释。"
+            default:
+                return "任意 OpenAI 兼容端点。"
+            }
+        }
     }
 }
 
