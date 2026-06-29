@@ -50,5 +50,6 @@ struct VellumApp: App {
         Settings {
             AISettingsView()
         }
+        .windowStyle(.hiddenTitleBar)
     }
 }

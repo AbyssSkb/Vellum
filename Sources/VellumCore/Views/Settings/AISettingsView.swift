@@ -27,7 +27,7 @@ public struct AISettingsView: View {
         .tint(TokyoNight.cyanColor)
         .preferredColorScheme(.dark)
         .background(WindowChromeConfigurator())
-        .ignoresSafeArea(.container, edges: .top)
+        .ignoresSafeArea()
     }
 
     private var settingsSidebar: some View {
@@ -63,6 +63,7 @@ public struct AISettingsView: View {
         }
         .frame(width: 188)
         .background(TokyoNight.backgroundDeepColor)
+        .ignoresSafeArea()
     }
 }
 
