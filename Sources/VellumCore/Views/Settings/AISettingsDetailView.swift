@@ -10,7 +10,10 @@ struct AISettingsDetailView: View {
     @State var isTestingConnection = false
     @State var isTestingFunction = false
     @State var isFetchingModels = false
+    @State var targetLanguage = AIPromptSettings.defaultTargetLanguage
+    @State var promptTemplate = AIPromptSettings.defaultTemplate
     @State private var didLoadProviderSettings = false
+    @State private var didLoadPromptSettings = false
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
@@ -24,6 +27,7 @@ struct AISettingsDetailView: View {
                     endpointSection
                     modelSection
                 }
+                promptSection
                 validationSection
             }
             .padding(.horizontal, 24)
@@ -34,6 +38,7 @@ struct AISettingsDetailView: View {
         .background(SettingsScrollChromeConfigurator())
         .onAppear {
             loadProviderSettings(for: providerID, allowsLegacyFallback: true)
+            loadPromptSettings()
         }
         .onChange(of: providerID) { _, newValue in
             loadProviderSettings(for: newValue, allowsLegacyFallback: false)
@@ -53,6 +58,14 @@ struct AISettingsDetailView: View {
             guard didLoadProviderSettings else { return }
             saveProviderSettings()
             status = .idle
+        }
+        .onChange(of: targetLanguage) { _, _ in
+            guard didLoadPromptSettings else { return }
+            savePromptSettings()
+        }
+        .onChange(of: promptTemplate) { _, _ in
+            guard didLoadPromptSettings else { return }
+            savePromptSettings()
         }
     }
 
@@ -221,6 +234,58 @@ struct AISettingsDetailView: View {
         }
     }
 
+    private var promptSection: some View {
+        SettingsPanel(title: "Prompt", systemImage: "text.bubble") {
+            VStack(alignment: .leading, spacing: 14) {
+                LabeledSettingsField(title: "Target Output Language") {
+                    StyledTextField(
+                        text: $targetLanguage,
+                        placeholder: AIPromptSettings.defaultTargetLanguage,
+                        systemImage: "globe"
+                    )
+                }
+
+                LabeledSettingsField(title: "Template") {
+                    StyledPromptEditor(text: $promptTemplate)
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "curlybraces")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(TokyoNight.cyanColor)
+
+                        Text("Variables")
+                            .font(.system(size: 11.5, weight: .semibold))
+                            .foregroundStyle(TokyoNight.mutedColor)
+                    }
+
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 168), spacing: 8)], spacing: 8) {
+                        ForEach(AIPromptSettings.variableDescriptions) { variable in
+                            PromptVariableChip(variable: variable)
+                        }
+                    }
+                }
+
+                HStack(spacing: 10) {
+                    Button {
+                        resetPromptSettings()
+                    } label: {
+                        Label("Reset Prompt", systemImage: "arrow.counterclockwise")
+                    }
+                    .buttonStyle(SettingsActionButtonStyle())
+
+                    Text("Use variables like {{selectedText}} and {{targetLanguage}}.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(TokyoNight.mutedColor)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Spacer()
+                }
+            }
+        }
+    }
+
     private var validationSection: some View {
         SettingsPanel(title: "Validation", systemImage: "checkmark.seal") {
             VStack(alignment: .leading, spacing: 14) {
@@ -382,6 +447,31 @@ struct AISettingsDetailView: View {
             defaults.set(apiKey, forKey: AISettingsKeys.apiKey)
         }
     }
+
+    private func loadPromptSettings() {
+        didLoadPromptSettings = false
+        let configuration = AIPromptSettings.current()
+        targetLanguage = configuration.targetLanguage
+        promptTemplate = configuration.template
+        didLoadPromptSettings = true
+    }
+
+    private func savePromptSettings() {
+        AIPromptSettings.save(
+            AIPromptConfiguration(
+                targetLanguage: targetLanguage,
+                template: promptTemplate
+            )
+        )
+    }
+
+    private func resetPromptSettings() {
+        didLoadPromptSettings = false
+        AIPromptSettings.reset()
+        targetLanguage = AIPromptSettings.defaultTargetLanguage
+        promptTemplate = AIPromptSettings.defaultTemplate
+        didLoadPromptSettings = true
+    }
 }
 
 private struct SettingsPanel<Content: View>: View {
@@ -465,6 +555,55 @@ private struct StyledSecureField: View {
                 .focused($isFocused)
         }
         .settingsInputChrome(isFocused: isFocused)
+    }
+}
+
+private struct StyledPromptEditor: View {
+    @Binding var text: String
+    @FocusState private var isFocused: Bool
+
+    var body: some View {
+        TextEditor(text: $text)
+            .font(.system(size: 12.5, design: .monospaced))
+            .foregroundStyle(TokyoNight.foregroundColor)
+            .scrollContentBackground(.hidden)
+            .background(Color.clear)
+            .focused($isFocused)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 9)
+            .frame(minHeight: 260)
+            .background(TokyoNight.backgroundDeepColor.opacity(0.92), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .stroke(isFocused ? TokyoNight.cyanColor.opacity(0.72) : TokyoNight.borderColor.opacity(0.75), lineWidth: 1)
+            }
+    }
+}
+
+private struct PromptVariableChip: View {
+    let variable: AIPromptVariableDescription
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("{{\(variable.name)}}")
+                .font(.system(size: 11.5, weight: .semibold, design: .monospaced))
+                .foregroundStyle(TokyoNight.foregroundColor)
+                .lineLimit(1)
+
+            Text(variable.description)
+                .font(.system(size: 10.5))
+                .foregroundStyle(TokyoNight.mutedColor)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(minHeight: 52, alignment: .topLeading)
+        .background(TokyoNight.backgroundDeepColor.opacity(0.62), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .stroke(TokyoNight.borderColor.opacity(0.48), lineWidth: 1)
+        }
     }
 }
 

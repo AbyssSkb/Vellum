@@ -215,11 +215,7 @@ struct CodexAppServerAIExplanationClient: AIExplaining {
     }
 
     private func explanationPrompt(for context: AIExplanationContext) -> String {
-        """
-        你是 Vellum 的阅读助手。你必须基于用户提供的原文和上下文回答，重点解释用户选中文本本身，不要默认总结整段。若选中文本是单个英文单词或常见英文词形，附上音标；若选中文本本来是中文或无需翻译，省略中文翻译部分。
-
-        \(context.prompt)
-        """
+        AIPromptRenderer.render(context: context).combined
     }
 
     private func withAppServerSession<T: Sendable>(

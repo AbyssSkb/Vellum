@@ -152,16 +152,20 @@ struct AIRequestFactoryTests {
 
         let request = try AIRequestFactory.streamingExplanationRequest(
             context: context,
-            configuration: configuration
+            configuration: configuration,
+            promptConfiguration: .default
         )
         let body = try requestBody(request)
         let messages = try #require(body["messages"] as? [[String: String]])
+        let renderedPrompt = AIPromptRenderer.render(context: context, configuration: .default)
 
         #expect(request.timeoutInterval == 60)
         #expect(body["stream"] as? Bool == true)
         #expect(body["max_tokens"] as? Int == 1200)
+        #expect(messages.first?["role"] == "system")
+        #expect(messages.first?["content"] == renderedPrompt.system)
         #expect(messages.last?["role"] == "user")
-        #expect(messages.last?["content"] == context.prompt)
+        #expect(messages.last?["content"] == renderedPrompt.user)
     }
 
     @Test
@@ -175,7 +179,8 @@ struct AIRequestFactoryTests {
 
         let request = try AIRequestFactory.explanationRequest(
             context: context,
-            configuration: configuration
+            configuration: configuration,
+            promptConfiguration: .default
         )
         let body = try requestBody(request)
 
@@ -194,16 +199,42 @@ struct AIRequestFactoryTests {
 
         let request = try AIRequestFactory.explanationRequest(
             context: context,
-            configuration: configuration
+            configuration: configuration,
+            promptConfiguration: .default
+        )
+        let body = try requestBody(request)
+        let messages = try #require(body["messages"] as? [[String: String]])
+        let renderedPrompt = AIPromptRenderer.render(context: context, configuration: .default)
+
+        #expect(request.url?.absoluteString == "https://api.anthropic.com/v1/messages")
+        #expect(body["system"] as? String == renderedPrompt.system)
+        #expect(body["max_tokens"] as? Int == 1200)
+        #expect(messages.last?["role"] == "user")
+        #expect(messages.last?["content"] == renderedPrompt.user)
+    }
+
+    @Test
+    func explanationRequestUsesCustomPromptConfiguration() throws {
+        let configuration = try AIConfiguration(
+            baseURLString: "https://api.example.com/v1",
+            model: "test-model",
+            apiKey: "secret"
+        )
+        let context = makeContext()
+        let promptConfiguration = AIPromptConfiguration(
+            targetLanguage: "Spanish",
+            template: "Explain {{selectedText}} in {{targetLanguage}} from {{fileName}}."
+        )
+
+        let request = try AIRequestFactory.explanationRequest(
+            context: context,
+            configuration: configuration,
+            promptConfiguration: promptConfiguration
         )
         let body = try requestBody(request)
         let messages = try #require(body["messages"] as? [[String: String]])
 
-        #expect(request.url?.absoluteString == "https://api.anthropic.com/v1/messages")
-        #expect(body["system"] as? String != nil)
-        #expect(body["max_tokens"] as? Int == 1200)
-        #expect(messages.last?["role"] == "user")
-        #expect(messages.last?["content"] == context.prompt)
+        #expect(messages.last?["content"] == "Explain term in Spanish from paper.pdf.")
     }
 
     private func requestBody(_ request: URLRequest) throws -> [String: Any] {

@@ -64,12 +64,14 @@ enum AIRequestFactory {
 
     static func explanationRequest(
         context: AIExplanationContext,
-        configuration: AIConfiguration
+        configuration: AIConfiguration,
+        promptConfiguration: AIPromptConfiguration = AIPromptSettings.current()
     ) throws -> URLRequest {
+        let prompt = AIPromptRenderer.render(context: context, configuration: promptConfiguration)
         if configuration.providerFormat == .anthropicMessages {
             return try anthropicExplanationRequest(
-                context: context,
-                configuration: configuration
+                configuration: configuration,
+                prompt: prompt
             )
         }
         if configuration.providerFormat.usesCodexExecutable {
@@ -81,9 +83,9 @@ enum AIRequestFactory {
             messages: [
                 ChatMessage(
                     role: "system",
-                    content: "你是 Vellum 的阅读助手，擅长解释 PDF 中被高亮的文字。你必须基于用户提供的原文和上下文回答，不要编造。若选中文本是单个英文单词或常见英文词形，附上音标；若选中文本本来是中文或无需翻译，省略中文翻译部分。"
+                    content: prompt.system
                 ),
-                ChatMessage(role: "user", content: context.prompt)
+                ChatMessage(role: "user", content: prompt.user)
             ],
             temperature: 0.2,
             maxTokens: 1200,
@@ -99,12 +101,14 @@ enum AIRequestFactory {
 
     static func streamingExplanationRequest(
         context: AIExplanationContext,
-        configuration: AIConfiguration
+        configuration: AIConfiguration,
+        promptConfiguration: AIPromptConfiguration = AIPromptSettings.current()
     ) throws -> URLRequest {
+        let prompt = AIPromptRenderer.render(context: context, configuration: promptConfiguration)
         if configuration.providerFormat == .anthropicMessages {
             return try anthropicExplanationRequest(
-                context: context,
-                configuration: configuration
+                configuration: configuration,
+                prompt: prompt
             )
         }
         if configuration.providerFormat.usesCodexExecutable {
@@ -116,9 +120,9 @@ enum AIRequestFactory {
             messages: [
                 ChatMessage(
                     role: "system",
-                    content: "你是 Vellum 的阅读助手。你必须基于用户提供的原文和上下文回答，重点解释用户选中文本本身，不要默认总结整段。若选中文本是单个英文单词或常见英文词形，附上音标；若选中文本本来是中文或无需翻译，省略中文翻译部分。"
+                    content: prompt.system
                 ),
-                ChatMessage(role: "user", content: context.prompt)
+                ChatMessage(role: "user", content: prompt.user)
             ],
             temperature: 0.2,
             maxTokens: 1200,
@@ -148,14 +152,14 @@ enum AIRequestFactory {
     }
 
     private static func anthropicExplanationRequest(
-        context: AIExplanationContext,
-        configuration: AIConfiguration
+        configuration: AIConfiguration,
+        prompt: AIRenderedPrompt
     ) throws -> URLRequest {
         let body = AnthropicMessageRequest(
             model: configuration.model,
-            system: "你是 Vellum 的阅读助手。你必须基于用户提供的原文和上下文回答，重点解释用户选中文本本身，不要默认总结整段。若选中文本是单个英文单词或常见英文词形，附上音标；若选中文本本来是中文或无需翻译，省略中文翻译部分。",
+            system: prompt.system,
             messages: [
-                ChatMessage(role: "user", content: context.prompt)
+                ChatMessage(role: "user", content: prompt.user)
             ],
             maxTokens: 1200
         )
