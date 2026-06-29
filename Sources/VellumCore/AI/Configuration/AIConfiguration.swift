@@ -81,7 +81,7 @@ struct AIProviderPreset: Identifiable, Equatable {
         AIProviderPreset(
             id: "deepseek",
             name: "DeepSeek",
-            summary: "Use DeepSeek's OpenAI-compatible API.",
+            summary: "DeepSeek API.",
             baseURL: "https://api.deepseek.com",
             defaultModel: "deepseek-v4-flash",
             format: .openAICompatible
@@ -97,7 +97,7 @@ struct AIProviderPreset: Identifiable, Equatable {
         AIProviderPreset(
             id: "codex-cli",
             name: "Codex",
-            summary: "Use local Codex for private, streaming explanations.",
+            summary: "Local Codex.",
             baseURL: Self.defaultCodexExecutablePath,
             defaultModel: "",
             format: .codexCLI

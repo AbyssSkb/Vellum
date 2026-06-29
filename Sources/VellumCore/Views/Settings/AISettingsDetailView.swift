@@ -676,11 +676,11 @@ private extension AIProviderPreset {
             case "openai":
                 return "OpenAI 官方 API。"
             case "deepseek":
-                return "使用 DeepSeek 的 OpenAI 兼容 API。"
+                return "DeepSeek API。"
             case "anthropic":
                 return "Claude 官方 API。"
             case "codex-cli":
-                return "使用本地 Codex，支持私密的流式解释。"
+                return "本地 Codex。"
             default:
                 return "任意 OpenAI 兼容端点。"
             }
