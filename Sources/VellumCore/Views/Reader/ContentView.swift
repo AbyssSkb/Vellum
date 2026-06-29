@@ -31,7 +31,7 @@ public struct ContentView: View {
             }
         }
         .overlay(alignment: .top) {
-            TitlebarDoubleClickZoomRegion()
+            TitlebarDragRegion(hasOpenDocuments: appState.hasOpenDocuments)
                 .frame(height: 46)
         }
         .foregroundStyle(TokyoNight.foregroundColor)

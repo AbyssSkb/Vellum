@@ -1,68 +1,40 @@
 @preconcurrency import AppKit
 import SwiftUI
 
-struct TitlebarDoubleClickZoomRegion: NSViewRepresentable {
-    func makeNSView(context: Context) -> TitlebarDoubleClickZoomView {
-        TitlebarDoubleClickZoomView()
+struct TitlebarDragRegion: NSViewRepresentable {
+    let hasOpenDocuments: Bool
+
+    func makeNSView(context: Context) -> TitlebarDragView {
+        TitlebarDragView()
     }
 
-    func updateNSView(_ nsView: TitlebarDoubleClickZoomView, context: Context) {
-        nsView.installMonitorIfNeeded()
+    func updateNSView(_ nsView: TitlebarDragView, context: Context) {
+        nsView.hasOpenDocuments = hasOpenDocuments
     }
 }
 
-final class TitlebarDoubleClickZoomView: NSView {
-    private var eventMonitor: Any?
-    private weak var monitoredWindow: NSWindow?
+final class TitlebarDragView: NSView {
+    var hasOpenDocuments = false
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
-        installMonitorIfNeeded()
-    }
-
-    override func viewWillMove(toWindow newWindow: NSWindow?) {
-        super.viewWillMove(toWindow: newWindow)
-        if newWindow == nil {
-            removeMonitor()
-        }
+        allowedTouchTypes = [.direct, .indirect]
     }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
-        nil
-    }
-
-    func installMonitorIfNeeded() {
-        guard window !== monitoredWindow else { return }
-        removeMonitor()
-        guard let window else { return }
-        monitoredWindow = window
-
-        eventMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
-            self?.handleMouseDown(event) ?? event
-        }
-    }
-
-    private func removeMonitor() {
-        if let eventMonitor {
-            NSEvent.removeMonitor(eventMonitor)
-        }
-        eventMonitor = nil
-        monitoredWindow = nil
-    }
-
-    private func handleMouseDown(_ event: NSEvent) -> NSEvent? {
-        guard event.clickCount == 2,
+        guard bounds.contains(point),
               let window,
-              event.window === window,
-              !isPointInStandardWindowButton(event.locationInWindow, window: window) else {
-            return event
+              isPointDraggable(point, window: window) else { return nil }
+        return self
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        guard let window else { return }
+        if event.clickCount == 2 {
+            window.performZoom(nil)
+        } else {
+            window.performDrag(with: event)
         }
-
-        let point = convert(event.locationInWindow, from: nil)
-        guard bounds.contains(point) else { return event }
-
-        window.performZoom(nil)
-        return nil
     }
 
     private func isPointInStandardWindowButton(_ point: NSPoint, window: NSWindow) -> Bool {
@@ -76,5 +48,16 @@ final class TitlebarDoubleClickZoomView: NSView {
             let pointInButton = button.convert(point, from: nil)
             return button.bounds.insetBy(dx: -4, dy: -4).contains(pointInButton)
         }
+    }
+
+    private func isPointDraggable(_ point: NSPoint, window: NSWindow) -> Bool {
+        let pointInWindow = convert(point, to: nil)
+        guard !isPointInStandardWindowButton(pointInWindow, window: window) else { return false }
+
+        if hasOpenDocuments {
+            return point.x < 84
+        }
+
+        return true
     }
 }
