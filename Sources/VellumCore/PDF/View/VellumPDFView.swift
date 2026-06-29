@@ -12,6 +12,7 @@ final class VellumPDFView: PDFView {
     var jumpBackStack: [ReaderSnapshot] = []
     var jumpForwardStack: [ReaderSnapshot] = []
     var restoreGeneration = 0
+    var pendingActivationSnapshot: ReaderSnapshot?
     var explanationTrackingArea: NSTrackingArea?
     let aiInteraction = AIInteractionState()
     var isMouseSelectingText = false

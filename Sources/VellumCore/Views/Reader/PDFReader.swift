@@ -13,7 +13,8 @@ struct PDFReader: NSViewRepresentable {
         let view = VellumPDFView()
         view.appState = appState
         view.saveBeforeDismantle = { [weak appState, weak view] in
-            guard let snapshot = view?.snapshot() else { return }
+            guard view?.pendingActivationSnapshot == nil,
+                  let snapshot = view?.snapshot() else { return }
             appState?.saveSnapshot(snapshot, for: tabID)
         }
         view.backgroundColor = TokyoNight.background
@@ -21,7 +22,11 @@ struct PDFReader: NSViewRepresentable {
         view.displayDirection = .vertical
         view.displaysPageBreaks = true
         view.document = document
-        view.restore(snapshot)
+        if isActive {
+            view.restore(snapshot)
+        } else {
+            view.pendingActivationSnapshot = snapshot
+        }
         appState.setActiveReaderController(view, for: tabID)
         if isActive, !appState.isOutlineVisible {
             view.focus()
@@ -32,13 +37,22 @@ struct PDFReader: NSViewRepresentable {
     func updateNSView(_ nsView: VellumPDFView, context: Context) {
         nsView.appState = appState
         nsView.saveBeforeDismantle = { [weak appState, weak nsView] in
-            guard let snapshot = nsView?.snapshot() else { return }
+            guard nsView?.pendingActivationSnapshot == nil,
+                  let snapshot = nsView?.snapshot() else { return }
             appState?.saveSnapshot(snapshot, for: tabID)
         }
 
         if nsView.document !== document {
             nsView.document = document
-            nsView.restore(snapshot)
+            if isActive {
+                nsView.restore(snapshot)
+                nsView.pendingActivationSnapshot = nil
+            } else {
+                nsView.pendingActivationSnapshot = snapshot
+            }
+        } else if isActive, let pendingSnapshot = nsView.pendingActivationSnapshot {
+            nsView.restore(pendingSnapshot)
+            nsView.pendingActivationSnapshot = nil
         }
 
         appState.setActiveReaderController(nsView, for: tabID)
