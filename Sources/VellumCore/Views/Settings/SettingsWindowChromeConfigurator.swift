@@ -16,6 +16,7 @@ struct SettingsWindowChromeConfigurator: NSViewRepresentable {
             guard let window else { return }
 
             window.styleMask.remove(.resizable)
+            window.isMovableByWindowBackground = true
             window.setContentBorderThickness(0, for: .minY)
             window.setContentBorderThickness(0, for: .maxY)
             window.contentView?.wantsLayer = true
