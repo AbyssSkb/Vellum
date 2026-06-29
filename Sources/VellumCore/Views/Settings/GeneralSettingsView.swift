@@ -119,6 +119,7 @@ struct GeneralSettingsView: View {
                     .buttonStyle(GeneralActionButtonStyle())
                 }
                 .padding(.horizontal, 12)
+                .padding(.vertical, 10)
                 .frame(minHeight: 54)
                 .background(TokyoNight.backgroundDeepColor.opacity(0.56), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
                 .overlay {
@@ -186,6 +187,7 @@ private struct GeneralToggleRow: View {
                 TogglePill(isOn: isOn)
             }
             .padding(.horizontal, 12)
+            .padding(.vertical, 10)
             .frame(maxWidth: .infinity, alignment: .leading)
             .frame(minHeight: 54)
             .background(rowBackground, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
@@ -238,6 +240,7 @@ private struct GeneralOptionRow<Content: View>: View {
             content
         }
         .padding(.horizontal, 12)
+        .padding(.vertical, 10)
         .frame(minHeight: 54)
         .background(TokyoNight.backgroundDeepColor.opacity(0.56), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
         .overlay {

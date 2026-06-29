@@ -22,6 +22,9 @@ struct AppPreferenceTests {
 
         defaults.set(OpenFileZoomPreference.fitPage.rawValue, forKey: AppPreferenceKeys.openFileZoomBehavior)
         #expect(AppPreferences.openFileZoomBehavior(in: defaults) == .fitPage)
+
+        defaults.set("actualSize", forKey: AppPreferenceKeys.openFileZoomBehavior)
+        #expect(AppPreferences.openFileZoomBehavior(in: defaults) == .fitWidth)
     }
 
     @Test

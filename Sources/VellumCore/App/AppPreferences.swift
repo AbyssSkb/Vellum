@@ -59,7 +59,6 @@ public enum DefaultOpenModePreference: String, CaseIterable, Identifiable {
 public enum OpenFileZoomPreference: String, CaseIterable, Identifiable {
     case fitWidth
     case fitPage
-    case actualSize
 
     public var id: String { rawValue }
 
@@ -69,8 +68,6 @@ public enum OpenFileZoomPreference: String, CaseIterable, Identifiable {
             return "Fit Width"
         case .fitPage:
             return "Fit Page"
-        case .actualSize:
-            return "100%"
         }
     }
 
@@ -80,8 +77,6 @@ public enum OpenFileZoomPreference: String, CaseIterable, Identifiable {
             return "arrow.left.and.right"
         case .fitPage:
             return "rectangle.expand.vertical"
-        case .actualSize:
-            return "1.magnifyingglass"
         }
     }
 

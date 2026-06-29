@@ -118,12 +118,6 @@ extension VellumPDFView {
             layoutDocumentView()
             needsDisplay = true
             return true
-        case .actualSize:
-            autoScales = false
-            scaleFactor = clampedScale(1.0)
-            layoutDocumentView()
-            needsDisplay = true
-            return true
         }
     }
 

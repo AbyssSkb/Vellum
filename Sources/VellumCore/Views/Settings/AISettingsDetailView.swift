@@ -508,6 +508,7 @@ private struct ProviderPresetRow: View {
                 }
             }
             .padding(.horizontal, 12)
+            .padding(.vertical, 10)
             .frame(maxWidth: .infinity, alignment: .leading)
             .frame(minHeight: 50)
             .background(isSelected ? TokyoNight.selectionColor.opacity(0.58) : TokyoNight.backgroundDeepColor.opacity(0.58))
