@@ -126,16 +126,7 @@ struct GeneralSettingsView: View {
 
     private var appVersionText: String {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
-        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
-
-        switch (version?.nilIfEmpty, build?.nilIfEmpty) {
-        case let (.some(version), .some(build)) where version != build:
-            return "\(version) (\(build))"
-        case let (.some(version), _):
-            return version
-        default:
-            return "Development"
-        }
+        return version?.nilIfEmpty ?? "Development"
     }
 }
 
