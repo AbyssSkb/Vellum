@@ -25,9 +25,10 @@ final class SettingsWindowController: NSWindowController {
         window.contentMaxSize = Self.contentSize
         window.standardWindowButton(.zoomButton)?.isEnabled = false
 
-        let hostingController = NSHostingController(rootView: AISettingsView())
-        hostingController.view.frame = NSRect(origin: .zero, size: Self.contentSize)
-        window.contentViewController = hostingController
+        let hostingView = NSHostingView(rootView: AISettingsView())
+        hostingView.frame = NSRect(origin: .zero, size: Self.contentSize)
+        hostingView.autoresizingMask = [.width, .height]
+        window.contentView = hostingView
         window.setContentSize(Self.contentSize)
 
         super.init(window: window)

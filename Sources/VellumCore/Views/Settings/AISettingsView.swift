@@ -21,7 +21,7 @@ public struct AISettingsView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(width: 820, height: 680)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(TokyoNight.backgroundColor)
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         .overlay {
@@ -31,7 +31,6 @@ public struct AISettingsView: View {
         .foregroundStyle(TokyoNight.foregroundColor)
         .tint(TokyoNight.cyanColor)
         .preferredColorScheme(.dark)
-        .background(SettingsWindowChromeConfigurator())
         .ignoresSafeArea()
     }
 
