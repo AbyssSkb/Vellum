@@ -22,6 +22,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
 
       - name: Select Xcode
         uses: maxim-lobanov/setup-xcode@v1
@@ -99,6 +101,30 @@ jobs:
       - name: Run tests
         run: swift test
 
+      - name: Build release notes
+        id: release_notes
+        shell: bash
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          NOTES_FILE="$RUNNER_TEMP/release-notes.md"
+          PREVIOUS_TAG="$(git tag --sort=-v:refname | grep -v "^${TAG}$" | head -1 || true)"
+
+          {
+            echo "## What's Changed"
+            echo
+
+            if [[ -n "$PREVIOUS_TAG" ]]; then
+              git log --reverse --pretty=format:'- %s (%h)' "${PREVIOUS_TAG}..${GITHUB_SHA}"
+              echo
+              echo
+              echo "**Full Changelog**: https://github.com/${GITHUB_REPOSITORY}/compare/${PREVIOUS_TAG}...${TAG}"
+            else
+              git log --reverse --pretty=format:'- %s (%h)' -n 20 "${GITHUB_SHA}"
+            fi
+          } > "$NOTES_FILE"
+
+          echo "path=$NOTES_FILE" >> "$GITHUB_OUTPUT"
+
       - name: Package app
         env:
           APP_VERSION: ${{ steps.version.outputs.version }}
@@ -152,7 +178,7 @@ jobs:
           tag_name: ${{ steps.version.outputs.tag }}
           target_commitish: ${{ github.sha }}
           name: Vellum ${{ steps.version.outputs.version }}
-          generate_release_notes: true
+          body_path: ${{ steps.release_notes.outputs.path }}
           files: |
             dist/${{ steps.version.outputs.archive_name }}.dmg
             dist/${{ steps.version.outputs.archive_name }}.dmg.sha256
