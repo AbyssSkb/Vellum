@@ -42,6 +42,7 @@ final class GitHubUpdateChecker {
     }
 
     private static let latestReleaseURL = URL(string: "https://api.github.com/repos/AbyssSkb/Vellum/releases/latest")!
+    private static let releasesAtomURL = URL(string: "https://github.com/AbyssSkb/Vellum/releases.atom")!
     private static let tagsAPIURL = URL(string: "https://api.github.com/repos/AbyssSkb/Vellum/tags")!
     private static let tagsPageURL = URL(string: "https://github.com/AbyssSkb/Vellum/tags")!
     private static let repositoryURL = URL(string: "https://github.com/AbyssSkb/Vellum")!
@@ -97,13 +98,31 @@ final class GitHubUpdateChecker {
     }
 
     private func fetchLatestUpdate() async throws -> AppUpdateInfo {
+        var latestReleaseUpdate: AppUpdateInfo?
+        var latestReleaseError: Error?
+
         do {
-            return try await fetchLatestReleaseUpdate()
+            latestReleaseUpdate = try await fetchLatestReleaseUpdate()
         } catch {
+            latestReleaseError = error
+        }
+
+        do {
+            let redirectUpdate = try await fetchLatestReleaseRedirectUpdate()
+            if let latestReleaseUpdate,
+               !redirectUpdate.isNewer(than: latestReleaseUpdate.version) {
+                return latestReleaseUpdate
+            }
+            return redirectUpdate
+        } catch {
+            if let latestReleaseUpdate {
+                return latestReleaseUpdate
+            }
+
             do {
-                return try await fetchLatestReleaseRedirectUpdate()
-            } catch {
                 return try await fetchLatestTaggedUpdate()
+            } catch {
+                throw latestReleaseError ?? error
             }
         }
     }
@@ -140,10 +159,13 @@ final class GitHubUpdateChecker {
             }
         )
 
-        let releaseNotes = normalizedReleaseNotes(release.body)
+        var releaseNotes = normalizedReleaseNotes(release.body)
         if releaseNotes == nil, retriesEmptyNotes {
             try await Task.sleep(nanoseconds: Self.releaseNotesRetryDelay)
             return try await fetchReleaseUpdate(request: request, retriesEmptyNotes: false)
+        }
+        if releaseNotes == nil {
+            releaseNotes = try? await fetchReleaseNotesFromAtom(tagName: release.tagName)
         }
 
         return AppUpdateInfo(
@@ -174,7 +196,7 @@ final class GitHubUpdateChecker {
         do {
             return try await fetchReleaseUpdate(tagName: tagName)
         } catch {
-            return AppUpdateCatalog.githubReleaseUpdate(tagName: tagName, repositoryURL: Self.repositoryURL)
+            return try await fallbackGitHubReleaseUpdate(tagName: tagName)
         }
     }
 
@@ -198,15 +220,40 @@ final class GitHubUpdateChecker {
         do {
             return try await fetchReleaseUpdate(tagName: update.version)
         } catch {
-            return update
+            return AppUpdateInfo(
+                version: update.version,
+                releaseURL: update.releaseURL,
+                downloadURL: update.downloadURL,
+                releaseNotes: try? await fetchReleaseNotesFromAtom(tagName: update.version)
+            )
         }
+    }
+
+    private func fallbackGitHubReleaseUpdate(tagName: String) async throws -> AppUpdateInfo {
+        let update = AppUpdateCatalog.githubReleaseUpdate(tagName: tagName, repositoryURL: Self.repositoryURL)
+        return AppUpdateInfo(
+            version: update.version,
+            releaseURL: update.releaseURL,
+            downloadURL: update.downloadURL,
+            releaseNotes: try? await fetchReleaseNotesFromAtom(tagName: tagName)
+        )
+    }
+
+    private func fetchReleaseNotesFromAtom(tagName: String) async throws -> String? {
+        let request = githubAtomRequest(url: Self.releasesAtomURL)
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200..<300).contains(httpResponse.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+        return ReleaseNotesAtomParser.releaseNotes(for: tagName, from: data)
     }
 
     private func handle(update: AppUpdateInfo, mode: CheckMode) {
         let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0"
         guard update.isNewer(than: currentVersion) else {
             if mode == .manual {
-                showNoUpdate(currentVersion: currentVersion)
+                showNoUpdate(currentVersion: currentVersion, latestVersion: update.version)
             }
             return
         }
@@ -243,10 +290,10 @@ final class GitHubUpdateChecker {
         UserDefaults.standard.set(update.version, forKey: Self.lastPromptedVersionKey)
     }
 
-    private func showNoUpdate(currentVersion: String) {
+    private func showNoUpdate(currentVersion: String, latestVersion: String) {
         let alert = NSAlert()
         alert.messageText = "Vellum is up to date"
-        alert.informativeText = "You are using Vellum \(currentVersion)."
+        alert.informativeText = "You are using Vellum \(currentVersion). The latest release found is \(latestVersion)."
         alert.addButton(withTitle: "OK")
         alert.runModal()
     }
@@ -272,6 +319,12 @@ final class GitHubUpdateChecker {
         request.setValue("Vellum", forHTTPHeaderField: "User-Agent")
         request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
         request.setValue("no-cache", forHTTPHeaderField: "Pragma")
+        return request
+    }
+
+    private func githubAtomRequest(url: URL) -> URLRequest {
+        var request = githubWebRequest(url: url)
+        request.setValue("application/atom+xml, application/xml;q=0.9, */*;q=0.8", forHTTPHeaderField: "Accept")
         return request
     }
 
