@@ -3,11 +3,17 @@ import PDFKit
 
 @MainActor
 final class ReaderAnimationState {
+    enum ZoomAnchorMode {
+        case centerBothAxes
+        case centerVertically
+    }
+
     var scrollTargetOrigin: NSPoint?
     var scrollTimer: Timer?
     var lastScrollTick = Date.timeIntervalSinceReferenceDate
     var zoomTargetScale: CGFloat?
     var zoomAnchor: PDFDestination?
+    var zoomAnchorMode: ZoomAnchorMode = .centerBothAxes
     var zoomTimer: Timer?
     var lastZoomTick = Date.timeIntervalSinceReferenceDate
 
@@ -30,5 +36,6 @@ final class ReaderAnimationState {
         zoomTimer = nil
         zoomTargetScale = nil
         zoomAnchor = nil
+        zoomAnchorMode = .centerBothAxes
     }
 }

@@ -138,7 +138,12 @@ extension VellumPDFView {
         layoutDocumentView()
 
         if let zoomAnchor = animationState.zoomAnchor {
-            centerBothAxes(on: zoomAnchor)
+            switch animationState.zoomAnchorMode {
+            case .centerBothAxes:
+                centerBothAxes(on: zoomAnchor)
+            case .centerVertically:
+                centerVertically(on: zoomAnchor)
+            }
         }
     }
 
