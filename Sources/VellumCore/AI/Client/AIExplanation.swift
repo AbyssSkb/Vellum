@@ -132,7 +132,7 @@ struct OpenAICompatibleAIExplanationClient: AIExplaining {
 
 enum AIExplanationClient {
     private static let httpClient: any AIExplaining = OpenAICompatibleAIExplanationClient()
-    private static let codexCLIClient: any AIExplaining = CodexCLIAIExplanationClient()
+    private static let codexClient: any AIExplaining = CodexAppServerAIExplanationClient()
 
     static func testConnection(configuration: AIConfiguration) async throws -> String {
         try await client(for: configuration).testConnection(configuration: configuration)
@@ -163,6 +163,11 @@ enum AIExplanationClient {
     }
 
     private static func client(for configuration: AIConfiguration) -> any AIExplaining {
-        configuration.providerFormat == .codexCLI ? codexCLIClient : httpClient
+        switch configuration.providerFormat {
+        case .openAICompatible, .anthropicMessages:
+            return httpClient
+        case .codexCLI:
+            return codexClient
+        }
     }
 }

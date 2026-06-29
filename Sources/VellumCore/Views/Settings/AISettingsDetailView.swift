@@ -17,8 +17,9 @@ struct AISettingsDetailView: View {
             VStack(alignment: .leading, spacing: 16) {
                 header
                 providerSection
-                if selectedPreset.format == .codexCLI {
-                    codexCLISection
+                if selectedPreset.format.usesCodexExecutable {
+                    codexSection
+                    modelSection
                 } else {
                     endpointSection
                     modelSection
@@ -152,22 +153,14 @@ struct AISettingsDetailView: View {
         }
     }
 
-    private var codexCLISection: some View {
-        SettingsPanel(title: "Codex CLI", systemImage: "terminal") {
+    private var codexSection: some View {
+        SettingsPanel(title: "Codex", systemImage: "terminal") {
             VStack(alignment: .leading, spacing: 14) {
                 LabeledSettingsField(title: "Executable") {
                     StyledTextField(
                         text: $baseURL,
                         placeholder: selectedPreset.baseURL,
                         systemImage: "terminal"
-                    )
-                }
-
-                LabeledSettingsField(title: "Model") {
-                    StyledTextField(
-                        text: $model,
-                        placeholder: "Use Codex default",
-                        systemImage: "cube"
                     )
                 }
 
@@ -182,13 +175,24 @@ struct AISettingsDetailView: View {
         }
     }
 
+    private var modelFieldTitle: String {
+        selectedPreset.format.usesCodexExecutable ? "Model Override" : "Current Model"
+    }
+
+    private var modelFieldPlaceholder: String {
+        if selectedPreset.format.usesCodexExecutable {
+            return "Use Codex default"
+        }
+        return selectedPreset.defaultModel
+    }
+
     private var modelSection: some View {
         SettingsPanel(title: "Model", systemImage: "cpu") {
             VStack(alignment: .leading, spacing: 14) {
-                LabeledSettingsField(title: "Current Model") {
+                LabeledSettingsField(title: modelFieldTitle) {
                     StyledTextField(
                         text: $model,
-                        placeholder: selectedPreset.defaultModel,
+                        placeholder: modelFieldPlaceholder,
                         systemImage: "cube"
                     )
                 }
@@ -254,31 +258,29 @@ struct AISettingsDetailView: View {
     }
 
     var modelsSummary: String {
-        if selectedPreset.format == .codexCLI {
-            return "Codex CLI uses its configured model list."
-        }
-
         if isFetchingModels {
             return "Loading models from \(selectedPreset.name)..."
         }
 
         if availableModels.isEmpty {
-            return "Fetched models will appear as choices for Current Model."
+            return selectedPreset.format.usesCodexExecutable
+                ? "Leave Model Override empty to use Codex default."
+                : "Fetched models will appear as choices for Current Model."
         }
 
         return "\(availableModels.count) models loaded."
     }
 
     var connectionTestTitle: String {
-        selectedPreset.format == .codexCLI ? "Test CLI" : "Test Endpoint"
+        selectedPreset.format.usesCodexExecutable ? "Test Codex" : "Test Endpoint"
     }
 
     var connectionTestIcon: String {
-        selectedPreset.format == .codexCLI ? "terminal" : "point.3.connected.trianglepath.dotted"
+        selectedPreset.format.usesCodexExecutable ? "terminal" : "point.3.connected.trianglepath.dotted"
     }
 
     var diagnosticRows: [(title: String, value: String)] {
-        if selectedPreset.format == .codexCLI {
+        if selectedPreset.format.usesCodexExecutable {
             return [
                 ("Command", baseURL.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty ?? selectedPreset.baseURL),
                 ("Profile", apiKey.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty ?? "Default")
@@ -374,7 +376,7 @@ struct AISettingsDetailView: View {
         defaults.set(baseURL, forKey: AISettingsKeys.baseURLKey(for: preset.id))
         defaults.set(model, forKey: AISettingsKeys.modelKey(for: preset.id))
         defaults.set(apiKey, forKey: AISettingsKeys.apiKeyKey(for: preset.id))
-        if preset.format != .codexCLI {
+        if !preset.format.usesCodexExecutable {
             defaults.set(baseURL, forKey: AISettingsKeys.baseURL)
             defaults.set(model, forKey: AISettingsKeys.model)
             defaults.set(apiKey, forKey: AISettingsKeys.apiKey)

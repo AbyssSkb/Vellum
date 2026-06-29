@@ -9,7 +9,7 @@ extension AISettingsDetailView {
 
             do {
                 let configuration = try currentConfiguration(requireModel: false)
-                status = .working(configuration.providerFormat == .codexCLI ? "Checking Codex CLI..." : "Checking endpoint...")
+                status = .working(configuration.providerFormat.usesCodexExecutable ? "Checking Codex..." : "Checking endpoint...")
                 let message = try await AIExplanationClient.testConnection(configuration: configuration)
                 status = .success(message)
             } catch {
@@ -25,9 +25,9 @@ extension AISettingsDetailView {
             defer { isTestingFunction = false }
 
             do {
-                let configuration = try currentConfiguration(requireModel: true)
-                let target = configuration.providerFormat == .codexCLI
-                    ? "Codex CLI"
+                let configuration = try currentConfiguration(requireModel: !selectedPreset.format.usesCodexExecutable)
+                let target = configuration.providerFormat.usesCodexExecutable
+                    ? "Codex"
                     : configuration.model
                 status = .working("Asking \(target)...")
                 let message = try await AIExplanationClient.testFunction(configuration: configuration)
@@ -39,11 +39,6 @@ extension AISettingsDetailView {
     }
 
     func fetchModels() {
-        guard selectedPreset.format != .codexCLI else {
-            status = .success("Codex CLI uses its local configuration.")
-            return
-        }
-
         isFetchingModels = true
 
         Task { @MainActor in

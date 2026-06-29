@@ -38,7 +38,7 @@ enum AIProviderFormat: String, CaseIterable, Identifiable, Sendable {
         case .anthropicMessages:
             return "Anthropic Messages"
         case .codexCLI:
-            return "Codex CLI"
+            return "Codex"
         }
     }
 
@@ -49,9 +49,14 @@ enum AIProviderFormat: String, CaseIterable, Identifiable, Sendable {
         case .anthropicMessages:
             return "Uses Anthropic /messages and /models."
         case .codexCLI:
-            return "Runs the local codex executable."
+            return "Uses local Codex with model list and streaming."
         }
     }
+
+    var usesCodexExecutable: Bool {
+        self == .codexCLI
+    }
+
 }
 
 struct AIProviderPreset: Identifiable, Equatable {
@@ -91,8 +96,8 @@ struct AIProviderPreset: Identifiable, Equatable {
         ),
         AIProviderPreset(
             id: "codex-cli",
-            name: "Codex CLI",
-            summary: "Use your local Codex login and configuration.",
+            name: "Codex",
+            summary: "Local Codex with model list and true streaming.",
             baseURL: Self.defaultCodexExecutablePath,
             defaultModel: "",
             format: .codexCLI
@@ -194,7 +199,7 @@ struct AIConfiguration: Sendable {
         let trimmedModel = model.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedAPIKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        if providerFormat == .codexCLI {
+        if providerFormat.usesCodexExecutable {
             guard !trimmedBaseURL.isEmpty else {
                 throw AIExplanationError.missingCodexExecutable
             }

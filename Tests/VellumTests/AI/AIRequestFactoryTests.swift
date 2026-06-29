@@ -58,7 +58,7 @@ struct AIRequestFactoryTests {
     func codexCLIProviderPresetIsAvailable() {
         let preset = AIProviderPreset.preset(for: "codex-cli")
 
-        #expect(preset.name == "Codex CLI")
+        #expect(preset.name == "Codex")
         #expect(preset.format == .codexCLI)
         #expect(!preset.baseURL.isEmpty)
     }

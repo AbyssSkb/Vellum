@@ -8,7 +8,7 @@ enum AIRequestFactory {
         case .anthropicMessages:
             return try anthropicFunctionTestRequest(configuration: configuration)
         case .codexCLI:
-            throw AIExplanationError.server("Codex CLI 不使用 HTTP 请求。")
+            throw AIExplanationError.server("Codex 本地 provider 不使用 HTTP 请求。")
         }
     }
 
@@ -72,8 +72,8 @@ enum AIRequestFactory {
                 configuration: configuration
             )
         }
-        if configuration.providerFormat == .codexCLI {
-            throw AIExplanationError.server("Codex CLI 不使用 HTTP 请求。")
+        if configuration.providerFormat.usesCodexExecutable {
+            throw AIExplanationError.server("Codex 本地 provider 不使用 HTTP 请求。")
         }
 
         let body = ChatCompletionRequest(
@@ -107,8 +107,8 @@ enum AIRequestFactory {
                 configuration: configuration
             )
         }
-        if configuration.providerFormat == .codexCLI {
-            throw AIExplanationError.server("Codex CLI 不使用 HTTP 请求。")
+        if configuration.providerFormat.usesCodexExecutable {
+            throw AIExplanationError.server("Codex 本地 provider 不使用 HTTP 请求。")
         }
 
         let body = ChatCompletionRequest(

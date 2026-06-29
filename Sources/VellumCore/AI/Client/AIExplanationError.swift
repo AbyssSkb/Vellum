@@ -20,7 +20,7 @@ enum AIExplanationError: LocalizedError {
         case .missingAPIKey:
             return "AI API Key 为空，请先在设置里填写 API Key。"
         case .missingCodexExecutable:
-            return "Codex CLI 路径为空，请先在设置里填写 codex 可执行文件路径。"
+            return "Codex 路径为空，请先在设置里填写 codex 可执行文件路径。"
         case .noSelection:
             return "请先选中一段文字。"
         case .noHighlightedText:
