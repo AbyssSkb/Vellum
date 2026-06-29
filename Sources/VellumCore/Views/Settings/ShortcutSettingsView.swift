@@ -2,7 +2,7 @@ import SwiftUI
 
 struct ShortcutSettingsView: View {
     var body: some View {
-        ScrollView {
+        ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: 16) {
                 HStack(alignment: .center, spacing: 12) {
                     Image(systemName: "keyboard")

@@ -13,7 +13,7 @@ struct AISettingsDetailView: View {
     @State private var didLoadProviderSettings = false
 
     var body: some View {
-        ScrollView {
+        ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: 16) {
                 header
                 providerSection

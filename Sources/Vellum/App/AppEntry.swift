@@ -59,5 +59,6 @@ struct VellumApp: App {
             AISettingsView()
         }
         .windowStyle(.hiddenTitleBar)
+        .windowResizability(.contentSize)
     }
 }
