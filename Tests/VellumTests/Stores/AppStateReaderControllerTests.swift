@@ -107,6 +107,31 @@ struct AppStateReaderControllerTests {
 
         #expect(appState.snapshotForSelectedTab() == snapshot)
     }
+
+    @Test
+    func sessionSaveDoesNotCopyOldReaderSnapshotToNewlySelectedTab() {
+        let appState = AppState()
+        let firstSnapshot = ReaderSnapshot(
+            pageIndex: 5,
+            pointOnPage: NSPoint(x: 40, y: 80),
+            scrollOrigin: NSPoint(x: 6, y: 12),
+            scaleFactor: 1.75,
+            autoScales: false
+        )
+        let firstTab = PDFTab(url: URL(fileURLWithPath: "/tmp/first.pdf"), document: nil)
+        let secondTab = PDFTab(url: URL(fileURLWithPath: "/tmp/second.pdf"), document: nil)
+        let firstReader = RecordingReaderController(snapshot: firstSnapshot)
+
+        _ = appState.tabStore.openInNewTabs([firstTab])
+        appState.setActiveReaderController(firstReader, for: firstTab.id)
+        appState.saveActiveReaderState()
+
+        _ = appState.tabStore.openInNewTabs([secondTab])
+        appState.saveCurrentSession()
+
+        #expect(appState.tabStore.tabs.first?.snapshot == firstSnapshot)
+        #expect(appState.tabStore.tabs.last?.snapshot == nil)
+    }
 }
 
 @MainActor
