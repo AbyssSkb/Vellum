@@ -233,7 +233,6 @@ final class GitHubUpdateChecker {
             alert.addButton(withTitle: "Open GitHub")
             alert.addButton(withTitle: "Later")
         }
-        alert.accessoryView = releaseNotesView(for: update.releaseNotes)
 
         let response = alert.runModal()
         if update.downloadURL != nil {
@@ -276,64 +275,35 @@ final class GitHubUpdateChecker {
         guard let releaseNotes else { return "" }
         let lines = releaseNotes
             .split(whereSeparator: \.isNewline)
-            .map { line in
-                line
-                    .replacingOccurrences(of: "#", with: "")
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-            }
-            .filter { !$0.isEmpty && !$0.hasPrefix("Full Changelog") }
+            .compactMap(cleanReleaseNoteLine)
 
         guard !lines.isEmpty else { return "" }
         return "\n\nWhat's new:\n" + lines.prefix(4).joined(separator: "\n")
     }
 
-    private func releaseNotesView(for releaseNotes: String?) -> NSView? {
-        guard let releaseNotes else { return nil }
+    private func cleanReleaseNoteLine(_ rawLine: Substring) -> String? {
+        var line = String(rawLine)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !line.isEmpty else { return nil }
 
-        let titleLabel = NSTextField(labelWithString: "What's new")
-        titleLabel.font = .systemFont(ofSize: 12, weight: .semibold)
-        titleLabel.textColor = .secondaryLabelColor
+        line = line
+            .replacingOccurrences(of: "**", with: "")
+            .replacingOccurrences(of: "`", with: "")
+            .replacingOccurrences(of: "#", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
 
-        let notesLabel = NSTextField(wrappingLabelWithString: releaseNotesAccessoryText(releaseNotes))
-        notesLabel.font = .systemFont(ofSize: 12)
-        notesLabel.textColor = .labelColor
-        notesLabel.maximumNumberOfLines = 9
-        notesLabel.lineBreakMode = .byTruncatingTail
-        notesLabel.isSelectable = true
-        notesLabel.translatesAutoresizingMaskIntoConstraints = false
+        let lowercasedLine = line.lowercased()
+        guard !lowercasedLine.hasPrefix("what's changed"),
+              !lowercasedLine.hasPrefix("full changelog") else {
+            return nil
+        }
 
-        let notesContainer = NSView()
-        notesContainer.wantsLayer = true
-        notesContainer.layer?.cornerRadius = 8
-        notesContainer.layer?.borderWidth = 1
-        notesContainer.layer?.borderColor = NSColor.separatorColor.cgColor
-        notesContainer.layer?.backgroundColor = NSColor.controlBackgroundColor.cgColor
-        notesContainer.translatesAutoresizingMaskIntoConstraints = false
-        notesContainer.addSubview(notesLabel)
+        if line.hasPrefix("-") {
+            line = line.dropFirst().trimmingCharacters(in: .whitespacesAndNewlines)
+        }
 
-        let stack = NSStackView(views: [titleLabel, notesContainer])
-        stack.orientation = .vertical
-        stack.alignment = .leading
-        stack.spacing = 6
-        stack.translatesAutoresizingMaskIntoConstraints = false
-
-        NSLayoutConstraint.activate([
-            notesContainer.widthAnchor.constraint(equalToConstant: 460),
-            notesLabel.widthAnchor.constraint(equalToConstant: 438),
-            notesLabel.leadingAnchor.constraint(equalTo: notesContainer.leadingAnchor, constant: 10),
-            notesLabel.trailingAnchor.constraint(equalTo: notesContainer.trailingAnchor, constant: -10),
-            notesLabel.topAnchor.constraint(equalTo: notesContainer.topAnchor, constant: 9),
-            notesLabel.bottomAnchor.constraint(equalTo: notesContainer.bottomAnchor, constant: -9)
-        ])
-
-        return stack
-    }
-
-    private func releaseNotesAccessoryText(_ releaseNotes: String) -> String {
-        let trimmed = releaseNotes.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.count > 900 else { return trimmed }
-        let endIndex = trimmed.index(trimmed.startIndex, offsetBy: 900)
-        return String(trimmed[..<endIndex]).trimmingCharacters(in: .whitespacesAndNewlines) + "\n..."
+        guard !line.isEmpty else { return nil }
+        return "- \(line)"
     }
 
     private func showUpdateError(_ error: Error) {
