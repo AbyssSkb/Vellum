@@ -85,7 +85,7 @@ final class UpdateAvailableWindowController: NSWindowController {
 
         let notesLabel = label(
             releaseNotes.isEmpty
-                ? "No release notes were published for this version."
+                ? "Release notes are still syncing. Open GitHub to view the full changelog."
                 : releaseNotes.joined(separator: "\n"),
             size: 12.5,
             color: foregroundColor

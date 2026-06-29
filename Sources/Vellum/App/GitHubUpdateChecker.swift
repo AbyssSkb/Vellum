@@ -47,6 +47,7 @@ final class GitHubUpdateChecker {
     private static let repositoryURL = URL(string: "https://github.com/AbyssSkb/Vellum")!
     private static let defaultDownloadURL = repositoryURL.appendingPathComponent("releases").appendingPathComponent("latest")
     private static let lastPromptedVersionKey = "VellumLastPromptedUpdateVersion"
+    private static let releaseNotesRetryDelay: UInt64 = 600_000_000
 
     private let session: URLSession
     private var task: Task<Void, Never>?
@@ -108,7 +109,7 @@ final class GitHubUpdateChecker {
     }
 
     private func fetchLatestReleaseUpdate() async throws -> AppUpdateInfo {
-        let request = URLRequest(url: Self.latestReleaseURL)
+        let request = githubAPIRequest(url: Self.latestReleaseURL)
         return try await fetchReleaseUpdate(request: request)
     }
 
@@ -117,15 +118,11 @@ final class GitHubUpdateChecker {
             throw URLError(.badURL)
         }
 
-        let request = URLRequest(url: releaseURL)
+        let request = githubAPIRequest(url: releaseURL)
         return try await fetchReleaseUpdate(request: request)
     }
 
-    private func fetchReleaseUpdate(request: URLRequest) async throws -> AppUpdateInfo {
-        var request = request
-        request.setValue("Vellum", forHTTPHeaderField: "User-Agent")
-        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
-
+    private func fetchReleaseUpdate(request: URLRequest, retriesEmptyNotes: Bool = true) async throws -> AppUpdateInfo {
         let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse,
               (200..<300).contains(httpResponse.statusCode) else {
@@ -143,17 +140,22 @@ final class GitHubUpdateChecker {
             }
         )
 
+        let releaseNotes = normalizedReleaseNotes(release.body)
+        if releaseNotes == nil, retriesEmptyNotes {
+            try await Task.sleep(nanoseconds: Self.releaseNotesRetryDelay)
+            return try await fetchReleaseUpdate(request: request, retriesEmptyNotes: false)
+        }
+
         return AppUpdateInfo(
             version: release.tagName,
             releaseURL: release.htmlURL,
             downloadURL: installerAsset?.downloadURL,
-            releaseNotes: normalizedReleaseNotes(release.body)
+            releaseNotes: releaseNotes
         )
     }
 
     private func fetchLatestReleaseRedirectUpdate() async throws -> AppUpdateInfo {
-        var request = URLRequest(url: Self.defaultDownloadURL)
-        request.setValue("Vellum", forHTTPHeaderField: "User-Agent")
+        let request = githubWebRequest(url: Self.defaultDownloadURL)
 
         let (_, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse,
@@ -177,9 +179,7 @@ final class GitHubUpdateChecker {
     }
 
     private func fetchLatestTaggedUpdate() async throws -> AppUpdateInfo {
-        var request = URLRequest(url: Self.tagsAPIURL)
-        request.setValue("Vellum", forHTTPHeaderField: "User-Agent")
-        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        let request = githubAPIRequest(url: Self.tagsAPIURL)
 
         let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse,
@@ -255,6 +255,24 @@ final class GitHubUpdateChecker {
         let notes = rawNotes?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard !notes.isEmpty else { return nil }
         return notes
+    }
+
+    private func githubAPIRequest(url: URL) -> URLRequest {
+        var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalAndRemoteCacheData)
+        request.setValue("Vellum", forHTTPHeaderField: "User-Agent")
+        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        request.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
+        request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
+        request.setValue("no-cache", forHTTPHeaderField: "Pragma")
+        return request
+    }
+
+    private func githubWebRequest(url: URL) -> URLRequest {
+        var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalAndRemoteCacheData)
+        request.setValue("Vellum", forHTTPHeaderField: "User-Agent")
+        request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
+        request.setValue("no-cache", forHTTPHeaderField: "Pragma")
+        return request
     }
 
     private func releaseNoteLines(_ releaseNotes: String?) -> [String] {
