@@ -6,6 +6,7 @@ struct GeneralSettingsView: View {
     @AppStorage(AppPreferenceKeys.defaultHighlightColor) private var defaultHighlightColor = HighlightColor.yellow.rawValue
     @AppStorage(AppPreferenceKeys.doubleClickTranslatesSelection) private var doubleClickTranslatesSelection = true
     @AppStorage(AppPreferenceKeys.restorePreviousTabs) private var restorePreviousTabs = false
+    @AppStorage(AppPreferenceKeys.openFileZoomBehavior) private var openFileZoomBehavior = OpenFileZoomPreference.fitWidth.rawValue
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
@@ -76,6 +77,10 @@ struct GeneralSettingsView: View {
                     subtitle: "Translate the selected word after a text double-click.",
                     isOn: $doubleClickTranslatesSelection
                 )
+
+                GeneralOptionRow(title: "Open File Zoom", subtitle: "Choose the initial zoom for newly opened PDFs.") {
+                    OpenFileZoomSegmentedControl(selection: $openFileZoomBehavior)
+                }
 
                 GeneralOptionRow(title: "Default Highlight", subtitle: "Pick the highlight color used by new markings.") {
                     HighlightColorPicker(selection: $defaultHighlightColor)
@@ -247,6 +252,30 @@ private struct GeneralSegmentedControl: View {
     var body: some View {
         HStack(spacing: 4) {
             ForEach(options) { option in
+                GeneralSegmentButton(
+                    title: option.title,
+                    systemImage: option.systemImage,
+                    isSelected: selection == option.rawValue
+                ) {
+                    selection = option.rawValue
+                }
+            }
+        }
+        .padding(3)
+        .background(TokyoNight.panelColor.opacity(0.86), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .stroke(TokyoNight.borderColor.opacity(0.54), lineWidth: 1)
+        }
+    }
+}
+
+private struct OpenFileZoomSegmentedControl: View {
+    @Binding var selection: String
+
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(OpenFileZoomPreference.allCases) { option in
                 GeneralSegmentButton(
                     title: option.title,
                     systemImage: option.systemImage,

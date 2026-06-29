@@ -6,6 +6,7 @@ public enum AppPreferenceKeys {
     public static let defaultHighlightColor = "VellumDefaultHighlightColor"
     public static let doubleClickTranslatesSelection = "VellumDoubleClickTranslatesSelection"
     public static let restorePreviousTabs = "VellumRestorePreviousTabs"
+    public static let openFileZoomBehavior = "VellumOpenFileZoomBehavior"
 }
 
 public enum VellumAppNotification {
@@ -55,6 +56,44 @@ public enum DefaultOpenModePreference: String, CaseIterable, Identifiable {
     }
 }
 
+public enum OpenFileZoomPreference: String, CaseIterable, Identifiable {
+    case fitWidth
+    case fitPage
+    case actualSize
+
+    public var id: String { rawValue }
+
+    public var title: String {
+        switch self {
+        case .fitWidth:
+            return "Fit Width"
+        case .fitPage:
+            return "Fit Page"
+        case .actualSize:
+            return "100%"
+        }
+    }
+
+    public var systemImage: String {
+        switch self {
+        case .fitWidth:
+            return "arrow.left.and.right"
+        case .fitPage:
+            return "rectangle.expand.vertical"
+        case .actualSize:
+            return "1.magnifyingglass"
+        }
+    }
+
+    public static func saved(in defaults: UserDefaults = .standard) -> Self {
+        guard let rawValue = defaults.string(forKey: AppPreferenceKeys.openFileZoomBehavior),
+              let behavior = Self(rawValue: rawValue) else {
+            return .fitWidth
+        }
+        return behavior
+    }
+}
+
 public enum AppPreferences {
     public static func automaticallyChecksForUpdates(in defaults: UserDefaults = .standard) -> Bool {
         defaults.object(forKey: AppPreferenceKeys.automaticallyCheckForUpdates) as? Bool ?? true
@@ -66,5 +105,9 @@ public enum AppPreferences {
 
     public static func restoresPreviousTabs(in defaults: UserDefaults = .standard) -> Bool {
         defaults.object(forKey: AppPreferenceKeys.restorePreviousTabs) as? Bool ?? false
+    }
+
+    public static func openFileZoomBehavior(in defaults: UserDefaults = .standard) -> OpenFileZoomPreference {
+        OpenFileZoomPreference.saved(in: defaults)
     }
 }

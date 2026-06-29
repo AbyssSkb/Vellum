@@ -77,14 +77,14 @@ extension VellumPDFView {
         guard generation == restoreGeneration else { return }
 
         let viewportSize = fitViewportSize()
-        let didFit = applyWidthFitScaleNow(for: document?.page(at: 0))
-        if didFit {
+        let didApplyZoom = applyInitialZoomBehavior(for: document?.page(at: 0))
+        if didApplyZoom {
             goToFirstPage(nil)
             scrollToDocumentEdge(.top)
         }
 
         let nextStablePasses: Int
-        if didFit,
+        if didApplyZoom,
            let viewportSize,
            let lastViewportSize,
            isSameViewportSize(viewportSize, lastViewportSize) {
@@ -93,7 +93,7 @@ extension VellumPDFView {
             nextStablePasses = 0
         }
 
-        guard attemptsRemaining > 0, (!didFit || nextStablePasses < 2) else { return }
+        guard attemptsRemaining > 0, (!didApplyZoom || nextStablePasses < 2) else { return }
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.04) { [weak self] in
             self?.restoreInitialDocumentPosition(
@@ -102,6 +102,28 @@ extension VellumPDFView {
                 stablePasses: nextStablePasses,
                 lastViewportSize: viewportSize
             )
+        }
+    }
+
+    @discardableResult
+    func applyInitialZoomBehavior(for page: PDFPage?) -> Bool {
+        switch AppPreferences.openFileZoomBehavior() {
+        case .fitWidth:
+            return applyWidthFitScaleNow(for: page)
+        case .fitPage:
+            guard let page,
+                  let fitScale = pageFitScale(for: page) else { return false }
+            autoScales = false
+            scaleFactor = fitScale
+            layoutDocumentView()
+            needsDisplay = true
+            return true
+        case .actualSize:
+            autoScales = false
+            scaleFactor = clampedScale(1.0)
+            layoutDocumentView()
+            needsDisplay = true
+            return true
         }
     }
 

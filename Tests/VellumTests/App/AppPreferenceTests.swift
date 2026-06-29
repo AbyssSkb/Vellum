@@ -15,6 +15,16 @@ struct AppPreferenceTests {
     }
 
     @Test
+    func openFileZoomBehaviorFallsBackToFitWidth() {
+        let defaults = isolatedDefaults()
+
+        #expect(AppPreferences.openFileZoomBehavior(in: defaults) == .fitWidth)
+
+        defaults.set(OpenFileZoomPreference.fitPage.rawValue, forKey: AppPreferenceKeys.openFileZoomBehavior)
+        #expect(AppPreferences.openFileZoomBehavior(in: defaults) == .fitPage)
+    }
+
+    @Test
     func booleanPreferencesUseExpectedDefaults() {
         let defaults = isolatedDefaults()
 
