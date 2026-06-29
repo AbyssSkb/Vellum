@@ -38,11 +38,13 @@ public struct AppUpdateInfo: Equatable {
     public let version: String
     public let releaseURL: URL
     public let downloadURL: URL?
+    public let releaseNotes: String?
 
-    public init(version: String, releaseURL: URL, downloadURL: URL? = nil) {
+    public init(version: String, releaseURL: URL, downloadURL: URL? = nil, releaseNotes: String? = nil) {
         self.version = version
         self.releaseURL = releaseURL
         self.downloadURL = downloadURL
+        self.releaseNotes = releaseNotes
     }
 
     public func isNewer(than currentVersion: String) -> Bool {

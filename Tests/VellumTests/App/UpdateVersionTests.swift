@@ -16,11 +16,13 @@ struct UpdateVersionTests {
     func updateInfoDetectsNewerReleaseTags() {
         let update = AppUpdateInfo(
             version: "v0.2.3",
-            releaseURL: URL(string: "https://github.com/AbyssSkb/Vellum/releases/tag/v0.2.3")!
+            releaseURL: URL(string: "https://github.com/AbyssSkb/Vellum/releases/tag/v0.2.3")!,
+            releaseNotes: "- Fixed search"
         )
 
         #expect(update.isNewer(than: "0.2.2"))
         #expect(!update.isNewer(than: "0.2.3"))
+        #expect(update.releaseNotes == "- Fixed search")
     }
 
     @Test
@@ -32,6 +34,7 @@ struct UpdateVersionTests {
         )
 
         #expect(update == AppUpdateInfo(version: "v0.2.10", releaseURL: tagsURL))
+        #expect(update?.releaseNotes == nil)
     }
 
     @Test

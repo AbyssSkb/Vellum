@@ -30,6 +30,10 @@ public struct ContentView: View {
                 TabSwitcherOverlay()
             }
         }
+        .overlay(alignment: .top) {
+            TitlebarDoubleClickZoomRegion()
+                .frame(height: 46)
+        }
         .foregroundStyle(TokyoNight.foregroundColor)
         .tint(TokyoNight.blueColor)
         .background(TokyoNight.backgroundColor)

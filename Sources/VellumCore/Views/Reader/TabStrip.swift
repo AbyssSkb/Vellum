@@ -37,12 +37,7 @@ struct TabStrip: View {
                 .padding(.trailing, 10)
         }
         .frame(height: 46)
-        .background {
-            ZStack {
-                TokyoNight.backgroundDeepColor
-                TitlebarDoubleClickZoomRegion()
-            }
-        }
+        .background(TokyoNight.backgroundDeepColor)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Tab Bar")
     }

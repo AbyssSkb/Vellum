@@ -14,6 +14,7 @@ final class GitHubUpdateChecker {
         let htmlURL: URL
         let draft: Bool
         let prerelease: Bool
+        let body: String?
         let assets: [ReleaseAsset]
 
         enum CodingKeys: String, CodingKey {
@@ -21,6 +22,7 @@ final class GitHubUpdateChecker {
             case htmlURL = "html_url"
             case draft
             case prerelease
+            case body
             case assets
         }
     }
@@ -130,7 +132,8 @@ final class GitHubUpdateChecker {
         return AppUpdateInfo(
             version: release.tagName,
             releaseURL: release.htmlURL,
-            downloadURL: installerAsset?.downloadURL
+            downloadURL: installerAsset?.downloadURL,
+            releaseNotes: normalizedReleaseNotes(release.body)
         )
     }
 
@@ -207,6 +210,7 @@ final class GitHubUpdateChecker {
             alert.addButton(withTitle: "Open GitHub")
             alert.addButton(withTitle: "Later")
         }
+        alert.accessoryView = releaseNotesView(for: update.releaseNotes)
 
         let response = alert.runModal()
         if update.downloadURL != nil {
@@ -237,6 +241,50 @@ final class GitHubUpdateChecker {
         alert.informativeText = "You are using Vellum \(currentVersion)."
         alert.addButton(withTitle: "OK")
         alert.runModal()
+    }
+
+    private func normalizedReleaseNotes(_ rawNotes: String?) -> String? {
+        let notes = rawNotes?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !notes.isEmpty else { return nil }
+        return notes
+    }
+
+    private func releaseNotesView(for releaseNotes: String?) -> NSView? {
+        guard let releaseNotes else { return nil }
+
+        let titleLabel = NSTextField(labelWithString: "What's new")
+        titleLabel.font = .systemFont(ofSize: 12, weight: .semibold)
+        titleLabel.textColor = .secondaryLabelColor
+
+        let textView = NSTextView()
+        textView.string = releaseNotes
+        textView.font = .systemFont(ofSize: 12)
+        textView.textColor = .labelColor
+        textView.backgroundColor = .clear
+        textView.isEditable = false
+        textView.isSelectable = true
+        textView.textContainerInset = NSSize(width: 8, height: 8)
+
+        let scrollView = NSScrollView()
+        scrollView.hasVerticalScroller = true
+        scrollView.borderType = .bezelBorder
+        scrollView.drawsBackground = true
+        scrollView.backgroundColor = .textBackgroundColor
+        scrollView.documentView = textView
+        scrollView.translatesAutoresizingMaskIntoConstraints = false
+
+        let stack = NSStackView(views: [titleLabel, scrollView])
+        stack.orientation = .vertical
+        stack.alignment = .leading
+        stack.spacing = 6
+        stack.translatesAutoresizingMaskIntoConstraints = false
+
+        NSLayoutConstraint.activate([
+            scrollView.widthAnchor.constraint(equalToConstant: 460),
+            scrollView.heightAnchor.constraint(equalToConstant: 180)
+        ])
+
+        return stack
     }
 
     private func showUpdateError(_ error: Error) {
