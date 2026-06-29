@@ -4,6 +4,7 @@ import VellumCore
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let updateChecker = GitHubUpdateChecker()
+    private var settingsWindowController: SettingsWindowController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.appearance = NSAppearance(named: .darkAqua)
@@ -45,6 +46,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func checkForUpdates() {
         updateChecker.checkForUpdates(.manual)
+    }
+
+    func openSettings() {
+        if settingsWindowController == nil {
+            settingsWindowController = SettingsWindowController()
+        }
+        settingsWindowController?.show()
     }
 
     private func closeDuplicateMainWindows() {
