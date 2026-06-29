@@ -90,7 +90,7 @@ struct AIRequestFactoryTests {
         #expect(request.timeoutInterval == 30)
         #expect(body["model"] as? String == "test-model")
         #expect(body["temperature"] as? Double == 0)
-        #expect(body["max_tokens"] as? Int == 8)
+        #expect(body["max_tokens"] as? Int == 64)
         #expect(body["stream"] == nil)
     }
 
@@ -112,7 +112,7 @@ struct AIRequestFactoryTests {
         #expect(request.value(forHTTPHeaderField: "x-api-key") == "secret")
         #expect(request.value(forHTTPHeaderField: "anthropic-version") == "2023-06-01")
         #expect(body["model"] as? String == "claude-3-5-haiku-latest")
-        #expect(body["max_tokens"] as? Int == 8)
+        #expect(body["max_tokens"] as? Int == 64)
         #expect(messages.first?["content"] == "Reply with OK.")
     }
 

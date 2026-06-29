@@ -28,8 +28,12 @@ struct OpenAICompatibleAIExplanationClient: AIExplaining {
         let (data, response) = try await data(for: request)
         try validate(data: data, response: response)
 
-        let text = try AIResponseParser.completionText(from: data, providerFormat: configuration.providerFormat)
-        return "Model responded: \(text)"
+        do {
+            let text = try AIResponseParser.completionText(from: data, providerFormat: configuration.providerFormat)
+            return "Model responded: \(text)"
+        } catch AIExplanationError.emptyResponse {
+            return "Model responded, but returned empty text."
+        }
     }
 
     func fetchModels(configuration: AIConfiguration) async throws -> [String] {

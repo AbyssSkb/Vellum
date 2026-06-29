@@ -25,7 +25,7 @@ enum AIRequestFactory {
                 ChatMessage(role: "user", content: "Reply with OK.")
             ],
             temperature: 0,
-            maxTokens: 8,
+            maxTokens: 64,
             enableThinking: configuration.supportsSiliconFlowThinkingControls ? false : nil
         )
 
@@ -42,7 +42,7 @@ enum AIRequestFactory {
             messages: [
                 ChatMessage(role: "user", content: "Reply with OK.")
             ],
-            maxTokens: 8
+            maxTokens: 64
         )
 
         return try anthropicRequest(
