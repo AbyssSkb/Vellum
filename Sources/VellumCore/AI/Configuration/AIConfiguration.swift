@@ -27,6 +27,7 @@ enum AISettingsKeys {
 enum AIProviderFormat: String, CaseIterable, Identifiable, Sendable {
     case openAICompatible
     case anthropicMessages
+    case codexCLI
 
     var id: String { rawValue }
 
@@ -36,6 +37,8 @@ enum AIProviderFormat: String, CaseIterable, Identifiable, Sendable {
             return "OpenAI-compatible"
         case .anthropicMessages:
             return "Anthropic Messages"
+        case .codexCLI:
+            return "Codex CLI"
         }
     }
 
@@ -45,6 +48,8 @@ enum AIProviderFormat: String, CaseIterable, Identifiable, Sendable {
             return "Uses /chat/completions and /models."
         case .anthropicMessages:
             return "Uses Anthropic /messages and /models."
+        case .codexCLI:
+            return "Runs the local codex executable."
         }
     }
 }
@@ -85,6 +90,14 @@ struct AIProviderPreset: Identifiable, Equatable {
             format: .anthropicMessages
         ),
         AIProviderPreset(
+            id: "codex-cli",
+            name: "Codex CLI",
+            summary: "Use your local Codex login and configuration.",
+            baseURL: Self.defaultCodexExecutablePath,
+            defaultModel: "",
+            format: .codexCLI
+        ),
+        AIProviderPreset(
             id: customID,
             name: "Custom",
             summary: "Any OpenAI-compatible endpoint.",
@@ -97,6 +110,16 @@ struct AIProviderPreset: Identifiable, Equatable {
     static func preset(for id: String) -> AIProviderPreset {
         presets.first { $0.id == id }
             ?? presets.first { $0.id == customID }!
+    }
+
+    private static var defaultCodexExecutablePath: String {
+        let candidates = [
+            "/opt/homebrew/bin/codex",
+            "/usr/local/bin/codex",
+            "/usr/bin/codex"
+        ]
+        return candidates.first { FileManager.default.isExecutableFile(atPath: $0) }
+            ?? "/opt/homebrew/bin/codex"
     }
 }
 
@@ -171,6 +194,18 @@ struct AIConfiguration: Sendable {
         let trimmedModel = model.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedAPIKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
 
+        if providerFormat == .codexCLI {
+            guard !trimmedBaseURL.isEmpty else {
+                throw AIExplanationError.missingCodexExecutable
+            }
+
+            self.baseURL = URL(fileURLWithPath: trimmedBaseURL)
+            self.model = trimmedModel
+            self.apiKey = trimmedAPIKey
+            self.providerFormat = providerFormat
+            return
+        }
+
         guard let baseURL = URL(string: trimmedBaseURL),
               let scheme = baseURL.scheme,
               scheme.hasPrefix("http") else {
@@ -205,6 +240,14 @@ struct AIConfiguration: Sendable {
 
     var supportsSiliconFlowThinkingControls: Bool {
         baseURL.host?.lowercased().contains("siliconflow") == true
+    }
+
+    var codexExecutablePath: String {
+        baseURL.path
+    }
+
+    var codexProfile: String {
+        apiKey
     }
 
     private func endpointURL(_ endpoint: String) -> URL {

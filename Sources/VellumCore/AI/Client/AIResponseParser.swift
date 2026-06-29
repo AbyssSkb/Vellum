@@ -7,6 +7,11 @@ enum AIResponseParser {
             return try openAICompatibleCompletionText(from: data)
         case .anthropicMessages:
             return try anthropicMessageText(from: data)
+        case .codexCLI:
+            let text = String(data: data, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            guard !text.isEmpty else { throw AIExplanationError.emptyResponse }
+            return text
         }
     }
 

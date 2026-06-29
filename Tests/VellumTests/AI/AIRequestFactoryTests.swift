@@ -39,6 +39,31 @@ struct AIRequestFactoryTests {
     }
 
     @Test
+    func codexCLIConfigurationUsesExecutablePathAndAllowsEmptySecrets() throws {
+        let configuration = try AIConfiguration(
+            baseURLString: "/opt/homebrew/bin/codex",
+            model: "",
+            apiKey: "",
+            providerFormat: .codexCLI,
+            requireModel: true
+        )
+
+        #expect(configuration.providerFormat == .codexCLI)
+        #expect(configuration.codexExecutablePath == "/opt/homebrew/bin/codex")
+        #expect(configuration.model == "")
+        #expect(configuration.codexProfile == "")
+    }
+
+    @Test
+    func codexCLIProviderPresetIsAvailable() {
+        let preset = AIProviderPreset.preset(for: "codex-cli")
+
+        #expect(preset.name == "Codex CLI")
+        #expect(preset.format == .codexCLI)
+        #expect(!preset.baseURL.isEmpty)
+    }
+
+    @Test
     func modelsRequestUsesModelsEndpointAndAuthorization() throws {
         let configuration = try AIConfiguration(
             baseURLString: "https://api.example.com/v1",

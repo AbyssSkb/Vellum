@@ -17,8 +17,12 @@ struct AISettingsDetailView: View {
             VStack(alignment: .leading, spacing: 16) {
                 header
                 providerSection
-                endpointSection
-                modelSection
+                if selectedPreset.format == .codexCLI {
+                    codexCLISection
+                } else {
+                    endpointSection
+                    modelSection
+                }
                 validationSection
             }
             .padding(.horizontal, 24)
@@ -74,6 +78,8 @@ struct AISettingsDetailView: View {
             return configuration.chatCompletionsURL.absoluteString
         case .anthropicMessages:
             return configuration.messagesURL.absoluteString
+        case .codexCLI:
+            return configuration.codexExecutablePath
         }
     }
 
@@ -146,6 +152,36 @@ struct AISettingsDetailView: View {
         }
     }
 
+    private var codexCLISection: some View {
+        SettingsPanel(title: "Codex CLI", systemImage: "terminal") {
+            VStack(alignment: .leading, spacing: 14) {
+                LabeledSettingsField(title: "Executable") {
+                    StyledTextField(
+                        text: $baseURL,
+                        placeholder: selectedPreset.baseURL,
+                        systemImage: "terminal"
+                    )
+                }
+
+                LabeledSettingsField(title: "Model") {
+                    StyledTextField(
+                        text: $model,
+                        placeholder: "Use Codex default",
+                        systemImage: "cube"
+                    )
+                }
+
+                LabeledSettingsField(title: "Profile") {
+                    StyledTextField(
+                        text: $apiKey,
+                        placeholder: "Use default profile",
+                        systemImage: "person.crop.circle"
+                    )
+                }
+            }
+        }
+    }
+
     private var modelSection: some View {
         SettingsPanel(title: "Model", systemImage: "cpu") {
             VStack(alignment: .leading, spacing: 14) {
@@ -188,7 +224,7 @@ struct AISettingsDetailView: View {
                     Button {
                         testConnection()
                     } label: {
-                        Label(isTestingConnection ? "Testing" : "Test Endpoint", systemImage: "point.3.connected.trianglepath.dotted")
+                        Label(isTestingConnection ? "Testing" : connectionTestTitle, systemImage: connectionTestIcon)
                     }
                     .buttonStyle(SettingsActionButtonStyle())
                     .disabled(isBusy)
@@ -207,8 +243,9 @@ struct AISettingsDetailView: View {
                 AIConnectionStatusRow(status: status, isBusy: isBusy)
 
                 VStack(alignment: .leading, spacing: 8) {
-                    diagnosticRow("Request", chatEndpointText)
-                    diagnosticRow("Models", modelsEndpointText)
+                    ForEach(diagnosticRows, id: \.title) { row in
+                        diagnosticRow(row.title, row.value)
+                    }
                     diagnosticRow("Selected", trimmedModelText)
                 }
                 .padding(.top, 2)
@@ -217,6 +254,10 @@ struct AISettingsDetailView: View {
     }
 
     var modelsSummary: String {
+        if selectedPreset.format == .codexCLI {
+            return "Codex CLI uses its configured model list."
+        }
+
         if isFetchingModels {
             return "Loading models from \(selectedPreset.name)..."
         }
@@ -226,6 +267,28 @@ struct AISettingsDetailView: View {
         }
 
         return "\(availableModels.count) models loaded."
+    }
+
+    var connectionTestTitle: String {
+        selectedPreset.format == .codexCLI ? "Test CLI" : "Test Endpoint"
+    }
+
+    var connectionTestIcon: String {
+        selectedPreset.format == .codexCLI ? "terminal" : "point.3.connected.trianglepath.dotted"
+    }
+
+    var diagnosticRows: [(title: String, value: String)] {
+        if selectedPreset.format == .codexCLI {
+            return [
+                ("Command", baseURL.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty ?? selectedPreset.baseURL),
+                ("Profile", apiKey.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty ?? "Default")
+            ]
+        }
+
+        return [
+            ("Request", chatEndpointText),
+            ("Models", modelsEndpointText)
+        ]
     }
 
     private func diagnosticRow(_ title: String, _ value: String) -> some View {
@@ -311,9 +374,11 @@ struct AISettingsDetailView: View {
         defaults.set(baseURL, forKey: AISettingsKeys.baseURLKey(for: preset.id))
         defaults.set(model, forKey: AISettingsKeys.modelKey(for: preset.id))
         defaults.set(apiKey, forKey: AISettingsKeys.apiKeyKey(for: preset.id))
-        defaults.set(baseURL, forKey: AISettingsKeys.baseURL)
-        defaults.set(model, forKey: AISettingsKeys.model)
-        defaults.set(apiKey, forKey: AISettingsKeys.apiKey)
+        if preset.format != .codexCLI {
+            defaults.set(baseURL, forKey: AISettingsKeys.baseURL)
+            defaults.set(model, forKey: AISettingsKeys.model)
+            defaults.set(apiKey, forKey: AISettingsKeys.apiKey)
+        }
     }
 }
 

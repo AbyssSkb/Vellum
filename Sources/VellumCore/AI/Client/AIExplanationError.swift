@@ -4,6 +4,7 @@ enum AIExplanationError: LocalizedError {
     case invalidBaseURL
     case missingModel
     case missingAPIKey
+    case missingCodexExecutable
     case noSelection
     case noHighlightedText
     case emptyResponse
@@ -18,6 +19,8 @@ enum AIExplanationError: LocalizedError {
             return "AI 模型名称为空，请先在设置里填写模型名称。"
         case .missingAPIKey:
             return "AI API Key 为空，请先在设置里填写 API Key。"
+        case .missingCodexExecutable:
+            return "Codex CLI 路径为空，请先在设置里填写 codex 可执行文件路径。"
         case .noSelection:
             return "请先选中一段文字。"
         case .noHighlightedText:

@@ -131,22 +131,23 @@ struct OpenAICompatibleAIExplanationClient: AIExplaining {
 }
 
 enum AIExplanationClient {
-    static let shared: any AIExplaining = OpenAICompatibleAIExplanationClient()
+    private static let httpClient: any AIExplaining = OpenAICompatibleAIExplanationClient()
+    private static let codexCLIClient: any AIExplaining = CodexCLIAIExplanationClient()
 
     static func testConnection(configuration: AIConfiguration) async throws -> String {
-        try await shared.testConnection(configuration: configuration)
+        try await client(for: configuration).testConnection(configuration: configuration)
     }
 
     static func testFunction(configuration: AIConfiguration) async throws -> String {
-        try await shared.testFunction(configuration: configuration)
+        try await client(for: configuration).testFunction(configuration: configuration)
     }
 
     static func fetchModels(configuration: AIConfiguration) async throws -> [String] {
-        try await shared.fetchModels(configuration: configuration)
+        try await client(for: configuration).fetchModels(configuration: configuration)
     }
 
     static func explain(context: AIExplanationContext, configuration: AIConfiguration) async throws -> String {
-        try await shared.explain(context: context, configuration: configuration)
+        try await client(for: configuration).explain(context: context, configuration: configuration)
     }
 
     static func streamExplanation(
@@ -154,10 +155,14 @@ enum AIExplanationClient {
         configuration: AIConfiguration,
         onChunk: @escaping @MainActor (String) -> Void
     ) async throws -> String {
-        try await shared.streamExplanation(
+        try await client(for: configuration).streamExplanation(
             context: context,
             configuration: configuration,
             onChunk: onChunk
         )
+    }
+
+    private static func client(for configuration: AIConfiguration) -> any AIExplaining {
+        configuration.providerFormat == .codexCLI ? codexCLIClient : httpClient
     }
 }

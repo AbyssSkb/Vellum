@@ -7,6 +7,8 @@ enum AIRequestFactory {
             return try openAICompatibleFunctionTestRequest(configuration: configuration)
         case .anthropicMessages:
             return try anthropicFunctionTestRequest(configuration: configuration)
+        case .codexCLI:
+            throw AIExplanationError.server("Codex CLI 不使用 HTTP 请求。")
         }
     }
 
@@ -70,6 +72,9 @@ enum AIRequestFactory {
                 configuration: configuration
             )
         }
+        if configuration.providerFormat == .codexCLI {
+            throw AIExplanationError.server("Codex CLI 不使用 HTTP 请求。")
+        }
 
         let body = ChatCompletionRequest(
             model: configuration.model,
@@ -101,6 +106,9 @@ enum AIRequestFactory {
                 context: context,
                 configuration: configuration
             )
+        }
+        if configuration.providerFormat == .codexCLI {
+            throw AIExplanationError.server("Codex CLI 不使用 HTTP 请求。")
         }
 
         let body = ChatCompletionRequest(
@@ -180,6 +188,8 @@ enum AIRequestFactory {
         case .anthropicMessages:
             request.setValue(configuration.apiKey, forHTTPHeaderField: "x-api-key")
             request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+        case .codexCLI:
+            break
         }
     }
 }
