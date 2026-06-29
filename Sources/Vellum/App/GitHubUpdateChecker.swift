@@ -108,7 +108,21 @@ final class GitHubUpdateChecker {
     }
 
     private func fetchLatestReleaseUpdate() async throws -> AppUpdateInfo {
-        var request = URLRequest(url: Self.latestReleaseURL)
+        let request = URLRequest(url: Self.latestReleaseURL)
+        return try await fetchReleaseUpdate(request: request)
+    }
+
+    private func fetchReleaseUpdate(tagName: String) async throws -> AppUpdateInfo {
+        guard let releaseURL = URL(string: "https://api.github.com/repos/AbyssSkb/Vellum/releases/tags/\(tagName)") else {
+            throw URLError(.badURL)
+        }
+
+        let request = URLRequest(url: releaseURL)
+        return try await fetchReleaseUpdate(request: request)
+    }
+
+    private func fetchReleaseUpdate(request: URLRequest) async throws -> AppUpdateInfo {
+        var request = request
         request.setValue("Vellum", forHTTPHeaderField: "User-Agent")
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
 
@@ -155,7 +169,11 @@ final class GitHubUpdateChecker {
             throw URLError(.cannotParseResponse)
         }
 
-        return AppUpdateCatalog.githubReleaseUpdate(tagName: tagName, repositoryURL: Self.repositoryURL)
+        do {
+            return try await fetchReleaseUpdate(tagName: tagName)
+        } catch {
+            return AppUpdateCatalog.githubReleaseUpdate(tagName: tagName, repositoryURL: Self.repositoryURL)
+        }
     }
 
     private func fetchLatestTaggedUpdate() async throws -> AppUpdateInfo {
@@ -177,7 +195,11 @@ final class GitHubUpdateChecker {
             throw URLError(.cannotParseResponse)
         }
 
-        return update
+        do {
+            return try await fetchReleaseUpdate(tagName: update.version)
+        } catch {
+            return update
+        }
     }
 
     private func handle(update: AppUpdateInfo, mode: CheckMode) {
@@ -200,13 +222,14 @@ final class GitHubUpdateChecker {
     private func showUpdateAvailable(update: AppUpdateInfo, currentVersion: String, mode: CheckMode) {
         let alert = NSAlert()
         alert.messageText = "Vellum \(update.version) is available"
+        let releaseNotesSummary = releaseNotesSummary(update.releaseNotes)
         if update.downloadURL != nil {
-            alert.informativeText = "You are currently using Vellum \(currentVersion). Download and install the latest version now."
+            alert.informativeText = "You are currently using Vellum \(currentVersion). Download and install the latest version now.\(releaseNotesSummary)"
             alert.addButton(withTitle: "Download and Install")
             alert.addButton(withTitle: "Open GitHub")
             alert.addButton(withTitle: "Later")
         } else {
-            alert.informativeText = "You are currently using Vellum \(currentVersion). Open GitHub to download the latest version."
+            alert.informativeText = "You are currently using Vellum \(currentVersion). Open GitHub to download the latest version.\(releaseNotesSummary)"
             alert.addButton(withTitle: "Open GitHub")
             alert.addButton(withTitle: "Later")
         }
@@ -247,6 +270,21 @@ final class GitHubUpdateChecker {
         let notes = rawNotes?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard !notes.isEmpty else { return nil }
         return notes
+    }
+
+    private func releaseNotesSummary(_ releaseNotes: String?) -> String {
+        guard let releaseNotes else { return "" }
+        let lines = releaseNotes
+            .split(whereSeparator: \.isNewline)
+            .map { line in
+                line
+                    .replacingOccurrences(of: "#", with: "")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            .filter { !$0.isEmpty && !$0.hasPrefix("Full Changelog") }
+
+        guard !lines.isEmpty else { return "" }
+        return "\n\nWhat's new:\n" + lines.prefix(4).joined(separator: "\n")
     }
 
     private func releaseNotesView(for releaseNotes: String?) -> NSView? {
