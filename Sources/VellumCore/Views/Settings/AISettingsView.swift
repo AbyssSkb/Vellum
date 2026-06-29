@@ -23,10 +23,15 @@ public struct AISettingsView: View {
         }
         .frame(width: 820, height: 680)
         .background(TokyoNight.backgroundColor)
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(TokyoNight.borderColor.opacity(0.95), lineWidth: 1)
+        }
         .foregroundStyle(TokyoNight.foregroundColor)
         .tint(TokyoNight.cyanColor)
         .preferredColorScheme(.dark)
-        .background(WindowChromeConfigurator())
+        .background(SettingsWindowChromeConfigurator())
         .ignoresSafeArea()
     }
 

@@ -37,5 +37,6 @@ struct ShortcutSettingsView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .background(TokyoNight.backgroundColor)
+        .background(SettingsScrollChromeConfigurator())
     }
 }

@@ -26,6 +26,7 @@ struct AISettingsDetailView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .background(TokyoNight.backgroundColor)
+        .background(SettingsScrollChromeConfigurator())
         .onAppear {
             loadProviderSettings(for: providerID, allowsLegacyFallback: true)
         }

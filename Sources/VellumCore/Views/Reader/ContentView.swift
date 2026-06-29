@@ -56,7 +56,7 @@ struct WindowChromeConfigurator: NSViewRepresentable {
         nsView.configureWindow()
     }
 
-    final class ChromeView: NSView {
+    class ChromeView: NSView {
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
             configureWindow()
