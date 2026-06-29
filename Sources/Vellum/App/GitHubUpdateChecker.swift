@@ -294,35 +294,46 @@ final class GitHubUpdateChecker {
         titleLabel.font = .systemFont(ofSize: 12, weight: .semibold)
         titleLabel.textColor = .secondaryLabelColor
 
-        let textView = NSTextView()
-        textView.string = releaseNotes
-        textView.font = .systemFont(ofSize: 12)
-        textView.textColor = .labelColor
-        textView.backgroundColor = .clear
-        textView.isEditable = false
-        textView.isSelectable = true
-        textView.textContainerInset = NSSize(width: 8, height: 8)
+        let notesLabel = NSTextField(wrappingLabelWithString: releaseNotesAccessoryText(releaseNotes))
+        notesLabel.font = .systemFont(ofSize: 12)
+        notesLabel.textColor = .labelColor
+        notesLabel.maximumNumberOfLines = 9
+        notesLabel.lineBreakMode = .byTruncatingTail
+        notesLabel.isSelectable = true
+        notesLabel.translatesAutoresizingMaskIntoConstraints = false
 
-        let scrollView = NSScrollView()
-        scrollView.hasVerticalScroller = true
-        scrollView.borderType = .bezelBorder
-        scrollView.drawsBackground = true
-        scrollView.backgroundColor = .textBackgroundColor
-        scrollView.documentView = textView
-        scrollView.translatesAutoresizingMaskIntoConstraints = false
+        let notesContainer = NSView()
+        notesContainer.wantsLayer = true
+        notesContainer.layer?.cornerRadius = 8
+        notesContainer.layer?.borderWidth = 1
+        notesContainer.layer?.borderColor = NSColor.separatorColor.cgColor
+        notesContainer.layer?.backgroundColor = NSColor.controlBackgroundColor.cgColor
+        notesContainer.translatesAutoresizingMaskIntoConstraints = false
+        notesContainer.addSubview(notesLabel)
 
-        let stack = NSStackView(views: [titleLabel, scrollView])
+        let stack = NSStackView(views: [titleLabel, notesContainer])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 6
         stack.translatesAutoresizingMaskIntoConstraints = false
 
         NSLayoutConstraint.activate([
-            scrollView.widthAnchor.constraint(equalToConstant: 460),
-            scrollView.heightAnchor.constraint(equalToConstant: 180)
+            notesContainer.widthAnchor.constraint(equalToConstant: 460),
+            notesLabel.widthAnchor.constraint(equalToConstant: 438),
+            notesLabel.leadingAnchor.constraint(equalTo: notesContainer.leadingAnchor, constant: 10),
+            notesLabel.trailingAnchor.constraint(equalTo: notesContainer.trailingAnchor, constant: -10),
+            notesLabel.topAnchor.constraint(equalTo: notesContainer.topAnchor, constant: 9),
+            notesLabel.bottomAnchor.constraint(equalTo: notesContainer.bottomAnchor, constant: -9)
         ])
 
         return stack
+    }
+
+    private func releaseNotesAccessoryText(_ releaseNotes: String) -> String {
+        let trimmed = releaseNotes.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count > 900 else { return trimmed }
+        let endIndex = trimmed.index(trimmed.startIndex, offsetBy: 900)
+        return String(trimmed[..<endIndex]).trimmingCharacters(in: .whitespacesAndNewlines) + "\n..."
     }
 
     private func showUpdateError(_ error: Error) {
