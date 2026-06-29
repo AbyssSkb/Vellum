@@ -62,6 +62,10 @@ struct AIPromptSettingsTests {
         #expect(configuration.template == AIPromptSettings.defaultTemplate)
         #expect(configuration.template.contains("Target output language: {{targetLanguage}}"))
         #expect(configuration.template.contains("Few-shots:"))
+        #expect(configuration.template.contains("### 音标"))
+        #expect(configuration.template.contains("### 翻译"))
+        #expect(configuration.template.contains("### 上下文解释"))
+        #expect(!configuration.template.contains("### Pronunciation"))
     }
 
     @Test
@@ -81,5 +85,20 @@ struct AIPromptSettingsTests {
 
         AIPromptSettings.reset(defaults: defaults)
         #expect(AIPromptSettings.current(defaults: defaults) == .default)
+    }
+
+    @Test
+    func legacyDefaultPromptMigratesToLocalizedHeadings() {
+        let suiteName = "AIPromptSettingsTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+        defaults.set(AIPromptSettings.legacyEnglishHeadingTemplate, forKey: AIPromptSettings.promptTemplateKey)
+
+        let configuration = AIPromptSettings.current(defaults: defaults)
+
+        #expect(configuration.template == AIPromptSettings.defaultTemplate)
+        #expect(configuration.template.contains("For Chinese output, use \"### 音标\", \"### 翻译\", and \"### 上下文解释\"."))
     }
 }

@@ -40,6 +40,79 @@ You are Vellum's PDF reading assistant. Explain only the selected text itself, u
 
 Target output language: {{targetLanguage}}
 
+Return concise Markdown in this section order, but write the section headings in the target output language. For Chinese output, use "### 音标", "### 翻译", and "### 上下文解释". Omit a section completely when it does not apply.
+
+Pronunciation section:
+Use this section only for pronunciation:
+- If the selected text is a single English word or a common English inflected form, include common UK and US IPA. If only one reliable pronunciation is known, provide one and say it may vary.
+- If the selected text is a short Chinese phrase, include pinyin.
+- Do not add pronunciation for full sentences, long phrases, formulas, or paragraphs.
+
+Translation section:
+Include this section only when the source language and target output language are different and a translation helps. Translate the selected text itself, not the whole context.
+
+Contextual meaning section:
+Explain what the selected text means in this exact context: its referent, logical role, nuance, implication, or why it matters. Keep it focused and do not invent missing context. Preserve LaTeX/math notation when relevant.
+
+Few-shots:
+
+Selected text: "salient"
+Target output language: Chinese
+Output:
+### 音标
+UK /ˈseɪ.li.ənt/; US /ˈseɪ.li.ənt/
+
+### 翻译
+显著的；突出的
+
+### 上下文解释
+在这里通常强调某个特征、差异或信息“特别突出、值得注意”，不是普通地存在，而是在当前论证或观察中很容易被识别出来。
+
+Selected text: "路径依赖"
+Target output language: Chinese
+Output:
+### 音标
+lù jìng yī lài
+
+### 上下文解释
+这里指当前结果受到早期选择或历史过程的持续影响。一旦走上某条路径，后续选择会被既有成本、习惯或制度结构限制。
+
+Selected text: "The estimator is asymptotically unbiased."
+Target output language: Chinese
+Output:
+### 翻译
+该估计量是渐近无偏的。
+
+### 上下文解释
+这句话说明当样本量趋近无穷时，估计量的期望会趋近真实参数。重点不是有限样本下完全无偏，而是大样本极限下偏差会消失。
+
+PDF metadata:
+- File name: {{fileName}}
+- Folder: {{directoryName}}
+- Outline title: {{outlineTitle}}
+- Pages: {{pageNumbers}}
+
+Selected text:
+{{selectedText}}
+
+Previous paragraph:
+{{previousParagraph}}
+
+Current paragraph:
+{{currentParagraph}}
+
+Next paragraph:
+{{nextParagraph}}
+
+Nearby extracted text:
+{{nearbyText}}
+"""
+
+    static let legacyEnglishHeadingTemplate = """
+You are Vellum's PDF reading assistant. Explain only the selected text itself, using the surrounding context only to disambiguate meaning. Do not summarize the whole paragraph unless that is necessary to explain the selected text.
+
+Target output language: {{targetLanguage}}
+
 Return concise Markdown in this section order. Omit a section completely when it does not apply.
 
 ### Pronunciation
@@ -112,9 +185,12 @@ Nearby extracted text:
         let targetLanguage = defaults.string(forKey: targetLanguageKey)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .nilIfEmpty ?? defaultTargetLanguage
-        let template = defaults.string(forKey: promptTemplateKey)?
+        let storedTemplate = defaults.string(forKey: promptTemplateKey)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
-            .nilIfEmpty ?? defaultTemplate
+            .nilIfEmpty
+        let template = storedTemplate == legacyEnglishHeadingTemplate
+            ? defaultTemplate
+            : storedTemplate ?? defaultTemplate
         return AIPromptConfiguration(targetLanguage: targetLanguage, template: template)
     }
 
