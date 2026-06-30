@@ -177,6 +177,14 @@ final class VellumPDFView: PDFView {
         super.mouseDragged(with: event)
     }
 
+    override func otherMouseDown(with event: NSEvent) {
+        if explainSelectedTextIfNeededForMiddleClick(with: event) {
+            return
+        }
+
+        super.otherMouseDown(with: event)
+    }
+
     override func scrollWheel(with event: NSEvent) {
         searchController?.markReaderNavigated()
         super.scrollWheel(with: event)
@@ -261,6 +269,28 @@ final class VellumPDFView: PDFView {
         }
 
         vimExplainSelectedHighlight()
+    }
+
+    private func explainSelectedTextIfNeededForMiddleClick(with event: NSEvent) -> Bool {
+        let pointInView = convert(event.locationInWindow, from: nil)
+        let selection = currentSelection
+        let selectedText = selection?.string?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard AIExplanationMouseTrigger.shouldExplainSelection(
+            eventType: event.type,
+            buttonNumber: event.buttonNumber,
+            clickCount: event.clickCount,
+            modifierFlags: event.modifierFlags,
+            isAIInteractionActive: aiInteraction.isActive,
+            hasSelectedText: selectedText?.isEmpty == false,
+            pointIsInsideSelection: selection.map { selectionCovers(pointInView, selection: $0) } ?? false
+        ) else {
+            return false
+        }
+
+        focus()
+        vimExplainSelectedHighlight()
+        return true
     }
 
     private func selectionCovers(_ pointInView: NSPoint, selection: PDFSelection) -> Bool {
