@@ -99,6 +99,11 @@ enum AIExplanationHTML {
         .speak-button:active {
           transform: translateY(1px);
         }
+        .speak-actions {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+        }
       </style>
     </head>
     <body>
@@ -111,7 +116,8 @@ enum AIExplanationHTML {
           velocity: 672
         };
         var pronunciationSpeechText = '';
-        var pronunciationSpeakTitle = 'Speak pronunciation';
+        var pronunciationSpeakUSTitle = 'Speak American pronunciation';
+        var pronunciationSpeakUKTitle = 'Speak British pronunciation';
         function tickScroll(now) {
           if (!scrollState.direction) { return; }
           const previous = scrollState.lastTime || now;
@@ -163,8 +169,9 @@ enum AIExplanationHTML {
         }
         function speakButtonHTML() {
           if (!pronunciationSpeechText.trim()) { return ''; }
-          const title = escapeHTML(pronunciationSpeakTitle || 'Speak pronunciation');
-          return `<button class="speak-button" type="button" title="${title}" aria-label="${title}" onclick="postVellumCommand('speakPronunciation')">▶</button>`;
+          const usTitle = escapeHTML(pronunciationSpeakUSTitle || 'Speak American pronunciation');
+          const ukTitle = escapeHTML(pronunciationSpeakUKTitle || 'Speak British pronunciation');
+          return `<span class="speak-actions"><button class="speak-button" type="button" title="${usTitle}" aria-label="${usTitle}" onclick="postVellumCommand('speakPronunciationUS')">US</button><button class="speak-button" type="button" title="${ukTitle}" aria-label="${ukTitle}" onclick="postVellumCommand('speakPronunciationUK')">UK</button></span>`;
         }
         function renderMarkdown(markdown) {
           const fenceMap = [];
@@ -220,9 +227,10 @@ enum AIExplanationHTML {
               .catch(() => { afterRender(followBottom); });
           }
         };
-        window.vellumSetPronunciationSpeech = function(text, title) {
+        window.vellumSetPronunciationSpeech = function(text, usTitle, ukTitle) {
           pronunciationSpeechText = text || '';
-          pronunciationSpeakTitle = title || 'Speak pronunciation';
+          pronunciationSpeakUSTitle = usTitle || 'Speak American pronunciation';
+          pronunciationSpeakUKTitle = ukTitle || 'Speak British pronunciation';
         };
         function afterRender(followBottom) {
           reportContentHeight();

@@ -24,7 +24,8 @@ final class AIExplanationWebView: WKWebView, WKNavigationDelegate, WKScriptMessa
     var shouldFocusWhenReady = true
     var autoScrollOnUpdate = false
     var pronunciationSpeechText: String?
-    var speakButtonTitle = "Speak pronunciation"
+    var speakAmericanButtonTitle = "Speak American pronunciation"
+    var speakBritishButtonTitle = "Speak British pronunciation"
     private var pendingMarkdown = ""
     private var didLoadDocument = false
     private let speechSynthesizer = AVSpeechSynthesizer()
@@ -57,8 +58,9 @@ final class AIExplanationWebView: WKWebView, WKNavigationDelegate, WKScriptMessa
                 markdown: markdown
             ) ?? ""
         )
-        let buttonTitle = Self.javascriptString(speakButtonTitle)
-        evaluateJavaScript("window.vellumSetPronunciationSpeech(\(speechText), \(buttonTitle));")
+        let usTitle = Self.javascriptString(speakAmericanButtonTitle)
+        let ukTitle = Self.javascriptString(speakBritishButtonTitle)
+        evaluateJavaScript("window.vellumSetPronunciationSpeech(\(speechText), \(usTitle), \(ukTitle));")
         evaluateJavaScript("window.vellumSetMarkdown(\(encoded), \(autoScrollOnUpdate ? "true" : "false"));")
     }
 
@@ -171,8 +173,10 @@ final class AIExplanationWebView: WKWebView, WKNavigationDelegate, WKScriptMessa
     @discardableResult
     private func handleCommand(_ command: String) -> Bool {
         switch command {
-        case "speakPronunciation":
-            speakPronunciation()
+        case "speakPronunciationUS":
+            speakPronunciation(languageCode: "en-US")
+        case "speakPronunciationUK":
+            speakPronunciation(languageCode: "en-GB")
         case "startScrollDown":
             startContinuousScroll(direction: 1)
         case "startScrollUp":
@@ -190,7 +194,7 @@ final class AIExplanationWebView: WKWebView, WKNavigationDelegate, WKScriptMessa
         return true
     }
 
-    private func speakPronunciation() {
+    private func speakPronunciation(languageCode: String) {
         guard let text = AIExplanationPronunciationSpeech.speechText(
             selectedText: pronunciationSpeechText,
             markdown: pendingMarkdown
@@ -202,7 +206,9 @@ final class AIExplanationWebView: WKWebView, WKNavigationDelegate, WKScriptMessa
         if speechSynthesizer.isSpeaking {
             stopPronunciation()
         }
-        speechSynthesizer.speak(AVSpeechUtterance(string: text))
+        let utterance = AVSpeechUtterance(string: text)
+        utterance.voice = AVSpeechSynthesisVoice(language: languageCode)
+        speechSynthesizer.speak(utterance)
     }
 
     private static func key(for command: String) -> String {
