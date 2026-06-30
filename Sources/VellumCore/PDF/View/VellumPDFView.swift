@@ -17,6 +17,7 @@ final class VellumPDFView: PDFView {
     let aiInteraction = AIInteractionState()
     var isMouseSelectingText = false
     var pendingDoubleClickTextSelectionPoint: NSPoint?
+    var pendingDoubleClickHorizontalOrigin: CGFloat?
     var textSelectionNavigationState: VimTextSelectionNavigationState?
     var pageOverviewController: PageOverviewController?
     var searchController: PDFSearchController?
@@ -162,11 +163,13 @@ final class VellumPDFView: PDFView {
     override func mouseDown(with event: NSEvent) {
         isMouseSelectingText = true
         pendingDoubleClickTextSelectionPoint = doubleClickTextSelectionPoint(for: event)
+        pendingDoubleClickHorizontalOrigin = pendingDoubleClickTextSelectionPoint == nil ? nil : currentHorizontalOrigin()
         searchController?.markReaderNavigated()
         textSelectionNavigationState = nil
         hideAIExplanationPopover()
         recordJumpSourceIfNeededForLinkClick(with: event)
         super.mouseDown(with: event)
+        restoreHorizontalOrigin(pendingDoubleClickHorizontalOrigin)
     }
 
     override func mouseDragged(with event: NSEvent) {
@@ -192,11 +195,15 @@ final class VellumPDFView: PDFView {
 
     override func mouseUp(with event: NSEvent) {
         super.mouseUp(with: event)
+        restoreHorizontalOrigin(pendingDoubleClickHorizontalOrigin)
         let doubleClickPoint = pendingDoubleClickTextSelectionPoint
+        let doubleClickHorizontalOrigin = pendingDoubleClickHorizontalOrigin
         pendingDoubleClickTextSelectionPoint = nil
+        pendingDoubleClickHorizontalOrigin = nil
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) { [weak self] in
             guard let self else { return }
             self.isMouseSelectingText = false
+            self.restoreHorizontalOrigin(doubleClickHorizontalOrigin)
             self.explainDoubleClickedTextIfNeeded(at: doubleClickPoint)
         }
     }
