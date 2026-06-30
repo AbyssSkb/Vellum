@@ -35,8 +35,6 @@ final class VellumPDFView: PDFView {
     var didDragDuringCurrentMouseSequence = false
     var didCompleteInitialPointerInteraction = false
     var pendingRestoreAction: PendingRestoreAction?
-    var isObservingScrollerStyleChanges = false
-    var pendingScrollerConfiguration: DispatchWorkItem?
     var textSelectionNavigationState: VimTextSelectionNavigationState?
     var pageOverviewController: PageOverviewController?
     var searchController: PDFSearchController?
@@ -68,14 +66,6 @@ final class VellumPDFView: PDFView {
 
     var isPageOverviewActive: Bool {
         pageOverviewController != nil
-    }
-
-    deinit {
-        NotificationCenter.default.removeObserver(
-            self,
-            name: NSScroller.preferredScrollerStyleDidChangeNotification,
-            object: nil
-        )
     }
 
     func handleTextSelectionKeyEvent(_ event: NSEvent) -> Bool {
@@ -129,11 +119,6 @@ final class VellumPDFView: PDFView {
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         window?.acceptsMouseMovedEvents = true
-        if window == nil {
-            stopObservingScrollerStyleChanges()
-        } else {
-            startObservingScrollerStyleChanges()
-        }
         configurePDFScrollers()
         updateExplanationTrackingArea()
         didDragDuringCurrentMouseSequence = false
@@ -310,6 +295,7 @@ final class VellumPDFView: PDFView {
 
     func configurePDFScrollers() {
         guard let scrollView = pdfScrollView else { return }
+        PDFOverlayScrollerStyleLock.install(on: scrollView)
         scrollView.scrollerStyle = .overlay
         scrollView.scrollerKnobStyle = .default
         scrollView.autohidesScrollers = true
@@ -317,44 +303,6 @@ final class VellumPDFView: PDFView {
         scrollView.hasHorizontalScroller = true
         scrollView.drawsBackground = false
         scrollView.backgroundColor = .clear
-    }
-
-    func startObservingScrollerStyleChanges() {
-        guard !isObservingScrollerStyleChanges else { return }
-
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(handlePreferredScrollerStyleDidChange),
-            name: NSScroller.preferredScrollerStyleDidChangeNotification,
-            object: nil
-        )
-        isObservingScrollerStyleChanges = true
-    }
-
-    func stopObservingScrollerStyleChanges() {
-        guard isObservingScrollerStyleChanges else { return }
-
-        NotificationCenter.default.removeObserver(
-            self,
-            name: NSScroller.preferredScrollerStyleDidChangeNotification,
-            object: nil
-        )
-        isObservingScrollerStyleChanges = false
-        pendingScrollerConfiguration?.cancel()
-        pendingScrollerConfiguration = nil
-    }
-
-    @objc private func handlePreferredScrollerStyleDidChange() {
-        guard pendingScrollerConfiguration == nil else { return }
-
-        let workItem = DispatchWorkItem { [weak self] in
-            guard let self else { return }
-
-            self.pendingScrollerConfiguration = nil
-            self.configurePDFScrollers()
-        }
-        pendingScrollerConfiguration = workItem
-        DispatchQueue.main.async(execute: workItem)
     }
 
     private func doubleClickTextSelectionPoint(for event: NSEvent) -> NSPoint? {
