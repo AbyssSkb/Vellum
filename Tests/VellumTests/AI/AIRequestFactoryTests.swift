@@ -64,6 +64,16 @@ struct AIRequestFactoryTests {
     }
 
     @Test
+    func siliconFlowProviderPresetIsAvailable() {
+        let preset = AIProviderPreset.preset(for: "siliconflow")
+
+        #expect(preset.name == "SiliconFlow")
+        #expect(preset.baseURL == "https://api.siliconflow.cn/v1")
+        #expect(preset.defaultModel == "deepseek-ai/DeepSeek-V3")
+        #expect(preset.format == .openAICompatible)
+    }
+
+    @Test
     func modelsRequestUsesModelsEndpointAndAuthorization() throws {
         let configuration = try AIConfiguration(
             baseURLString: "https://api.example.com/v1",

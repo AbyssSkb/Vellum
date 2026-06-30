@@ -677,6 +677,8 @@ private extension AIProviderPreset {
                 return "OpenAI 官方 API。"
             case "deepseek":
                 return "DeepSeek API。"
+            case "siliconflow":
+                return "硅基流动 API。"
             case "anthropic":
                 return "Claude 官方 API。"
             case "codex-cli":

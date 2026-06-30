@@ -87,6 +87,14 @@ struct AIProviderPreset: Identifiable, Equatable {
             format: .openAICompatible
         ),
         AIProviderPreset(
+            id: "siliconflow",
+            name: "SiliconFlow",
+            summary: "SiliconFlow API.",
+            baseURL: "https://api.siliconflow.cn/v1",
+            defaultModel: "deepseek-ai/DeepSeek-V3",
+            format: .openAICompatible
+        ),
+        AIProviderPreset(
             id: "anthropic",
             name: "Anthropic",
             summary: "Official Claude API.",
