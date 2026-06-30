@@ -13,6 +13,7 @@ public final class AppState: ObservableObject {
     let documentCoordinator = DocumentCoordinator()
     let keyboardController = KeyboardController()
     private var highlightColorPreferenceObserver: NSObjectProtocol?
+    private var appWillTerminateObserver: NSObjectProtocol?
     var didRestorePreviousTabs = false
 
     weak var activeReaderController: ReaderController?
@@ -32,11 +33,23 @@ public final class AppState: ObservableObject {
                 self?.selectedHighlightColor = color
             }
         }
+        appWillTerminateObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.willTerminateNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.saveActiveReaderState()
+            }
+        }
     }
 
     deinit {
         if let highlightColorPreferenceObserver {
             NotificationCenter.default.removeObserver(highlightColorPreferenceObserver)
+        }
+        if let appWillTerminateObserver {
+            NotificationCenter.default.removeObserver(appWillTerminateObserver)
         }
     }
 

@@ -49,22 +49,52 @@ extension VellumPDFView {
             return
         }
 
+        restoreSnapshotPosition(snapshot, page: page, generation: generation)
+    }
+
+    func restoreSnapshotPosition(
+        _ snapshot: ReaderSnapshot,
+        page: PDFPage,
+        generation: Int,
+        attemptsRemaining: Int = 30,
+        stablePasses: Int = 0,
+        lastViewportSize: NSSize? = nil
+    ) {
+        guard generation == restoreGeneration else { return }
+
+        let viewportSize = fitViewportSize()
         autoScales = false
         if snapshot.autoScales {
-            _ = applyWidthFitScaleNow()
+            _ = applyWidthFitScaleNow(for: page)
         } else {
             scaleFactor = snapshot.scaleFactor
             layoutDocumentView()
+            needsDisplay = true
         }
 
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            self.go(to: PDFDestination(page: page, at: snapshot.pointOnPage))
-            self.restoreScrollOrigin(snapshot.scrollOrigin)
+        go(to: PDFDestination(page: page, at: snapshot.pointOnPage))
+        restoreScrollOrigin(snapshot.scrollOrigin)
 
-            DispatchQueue.main.async { [weak self] in
-                self?.restoreScrollOrigin(snapshot.scrollOrigin)
-            }
+        let nextStablePasses: Int
+        if let viewportSize,
+           let lastViewportSize,
+           isSameViewportSize(viewportSize, lastViewportSize) {
+            nextStablePasses = stablePasses + 1
+        } else {
+            nextStablePasses = 0
+        }
+
+        guard attemptsRemaining > 0, nextStablePasses < 2 else { return }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.04) { [weak self] in
+            self?.restoreSnapshotPosition(
+                snapshot,
+                page: page,
+                generation: generation,
+                attemptsRemaining: attemptsRemaining - 1,
+                stablePasses: nextStablePasses,
+                lastViewportSize: viewportSize
+            )
         }
     }
 
