@@ -13,7 +13,7 @@ guard let sourceImage = NSImage(contentsOf: sourceURL) else {
     )
 }
 let sourceRect = visibleSourceRect(in: sourceImage)
-let iconFillRatio: CGFloat = 0.82
+let iconFillRatio: CGFloat = 0.88
 
 try FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
 
