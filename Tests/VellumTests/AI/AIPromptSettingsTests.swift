@@ -49,6 +49,56 @@ struct AIPromptSettingsTests {
     }
 
     @Test
+    func rendererAddsPronunciationGuidanceForSingleToken() {
+        let context = AIExplanationContext(
+            selectedText: "salient",
+            previousParagraph: nil,
+            currentParagraph: "The salient factor matters.",
+            nextParagraph: nil,
+            nearbyText: "",
+            fileName: "paper.pdf",
+            directoryName: nil,
+            outlineTitle: nil,
+            pageNumbers: [2]
+        )
+
+        let prompt = AIPromptRenderer.renderUserPrompt(context: context, configuration: .default)
+
+        #expect(prompt.contains("Selection kind: single token or compact term"))
+        #expect(prompt.contains("Pronunciation requirement: Expected: if this is a natural-language word, name, or term in any source language"))
+        #expect(prompt.contains("Selected text:\nsalient"))
+        #expect(prompt.contains("Selection kind:\nsingle token or compact term"))
+        #expect(prompt.contains("Pronunciation requirement:\nExpected: if this is a natural-language word"))
+        #expect(prompt.contains("For a single natural-language word, name, or term in any source language, include the pronunciation section. Do not omit it."))
+    }
+
+    @Test
+    func rendererUsesSameSingleTokenGuidanceAcrossLanguages() {
+        let englishGuidance = AIPromptRenderer.pronunciationGuidance(for: "salient")
+        let chineseGuidance = AIPromptRenderer.pronunciationGuidance(for: "路径依赖")
+        let japaneseGuidance = AIPromptRenderer.pronunciationGuidance(for: "改善")
+
+        #expect(englishGuidance == chineseGuidance)
+        #expect(chineseGuidance == japaneseGuidance)
+        #expect(englishGuidance.contains("any source language"))
+    }
+
+    @Test
+    func rendererDoesNotRequirePronunciationForSentence() {
+        let guidance = AIPromptRenderer.pronunciationGuidance(for: "The estimator is asymptotically unbiased.")
+
+        #expect(guidance == "Not required: omit pronunciation unless it is clearly useful and reliable.")
+    }
+
+    @Test
+    func rendererEncouragesPronunciationForShortPhrase() {
+        let guidance = AIPromptRenderer.pronunciationGuidance(for: "laissez faire")
+
+        #expect(guidance.contains("Optional but encouraged"))
+        #expect(guidance.contains("romanization, or transliteration"))
+    }
+
+    @Test
     func currentSettingsFallBackToDefaultPrompt() {
         let suiteName = "AIPromptSettingsTests-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
@@ -100,5 +150,24 @@ struct AIPromptSettingsTests {
 
         #expect(configuration.template == AIPromptSettings.defaultTemplate)
         #expect(configuration.template.contains("For Chinese output, use \"### 音标\", \"### 翻译\", and \"### 上下文解释\"."))
+    }
+
+    @Test
+    func previousBuiltInPromptMigratesToPronunciationGuidance() {
+        let suiteName = "AIPromptSettingsTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let previousTemplate = AIPromptSettings.defaultTemplate
+            .replacingOccurrences(of: "\nSelection kind: {{selectionKind}}\nPronunciation requirement: {{pronunciationGuidance}}\n", with: "\n")
+            .replacingOccurrences(of: "- Follow the pronunciation requirement near the selected text.\n- For a single natural-language word, name, or term in any source language, include the pronunciation section. Do not omit it.\n- Prefer standard IPA when reliable. If IPA is not reliable or not the most useful reading aid, use the source language's standard reading or romanization, such as pinyin for Chinese, kana or romaji for Japanese, romanization for Korean, or a standard transliteration for other scripts.\n- If the selected text is an acronym, formula, code, citation marker, or symbol sequence, omit pronunciation unless the context clearly treats it as a spoken term.", with: "- If the selected text is a single English word or a common English inflected form, include common UK and US IPA. If only one reliable pronunciation is known, provide one and say it may vary.\n- If the selected text is a short Chinese phrase, include pinyin.")
+        defaults.set(previousTemplate, forKey: AIPromptSettings.promptTemplateKey)
+
+        let configuration = AIPromptSettings.current(defaults: defaults)
+
+        #expect(configuration.template == AIPromptSettings.defaultTemplate)
+        #expect(configuration.template.contains("Pronunciation requirement: {{pronunciationGuidance}}"))
     }
 }

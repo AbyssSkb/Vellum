@@ -32,7 +32,9 @@ enum AIPromptSettings {
         AIPromptVariableDescription(name: "previousParagraph", description: "Paragraph before the selected text."),
         AIPromptVariableDescription(name: "currentParagraph", description: "Paragraph containing the selected text."),
         AIPromptVariableDescription(name: "nextParagraph", description: "Paragraph after the selected text."),
-        AIPromptVariableDescription(name: "nearbyText", description: "Extracted nearby text for disambiguation.")
+        AIPromptVariableDescription(name: "nearbyText", description: "Extracted nearby text for disambiguation."),
+        AIPromptVariableDescription(name: "selectionKind", description: "Automatic structural classification of the selected text."),
+        AIPromptVariableDescription(name: "pronunciationGuidance", description: "Generic pronunciation policy for this selection.")
     ]
 
     static let defaultTemplate = """
@@ -42,10 +44,15 @@ Target output language: {{targetLanguage}}
 
 Return concise Markdown in this section order, but write the section headings in the target output language. For Chinese output, use "### 音标", "### 翻译", and "### 上下文解释". Omit a section completely when it does not apply.
 
+Selection kind: {{selectionKind}}
+Pronunciation requirement: {{pronunciationGuidance}}
+
 Pronunciation section:
 Use this section only for pronunciation:
-- If the selected text is a single English word or a common English inflected form, include common UK and US IPA. If only one reliable pronunciation is known, provide one and say it may vary.
-- If the selected text is a short Chinese phrase, include pinyin.
+- Follow the pronunciation requirement near the selected text.
+- For a single natural-language word, name, or term in any source language, include the pronunciation section. Do not omit it.
+- Prefer standard IPA when reliable. If IPA is not reliable or not the most useful reading aid, use the source language's standard reading or romanization, such as pinyin for Chinese, kana or romaji for Japanese, romanization for Korean, or a standard transliteration for other scripts.
+- If the selected text is an acronym, formula, code, citation marker, or symbol sequence, omit pronunciation unless the context clearly treats it as a spoken term.
 - Do not add pronunciation for full sentences, long phrases, formulas, or paragraphs.
 
 Translation section:
@@ -94,6 +101,12 @@ PDF metadata:
 
 Selected text:
 {{selectedText}}
+
+Selection kind:
+{{selectionKind}}
+
+Pronunciation requirement:
+{{pronunciationGuidance}}
 
 Previous paragraph:
 {{previousParagraph}}
@@ -188,7 +201,7 @@ Nearby extracted text:
         let storedTemplate = defaults.string(forKey: promptTemplateKey)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .nilIfEmpty
-        let template = storedTemplate == legacyEnglishHeadingTemplate
+        let template = isPreviousBuiltInTemplate(storedTemplate)
             ? defaultTemplate
             : storedTemplate ?? defaultTemplate
         return AIPromptConfiguration(targetLanguage: targetLanguage, template: template)
@@ -203,6 +216,18 @@ Nearby extracted text:
         defaults.removeObject(forKey: targetLanguageKey)
         defaults.removeObject(forKey: promptTemplateKey)
     }
+
+    private static func isPreviousBuiltInTemplate(_ template: String?) -> Bool {
+        guard let template else { return false }
+        if template == legacyEnglishHeadingTemplate {
+            return true
+        }
+
+        return template.contains("For Chinese output, use \"### 音标\", \"### 翻译\", and \"### 上下文解释\".")
+            && template.contains("If the selected text is a single English word or a common English inflected form, include common UK and US IPA.")
+            && template.contains("Selected text: \"salient\"")
+            && !template.contains("Pronunciation requirement: {{pronunciationGuidance}}")
+    }
 }
 
 struct AIRenderedPrompt: Equatable, Sendable {
@@ -216,7 +241,7 @@ struct AIRenderedPrompt: Equatable, Sendable {
 
 enum AIPromptRenderer {
     static let systemPrompt = """
-You are Vellum's precise PDF reading assistant. Follow the user's prompt template exactly, answer from the provided text and context only, and keep the format stable.
+You are Vellum's precise PDF reading assistant. Follow the user's prompt template exactly, answer from the provided text and context only, and keep the format stable. If the user prompt marks pronunciation as required, include that section.
 """
 
     static func render(
@@ -254,7 +279,76 @@ You are Vellum's precise PDF reading assistant. Follow the user's prompt templat
             "previousParagraph": context.previousParagraph?.nilIfEmpty ?? "Could not be reliably extracted from the PDF.",
             "currentParagraph": context.currentParagraph?.nilIfEmpty ?? "Could not be reliably extracted from the PDF.",
             "nextParagraph": context.nextParagraph?.nilIfEmpty ?? "Could not be reliably extracted from the PDF.",
-            "nearbyText": context.nearbyText.nilIfEmpty ?? "Could not be reliably extracted from the PDF."
+            "nearbyText": context.nearbyText.nilIfEmpty ?? "Could not be reliably extracted from the PDF.",
+            "selectionKind": selectionKindDescription(for: context.selectedText),
+            "pronunciationGuidance": pronunciationGuidance(for: context.selectedText)
         ]
     }
+
+    static func selectionKindDescription(for selectedText: String) -> String {
+        let kind = selectionKind(for: selectedText)
+        switch kind {
+        case .singleToken:
+            return "single token or compact term"
+        case .shortPhrase:
+            return "short phrase"
+        case .other:
+            return "sentence, long phrase, formula, paragraph, or unknown"
+        }
+    }
+
+    static func pronunciationGuidance(for selectedText: String) -> String {
+        let kind = selectionKind(for: selectedText)
+        switch kind {
+        case .singleToken:
+            return "Expected: if this is a natural-language word, name, or term in any source language, include a pronunciation section. Use reliable IPA when available; otherwise use the source language's standard reading, romanization, or transliteration. If it is an acronym, formula, code, citation marker, or symbol sequence, omit pronunciation unless the context clearly treats it as spoken."
+        case .shortPhrase:
+            return "Optional but encouraged: include pronunciation, reading, romanization, or transliteration when it helps read or disambiguate this short phrase. Omit it for formulas, citations, code, or phrases where pronunciation is not useful."
+        case .other:
+            return "Not required: omit pronunciation unless it is clearly useful and reliable."
+        }
+    }
+
+    private static func selectionKind(for selectedText: String) -> SelectionKind {
+        let whitespaceTrimmed = selectedText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let hasWhitespace = whitespaceTrimmed.contains { $0.isWhitespace || $0.isNewline }
+        guard !whitespaceTrimmed.isEmpty,
+              !(hasWhitespace && containsHardSentenceBoundary(whitespaceTrimmed)) else {
+            return .other
+        }
+
+        let trimmed = whitespaceTrimmed
+            .trimmingCharacters(in: .punctuationCharacters)
+        guard !trimmed.isEmpty else {
+            return .other
+        }
+
+        if !trimmed.contains(where: { $0.isWhitespace || $0.isNewline }) {
+            return .singleToken
+        }
+
+        let tokens = trimmed
+            .split(whereSeparator: { $0.isWhitespace || $0.isNewline })
+        if (2...5).contains(tokens.count), trimmed.count <= 48 {
+            return .shortPhrase
+        }
+        return .other
+    }
+
+    private static func containsHardSentenceBoundary(_ text: String) -> Bool {
+        text.unicodeScalars.contains { scalar in
+            switch scalar.value {
+            case 0x000A, 0x000D, 0x002E, 0x003F, 0x0021, 0x003B, 0x3002, 0xFF1F, 0xFF01, 0xFF1B:
+                return true
+            default:
+                return false
+            }
+        }
+    }
+}
+
+private enum SelectionKind {
+    case singleToken
+    case shortPhrase
+    case other
 }
