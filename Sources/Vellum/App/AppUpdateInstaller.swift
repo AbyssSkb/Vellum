@@ -36,6 +36,7 @@ enum AppUpdateInstaller {
         DEST=\(shellQuoted(destinationURL.path))
         PID=\(currentProcessID)
         LOG="${TMPDIR:-/tmp}/vellum-update.log"
+        INSTALL_SUCCEEDED=0
 
         fail() {
           /usr/bin/osascript -e 'display alert "Unable to install Vellum" message "The update was downloaded, but Vellum could not copy it to Applications. Open the disk image and install it manually."'
@@ -51,6 +52,9 @@ enum AppUpdateInstaller {
         cleanup() {
           /usr/bin/hdiutil detach "$MOUNT_DIR" >> "$LOG" 2>&1 || true
           /bin/rm -rf "$MOUNT_DIR"
+          if [[ "$INSTALL_SUCCEEDED" == "1" ]]; then
+            /bin/rm -f "$DMG" >> "$LOG" 2>&1 || true
+          fi
         }
         trap cleanup EXIT
 
@@ -63,6 +67,7 @@ enum AppUpdateInstaller {
         /bin/rm -rf "$DEST" >> "$LOG" 2>&1 || fail
         /usr/bin/ditto "$MOUNT_DIR/Vellum.app" "$DEST" >> "$LOG" 2>&1 || fail
         /usr/bin/open "$DEST" >> "$LOG" 2>&1 || fail
+        INSTALL_SUCCEEDED=1
         """
     }
 
