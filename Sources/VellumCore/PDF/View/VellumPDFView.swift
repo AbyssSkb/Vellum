@@ -17,7 +17,7 @@ final class VellumPDFView: PDFView {
     let aiInteraction = AIInteractionState()
     var isMouseSelectingText = false
     var pendingDoubleClickTextSelectionPoint: NSPoint?
-    var pendingDoubleClickHorizontalOrigin: CGFloat?
+    var pendingClickHorizontalOrigin: CGFloat?
     var textSelectionNavigationState: VimTextSelectionNavigationState?
     var pageOverviewController: PageOverviewController?
     var searchController: PDFSearchController?
@@ -163,18 +163,19 @@ final class VellumPDFView: PDFView {
     override func mouseDown(with event: NSEvent) {
         isMouseSelectingText = true
         pendingDoubleClickTextSelectionPoint = doubleClickTextSelectionPoint(for: event)
-        pendingDoubleClickHorizontalOrigin = pendingDoubleClickTextSelectionPoint == nil ? nil : currentHorizontalOrigin()
+        pendingClickHorizontalOrigin = clickHorizontalOriginToPreserve(for: event)
         searchController?.markReaderNavigated()
         textSelectionNavigationState = nil
         hideAIExplanationPopover()
         recordJumpSourceIfNeededForLinkClick(with: event)
         super.mouseDown(with: event)
-        restoreHorizontalOrigin(pendingDoubleClickHorizontalOrigin)
+        restoreHorizontalOrigin(pendingClickHorizontalOrigin)
     }
 
     override func mouseDragged(with event: NSEvent) {
         isMouseSelectingText = true
         pendingDoubleClickTextSelectionPoint = nil
+        pendingClickHorizontalOrigin = nil
         searchController?.markReaderNavigated()
         hideAIExplanationPopover()
         super.mouseDragged(with: event)
@@ -195,15 +196,16 @@ final class VellumPDFView: PDFView {
 
     override func mouseUp(with event: NSEvent) {
         super.mouseUp(with: event)
-        restoreHorizontalOrigin(pendingDoubleClickHorizontalOrigin)
+        restoreHorizontalOrigin(pendingClickHorizontalOrigin)
         let doubleClickPoint = pendingDoubleClickTextSelectionPoint
-        let doubleClickHorizontalOrigin = pendingDoubleClickHorizontalOrigin
+        let clickHorizontalOrigin = pendingClickHorizontalOrigin
         pendingDoubleClickTextSelectionPoint = nil
-        pendingDoubleClickHorizontalOrigin = nil
+        pendingClickHorizontalOrigin = nil
+        restoreHorizontalOriginAfterPDFKitClick(clickHorizontalOrigin)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) { [weak self] in
             guard let self else { return }
             self.isMouseSelectingText = false
-            self.restoreHorizontalOrigin(doubleClickHorizontalOrigin)
+            self.restoreHorizontalOrigin(clickHorizontalOrigin)
             self.explainDoubleClickedTextIfNeeded(at: doubleClickPoint)
         }
     }
@@ -253,16 +255,43 @@ final class VellumPDFView: PDFView {
         return convert(event.locationInWindow, from: nil)
     }
 
+    private func clickHorizontalOriginToPreserve(for event: NSEvent) -> CGFloat? {
+        guard event.modifierFlags.intersection([.command, .control, .option]).isEmpty else {
+            return nil
+        }
+
+        let pointInView = convert(event.locationInWindow, from: nil)
+        guard linkAnnotation(at: pointInView) == nil else { return nil }
+
+        return currentHorizontalOrigin()
+    }
+
+    private func restoreHorizontalOriginAfterPDFKitClick(_ originX: CGFloat?) {
+        guard originX != nil else { return }
+
+        for delay in [0.0, 0.03, 0.12] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                guard let self, self.pendingClickHorizontalOrigin == nil else { return }
+                self.restoreHorizontalOrigin(originX)
+            }
+        }
+    }
+
     private func recordJumpSourceIfNeededForLinkClick(with event: NSEvent) {
         guard event.clickCount == 1 else { return }
 
         let pointInView = convert(event.locationInWindow, from: nil)
-        guard let page = page(for: pointInView, nearest: false) else { return }
-
-        let pointOnPage = convert(pointInView, to: page)
-        guard PDFLinkNavigation.shouldRecordJumpSource(for: page.annotation(at: pointOnPage)) else { return }
+        guard PDFLinkNavigation.shouldRecordJumpSource(for: linkAnnotation(at: pointInView)) else { return }
 
         recordJumpSource()
+    }
+
+    private func linkAnnotation(at pointInView: NSPoint) -> PDFAnnotation? {
+        guard let page = page(for: pointInView, nearest: false) else { return nil }
+
+        let pointOnPage = convert(pointInView, to: page)
+        let annotation = page.annotation(at: pointOnPage)
+        return annotation?.type == "Link" ? annotation : nil
     }
 
     private func explainDoubleClickedTextIfNeeded(at point: NSPoint?) {
