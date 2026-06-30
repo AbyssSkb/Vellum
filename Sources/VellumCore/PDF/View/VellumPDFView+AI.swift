@@ -183,7 +183,12 @@ extension VellumPDFView {
         )
 
         let anchor = rect ?? NSRect(x: bounds.midX, y: bounds.midY, width: 1, height: 1)
+        let horizontalOrigin = currentHorizontalOrigin()
         popover.show(relativeTo: anchor, of: self, preferredEdge: .maxY)
+        restoreHorizontalOrigin(horizontalOrigin)
+        DispatchQueue.main.async { [weak self] in
+            self?.restoreHorizontalOrigin(horizontalOrigin)
+        }
         aiInteraction.explanationPopover = popover
         aiInteraction.activeExplanationModel = model
     }

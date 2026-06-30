@@ -171,12 +171,14 @@ final class VellumPDFView: PDFView {
         pendingDoubleClickTextSelectionPoint = doubleClickTextSelectionPoint(for: event)
         pendingClickHorizontalOrigin = clickHorizontalOriginToPreserve(for: event)
         didDragDuringCurrentMouseSequence = false
-        cancelPendingRestore()
         searchController?.markReaderNavigated()
         textSelectionNavigationState = nil
         hideAIExplanationPopover()
-        recordJumpSourceIfNeededForLinkClick(with: event)
+        if recordJumpSourceIfNeededForLinkClick(with: event) {
+            cancelPendingRestore()
+        }
         super.mouseDown(with: event)
+        restoreHorizontalOrigin(pendingClickHorizontalOrigin)
     }
 
     override func mouseDragged(with event: NSEvent) {
@@ -284,8 +286,7 @@ final class VellumPDFView: PDFView {
         guard event.modifierFlags.intersection([.command, .control, .option]).isEmpty else {
             return nil
         }
-
-        guard didCompleteInitialPointerInteraction else { return nil }
+        guard event.clickCount == 2 || !didCompleteInitialPointerInteraction else { return nil }
 
         let pointInView = convert(event.locationInWindow, from: nil)
         guard linkAnnotation(at: pointInView) == nil else { return nil }
@@ -293,13 +294,15 @@ final class VellumPDFView: PDFView {
         return currentHorizontalOrigin()
     }
 
-    private func recordJumpSourceIfNeededForLinkClick(with event: NSEvent) {
-        guard event.clickCount == 1 else { return }
+    @discardableResult
+    private func recordJumpSourceIfNeededForLinkClick(with event: NSEvent) -> Bool {
+        guard event.clickCount == 1 else { return false }
 
         let pointInView = convert(event.locationInWindow, from: nil)
-        guard PDFLinkNavigation.shouldRecordJumpSource(for: linkAnnotation(at: pointInView)) else { return }
+        guard PDFLinkNavigation.shouldRecordJumpSource(for: linkAnnotation(at: pointInView)) else { return false }
 
         recordJumpSource()
+        return true
     }
 
     private func linkAnnotation(at pointInView: NSPoint) -> PDFAnnotation? {
