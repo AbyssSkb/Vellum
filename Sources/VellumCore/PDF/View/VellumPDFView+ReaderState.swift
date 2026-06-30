@@ -36,10 +36,12 @@ extension VellumPDFView {
     func restore(_ snapshot: ReaderSnapshot?) {
         restoreGeneration += 1
         let generation = restoreGeneration
+        pendingRestoreAction = nil
         stopScrollAnimation()
         stopZoomState()
 
         if snapshot == .initial {
+            pendingRestoreAction = .initial(generation: generation)
             restoreInitialDocumentPosition(generation: generation)
             return
         }
@@ -49,6 +51,7 @@ extension VellumPDFView {
             return
         }
 
+        pendingRestoreAction = .snapshot(snapshot: snapshot, page: page, generation: generation)
         restoreSnapshotPosition(snapshot, page: page, generation: generation)
     }
 
@@ -62,18 +65,7 @@ extension VellumPDFView {
     ) {
         guard generation == restoreGeneration else { return }
 
-        let viewportSize = fitViewportSize()
-        autoScales = false
-        if snapshot.autoScales {
-            _ = applyWidthFitScaleNow(for: page)
-        } else {
-            scaleFactor = snapshot.scaleFactor
-            layoutDocumentView()
-            needsDisplay = true
-        }
-
-        go(to: PDFDestination(page: page, at: snapshot.pointOnPage))
-        restoreScrollOrigin(snapshot.scrollOrigin)
+        let viewportSize = applySnapshotPosition(snapshot, page: page)
 
         let nextStablePasses: Int
         if let viewportSize,
@@ -84,7 +76,10 @@ extension VellumPDFView {
             nextStablePasses = 0
         }
 
-        guard attemptsRemaining > 0, nextStablePasses < 2 else { return }
+        guard attemptsRemaining > 0, nextStablePasses < 2 else {
+            clearPendingRestoreAction(generation: generation)
+            return
+        }
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.04) { [weak self] in
             self?.restoreSnapshotPosition(
@@ -106,12 +101,9 @@ extension VellumPDFView {
     ) {
         guard generation == restoreGeneration else { return }
 
-        let viewportSize = fitViewportSize()
-        let didApplyZoom = applyInitialZoomBehavior(for: document?.page(at: 0))
-        if didApplyZoom {
-            goToFirstPage(nil)
-            scrollToDocumentEdge(.top)
-        }
+        let appliedPosition = applyInitialDocumentPositionOnce()
+        let viewportSize = appliedPosition.viewportSize
+        let didApplyZoom = appliedPosition.didApplyZoom
 
         let nextStablePasses: Int
         if didApplyZoom,
@@ -123,7 +115,10 @@ extension VellumPDFView {
             nextStablePasses = 0
         }
 
-        guard attemptsRemaining > 0, (!didApplyZoom || nextStablePasses < 2) else { return }
+        guard attemptsRemaining > 0, (!didApplyZoom || nextStablePasses < 2) else {
+            clearPendingRestoreAction(generation: generation)
+            return
+        }
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.04) { [weak self] in
             self?.restoreInitialDocumentPosition(
@@ -133,6 +128,52 @@ extension VellumPDFView {
                 lastViewportSize: viewportSize
             )
         }
+    }
+
+    func completePendingRestoreBeforeUserInteraction() {
+        guard let pendingRestoreAction,
+              pendingRestoreAction.generation == restoreGeneration else { return }
+
+        switch pendingRestoreAction {
+        case .initial:
+            _ = applyInitialDocumentPositionOnce()
+        case .snapshot(let snapshot, let page, _):
+            _ = applySnapshotPosition(snapshot, page: page)
+        }
+
+        cancelPendingRestore()
+    }
+
+    func clearPendingRestoreAction(generation: Int) {
+        guard pendingRestoreAction?.generation == generation else { return }
+        pendingRestoreAction = nil
+    }
+
+    @discardableResult
+    func applySnapshotPosition(_ snapshot: ReaderSnapshot, page: PDFPage) -> NSSize? {
+        let viewportSize = fitViewportSize()
+        autoScales = false
+        if snapshot.autoScales {
+            _ = applyWidthFitScaleNow(for: page)
+        } else {
+            scaleFactor = snapshot.scaleFactor
+            layoutDocumentView()
+            needsDisplay = true
+        }
+
+        go(to: PDFDestination(page: page, at: snapshot.pointOnPage))
+        restoreScrollOrigin(snapshot.scrollOrigin)
+        return viewportSize
+    }
+
+    func applyInitialDocumentPositionOnce() -> (viewportSize: NSSize?, didApplyZoom: Bool) {
+        let viewportSize = fitViewportSize()
+        let didApplyZoom = applyInitialZoomBehavior(for: document?.page(at: 0))
+        if didApplyZoom {
+            goToFirstPage(nil)
+            scrollToDocumentEdge(.top)
+        }
+        return (viewportSize, didApplyZoom)
     }
 
     @discardableResult

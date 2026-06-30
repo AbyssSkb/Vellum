@@ -153,6 +153,7 @@ extension VellumPDFView {
 
     func cancelPendingRestore() {
         restoreGeneration += 1
+        pendingRestoreAction = nil
     }
 
     @discardableResult

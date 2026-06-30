@@ -184,6 +184,9 @@ extension VellumPDFView {
 
         let anchor = rect ?? NSRect(x: bounds.midX, y: bounds.midY, width: 1, height: 1)
         let horizontalOrigin = currentHorizontalOrigin()
+        if horizontalOrigin != nil {
+            window?.disableScreenUpdatesUntilFlush()
+        }
         popover.show(relativeTo: anchor, of: self, preferredEdge: .maxY)
         restoreHorizontalOrigin(horizontalOrigin)
         DispatchQueue.main.async { [weak self] in

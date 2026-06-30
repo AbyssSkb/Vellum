@@ -3,6 +3,19 @@ import PDFKit
 import SwiftUI
 
 
+enum PendingRestoreAction {
+    case initial(generation: Int)
+    case snapshot(snapshot: ReaderSnapshot, page: PDFPage, generation: Int)
+
+    var generation: Int {
+        switch self {
+        case .initial(let generation),
+             .snapshot(_, _, let generation):
+            return generation
+        }
+    }
+}
+
 final class VellumPDFView: PDFView {
     static let textSelectionNavigationKeys: Set<String> = ["h", "j", "k", "l", "w", "b", "e"]
 
@@ -18,8 +31,10 @@ final class VellumPDFView: PDFView {
     var isMouseSelectingText = false
     var pendingDoubleClickTextSelectionPoint: NSPoint?
     var pendingClickHorizontalOrigin: CGFloat?
+    var didHandleDoubleClickTextSelectionMouseDown = false
     var didDragDuringCurrentMouseSequence = false
     var didCompleteInitialPointerInteraction = false
+    var pendingRestoreAction: PendingRestoreAction?
     var textSelectionNavigationState: VimTextSelectionNavigationState?
     var pageOverviewController: PageOverviewController?
     var searchController: PDFSearchController?
@@ -109,6 +124,7 @@ final class VellumPDFView: PDFView {
         didDragDuringCurrentMouseSequence = false
         pendingClickHorizontalOrigin = nil
         pendingDoubleClickTextSelectionPoint = nil
+        didHandleDoubleClickTextSelectionMouseDown = false
         didCompleteInitialPointerInteraction = false
         if appState?.isOutlineVisible != true {
             focus()
@@ -167,15 +183,23 @@ final class VellumPDFView: PDFView {
     }
 
     override func mouseDown(with event: NSEvent) {
+        completePendingRestoreBeforeUserInteraction()
         isMouseSelectingText = true
         pendingDoubleClickTextSelectionPoint = doubleClickTextSelectionPoint(for: event)
         pendingClickHorizontalOrigin = clickHorizontalOriginToPreserve(for: event)
+        didHandleDoubleClickTextSelectionMouseDown = false
         didDragDuringCurrentMouseSequence = false
         searchController?.markReaderNavigated()
         textSelectionNavigationState = nil
         hideAIExplanationPopover()
         if recordJumpSourceIfNeededForLinkClick(with: event) {
             cancelPendingRestore()
+        }
+        if handleDoubleClickTextSelectionMouseDown(with: event) {
+            return
+        }
+        if pendingClickHorizontalOrigin != nil {
+            window?.disableScreenUpdatesUntilFlush()
         }
         super.mouseDown(with: event)
         restoreHorizontalOrigin(pendingClickHorizontalOrigin)
@@ -184,6 +208,7 @@ final class VellumPDFView: PDFView {
     override func mouseDragged(with event: NSEvent) {
         isMouseSelectingText = true
         pendingDoubleClickTextSelectionPoint = nil
+        didHandleDoubleClickTextSelectionMouseDown = false
         didDragDuringCurrentMouseSequence = true
         pendingClickHorizontalOrigin = nil
         cancelPendingRestore()
@@ -193,6 +218,7 @@ final class VellumPDFView: PDFView {
     }
 
     override func otherMouseDown(with event: NSEvent) {
+        completePendingRestoreBeforeUserInteraction()
         cancelPendingRestore()
 
         if explainSelectedTextIfNeededForMiddleClick(with: event) {
@@ -203,13 +229,18 @@ final class VellumPDFView: PDFView {
     }
 
     override func scrollWheel(with event: NSEvent) {
+        completePendingRestoreBeforeUserInteraction()
         cancelPendingRestore()
         searchController?.markReaderNavigated()
         super.scrollWheel(with: event)
     }
 
     override func mouseUp(with event: NSEvent) {
-        super.mouseUp(with: event)
+        let didHandleDoubleClickTextSelectionMouseDown = didHandleDoubleClickTextSelectionMouseDown
+        self.didHandleDoubleClickTextSelectionMouseDown = false
+        if !didHandleDoubleClickTextSelectionMouseDown {
+            super.mouseUp(with: event)
+        }
         let doubleClickPoint = pendingDoubleClickTextSelectionPoint
         let clickHorizontalOrigin = pendingClickHorizontalOrigin
         let isInitialPointerInteraction = !didCompleteInitialPointerInteraction
@@ -292,6 +323,28 @@ final class VellumPDFView: PDFView {
         guard linkAnnotation(at: pointInView) == nil else { return nil }
 
         return currentHorizontalOrigin()
+    }
+
+    private func handleDoubleClickTextSelectionMouseDown(with event: NSEvent) -> Bool {
+        guard let pointInView = pendingDoubleClickTextSelectionPoint,
+              event.clickCount == 2,
+              linkAnnotation(at: pointInView) == nil,
+              let page = page(for: pointInView, nearest: false) else {
+            return false
+        }
+
+        let pointOnPage = convert(pointInView, to: page)
+        guard let selection = page.selectionForWord(at: pointOnPage),
+              selection.string?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
+            return false
+        }
+
+        cancelPendingRestore()
+        didHandleDoubleClickTextSelectionMouseDown = true
+        setCurrentSelection(selection, animate: false)
+        needsDisplay = true
+        restoreHorizontalOrigin(pendingClickHorizontalOrigin)
+        return true
     }
 
     @discardableResult
