@@ -146,16 +146,32 @@ struct KeyboardControllerTests {
         #expect(delegate.reader.actions == [])
     }
 
+    @Test
+    func commandShortcutsPassThroughToAppMenus() {
+        let controller = KeyboardController(
+            installsKeyMonitor: false,
+            installsOpenURLObserver: false
+        )
+        let delegate = RecordingKeyboardDelegate()
+        controller.delegate = delegate
+
+        #expect(!controller.handleKeyEvent(keyEvent(.keyDown, key: "q", keyCode: 12, modifierFlags: [.command])))
+
+        #expect(delegate.commands == [])
+        #expect(delegate.reader.actions == [])
+    }
+
     private func keyEvent(
         _ type: NSEvent.EventType,
         key: String,
         keyCode: UInt16,
-        isRepeat: Bool = false
+        isRepeat: Bool = false,
+        modifierFlags: NSEvent.ModifierFlags = []
     ) -> NSEvent {
         NSEvent.keyEvent(
             with: type,
             location: .zero,
-            modifierFlags: [],
+            modifierFlags: modifierFlags,
             timestamp: 0,
             windowNumber: 0,
             context: nil,

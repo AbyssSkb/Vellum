@@ -21,6 +21,13 @@ struct VellumApp: App {
                 }
             }
 
+            CommandGroup(replacing: .appTermination) {
+                Button(language.text(.quitVellum)) {
+                    NSApp.terminate(nil)
+                }
+                .keyboardShortcut("q", modifiers: [.command])
+            }
+
             CommandGroup(replacing: .appSettings) {
                 Button(language.text(.settingsMenu)) {
                     appDelegate.openSettings()

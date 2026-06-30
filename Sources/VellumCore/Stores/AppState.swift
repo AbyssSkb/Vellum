@@ -34,7 +34,7 @@ public final class AppState: ObservableObject {
             }
         }
         appWillTerminateObserver = NotificationCenter.default.addObserver(
-            forName: NSApplication.willTerminateNotification,
+            forName: NSApplication.willResignActiveNotification,
             object: nil,
             queue: .main
         ) { [weak self] _ in

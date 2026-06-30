@@ -136,6 +136,7 @@ public enum AppText {
     case promptTemplate
     case promptVariables
     case promptVariablesHint
+    case quitVellum
     case reading
     case releaseNotesFallback
     case restorePreviousTabs
@@ -287,6 +288,7 @@ public extension AppText {
         case .promptTemplate: return "Template"
         case .promptVariables: return "Variables"
         case .promptVariablesHint: return "Use variables like {{selectedText}} and {{targetLanguage}}."
+        case .quitVellum: return "Quit Vellum"
         case .reading: return "Reading"
         case .releaseNotesFallback: return "Release notes are still syncing. Open GitHub to view the full changelog."
         case .restorePreviousTabs: return "Restore Previous Tabs"
@@ -429,6 +431,7 @@ public extension AppText {
         case .promptTemplate: return "模板"
         case .promptVariables: return "变量"
         case .promptVariablesHint: return "可以使用 {{selectedText}} 和 {{targetLanguage}} 这类变量。"
+        case .quitVellum: return "退出 Vellum"
         case .reading: return "阅读"
         case .releaseNotesFallback: return "更新日志仍在同步。打开 GitHub 查看完整变更。"
         case .restorePreviousTabs: return "恢复上次标签页"
