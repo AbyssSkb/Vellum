@@ -165,6 +165,7 @@ final class VellumPDFView: PDFView {
         searchController?.markReaderNavigated()
         textSelectionNavigationState = nil
         hideAIExplanationPopover()
+        recordJumpSourceIfNeededForLinkClick(with: event)
         super.mouseDown(with: event)
     }
 
@@ -235,6 +236,18 @@ final class VellumPDFView: PDFView {
         }
 
         return convert(event.locationInWindow, from: nil)
+    }
+
+    private func recordJumpSourceIfNeededForLinkClick(with event: NSEvent) {
+        guard event.clickCount == 1 else { return }
+
+        let pointInView = convert(event.locationInWindow, from: nil)
+        guard let page = page(for: pointInView, nearest: false) else { return }
+
+        let pointOnPage = convert(pointInView, to: page)
+        guard PDFLinkNavigation.shouldRecordJumpSource(for: page.annotation(at: pointOnPage)) else { return }
+
+        recordJumpSource()
     }
 
     private func explainDoubleClickedTextIfNeeded(at point: NSPoint?) {
