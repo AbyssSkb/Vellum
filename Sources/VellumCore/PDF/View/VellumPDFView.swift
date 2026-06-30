@@ -17,7 +17,7 @@ final class VellumPDFView: PDFView {
     let aiInteraction = AIInteractionState()
     var isMouseSelectingText = false
     var pendingDoubleClickTextSelectionPoint: NSPoint?
-    var pendingClickHorizontalOrigin: CGFloat?
+    var pendingDoubleClickHorizontalOrigin: CGFloat?
     var textSelectionNavigationState: VimTextSelectionNavigationState?
     var pageOverviewController: PageOverviewController?
     var searchController: PDFSearchController?
@@ -163,25 +163,29 @@ final class VellumPDFView: PDFView {
     override func mouseDown(with event: NSEvent) {
         isMouseSelectingText = true
         pendingDoubleClickTextSelectionPoint = doubleClickTextSelectionPoint(for: event)
-        pendingClickHorizontalOrigin = clickHorizontalOriginToPreserve(for: event)
+        pendingDoubleClickHorizontalOrigin = pendingDoubleClickTextSelectionPoint == nil ? nil : currentHorizontalOrigin()
+        cancelPendingRestore()
         searchController?.markReaderNavigated()
         textSelectionNavigationState = nil
         hideAIExplanationPopover()
         recordJumpSourceIfNeededForLinkClick(with: event)
         super.mouseDown(with: event)
-        restoreHorizontalOrigin(pendingClickHorizontalOrigin)
+        restoreHorizontalOrigin(pendingDoubleClickHorizontalOrigin)
     }
 
     override func mouseDragged(with event: NSEvent) {
         isMouseSelectingText = true
         pendingDoubleClickTextSelectionPoint = nil
-        pendingClickHorizontalOrigin = nil
+        pendingDoubleClickHorizontalOrigin = nil
+        cancelPendingRestore()
         searchController?.markReaderNavigated()
         hideAIExplanationPopover()
         super.mouseDragged(with: event)
     }
 
     override func otherMouseDown(with event: NSEvent) {
+        cancelPendingRestore()
+
         if explainSelectedTextIfNeededForMiddleClick(with: event) {
             return
         }
@@ -190,22 +194,22 @@ final class VellumPDFView: PDFView {
     }
 
     override func scrollWheel(with event: NSEvent) {
+        cancelPendingRestore()
         searchController?.markReaderNavigated()
         super.scrollWheel(with: event)
     }
 
     override func mouseUp(with event: NSEvent) {
         super.mouseUp(with: event)
-        restoreHorizontalOrigin(pendingClickHorizontalOrigin)
+        restoreHorizontalOrigin(pendingDoubleClickHorizontalOrigin)
         let doubleClickPoint = pendingDoubleClickTextSelectionPoint
-        let clickHorizontalOrigin = pendingClickHorizontalOrigin
+        let doubleClickHorizontalOrigin = pendingDoubleClickHorizontalOrigin
         pendingDoubleClickTextSelectionPoint = nil
-        pendingClickHorizontalOrigin = nil
-        restoreHorizontalOriginAfterPDFKitClick(clickHorizontalOrigin)
+        pendingDoubleClickHorizontalOrigin = nil
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) { [weak self] in
             guard let self else { return }
             self.isMouseSelectingText = false
-            self.restoreHorizontalOrigin(clickHorizontalOrigin)
+            self.restoreHorizontalOrigin(doubleClickHorizontalOrigin)
             self.explainDoubleClickedTextIfNeeded(at: doubleClickPoint)
         }
     }
@@ -253,28 +257,6 @@ final class VellumPDFView: PDFView {
         }
 
         return convert(event.locationInWindow, from: nil)
-    }
-
-    private func clickHorizontalOriginToPreserve(for event: NSEvent) -> CGFloat? {
-        guard event.modifierFlags.intersection([.command, .control, .option]).isEmpty else {
-            return nil
-        }
-
-        let pointInView = convert(event.locationInWindow, from: nil)
-        guard linkAnnotation(at: pointInView) == nil else { return nil }
-
-        return currentHorizontalOrigin()
-    }
-
-    private func restoreHorizontalOriginAfterPDFKitClick(_ originX: CGFloat?) {
-        guard originX != nil else { return }
-
-        for delay in [0.0, 0.03, 0.12] {
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-                guard let self, self.pendingClickHorizontalOrigin == nil else { return }
-                self.restoreHorizontalOrigin(originX)
-            }
-        }
     }
 
     private func recordJumpSourceIfNeededForLinkClick(with event: NSEvent) {
