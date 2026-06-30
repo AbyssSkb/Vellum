@@ -31,6 +31,10 @@ mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
 
 cp "$EXECUTABLE" "$MACOS_DIR/$APP_NAME"
 
+if command -v strip >/dev/null 2>&1; then
+    strip -S -x "$MACOS_DIR/$APP_NAME"
+fi
+
 ICONSET_DIR="$ROOT_DIR/.build/AppIcon.iconset"
 SOURCE_ICON="$ROOT_DIR/Resources/AppIcon/icon.png"
 rm -rf "$ICONSET_DIR"
