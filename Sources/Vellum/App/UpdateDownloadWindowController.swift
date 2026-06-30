@@ -10,7 +10,7 @@ final class UpdateDownloadWindowController: NSWindowController {
     private let progressTrackView = NSView()
     private let progressFillView = NSView()
     private var progressFillWidthConstraint: NSLayoutConstraint?
-    private var currentProgressValue = 0.18
+    private var currentProgressValue = 0.0
     private let language = AppUILanguage.saved()
     private lazy var cancelButton = NSButton(title: language.text(.cancel), target: nil, action: nil)
     private var shouldCancelOnClose = true
@@ -52,7 +52,7 @@ final class UpdateDownloadWindowController: NSWindowController {
             updateDeterminateProgress(progress)
             detailLabel.stringValue = "\(Self.formattedPercent(progress)) - \(Self.formattedBytes(receivedBytes)) of \(Self.formattedBytes(totalBytes))"
         } else {
-            updateDeterminateProgress(0.18)
+            updateDeterminateProgress(0)
             detailLabel.stringValue = language.text(.downloadedBytes(Self.formattedBytes(receivedBytes)))
         }
     }
@@ -64,7 +64,7 @@ final class UpdateDownloadWindowController: NSWindowController {
         }
         cancelButton.isEnabled = canCancel
         shouldCancelOnClose = canCancel
-        updateDeterminateProgress(indeterminate ? 0.18 : lastProgressValue)
+        updateDeterminateProgress(indeterminate ? 0 : lastProgressValue)
     }
 
     func finish() {
@@ -137,6 +137,7 @@ final class UpdateDownloadWindowController: NSWindowController {
         cancelButton.layer?.borderWidth = 1
         cancelButton.layer?.borderColor = TokyoNight.border.cgColor
         cancelButton.setContentHuggingPriority(.required, for: .horizontal)
+        cancelButton.setContentCompressionResistancePriority(.required, for: .horizontal)
 
         let actionSpacer = NSView()
         actionSpacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
@@ -171,6 +172,7 @@ final class UpdateDownloadWindowController: NSWindowController {
             progressFillView.bottomAnchor.constraint(equalTo: progressTrackView.bottomAnchor, constant: -2),
             progressFillView.widthAnchor.constraint(lessThanOrEqualTo: progressTrackView.widthAnchor, constant: -4),
             cancelButton.heightAnchor.constraint(equalToConstant: 28),
+            cancelButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 88),
             stack.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 24),
             stack.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -24),
             stack.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 44),
