@@ -150,6 +150,7 @@ public enum AppText {
     case settingsMenu
     case shortcuts
     case shortcutsHeaderSubtitle
+    case speakPronunciation
     case startup
     case testCodex
     case testEndpoint
@@ -300,6 +301,7 @@ public extension AppText {
         case .settingsMenu: return "Settings..."
         case .shortcuts: return "Shortcuts"
         case .shortcutsHeaderSubtitle: return "Keyboard commands available in the reader."
+        case .speakPronunciation: return "Speak pronunciation"
         case .startup: return "Startup"
         case .testCodex: return "Test Codex"
         case .testEndpoint: return "Test Endpoint"
@@ -441,6 +443,7 @@ public extension AppText {
         case .settingsMenu: return "设置..."
         case .shortcuts: return "快捷键"
         case .shortcutsHeaderSubtitle: return "阅读器中可用的键盘命令。"
+        case .speakPronunciation: return "朗读发音"
         case .startup: return "启动"
         case .testCodex: return "测试 Codex"
         case .testEndpoint: return "测试端点"

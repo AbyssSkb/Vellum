@@ -76,7 +76,8 @@ extension VellumPDFView {
         let model = AIExplanationPopoverModel(
             title: "Saved explanation",
             text: explanation,
-            initialHeight: AIExplanationPopoverMetrics.estimatedHoverHeight(for: explanation)
+            initialHeight: AIExplanationPopoverMetrics.estimatedHoverHeight(for: explanation),
+            pronunciationSpeechText: pronunciationSpeechText(for: annotation, explanation: explanation)
         )
         showPopover(
             model: model,
@@ -104,12 +105,14 @@ extension VellumPDFView {
 
     func showStreamingAIExplanationPopover(
         title: String,
+        pronunciationSpeechText: String?,
         at rect: NSRect?
     ) -> AIExplanationPopoverModel? {
         let model = AIExplanationPopoverModel(
             title: title,
             isStreaming: true,
-            initialHeight: AIExplanationPopoverMetrics.streamingMinimumHeight
+            initialHeight: AIExplanationPopoverMetrics.streamingMinimumHeight,
+            pronunciationSpeechText: pronunciationSpeechText
         )
         showPopover(model: model, at: rect ?? selectionPopoverRect(for: currentSelection), kind: .streaming)
         clearSuppressedHoverExplanation()
@@ -243,6 +246,7 @@ extension VellumPDFView {
     func hideAIExplanationPopover() {
         cancelPendingHoverPopoverHide()
         stopAIContinuousScroll()
+        aiInteraction.activeWebView?.stopPronunciation()
         aiInteraction.clearPopoverState()
     }
 
@@ -286,6 +290,30 @@ extension VellumPDFView {
             annotation.type == "Highlight"
                 && AIExplanationAnnotation.decode(annotation.contents) == explanation
         }
+    }
+
+    func pronunciationSpeechText(for annotation: PDFAnnotation, explanation: String) -> String? {
+        guard let page = annotation.page else { return nil }
+
+        let annotations = explanationAnnotations(matching: explanation, on: page)
+        let sourceAnnotations = annotations.isEmpty ? [annotation] : annotations
+        let text = sourceAnnotations
+            .sorted { lhs, rhs in
+                if abs(lhs.bounds.midY - rhs.bounds.midY) > 2 {
+                    return lhs.bounds.midY > rhs.bounds.midY
+                }
+                return lhs.bounds.minX < rhs.bounds.minX
+            }
+            .compactMap { sourceAnnotation in
+                sourceAnnotation.page?
+                    .selection(for: sourceAnnotation.bounds.insetBy(dx: -1, dy: -1))?
+                    .string?
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .nilIfEmpty
+            }
+            .joined(separator: " ")
+
+        return AIExplanationPronunciationSpeech.normalizedSelectionText(text)
     }
 
     func hoverExplanationKey(for annotation: PDFAnnotation, explanation: String) -> String {

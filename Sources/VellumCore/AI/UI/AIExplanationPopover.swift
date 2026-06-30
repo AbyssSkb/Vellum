@@ -2,6 +2,7 @@ import SwiftUI
 
 
 struct AIExplanationPopoverView: View {
+    @Environment(\.appUILanguage) private var language
     @ObservedObject var model: AIExplanationPopoverModel
     let kind: AIExplanationPopoverKind
     let onDismiss: () -> Void
@@ -19,6 +20,8 @@ struct AIExplanationPopoverView: View {
             onContentHeightChange: onContentHeightChange,
             focusWhenReady: kind.shouldFocusWebView,
             autoScrollOnUpdate: kind.autoScrollOnUpdate,
+            pronunciationSpeechText: model.pronunciationSpeechText,
+            speakButtonTitle: language.text(.speakPronunciation),
             onReady: onWebViewReady
         )
         .frame(width: model.preferredSize.width, height: model.preferredSize.height)
@@ -34,6 +37,8 @@ struct MarkdownWebView: NSViewRepresentable {
     let onContentHeightChange: (CGFloat) -> Void
     let focusWhenReady: Bool
     let autoScrollOnUpdate: Bool
+    let pronunciationSpeechText: String?
+    let speakButtonTitle: String
     let onReady: (AIExplanationWebView) -> Void
 
     func makeNSView(context: Context) -> AIExplanationWebView {
@@ -44,6 +49,8 @@ struct MarkdownWebView: NSViewRepresentable {
         webView.onContentHeightChange = onContentHeightChange
         webView.shouldFocusWhenReady = focusWhenReady
         webView.autoScrollOnUpdate = autoScrollOnUpdate
+        webView.pronunciationSpeechText = pronunciationSpeechText
+        webView.speakButtonTitle = speakButtonTitle
         onReady(webView)
         webView.render(markdown)
         return webView
@@ -56,6 +63,8 @@ struct MarkdownWebView: NSViewRepresentable {
         webView.onContentHeightChange = onContentHeightChange
         webView.shouldFocusWhenReady = focusWhenReady
         webView.autoScrollOnUpdate = autoScrollOnUpdate
+        webView.pronunciationSpeechText = pronunciationSpeechText
+        webView.speakButtonTitle = speakButtonTitle
         onReady(webView)
         webView.render(markdown)
 

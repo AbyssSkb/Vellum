@@ -74,6 +74,7 @@ final class AIExplanationPopoverModel: ObservableObject {
     @Published var text: String
     @Published var isStreaming: Bool
     @Published private(set) var preferredHeight: CGFloat
+    let pronunciationSpeechText: String?
     let maximumHeight: CGFloat
 
     init(
@@ -81,12 +82,14 @@ final class AIExplanationPopoverModel: ObservableObject {
         text: String = "",
         isStreaming: Bool = false,
         initialHeight: CGFloat = AIExplanationPopoverMetrics.standardInitialHeight,
+        pronunciationSpeechText: String? = nil,
         maximumHeight: CGFloat = AIExplanationPopoverMetrics.maximumHeight
     ) {
         self.title = title
         self.text = text
         self.isStreaming = isStreaming
         self.preferredHeight = initialHeight
+        self.pronunciationSpeechText = AIExplanationPronunciationSpeech.normalizedSelectionText(pronunciationSpeechText)
         self.maximumHeight = maximumHeight
     }
 

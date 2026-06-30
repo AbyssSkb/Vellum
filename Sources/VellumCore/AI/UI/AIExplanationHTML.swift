@@ -69,6 +69,36 @@ enum AIExplanationHTML {
         strong { color: #E0E7FF; }
         a { color: #7AA2F7; }
         .empty { color: #565F89; }
+        .heading-row {
+          display: inline-flex;
+          align-items: center;
+          gap: 7px;
+        }
+        .speak-button {
+          appearance: none;
+          width: 22px;
+          height: 22px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          margin: -2px 0 0 1px;
+          padding: 0;
+          border: 1px solid #3B4261;
+          border-radius: 6px;
+          background: #24283B;
+          color: #7DCFFF;
+          font: 12px -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+          line-height: 1;
+          cursor: default;
+        }
+        .speak-button:hover {
+          border-color: #7AA2F7;
+          color: #C0CAF5;
+          background: #33467C;
+        }
+        .speak-button:active {
+          transform: translateY(1px);
+        }
       </style>
     </head>
     <body>
@@ -80,6 +110,8 @@ enum AIExplanationHTML {
           lastTime: 0,
           velocity: 672
         };
+        var pronunciationSpeechText = '';
+        var pronunciationSpeakTitle = 'Speak pronunciation';
         function tickScroll(now) {
           if (!scrollState.direction) { return; }
           const previous = scrollState.lastTime || now;
@@ -119,6 +151,21 @@ enum AIExplanationHTML {
             .replace(/\\*([^*]+)\\*/g, '<em>$1</em>')
             .replace(/\\[([^\\]]+)\\]\\(([^\\)]+)\\)/g, '<a href="$2">$1</a>');
         }
+        function isPronunciationHeading(value) {
+          const normalized = value
+            .replace(/<[^>]*>/g, '')
+            .replace(/[:：]\\s*$/, '')
+            .trim()
+            .toLowerCase();
+          return normalized === '音标'
+            || normalized === 'pronunciation'
+            || normalized === 'reading';
+        }
+        function speakButtonHTML() {
+          if (!pronunciationSpeechText.trim()) { return ''; }
+          const title = escapeHTML(pronunciationSpeakTitle || 'Speak pronunciation');
+          return `<button class="speak-button" type="button" title="${title}" aria-label="${title}" onclick="postVellumCommand('speakPronunciation')">▶</button>`;
+        }
         function renderMarkdown(markdown) {
           const fenceMap = [];
           let text = escapeHTML(markdown || '...');
@@ -139,7 +186,9 @@ enum AIExplanationHTML {
             let match;
             if ((match = line.match(/^(#{1,3})\\s+(.+)$/))) {
               closeList();
-              html += `<h${match[1].length}>${inlineMarkdown(match[2])}</h${match[1].length}>`;
+              const heading = inlineMarkdown(match[2]);
+              const action = isPronunciationHeading(match[2]) ? speakButtonHTML() : '';
+              html += `<h${match[1].length}><span class="heading-row">${heading}${action}</span></h${match[1].length}>`;
             } else if ((match = line.match(/^[-*]\\s+(.+)$/))) {
               if (list !== 'ul') { closeList(); html += '<ul>'; list = 'ul'; }
               html += `<li>${inlineMarkdown(match[1])}</li>`;
@@ -170,6 +219,10 @@ enum AIExplanationHTML {
               .then(() => { afterRender(followBottom); })
               .catch(() => { afterRender(followBottom); });
           }
+        };
+        window.vellumSetPronunciationSpeech = function(text, title) {
+          pronunciationSpeechText = text || '';
+          pronunciationSpeakTitle = title || 'Speak pronunciation';
         };
         function afterRender(followBottom) {
           reportContentHeight();

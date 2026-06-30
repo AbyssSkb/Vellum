@@ -124,6 +124,7 @@ extension VellumPDFView {
         aiInteraction.existingAnnotations = targetAnnotations
         let popoverModel = showStreamingAIExplanationPopover(
             title: selectedText.aiPopoverTitle,
+            pronunciationSpeechText: selectedText,
             at: anchor
         )
 

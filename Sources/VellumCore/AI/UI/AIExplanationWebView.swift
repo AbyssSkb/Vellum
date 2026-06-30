@@ -1,4 +1,5 @@
 @preconcurrency import AppKit
+import AVFoundation
 import Foundation
 import WebKit
 
@@ -22,8 +23,11 @@ final class AIExplanationWebView: WKWebView, WKNavigationDelegate, WKScriptMessa
     var onContentHeightChange: ((CGFloat) -> Void)?
     var shouldFocusWhenReady = true
     var autoScrollOnUpdate = false
+    var pronunciationSpeechText: String?
+    var speakButtonTitle = "Speak pronunciation"
     private var pendingMarkdown = ""
     private var didLoadDocument = false
+    private let speechSynthesizer = AVSpeechSynthesizer()
 
     init() {
         let configuration = WKWebViewConfiguration()
@@ -47,6 +51,14 @@ final class AIExplanationWebView: WKWebView, WKNavigationDelegate, WKScriptMessa
         guard didLoadDocument else { return }
 
         let encoded = Self.javascriptString(markdown)
+        let speechText = Self.javascriptString(
+            AIExplanationPronunciationSpeech.speechText(
+                selectedText: pronunciationSpeechText,
+                markdown: markdown
+            ) ?? ""
+        )
+        let buttonTitle = Self.javascriptString(speakButtonTitle)
+        evaluateJavaScript("window.vellumSetPronunciationSpeech(\(speechText), \(buttonTitle));")
         evaluateJavaScript("window.vellumSetMarkdown(\(encoded), \(autoScrollOnUpdate ? "true" : "false"));")
     }
 
@@ -131,6 +143,11 @@ final class AIExplanationWebView: WKWebView, WKNavigationDelegate, WKScriptMessa
         evaluateJavaScript("window.vellumScrollToBottom();")
     }
 
+    func stopPronunciation() {
+        guard speechSynthesizer.isSpeaking else { return }
+        speechSynthesizer.stopSpeaking(at: .immediate)
+    }
+
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
         guard message.name == "vellum" else { return }
 
@@ -154,6 +171,8 @@ final class AIExplanationWebView: WKWebView, WKNavigationDelegate, WKScriptMessa
     @discardableResult
     private func handleCommand(_ command: String) -> Bool {
         switch command {
+        case "speakPronunciation":
+            speakPronunciation()
         case "startScrollDown":
             startContinuousScroll(direction: 1)
         case "startScrollUp":
@@ -169,6 +188,21 @@ final class AIExplanationWebView: WKWebView, WKNavigationDelegate, WKScriptMessa
         }
 
         return true
+    }
+
+    private func speakPronunciation() {
+        guard let text = AIExplanationPronunciationSpeech.speechText(
+            selectedText: pronunciationSpeechText,
+            markdown: pendingMarkdown
+        ) else {
+            NSSound.beep()
+            return
+        }
+
+        if speechSynthesizer.isSpeaking {
+            stopPronunciation()
+        }
+        speechSynthesizer.speak(AVSpeechUtterance(string: text))
     }
 
     private static func key(for command: String) -> String {
