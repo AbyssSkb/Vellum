@@ -458,8 +458,9 @@ extension VellumPDFView {
         if aiInteraction.activeConversationModel != nil {
             if key == "\u{1b}", event.type == .keyDown {
                 dismissActiveAIInteraction(clearSelection: false)
+                return true
             }
-            return true
+            return false
         }
 
         switch AIKeyEventRouter.action(

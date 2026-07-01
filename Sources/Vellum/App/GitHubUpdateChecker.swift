@@ -355,12 +355,12 @@ final class GitHubUpdateChecker {
             return nil
         }
 
-        if line.hasPrefix("-") {
-            line = line.dropFirst().trimmingCharacters(in: .whitespacesAndNewlines)
+        while line.hasPrefix("-") || line.hasPrefix("*") {
+            line = String(line.dropFirst()).trimmingCharacters(in: .whitespacesAndNewlines)
         }
 
         guard !line.isEmpty else { return nil }
-        return "- \(line)"
+        return line
     }
 
     private func showUpdateError(_ error: Error) {
