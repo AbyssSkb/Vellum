@@ -138,6 +138,61 @@ struct AIPromptSettingsTests {
     }
 
     @Test
+    func conversationPromptSettingsAreIndependentFromExplanationPromptSettings() {
+        let suiteName = "AIPromptSettingsTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        AIPromptSettings.save(
+            AIPromptConfiguration(targetLanguage: "Japanese", template: "Explain {{selectedText}}."),
+            profile: .explanation,
+            defaults: defaults
+        )
+        AIPromptSettings.save(
+            AIPromptConfiguration(targetLanguage: "Korean", template: "Chat about {{selectedText}} in {{targetLanguage}}."),
+            profile: .conversation,
+            defaults: defaults
+        )
+
+        #expect(AIPromptSettings.current(profile: .explanation, defaults: defaults).targetLanguage == "Japanese")
+        #expect(AIPromptSettings.current(profile: .explanation, defaults: defaults).template == "Explain {{selectedText}}.")
+        #expect(AIPromptSettings.current(profile: .conversation, defaults: defaults).targetLanguage == "Korean")
+        #expect(AIPromptSettings.current(profile: .conversation, defaults: defaults).template == "Chat about {{selectedText}} in {{targetLanguage}}.")
+
+        AIPromptSettings.reset(profile: .conversation, defaults: defaults)
+        #expect(AIPromptSettings.current(profile: .explanation, defaults: defaults).template == "Explain {{selectedText}}.")
+        #expect(AIPromptSettings.current(profile: .conversation, defaults: defaults) == .defaultConversation)
+    }
+
+    @Test
+    func conversationPromptRendererUsesConfiguredTemplate() {
+        let context = AIExplanationContext(
+            selectedText: "term",
+            previousParagraph: "Before",
+            currentParagraph: "Current term.",
+            nextParagraph: "After",
+            nearbyText: "Nearby",
+            fileName: "paper.pdf",
+            directoryName: "Reading",
+            outlineTitle: "Intro",
+            pageNumbers: [4]
+        )
+        let configuration = AIPromptConfiguration(
+            targetLanguage: "Chinese",
+            template: "Discuss {{selectedText}} from {{fileName}} on {{pageNumbers}} in {{targetLanguage}}."
+        )
+
+        let prompt = AIConversationPromptRenderer.systemPrompt(
+            context: context,
+            configuration: configuration
+        )
+
+        #expect(prompt == "Discuss term from paper.pdf on 4 in Chinese.")
+    }
+
+    @Test
     func legacyDefaultPromptMigratesToLocalizedHeadings() {
         let suiteName = "AIPromptSettingsTests-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!

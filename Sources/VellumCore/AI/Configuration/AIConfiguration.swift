@@ -1,6 +1,7 @@
 import Foundation
 
 enum AISettingsKeys {
+    static let providerSettingsSelectionID = "AIProviderSettingsSelectionID"
     static let providerID = "AIProviderID"
     static let providerFormat = "AIProviderFormat"
     static let baseURL = "AIBaseURL"
@@ -67,12 +68,7 @@ enum AIConfigurationProfile: String, CaseIterable, Identifiable {
     }
 
     func baseURLKey(for providerID: String) -> String {
-        switch self {
-        case .explanation:
-            return AISettingsKeys.baseURLKey(for: providerID)
-        case .conversation:
-            return AISettingsKeys.conversationBaseURLKey(for: providerID)
-        }
+        AISettingsKeys.baseURLKey(for: providerID)
     }
 
     func modelKey(for providerID: String) -> String {
@@ -85,16 +81,38 @@ enum AIConfigurationProfile: String, CaseIterable, Identifiable {
     }
 
     func apiKeyKey(for providerID: String) -> String {
-        switch self {
-        case .explanation:
-            return AISettingsKeys.apiKeyKey(for: providerID)
-        case .conversation:
-            return AISettingsKeys.conversationAPIKeyKey(for: providerID)
-        }
+        AISettingsKeys.apiKeyKey(for: providerID)
     }
 
     var allowsLegacyFallback: Bool {
         self == .explanation
+    }
+
+    func baseURLFallbackKeys(for providerID: String) -> [String] {
+        switch self {
+        case .explanation:
+            return [AISettingsKeys.baseURL]
+        case .conversation:
+            return [AISettingsKeys.conversationBaseURLKey(for: providerID)]
+        }
+    }
+
+    func modelFallbackKeys(for providerID: String) -> [String] {
+        switch self {
+        case .explanation:
+            return [AISettingsKeys.model]
+        case .conversation:
+            return []
+        }
+    }
+
+    func apiKeyFallbackKeys(for providerID: String) -> [String] {
+        switch self {
+        case .explanation:
+            return [AISettingsKeys.apiKey]
+        case .conversation:
+            return [AISettingsKeys.conversationAPIKeyKey(for: providerID)]
+        }
     }
 }
 
@@ -230,19 +248,19 @@ struct AIConfiguration: Sendable {
         let provider = AIProviderPreset.preset(for: providerID)
         let baseURLString = providerScopedValue(
             forKey: profile.baseURLKey(for: provider.id),
-            legacyKey: profile.allowsLegacyFallback ? AISettingsKeys.baseURL : nil,
+            fallbackKeys: profile.baseURLFallbackKeys(for: provider.id),
             defaultValue: provider.baseURL,
             defaults: defaults
         )
         let model = providerScopedValue(
             forKey: profile.modelKey(for: provider.id),
-            legacyKey: profile.allowsLegacyFallback ? AISettingsKeys.model : nil,
+            fallbackKeys: profile.modelFallbackKeys(for: provider.id),
             defaultValue: provider.defaultModel,
             defaults: defaults
         )
         let apiKey = providerScopedValue(
             forKey: profile.apiKeyKey(for: provider.id),
-            legacyKey: profile.allowsLegacyFallback ? AISettingsKeys.apiKey : nil,
+            fallbackKeys: profile.apiKeyFallbackKeys(for: provider.id),
             defaultValue: "",
             defaults: defaults
         )
@@ -258,7 +276,7 @@ struct AIConfiguration: Sendable {
 
     private static func providerScopedValue(
         forKey key: String,
-        legacyKey: String?,
+        fallbackKeys: [String],
         defaultValue: String,
         defaults: UserDefaults
     ) -> String {
@@ -268,11 +286,12 @@ struct AIConfiguration: Sendable {
                 .trimmingCharacters(in: .whitespacesAndNewlines)
         }
 
-        if let legacyKey,
-           let legacyValue = defaults.string(forKey: legacyKey)?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .nilIfEmpty {
-            return legacyValue
+        for fallbackKey in fallbackKeys {
+            if let value = defaults.string(forKey: fallbackKey)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .nilIfEmpty {
+                return value
+            }
         }
 
         return defaultValue

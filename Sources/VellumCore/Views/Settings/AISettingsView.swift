@@ -16,8 +16,12 @@ public struct AISettingsView: View {
                 switch selection {
                 case .general:
                     GeneralSettingsView()
-                case .ai:
-                    AISettingsDetailView()
+                case .aiProviders:
+                    AIProviderSettingsDetailView()
+                case .aiExplanation:
+                    AISettingsDetailView(page: .explanation)
+                case .aiConversation:
+                    AISettingsDetailView(page: .conversation)
                 case .shortcuts:
                     ShortcutSettingsView()
                 }
@@ -73,7 +77,7 @@ public struct AISettingsView: View {
 
             Spacer()
         }
-        .frame(width: 188)
+        .frame(width: 212)
         .background(TokyoNight.backgroundDeepColor)
         .ignoresSafeArea()
     }
@@ -81,7 +85,9 @@ public struct AISettingsView: View {
 
 private enum SettingsSection: String, CaseIterable, Identifiable {
     case general
-    case ai
+    case aiProviders
+    case aiExplanation
+    case aiConversation
     case shortcuts
 
     var id: String { rawValue }
@@ -90,8 +96,12 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
         switch self {
         case .general:
             return language.text(.general)
-        case .ai:
-            return language.text(.ai)
+        case .aiProviders:
+            return language.text(.aiProviders)
+        case .aiExplanation:
+            return language.text(.aiExplanation)
+        case .aiConversation:
+            return language.text(.aiConversation)
         case .shortcuts:
             return language.text(.shortcuts)
         }
@@ -101,8 +111,12 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
         switch self {
         case .general:
             return "gearshape"
-        case .ai:
+        case .aiProviders:
+            return "building.2"
+        case .aiExplanation:
             return "sparkles"
+        case .aiConversation:
+            return "bubble.left.and.bubble.right"
         case .shortcuts:
             return "keyboard"
         }

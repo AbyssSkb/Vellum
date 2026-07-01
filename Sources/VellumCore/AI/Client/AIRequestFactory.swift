@@ -140,9 +140,13 @@ enum AIRequestFactory {
     static func conversationRequest(
         context: AIExplanationContext,
         messages: [AIConversationMessage],
-        configuration: AIConfiguration
+        configuration: AIConfiguration,
+        promptConfiguration: AIPromptConfiguration = AIPromptSettings.current(profile: .conversation)
     ) throws -> URLRequest {
-        let systemPrompt = AIConversationPromptRenderer.systemPrompt(context: context)
+        let systemPrompt = AIConversationPromptRenderer.systemPrompt(
+            context: context,
+            configuration: promptConfiguration
+        )
         if configuration.providerFormat == .anthropicMessages {
             return try anthropicConversationRequest(
                 configuration: configuration,
@@ -173,13 +177,15 @@ enum AIRequestFactory {
     static func streamingConversationRequest(
         context: AIExplanationContext,
         messages: [AIConversationMessage],
-        configuration: AIConfiguration
+        configuration: AIConfiguration,
+        promptConfiguration: AIPromptConfiguration = AIPromptSettings.current(profile: .conversation)
     ) throws -> URLRequest {
         if configuration.providerFormat == .anthropicMessages {
             return try conversationRequest(
                 context: context,
                 messages: messages,
-                configuration: configuration
+                configuration: configuration,
+                promptConfiguration: promptConfiguration
             )
         }
         if configuration.providerFormat.usesCodexExecutable {
@@ -188,7 +194,15 @@ enum AIRequestFactory {
 
         let body = ChatCompletionRequest(
             model: configuration.model,
-            messages: [ChatMessage(role: "system", content: AIConversationPromptRenderer.systemPrompt(context: context))]
+            messages: [
+                ChatMessage(
+                    role: "system",
+                    content: AIConversationPromptRenderer.systemPrompt(
+                        context: context,
+                        configuration: promptConfiguration
+                    )
+                )
+            ]
                 + messages.map { ChatMessage(role: $0.role.rawValue, content: $0.content) },
             temperature: 0.2,
             maxTokens: 1600,

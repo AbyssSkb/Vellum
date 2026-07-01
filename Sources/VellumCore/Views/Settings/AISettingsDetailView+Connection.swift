@@ -1,6 +1,6 @@
 import SwiftUI
 
-extension AISettingsDetailView {
+extension AIProviderSettingsDetailView {
     func testConnection() {
         isTestingConnection = true
 
@@ -18,6 +18,27 @@ extension AISettingsDetailView {
         }
     }
 
+    func fetchModels() {
+        isFetchingModels = true
+
+        Task { @MainActor in
+            defer { isFetchingModels = false }
+
+            do {
+                let configuration = try currentConfiguration(requireModel: false)
+                status = .working(language.text(.fetchingModels))
+                availableModels = try await AIExplanationClient.fetchModels(configuration: configuration)
+                status = availableModels.isEmpty
+                    ? .success(language.text(.connectedNoModels))
+                    : .success(language.text(.modelsLoaded(availableModels.count)))
+            } catch {
+                status = .failure(error.localizedDescription)
+            }
+        }
+    }
+}
+
+extension AISettingsDetailView {
     func testFunction() {
         isTestingFunction = true
 

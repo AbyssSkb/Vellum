@@ -8,6 +8,11 @@ struct AIPromptConfiguration: Equatable, Sendable {
         targetLanguage: AIPromptSettings.defaultTargetLanguage,
         template: AIPromptSettings.defaultTemplate
     )
+
+    static let defaultConversation = AIPromptConfiguration(
+        targetLanguage: AIPromptSettings.defaultTargetLanguage,
+        template: AIPromptSettings.defaultConversationTemplate
+    )
 }
 
 struct AIPromptVariableDescription: Identifiable, Equatable, Sendable {
@@ -17,9 +22,43 @@ struct AIPromptVariableDescription: Identifiable, Equatable, Sendable {
     var id: String { name }
 }
 
+enum AIPromptProfile: Sendable {
+    case explanation
+    case conversation
+
+    var targetLanguageKey: String {
+        switch self {
+        case .explanation:
+            return AIPromptSettings.targetLanguageKey
+        case .conversation:
+            return AIPromptSettings.conversationTargetLanguageKey
+        }
+    }
+
+    var promptTemplateKey: String {
+        switch self {
+        case .explanation:
+            return AIPromptSettings.promptTemplateKey
+        case .conversation:
+            return AIPromptSettings.conversationPromptTemplateKey
+        }
+    }
+
+    var defaultTemplate: String {
+        switch self {
+        case .explanation:
+            return AIPromptSettings.defaultTemplate
+        case .conversation:
+            return AIPromptSettings.defaultConversationTemplate
+        }
+    }
+}
+
 enum AIPromptSettings {
     static let targetLanguageKey = "AITargetOutputLanguage"
     static let promptTemplateKey = "AIExplanationPromptTemplate"
+    static let conversationTargetLanguageKey = "AIConversationTargetOutputLanguage"
+    static let conversationPromptTemplateKey = "AIConversationPromptTemplate"
     static let defaultTargetLanguage = "Chinese"
 
     static let variableDescriptions: [AIPromptVariableDescription] = [
@@ -121,6 +160,35 @@ Nearby extracted text:
 {{nearbyText}}
 """
 
+    static let defaultConversationTemplate = """
+You are Vellum's PDF reading assistant. The user selected text in a PDF and wants to discuss it through a continuing chat.
+
+Target output language: {{targetLanguage}}
+
+Use the selected text and context window below as the shared reference for the whole conversation. Answer the user's latest message directly. Keep answers focused on the selected passage unless the user asks to compare, translate, simplify, or connect it to the surrounding paragraph. If the question needs information not present in the context, say what is missing instead of inventing details.
+
+PDF metadata:
+- File name: {{fileName}}
+- Folder: {{directoryName}}
+- Outline title: {{outlineTitle}}
+- Pages: {{pageNumbers}}
+
+Selected text:
+{{selectedText}}
+
+Previous paragraph:
+{{previousParagraph}}
+
+Current paragraph:
+{{currentParagraph}}
+
+Next paragraph:
+{{nextParagraph}}
+
+Nearby extracted text:
+{{nearbyText}}
+"""
+
     static let legacyEnglishHeadingTemplate = """
 You are Vellum's PDF reading assistant. Explain only the selected text itself, using the surrounding context only to disambiguate meaning. Do not summarize the whole paragraph unless that is necessary to explain the selected text.
 
@@ -194,27 +262,37 @@ Nearby extracted text:
 {{nearbyText}}
 """
 
-    static func current(defaults: UserDefaults = .standard) -> AIPromptConfiguration {
-        let targetLanguage = defaults.string(forKey: targetLanguageKey)?
+    static func current(
+        profile: AIPromptProfile = .explanation,
+        defaults: UserDefaults = .standard
+    ) -> AIPromptConfiguration {
+        let targetLanguage = defaults.string(forKey: profile.targetLanguageKey)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .nilIfEmpty ?? defaultTargetLanguage
-        let storedTemplate = defaults.string(forKey: promptTemplateKey)?
+        let storedTemplate = defaults.string(forKey: profile.promptTemplateKey)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .nilIfEmpty
-        let template = isPreviousBuiltInTemplate(storedTemplate)
-            ? defaultTemplate
-            : storedTemplate ?? defaultTemplate
+        let template = profile == .explanation && isPreviousBuiltInTemplate(storedTemplate)
+            ? profile.defaultTemplate
+            : storedTemplate ?? profile.defaultTemplate
         return AIPromptConfiguration(targetLanguage: targetLanguage, template: template)
     }
 
-    static func save(_ configuration: AIPromptConfiguration, defaults: UserDefaults = .standard) {
-        defaults.set(configuration.targetLanguage, forKey: targetLanguageKey)
-        defaults.set(configuration.template, forKey: promptTemplateKey)
+    static func save(
+        _ configuration: AIPromptConfiguration,
+        profile: AIPromptProfile = .explanation,
+        defaults: UserDefaults = .standard
+    ) {
+        defaults.set(configuration.targetLanguage, forKey: profile.targetLanguageKey)
+        defaults.set(configuration.template, forKey: profile.promptTemplateKey)
     }
 
-    static func reset(defaults: UserDefaults = .standard) {
-        defaults.removeObject(forKey: targetLanguageKey)
-        defaults.removeObject(forKey: promptTemplateKey)
+    static func reset(
+        profile: AIPromptProfile = .explanation,
+        defaults: UserDefaults = .standard
+    ) {
+        defaults.removeObject(forKey: profile.targetLanguageKey)
+        defaults.removeObject(forKey: profile.promptTemplateKey)
     }
 
     private static func isPreviousBuiltInTemplate(_ template: String?) -> Bool {

@@ -47,7 +47,8 @@ struct AIRequestFactoryTests {
             AISettingsKeys.baseURLKey(for: "openai"),
             AISettingsKeys.modelKey(for: "openai"),
             AISettingsKeys.apiKeyKey(for: "openai"),
-            AISettingsKeys.conversationBaseURLKey(for: "anthropic"),
+            AISettingsKeys.baseURLKey(for: "anthropic"),
+            AISettingsKeys.apiKeyKey(for: "anthropic"),
             AISettingsKeys.conversationModelKey(for: "anthropic"),
             AISettingsKeys.conversationAPIKeyKey(for: "anthropic")
         ]
@@ -61,9 +62,9 @@ struct AIRequestFactoryTests {
         defaults.set("explain-model", forKey: AISettingsKeys.modelKey(for: "openai"))
         defaults.set("explain-key", forKey: AISettingsKeys.apiKeyKey(for: "openai"))
         defaults.set("anthropic", forKey: AISettingsKeys.conversationProviderID)
-        defaults.set("https://api.anthropic.com/v1", forKey: AISettingsKeys.conversationBaseURLKey(for: "anthropic"))
+        defaults.set("https://api.anthropic.com/v1", forKey: AISettingsKeys.baseURLKey(for: "anthropic"))
+        defaults.set("shared-anthropic-key", forKey: AISettingsKeys.apiKeyKey(for: "anthropic"))
         defaults.set("chat-model", forKey: AISettingsKeys.conversationModelKey(for: "anthropic"))
-        defaults.set("chat-key", forKey: AISettingsKeys.conversationAPIKeyKey(for: "anthropic"))
 
         let explanation = try AIConfiguration.current(profile: .explanation, defaults: defaults)
         let conversation = try AIConfiguration.current(profile: .conversation, defaults: defaults)
@@ -72,8 +73,36 @@ struct AIRequestFactoryTests {
         #expect(explanation.apiKey == "explain-key")
         #expect(explanation.providerFormat == .openAICompatible)
         #expect(conversation.model == "chat-model")
-        #expect(conversation.apiKey == "chat-key")
+        #expect(conversation.apiKey == "shared-anthropic-key")
         #expect(conversation.providerFormat == .anthropicMessages)
+    }
+
+    @Test
+    func conversationConfigurationFallsBackToLegacyConversationProviderSecrets() throws {
+        let defaults = try isolatedDefaults(named: "conversationConfigurationFallsBackToLegacyConversationProviderSecrets")
+        let keys = [
+            AISettingsKeys.conversationProviderID,
+            AISettingsKeys.baseURLKey(for: "anthropic"),
+            AISettingsKeys.apiKeyKey(for: "anthropic"),
+            AISettingsKeys.conversationBaseURLKey(for: "anthropic"),
+            AISettingsKeys.conversationModelKey(for: "anthropic"),
+            AISettingsKeys.conversationAPIKeyKey(for: "anthropic")
+        ]
+        keys.forEach { defaults.removeObject(forKey: $0) }
+        defer {
+            keys.forEach { defaults.removeObject(forKey: $0) }
+        }
+
+        defaults.set("anthropic", forKey: AISettingsKeys.conversationProviderID)
+        defaults.set("https://legacy-chat.example/v1", forKey: AISettingsKeys.conversationBaseURLKey(for: "anthropic"))
+        defaults.set("chat-model", forKey: AISettingsKeys.conversationModelKey(for: "anthropic"))
+        defaults.set("legacy-chat-key", forKey: AISettingsKeys.conversationAPIKeyKey(for: "anthropic"))
+
+        let configuration = try AIConfiguration.current(profile: .conversation, defaults: defaults)
+
+        #expect(configuration.baseURL.absoluteString == "https://legacy-chat.example/v1")
+        #expect(configuration.model == "chat-model")
+        #expect(configuration.apiKey == "legacy-chat-key")
     }
 
     @Test

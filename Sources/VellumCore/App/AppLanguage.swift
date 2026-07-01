@@ -56,8 +56,12 @@ public enum AppText {
     case aiChatThinking
     case aiChatUser
     case aiConversation
+    case aiConversationHeaderSubtitle
     case aiExplanation
+    case aiExplanationHeaderSubtitle
     case aiHeaderSubtitle
+    case aiProviders
+    case aiProvidersHeaderSubtitle
     case apiKey
     case appLanguage
     case appLanguageSubtitle
@@ -138,6 +142,7 @@ public enum AppText {
     case profile
     case prompt
     case provider
+    case providerModelsHint
     case promptReset
     case promptTargetLanguage
     case promptTemplate
@@ -216,8 +221,12 @@ public extension AppText {
         case .aiChatThinking: return "Thinking..."
         case .aiChatUser: return "You"
         case .aiConversation: return "AI Conversation"
+        case .aiConversationHeaderSubtitle: return "Choose the provider, model, and prompt used by selected-text chat."
         case .aiExplanation: return "AI Explanation"
+        case .aiExplanationHeaderSubtitle: return "Choose the provider, model, and prompt used by selected-text explanations."
         case .aiHeaderSubtitle: return "Choose a provider, enter its key, then pick the model Vellum should use."
+        case .aiProviders: return "AI Providers"
+        case .aiProvidersHeaderSubtitle: return "Configure shared endpoints, API keys, and local provider access."
         case .apiKey: return "API Key"
         case .appLanguage: return "App Language"
         case .appLanguageSubtitle: return "Choose the language used by Vellum's interface."
@@ -298,6 +307,7 @@ public extension AppText {
         case .profile: return "Profile"
         case .prompt: return "Prompt"
         case .provider: return "Provider"
+        case .providerModelsHint: return "Fetch models to verify this provider and preview available choices."
         case .promptReset: return "Reset Prompt"
         case .promptTargetLanguage: return "Target Output Language"
         case .promptTemplate: return "Template"
@@ -367,8 +377,12 @@ public extension AppText {
         case .aiChatThinking: return "思考中..."
         case .aiChatUser: return "你"
         case .aiConversation: return "AI 对话"
+        case .aiConversationHeaderSubtitle: return "选择选中文本对话使用的服务商、模型和提示词。"
         case .aiExplanation: return "AI 解释"
+        case .aiExplanationHeaderSubtitle: return "选择选中文本解释使用的服务商、模型和提示词。"
         case .aiHeaderSubtitle: return "选择服务商，填写密钥，然后选择 Vellum 使用的模型。"
+        case .aiProviders: return "AI 服务商"
+        case .aiProvidersHeaderSubtitle: return "配置共享端点、API 密钥和本地服务商访问方式。"
         case .apiKey: return "API 密钥"
         case .appLanguage: return "应用语言"
         case .appLanguageSubtitle: return "选择 Vellum 界面使用的语言。"
@@ -449,6 +463,7 @@ public extension AppText {
         case .profile: return "Profile"
         case .prompt: return "提示词"
         case .provider: return "服务商"
+        case .providerModelsHint: return "获取模型可以验证该服务商，并预览可用模型。"
         case .promptReset: return "重置提示词"
         case .promptTargetLanguage: return "目标输出语言"
         case .promptTemplate: return "模板"

@@ -1,12 +1,21 @@
 import SwiftUI
 
-private enum AISettingsConfigurationPage: String, CaseIterable, Identifiable {
+enum AISettingsConfigurationPage: String, CaseIterable, Identifiable {
     case explanation
     case conversation
 
     var id: String { rawValue }
 
     var profile: AIConfigurationProfile {
+        switch self {
+        case .explanation:
+            return .explanation
+        case .conversation:
+            return .conversation
+        }
+    }
+
+    var promptProfile: AIPromptProfile {
         switch self {
         case .explanation:
             return .explanation
@@ -32,40 +41,37 @@ private enum AISettingsConfigurationPage: String, CaseIterable, Identifiable {
             return language.text(.aiConversation)
         }
     }
+
+    func subtitle(language: AppUILanguage) -> String {
+        switch self {
+        case .explanation:
+            return language.text(.aiExplanationHeaderSubtitle)
+        case .conversation:
+            return language.text(.aiConversationHeaderSubtitle)
+        }
+    }
 }
 
-struct AISettingsDetailView: View {
+struct AIProviderSettingsDetailView: View {
     @Environment(\.appUILanguage) var language
-    @State private var page: AISettingsConfigurationPage = .explanation
     @State var providerID = "openai"
     @State var baseURL = ""
-    @State var model = ""
     @State var apiKey = ""
     @State var availableModels: [String] = []
     @State var status: AIConnectionStatus = .idle
     @State var isTestingConnection = false
-    @State var isTestingFunction = false
     @State var isFetchingModels = false
-    @State var targetLanguage = AIPromptSettings.defaultTargetLanguage
-    @State var promptTemplate = AIPromptSettings.defaultTemplate
     @State private var didLoadProviderSettings = false
-    @State private var didLoadPromptSettings = false
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: 16) {
                 header
-                pageSwitcher
                 providerSection
                 if selectedPreset.format.usesCodexExecutable {
                     codexSection
-                    modelSection
                 } else {
                     endpointSection
-                    modelSection
-                }
-                if page == .explanation {
-                    promptSection
                 }
                 validationSection
             }
@@ -76,14 +82,10 @@ struct AISettingsDetailView: View {
         .background(TokyoNight.backgroundColor)
         .background(SettingsScrollChromeConfigurator())
         .onAppear {
-            loadSettingsForCurrentPage(allowsLegacyFallback: true)
-            loadPromptSettings()
-        }
-        .onChange(of: page) { _, _ in
-            loadSettingsForCurrentPage(allowsLegacyFallback: false)
+            loadProviderSelection()
         }
         .onChange(of: providerID) { _, newValue in
-            loadProviderSettings(for: newValue, allowsLegacyFallback: false, profile: page.profile)
+            loadProviderSettings(for: newValue)
         }
         .onChange(of: apiKey) { _, _ in
             guard didLoadProviderSettings else { return }
@@ -96,32 +98,14 @@ struct AISettingsDetailView: View {
             availableModels.removeAll()
             status = .idle
         }
-        .onChange(of: model) { _, _ in
-            guard didLoadProviderSettings else { return }
-            saveProviderSettings()
-            status = .idle
-        }
-        .onChange(of: targetLanguage) { _, _ in
-            guard didLoadPromptSettings else { return }
-            savePromptSettings()
-        }
-        .onChange(of: promptTemplate) { _, _ in
-            guard didLoadPromptSettings else { return }
-            savePromptSettings()
-        }
     }
 
     var isBusy: Bool {
-        isTestingConnection || isTestingFunction || isFetchingModels
+        isTestingConnection || isFetchingModels
     }
 
     var selectedPreset: AIProviderPreset {
         AIProviderPreset.preset(for: providerID)
-    }
-
-    var trimmedModelText: String {
-        let trimmed = model.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? language.text(.notSet) : trimmed
     }
 
     var chatEndpointText: String {
@@ -147,58 +131,11 @@ struct AISettingsDetailView: View {
     }
 
     private var header: some View {
-        HStack(alignment: .center, spacing: 12) {
-            Image(systemName: "sparkles")
-                .font(.system(size: 19, weight: .semibold))
-                .foregroundStyle(TokyoNight.cyanColor)
-                .frame(width: 36, height: 36)
-                .background(TokyoNight.panelElevatedColor, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(TokyoNight.borderColor.opacity(0.75), lineWidth: 1)
-                }
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(language.text(.ai))
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(TokyoNight.foregroundColor)
-
-                Text(language.text(.aiHeaderSubtitle))
-                    .font(.system(size: 12.5))
-                    .foregroundStyle(TokyoNight.mutedColor)
-            }
-
-            Spacer()
-        }
-    }
-
-    private var pageSwitcher: some View {
-        HStack(spacing: 0) {
-            ForEach(AISettingsConfigurationPage.allCases) { item in
-                Button {
-                    page = item
-                } label: {
-                    HStack(spacing: 7) {
-                        Image(systemName: item.systemImage)
-                            .font(.system(size: 11.5, weight: .semibold))
-                        Text(item.title(language: language))
-                            .font(.system(size: 12.5, weight: .semibold))
-                    }
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 30)
-                    .foregroundStyle(page == item ? TokyoNight.foregroundColor : TokyoNight.mutedColor)
-                    .background(page == item ? TokyoNight.selectionColor.opacity(0.62) : .clear)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(3)
-        .background(TokyoNight.backgroundDeepColor.opacity(0.78), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(TokyoNight.borderColor.opacity(0.58), lineWidth: 1)
-        }
+        SettingsHeader(
+            title: language.text(.aiProviders),
+            subtitle: language.text(.aiProvidersHeaderSubtitle),
+            systemImage: "building.2"
+        )
     }
 
     private var providerSection: some View {
@@ -254,6 +191,289 @@ struct AISettingsDetailView: View {
                         placeholder: language.text(.useDefaultProfile),
                         systemImage: "person.crop.circle"
                     )
+                }
+            }
+        }
+    }
+
+    private var validationSection: some View {
+        SettingsPanel(title: language.text(.validation), systemImage: "checkmark.seal") {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(spacing: 10) {
+                    Button {
+                        testConnection()
+                    } label: {
+                        Label(isTestingConnection ? language.text(.testing) : connectionTestTitle, systemImage: connectionTestIcon)
+                    }
+                    .buttonStyle(SettingsActionButtonStyle())
+                    .disabled(isBusy)
+
+                    Button {
+                        fetchModels()
+                    } label: {
+                        Label(isFetchingModels ? language.text(.fetching) : language.text(.fetchModels), systemImage: "arrow.clockwise")
+                    }
+                    .buttonStyle(SettingsActionButtonStyle())
+                    .disabled(isBusy)
+
+                    Text(modelsSummary)
+                        .font(.system(size: 12))
+                        .foregroundStyle(TokyoNight.mutedColor)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Spacer()
+                }
+
+                AIConnectionStatusRow(status: status, isBusy: isBusy)
+
+                if !availableModels.isEmpty {
+                    ModelPreviewGrid(models: availableModels)
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(diagnosticRows, id: \.title) { row in
+                        diagnosticRow(row.title, row.value)
+                    }
+                }
+                .padding(.top, 2)
+            }
+        }
+    }
+
+    var modelsSummary: String {
+        if isFetchingModels {
+            return language.text(.fetchingModelsFrom(selectedPreset.name))
+        }
+
+        if availableModels.isEmpty {
+            return selectedPreset.format.usesCodexExecutable
+                ? language.text(.providerModelsHint)
+                : language.text(.providerModelsHint)
+        }
+
+        return language.text(.modelsLoaded(availableModels.count))
+    }
+
+    var connectionTestTitle: String {
+        selectedPreset.format.usesCodexExecutable ? language.text(.testCodex) : language.text(.testEndpoint)
+    }
+
+    var connectionTestIcon: String {
+        selectedPreset.format.usesCodexExecutable ? "terminal" : "point.3.connected.trianglepath.dotted"
+    }
+
+    var diagnosticRows: [(title: String, value: String)] {
+        if selectedPreset.format.usesCodexExecutable {
+            return [
+                (language.text(.command), baseURL.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty ?? selectedPreset.baseURL),
+                (language.text(.profile), apiKey.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty ?? language.text(.defaultStatus))
+            ]
+        }
+
+        return [
+            (language.text(.diagnosticsRequest), chatEndpointText),
+            (language.text(.diagnosticsModels), modelsEndpointText)
+        ]
+    }
+
+    private func diagnosticRow(_ title: String, _ value: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Text(title)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(TokyoNight.mutedColor)
+                .frame(width: 58, alignment: .leading)
+
+            Text(value)
+                .font(.system(size: 11.5, design: .monospaced))
+                .foregroundStyle(TokyoNight.foregroundColor)
+                .lineLimit(2)
+                .textSelection(.enabled)
+        }
+    }
+
+    func currentConfiguration(requireModel: Bool) throws -> AIConfiguration {
+        try AIConfiguration(
+            baseURLString: baseURL,
+            model: selectedPreset.defaultModel,
+            apiKey: apiKey,
+            providerFormat: selectedPreset.format,
+            requireModel: requireModel
+        )
+    }
+
+    private func loadProviderSelection() {
+        let defaults = UserDefaults.standard
+        let id = defaults.string(forKey: AISettingsKeys.providerSettingsSelectionID)
+            ?? defaults.string(forKey: AISettingsKeys.providerID)
+            ?? defaults.string(forKey: AISettingsKeys.conversationProviderID)
+            ?? AIProviderPreset.presets.first?.id
+            ?? AIProviderPreset.customID
+        loadProviderSettings(for: id)
+    }
+
+    private func loadProviderSettings(for id: String) {
+        let preset = AIProviderPreset.preset(for: id)
+        let defaults = UserDefaults.standard
+        didLoadProviderSettings = false
+        providerID = preset.id
+        baseURL = providerSetting(
+            key: AISettingsKeys.baseURLKey(for: preset.id),
+            fallbackKeys: [
+                AISettingsKeys.conversationBaseURLKey(for: preset.id),
+                AISettingsKeys.baseURL
+            ],
+            defaultValue: preset.baseURL,
+            defaults: defaults
+        )
+        apiKey = providerSetting(
+            key: AISettingsKeys.apiKeyKey(for: preset.id),
+            fallbackKeys: [
+                AISettingsKeys.conversationAPIKeyKey(for: preset.id),
+                AISettingsKeys.apiKey
+            ],
+            defaultValue: "",
+            defaults: defaults
+        )
+        availableModels.removeAll()
+        status = .idle
+        didLoadProviderSettings = true
+        saveProviderSettings()
+    }
+
+    private func providerSetting(
+        key: String,
+        fallbackKeys: [String],
+        defaultValue: String,
+        defaults: UserDefaults
+    ) -> String {
+        if defaults.object(forKey: key) != nil {
+            return defaults.string(forKey: key) ?? ""
+        }
+
+        for fallbackKey in fallbackKeys {
+            if let value = defaults.string(forKey: fallbackKey)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .nilIfEmpty {
+                return value
+            }
+        }
+
+        return defaultValue
+    }
+
+    private func saveProviderSettings() {
+        let preset = selectedPreset
+        let defaults = UserDefaults.standard
+        defaults.set(preset.id, forKey: AISettingsKeys.providerSettingsSelectionID)
+        defaults.set(baseURL, forKey: AISettingsKeys.baseURLKey(for: preset.id))
+        defaults.set(apiKey, forKey: AISettingsKeys.apiKeyKey(for: preset.id))
+    }
+}
+
+struct AISettingsDetailView: View {
+    @Environment(\.appUILanguage) var language
+    let page: AISettingsConfigurationPage
+    @State var providerID = "openai"
+    @State var model = ""
+    @State var availableModels: [String] = []
+    @State var status: AIConnectionStatus = .idle
+    @State var isTestingFunction = false
+    @State var isFetchingModels = false
+    @State var targetLanguage = AIPromptSettings.defaultTargetLanguage
+    @State var promptTemplate = AIPromptSettings.defaultTemplate
+    @State private var didLoadProviderSettings = false
+    @State private var didLoadPromptSettings = false
+
+    var body: some View {
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 16) {
+                header
+                providerSection
+                modelSection
+                promptSection
+                validationSection
+            }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 22)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .background(TokyoNight.backgroundColor)
+        .background(SettingsScrollChromeConfigurator())
+        .onAppear {
+            loadSettingsForCurrentPage()
+            loadPromptSettings()
+        }
+        .onChange(of: providerID) { _, newValue in
+            loadProviderSelection(for: newValue)
+        }
+        .onChange(of: model) { _, _ in
+            guard didLoadProviderSettings else { return }
+            saveUsageSettings()
+            status = .idle
+        }
+        .onChange(of: targetLanguage) { _, _ in
+            guard didLoadPromptSettings else { return }
+            savePromptSettings()
+        }
+        .onChange(of: promptTemplate) { _, _ in
+            guard didLoadPromptSettings else { return }
+            savePromptSettings()
+        }
+    }
+
+    var isBusy: Bool {
+        isTestingFunction || isFetchingModels
+    }
+
+    var selectedPreset: AIProviderPreset {
+        AIProviderPreset.preset(for: providerID)
+    }
+
+    var trimmedModelText: String {
+        let trimmed = model.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? language.text(.notSet) : trimmed
+    }
+
+    var chatEndpointText: String {
+        guard let configuration = try? currentConfiguration(requireModel: false) else {
+            return "Invalid base URL"
+        }
+
+        switch configuration.providerFormat {
+        case .openAICompatible:
+            return configuration.chatCompletionsURL.absoluteString
+        case .anthropicMessages:
+            return configuration.messagesURL.absoluteString
+        case .codexCLI:
+            return configuration.codexExecutablePath
+        }
+    }
+
+    var modelsEndpointText: String {
+        guard let configuration = try? currentConfiguration(requireModel: false) else {
+            return "Invalid base URL"
+        }
+        return configuration.modelsURL.absoluteString
+    }
+
+    private var header: some View {
+        SettingsHeader(
+            title: page.title(language: language),
+            subtitle: page.subtitle(language: language),
+            systemImage: page.systemImage
+        )
+    }
+
+    private var providerSection: some View {
+        SettingsPanel(title: language.text(.provider), systemImage: "building.2") {
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(AIProviderPreset.presets) { preset in
+                    ProviderPresetRow(
+                        preset: preset,
+                        isSelected: preset.id == providerID
+                    ) {
+                        providerID = preset.id
+                    }
                 }
             }
         }
@@ -362,14 +582,6 @@ struct AISettingsDetailView: View {
             VStack(alignment: .leading, spacing: 14) {
                 HStack(spacing: 10) {
                     Button {
-                        testConnection()
-                    } label: {
-                        Label(isTestingConnection ? language.text(.testing) : connectionTestTitle, systemImage: connectionTestIcon)
-                    }
-                    .buttonStyle(SettingsActionButtonStyle())
-                    .disabled(isBusy)
-
-                    Button {
                         testFunction()
                     } label: {
                         Label(isTestingFunction ? language.text(.testing) : language.text(.testModel), systemImage: "sparkles")
@@ -407,19 +619,11 @@ struct AISettingsDetailView: View {
         return language.text(.modelsLoaded(availableModels.count))
     }
 
-    var connectionTestTitle: String {
-        selectedPreset.format.usesCodexExecutable ? language.text(.testCodex) : language.text(.testEndpoint)
-    }
-
-    var connectionTestIcon: String {
-        selectedPreset.format.usesCodexExecutable ? "terminal" : "point.3.connected.trianglepath.dotted"
-    }
-
     var diagnosticRows: [(title: String, value: String)] {
         if selectedPreset.format.usesCodexExecutable {
             return [
-                (language.text(.command), baseURL.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty ?? selectedPreset.baseURL),
-                (language.text(.profile), apiKey.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty ?? language.text(.defaultStatus))
+                (language.text(.command), (try? currentConfiguration(requireModel: false))?.codexExecutablePath ?? selectedPreset.baseURL),
+                (language.text(.profile), (try? currentConfiguration(requireModel: false))?.codexProfile.nilIfEmpty ?? language.text(.defaultStatus))
             ]
         }
 
@@ -445,7 +649,21 @@ struct AISettingsDetailView: View {
     }
 
     func currentConfiguration(requireModel: Bool) throws -> AIConfiguration {
-        try AIConfiguration(
+        let defaults = UserDefaults.standard
+        let baseURL = providerSetting(
+            key: AISettingsKeys.baseURLKey(for: selectedPreset.id),
+            fallbackKeys: page.profile.baseURLFallbackKeys(for: selectedPreset.id),
+            defaultValue: selectedPreset.baseURL,
+            defaults: defaults
+        )
+        let apiKey = providerSetting(
+            key: AISettingsKeys.apiKeyKey(for: selectedPreset.id),
+            fallbackKeys: page.profile.apiKeyFallbackKeys(for: selectedPreset.id),
+            defaultValue: "",
+            defaults: defaults
+        )
+
+        return try AIConfiguration(
             baseURLString: baseURL,
             model: model,
             apiKey: apiKey,
@@ -454,93 +672,64 @@ struct AISettingsDetailView: View {
         )
     }
 
-    private func loadSettingsForCurrentPage(allowsLegacyFallback: Bool) {
+    private func loadSettingsForCurrentPage() {
         let defaults = UserDefaults.standard
         let id = defaults.string(forKey: page.profile.providerIDKey)
             ?? AIProviderPreset.presets.first?.id
             ?? AIProviderPreset.customID
-        loadProviderSettings(
-            for: id,
-            allowsLegacyFallback: allowsLegacyFallback && page.profile.allowsLegacyFallback,
-            profile: page.profile
-        )
+        loadProviderSelection(for: id)
     }
 
-    private func loadProviderSettings(
-        for id: String,
-        allowsLegacyFallback: Bool,
-        profile: AIConfigurationProfile
-    ) {
+    private func loadProviderSelection(for id: String) {
         let preset = AIProviderPreset.preset(for: id)
         let defaults = UserDefaults.standard
         didLoadProviderSettings = false
         providerID = preset.id
-        baseURL = providerSetting(
-            key: profile.baseURLKey(for: preset.id),
-            legacyKey: AISettingsKeys.baseURL,
-            defaultValue: preset.baseURL,
-            defaults: defaults,
-            allowsLegacyFallback: allowsLegacyFallback
-        )
         model = providerSetting(
-            key: profile.modelKey(for: preset.id),
-            legacyKey: AISettingsKeys.model,
+            key: page.profile.modelKey(for: preset.id),
+            fallbackKeys: page.profile.modelFallbackKeys(for: preset.id),
             defaultValue: preset.defaultModel,
-            defaults: defaults,
-            allowsLegacyFallback: allowsLegacyFallback
-        )
-        apiKey = providerSetting(
-            key: profile.apiKeyKey(for: preset.id),
-            legacyKey: AISettingsKeys.apiKey,
-            defaultValue: "",
-            defaults: defaults,
-            allowsLegacyFallback: allowsLegacyFallback
+            defaults: defaults
         )
         availableModels.removeAll()
         status = .idle
         didLoadProviderSettings = true
-        saveProviderSettings()
+        saveUsageSettings()
     }
 
     private func providerSetting(
         key: String,
-        legacyKey: String,
+        fallbackKeys: [String],
         defaultValue: String,
-        defaults: UserDefaults,
-        allowsLegacyFallback: Bool
+        defaults: UserDefaults
     ) -> String {
         if defaults.object(forKey: key) != nil {
             return defaults.string(forKey: key) ?? ""
         }
 
-        guard allowsLegacyFallback else {
-            return defaultValue
+        for fallbackKey in fallbackKeys {
+            if let value = defaults.string(forKey: fallbackKey)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .nilIfEmpty {
+                return value
+            }
         }
 
-        return defaults.string(forKey: legacyKey)?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .nilIfEmpty ?? defaultValue
+        return defaultValue
     }
 
-    private func saveProviderSettings() {
+    private func saveUsageSettings() {
         let preset = selectedPreset
         let defaults = UserDefaults.standard
         let profile = page.profile
         defaults.set(preset.id, forKey: profile.providerIDKey)
         defaults.set(preset.format.rawValue, forKey: profile.providerFormatKey)
-        defaults.set(baseURL, forKey: profile.baseURLKey(for: preset.id))
         defaults.set(model, forKey: profile.modelKey(for: preset.id))
-        defaults.set(apiKey, forKey: profile.apiKeyKey(for: preset.id))
-        if profile == .explanation, !preset.format.usesCodexExecutable {
-            defaults.set(baseURL, forKey: AISettingsKeys.baseURL)
-            defaults.set(model, forKey: AISettingsKeys.model)
-            defaults.set(apiKey, forKey: AISettingsKeys.apiKey)
-        }
     }
 
     private func loadPromptSettings() {
         didLoadPromptSettings = false
-        let configuration = AIPromptSettings.current()
+        let configuration = AIPromptSettings.current(profile: page.promptProfile)
         targetLanguage = configuration.targetLanguage
         promptTemplate = configuration.template
         didLoadPromptSettings = true
@@ -551,16 +740,50 @@ struct AISettingsDetailView: View {
             AIPromptConfiguration(
                 targetLanguage: targetLanguage,
                 template: promptTemplate
-            )
+            ),
+            profile: page.promptProfile
         )
     }
 
     private func resetPromptSettings() {
         didLoadPromptSettings = false
-        AIPromptSettings.reset()
+        AIPromptSettings.reset(profile: page.promptProfile)
         targetLanguage = AIPromptSettings.defaultTargetLanguage
-        promptTemplate = AIPromptSettings.defaultTemplate
+        promptTemplate = page.promptProfile.defaultTemplate
         didLoadPromptSettings = true
+    }
+}
+
+private struct SettingsHeader: View {
+    let title: String
+    let subtitle: String
+    let systemImage: String
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            Image(systemName: systemImage)
+                .font(.system(size: 19, weight: .semibold))
+                .foregroundStyle(TokyoNight.cyanColor)
+                .frame(width: 36, height: 36)
+                .background(TokyoNight.panelElevatedColor, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(TokyoNight.borderColor.opacity(0.75), lineWidth: 1)
+                }
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(TokyoNight.foregroundColor)
+
+                Text(subtitle)
+                    .font(.system(size: 12.5))
+                    .foregroundStyle(TokyoNight.mutedColor)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer()
+        }
     }
 }
 
@@ -819,6 +1042,34 @@ private struct ModelChoiceGrid: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct ModelPreviewGrid: View {
+    let models: [String]
+
+    private let columns = [
+        GridItem(.adaptive(minimum: 180), spacing: 8)
+    ]
+
+    var body: some View {
+        LazyVGrid(columns: columns, spacing: 8) {
+            ForEach(models, id: \.self) { model in
+                Text(model)
+                    .font(.system(size: 11.5, design: .monospaced))
+                    .foregroundStyle(TokyoNight.foregroundColor)
+                    .lineLimit(1)
+                    .padding(.horizontal, 10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(height: 30)
+                    .background(TokyoNight.backgroundDeepColor.opacity(0.6), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .stroke(TokyoNight.borderColor.opacity(0.45), lineWidth: 1)
+                    }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
