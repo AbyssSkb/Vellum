@@ -137,6 +137,72 @@ enum AIRequestFactory {
         )
     }
 
+    static func conversationRequest(
+        context: AIExplanationContext,
+        messages: [AIConversationMessage],
+        configuration: AIConfiguration
+    ) throws -> URLRequest {
+        let systemPrompt = AIConversationPromptRenderer.systemPrompt(context: context)
+        if configuration.providerFormat == .anthropicMessages {
+            return try anthropicConversationRequest(
+                configuration: configuration,
+                systemPrompt: systemPrompt,
+                messages: messages
+            )
+        }
+        if configuration.providerFormat.usesCodexExecutable {
+            throw AIExplanationError.server("Codex 本地 provider 不使用 HTTP 请求。")
+        }
+
+        let body = ChatCompletionRequest(
+            model: configuration.model,
+            messages: [ChatMessage(role: "system", content: systemPrompt)]
+                + messages.map { ChatMessage(role: $0.role.rawValue, content: $0.content) },
+            temperature: 0.2,
+            maxTokens: 1600,
+            enableThinking: configuration.supportsSiliconFlowThinkingControls ? false : nil
+        )
+
+        return try chatCompletionsRequest(
+            configuration: configuration,
+            timeout: 90,
+            body: body
+        )
+    }
+
+    static func streamingConversationRequest(
+        context: AIExplanationContext,
+        messages: [AIConversationMessage],
+        configuration: AIConfiguration
+    ) throws -> URLRequest {
+        if configuration.providerFormat == .anthropicMessages {
+            return try conversationRequest(
+                context: context,
+                messages: messages,
+                configuration: configuration
+            )
+        }
+        if configuration.providerFormat.usesCodexExecutable {
+            throw AIExplanationError.server("Codex 本地 provider 不使用 HTTP 请求。")
+        }
+
+        let body = ChatCompletionRequest(
+            model: configuration.model,
+            messages: [ChatMessage(role: "system", content: AIConversationPromptRenderer.systemPrompt(context: context))]
+                + messages.map { ChatMessage(role: $0.role.rawValue, content: $0.content) },
+            temperature: 0.2,
+            maxTokens: 1600,
+            stream: true,
+            enableThinking: configuration.supportsSiliconFlowThinkingControls ? false : nil
+        )
+
+        return try chatCompletionsRequest(
+            configuration: configuration,
+            timeout: 90,
+            body: body
+        )
+    }
+
     private static func chatCompletionsRequest(
         configuration: AIConfiguration,
         timeout: TimeInterval,
@@ -167,6 +233,25 @@ enum AIRequestFactory {
         return try anthropicRequest(
             configuration: configuration,
             timeout: 60,
+            body: body
+        )
+    }
+
+    private static func anthropicConversationRequest(
+        configuration: AIConfiguration,
+        systemPrompt: String,
+        messages: [AIConversationMessage]
+    ) throws -> URLRequest {
+        let body = AnthropicMessageRequest(
+            model: configuration.model,
+            system: systemPrompt,
+            messages: messages.map { ChatMessage(role: $0.role.rawValue, content: $0.content) },
+            maxTokens: 1600
+        )
+
+        return try anthropicRequest(
+            configuration: configuration,
+            timeout: 90,
             body: body
         )
     }

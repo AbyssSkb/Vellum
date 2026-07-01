@@ -274,6 +274,8 @@ private final class RecordingKeyboardReaderController: ReaderController {
 
     func vimExplainSelectedHighlight() {}
 
+    func vimStartAIConversation() {}
+
     func vimZoom(by factor: CGFloat) {}
 
     func vimZoomToPageFit() {}

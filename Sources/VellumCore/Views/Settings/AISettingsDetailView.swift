@@ -1,8 +1,43 @@
 import SwiftUI
 
+private enum AISettingsConfigurationPage: String, CaseIterable, Identifiable {
+    case explanation
+    case conversation
+
+    var id: String { rawValue }
+
+    var profile: AIConfigurationProfile {
+        switch self {
+        case .explanation:
+            return .explanation
+        case .conversation:
+            return .conversation
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .explanation:
+            return "text.bubble"
+        case .conversation:
+            return "bubble.left.and.bubble.right"
+        }
+    }
+
+    func title(language: AppUILanguage) -> String {
+        switch self {
+        case .explanation:
+            return language.text(.aiExplanation)
+        case .conversation:
+            return language.text(.aiConversation)
+        }
+    }
+}
+
 struct AISettingsDetailView: View {
     @Environment(\.appUILanguage) var language
-    @AppStorage(AISettingsKeys.providerID) var providerID = "openai"
+    @State private var page: AISettingsConfigurationPage = .explanation
+    @State var providerID = "openai"
     @State var baseURL = ""
     @State var model = ""
     @State var apiKey = ""
@@ -20,6 +55,7 @@ struct AISettingsDetailView: View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: 16) {
                 header
+                pageSwitcher
                 providerSection
                 if selectedPreset.format.usesCodexExecutable {
                     codexSection
@@ -28,7 +64,9 @@ struct AISettingsDetailView: View {
                     endpointSection
                     modelSection
                 }
-                promptSection
+                if page == .explanation {
+                    promptSection
+                }
                 validationSection
             }
             .padding(.horizontal, 24)
@@ -38,11 +76,14 @@ struct AISettingsDetailView: View {
         .background(TokyoNight.backgroundColor)
         .background(SettingsScrollChromeConfigurator())
         .onAppear {
-            loadProviderSettings(for: providerID, allowsLegacyFallback: true)
+            loadSettingsForCurrentPage(allowsLegacyFallback: true)
             loadPromptSettings()
         }
+        .onChange(of: page) { _, _ in
+            loadSettingsForCurrentPage(allowsLegacyFallback: false)
+        }
         .onChange(of: providerID) { _, newValue in
-            loadProviderSettings(for: newValue, allowsLegacyFallback: false)
+            loadProviderSettings(for: newValue, allowsLegacyFallback: false, profile: page.profile)
         }
         .onChange(of: apiKey) { _, _ in
             guard didLoadProviderSettings else { return }
@@ -128,6 +169,35 @@ struct AISettingsDetailView: View {
             }
 
             Spacer()
+        }
+    }
+
+    private var pageSwitcher: some View {
+        HStack(spacing: 0) {
+            ForEach(AISettingsConfigurationPage.allCases) { item in
+                Button {
+                    page = item
+                } label: {
+                    HStack(spacing: 7) {
+                        Image(systemName: item.systemImage)
+                            .font(.system(size: 11.5, weight: .semibold))
+                        Text(item.title(language: language))
+                            .font(.system(size: 12.5, weight: .semibold))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 30)
+                    .foregroundStyle(page == item ? TokyoNight.foregroundColor : TokyoNight.mutedColor)
+                    .background(page == item ? TokyoNight.selectionColor.opacity(0.62) : .clear)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(3)
+        .background(TokyoNight.backgroundDeepColor.opacity(0.78), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(TokyoNight.borderColor.opacity(0.58), lineWidth: 1)
         }
     }
 
@@ -384,26 +454,43 @@ struct AISettingsDetailView: View {
         )
     }
 
-    private func loadProviderSettings(for id: String, allowsLegacyFallback: Bool) {
+    private func loadSettingsForCurrentPage(allowsLegacyFallback: Bool) {
+        let defaults = UserDefaults.standard
+        let id = defaults.string(forKey: page.profile.providerIDKey)
+            ?? AIProviderPreset.presets.first?.id
+            ?? AIProviderPreset.customID
+        loadProviderSettings(
+            for: id,
+            allowsLegacyFallback: allowsLegacyFallback && page.profile.allowsLegacyFallback,
+            profile: page.profile
+        )
+    }
+
+    private func loadProviderSettings(
+        for id: String,
+        allowsLegacyFallback: Bool,
+        profile: AIConfigurationProfile
+    ) {
         let preset = AIProviderPreset.preset(for: id)
         let defaults = UserDefaults.standard
         didLoadProviderSettings = false
+        providerID = preset.id
         baseURL = providerSetting(
-            key: AISettingsKeys.baseURLKey(for: preset.id),
+            key: profile.baseURLKey(for: preset.id),
             legacyKey: AISettingsKeys.baseURL,
             defaultValue: preset.baseURL,
             defaults: defaults,
             allowsLegacyFallback: allowsLegacyFallback
         )
         model = providerSetting(
-            key: AISettingsKeys.modelKey(for: preset.id),
+            key: profile.modelKey(for: preset.id),
             legacyKey: AISettingsKeys.model,
             defaultValue: preset.defaultModel,
             defaults: defaults,
             allowsLegacyFallback: allowsLegacyFallback
         )
         apiKey = providerSetting(
-            key: AISettingsKeys.apiKeyKey(for: preset.id),
+            key: profile.apiKeyKey(for: preset.id),
             legacyKey: AISettingsKeys.apiKey,
             defaultValue: "",
             defaults: defaults,
@@ -438,11 +525,13 @@ struct AISettingsDetailView: View {
     private func saveProviderSettings() {
         let preset = selectedPreset
         let defaults = UserDefaults.standard
-        defaults.set(preset.format.rawValue, forKey: AISettingsKeys.providerFormat)
-        defaults.set(baseURL, forKey: AISettingsKeys.baseURLKey(for: preset.id))
-        defaults.set(model, forKey: AISettingsKeys.modelKey(for: preset.id))
-        defaults.set(apiKey, forKey: AISettingsKeys.apiKeyKey(for: preset.id))
-        if !preset.format.usesCodexExecutable {
+        let profile = page.profile
+        defaults.set(preset.id, forKey: profile.providerIDKey)
+        defaults.set(preset.format.rawValue, forKey: profile.providerFormatKey)
+        defaults.set(baseURL, forKey: profile.baseURLKey(for: preset.id))
+        defaults.set(model, forKey: profile.modelKey(for: preset.id))
+        defaults.set(apiKey, forKey: profile.apiKeyKey(for: preset.id))
+        if profile == .explanation, !preset.format.usesCodexExecutable {
             defaults.set(baseURL, forKey: AISettingsKeys.baseURL)
             defaults.set(model, forKey: AISettingsKeys.model)
             defaults.set(apiKey, forKey: AISettingsKeys.apiKey)

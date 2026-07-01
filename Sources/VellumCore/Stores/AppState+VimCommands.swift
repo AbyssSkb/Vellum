@@ -69,6 +69,10 @@ extension AppState: VimCommandTarget {
         activeReaderController?.vimExplainSelectedHighlight()
     }
 
+    func startAIConversation() {
+        activeReaderController?.vimStartAIConversation()
+    }
+
     func zoom(by factor: CGFloat) {
         activeReaderController?.vimZoom(by: factor)
     }

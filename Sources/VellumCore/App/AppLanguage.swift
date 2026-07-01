@@ -49,6 +49,13 @@ public enum AppUILanguage: String, CaseIterable, Identifiable, Sendable {
 
 public enum AppText {
     case ai
+    case aiChatAssistant
+    case aiChatContext
+    case aiChatPlaceholder
+    case aiChatSend
+    case aiChatThinking
+    case aiChatUser
+    case aiConversation
     case aiExplanation
     case aiHeaderSubtitle
     case apiKey
@@ -202,6 +209,13 @@ public extension AppText {
     private var english: String {
         switch self {
         case .ai: return "AI"
+        case .aiChatAssistant: return "Assistant"
+        case .aiChatContext: return "Context"
+        case .aiChatPlaceholder: return "Ask about the selected text"
+        case .aiChatSend: return "Send"
+        case .aiChatThinking: return "Thinking..."
+        case .aiChatUser: return "You"
+        case .aiConversation: return "AI Conversation"
         case .aiExplanation: return "AI Explanation"
         case .aiHeaderSubtitle: return "Choose a provider, enter its key, then pick the model Vellum should use."
         case .apiKey: return "API Key"
@@ -346,6 +360,13 @@ public extension AppText {
     private var chinese: String {
         switch self {
         case .ai: return "AI"
+        case .aiChatAssistant: return "助手"
+        case .aiChatContext: return "上下文"
+        case .aiChatPlaceholder: return "询问选中文本"
+        case .aiChatSend: return "发送"
+        case .aiChatThinking: return "思考中..."
+        case .aiChatUser: return "你"
+        case .aiConversation: return "AI 对话"
         case .aiExplanation: return "AI 解释"
         case .aiHeaderSubtitle: return "选择服务商，填写密钥，然后选择 Vellum 使用的模型。"
         case .apiKey: return "API 密钥"

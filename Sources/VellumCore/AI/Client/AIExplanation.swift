@@ -11,6 +11,12 @@ protocol AIExplaining: Sendable {
         configuration: AIConfiguration,
         onChunk: @escaping @MainActor (String) -> Void
     ) async throws -> String
+    func streamConversation(
+        context: AIExplanationContext,
+        messages: [AIConversationMessage],
+        configuration: AIConfiguration,
+        onChunk: @escaping @MainActor (String) -> Void
+    ) async throws -> String
 }
 
 struct OpenAICompatibleAIExplanationClient: AIExplaining {
@@ -69,6 +75,59 @@ struct OpenAICompatibleAIExplanationClient: AIExplaining {
 
         let request = try AIRequestFactory.streamingExplanationRequest(
             context: context,
+            configuration: configuration
+        )
+        let (bytes, response) = try await bytes(for: request)
+        try validate(response: response)
+
+        var fullText = ""
+        streamLoop:
+        for try await line in bytes.lines {
+            switch AIStreamParser.event(from: line) {
+            case .chunk(let delta):
+                fullText += delta
+                await MainActor.run {
+                    onChunk(delta)
+                }
+            case .done:
+                break streamLoop
+            case .ignored:
+                continue
+            }
+        }
+
+        let trimmed = fullText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            throw AIExplanationError.emptyResponse
+        }
+
+        return trimmed
+    }
+
+    func streamConversation(
+        context: AIExplanationContext,
+        messages: [AIConversationMessage],
+        configuration: AIConfiguration,
+        onChunk: @escaping @MainActor (String) -> Void
+    ) async throws -> String {
+        if configuration.providerFormat == .anthropicMessages {
+            let request = try AIRequestFactory.conversationRequest(
+                context: context,
+                messages: messages,
+                configuration: configuration
+            )
+            let (data, response) = try await data(for: request)
+            try validate(data: data, response: response)
+            let text = try AIResponseParser.completionText(from: data, providerFormat: configuration.providerFormat)
+            await MainActor.run {
+                onChunk(text)
+            }
+            return text
+        }
+
+        let request = try AIRequestFactory.streamingConversationRequest(
+            context: context,
+            messages: messages,
             configuration: configuration
         )
         let (bytes, response) = try await bytes(for: request)
@@ -157,6 +216,20 @@ enum AIExplanationClient {
     ) async throws -> String {
         try await client(for: configuration).streamExplanation(
             context: context,
+            configuration: configuration,
+            onChunk: onChunk
+        )
+    }
+
+    static func streamConversation(
+        context: AIExplanationContext,
+        messages: [AIConversationMessage],
+        configuration: AIConfiguration,
+        onChunk: @escaping @MainActor (String) -> Void
+    ) async throws -> String {
+        try await client(for: configuration).streamConversation(
+            context: context,
+            messages: messages,
             configuration: configuration,
             onChunk: onChunk
         )

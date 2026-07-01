@@ -29,6 +29,7 @@ struct AppStateReaderControllerTests {
         appState.copySelection()
         appState.highlightSelection()
         appState.explainHighlightSelection()
+        appState.startAIConversation()
         appState.zoom(by: 1.25)
         appState.zoomToPageFit()
         appState.zoomToFit()
@@ -48,6 +49,7 @@ struct AppStateReaderControllerTests {
             .copySelection,
             .highlightSelection,
             .explainHighlightSelection,
+            .startAIConversation,
             .zoom(1.25),
             .zoomPageFit,
             .zoomFit
@@ -247,6 +249,10 @@ private final class RecordingReaderController: ReaderController {
         actions.append(.explainHighlightSelection)
     }
 
+    func vimStartAIConversation() {
+        actions.append(.startAIConversation)
+    }
+
     func vimZoom(by factor: CGFloat) {
         actions.append(.zoom(factor))
     }
@@ -279,6 +285,7 @@ private final class RecordingReaderController: ReaderController {
         case copySelection
         case highlightSelection
         case explainHighlightSelection
+        case startAIConversation
         case zoom(CGFloat)
         case zoomPageFit
         case zoomFit

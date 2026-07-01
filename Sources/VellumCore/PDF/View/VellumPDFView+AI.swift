@@ -4,7 +4,8 @@ import SwiftUI
 
 extension VellumPDFView {
     func updateHoveredAIExplanation(for event: NSEvent) {
-        if aiInteraction.activeExplanationModel != nil, aiInteraction.hoveredAnnotation == nil {
+        if (aiInteraction.activeExplanationModel != nil || aiInteraction.activeConversationModel != nil),
+           aiInteraction.hoveredAnnotation == nil {
             return
         }
 
@@ -194,6 +195,44 @@ extension VellumPDFView {
         }
         aiInteraction.explanationPopover = popover
         aiInteraction.activeExplanationModel = model
+    }
+
+    func showAIConversationPopover(
+        model: AIConversationPopoverModel,
+        at rect: NSRect?
+    ) {
+        guard window != nil else { return }
+        cancelPendingHoverPopoverHide()
+        hideAIExplanationPopover()
+
+        let popover = NSPopover()
+        popover.behavior = .transient
+        popover.animates = true
+        popover.contentSize = AIConversationPopoverMetrics.size
+        popover.contentViewController = NSHostingController(
+            rootView: AIConversationPopoverView(
+                model: model,
+                onDismiss: { [weak self] in
+                    self?.dismissActiveAIInteraction(clearSelection: false)
+                },
+                onSend: { [weak self, weak model] prompt in
+                    self?.sendAIConversationMessage(prompt, model: model)
+                }
+            )
+        )
+
+        let anchor = rect ?? NSRect(x: bounds.midX, y: bounds.midY, width: 1, height: 1)
+        let horizontalOrigin = currentHorizontalOrigin()
+        if horizontalOrigin != nil {
+            window?.disableScreenUpdatesUntilFlush()
+        }
+        popover.show(relativeTo: anchor, of: self, preferredEdge: .maxY)
+        restoreHorizontalOrigin(horizontalOrigin)
+        DispatchQueue.main.async { [weak self] in
+            self?.restoreHorizontalOrigin(horizontalOrigin)
+        }
+        aiInteraction.conversationPopover = popover
+        aiInteraction.activeConversationModel = model
     }
 
     func scheduleStreamingPopoverHeightUpdate(model: AIExplanationPopoverModel, contentHeight: CGFloat) {
@@ -415,6 +454,13 @@ extension VellumPDFView {
         guard isAIInteractionActive else { return false }
         guard event.modifierFlags.intersection([.command, .control, .option]).isEmpty else { return false }
         guard let key = event.charactersIgnoringModifiers?.lowercased(), !key.isEmpty else { return false }
+
+        if aiInteraction.activeConversationModel != nil {
+            if key == "\u{1b}", event.type == .keyDown {
+                dismissActiveAIInteraction(clearSelection: false)
+            }
+            return true
+        }
 
         switch AIKeyEventRouter.action(
             key: key,

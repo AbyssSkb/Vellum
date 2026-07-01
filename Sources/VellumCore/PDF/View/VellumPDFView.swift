@@ -228,6 +228,33 @@ final class VellumPDFView: PDFView {
         super.otherMouseDown(with: event)
     }
 
+    override func menu(for event: NSEvent) -> NSMenu? {
+        let pointInView = convert(event.locationInWindow, from: nil)
+        let menu = super.menu(for: event) ?? NSMenu()
+
+        guard let selection = currentSelection,
+              selection.string?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false,
+              selectionCovers(pointInView, selection: selection) else {
+            return menu
+        }
+
+        if menu.items.isEmpty == false {
+            menu.addItem(.separator())
+        }
+
+        let language = AppUILanguage.saved()
+        let chatItem = NSMenuItem(
+            title: language.text(.aiConversation),
+            action: #selector(openAIConversationFromContextMenu),
+            keyEquivalent: "i"
+        )
+        chatItem.target = self
+        chatItem.image = NSImage(systemSymbolName: "bubble.left.and.bubble.right", accessibilityDescription: nil)
+        menu.addItem(chatItem)
+
+        return menu
+    }
+
     override func scrollWheel(with event: NSEvent) {
         completePendingRestoreBeforeUserInteraction()
         cancelPendingRestore()
@@ -400,6 +427,11 @@ final class VellumPDFView: PDFView {
         focus()
         vimExplainSelectedHighlight()
         return true
+    }
+
+    @objc private func openAIConversationFromContextMenu() {
+        focus()
+        vimStartAIConversation()
     }
 
     private func selectionCovers(_ pointInView: NSPoint, selection: PDFSelection) -> Bool {

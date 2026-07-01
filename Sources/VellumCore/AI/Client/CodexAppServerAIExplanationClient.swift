@@ -82,6 +82,23 @@ struct CodexAppServerAIExplanationClient: AIExplaining {
         )
     }
 
+    func streamConversation(
+        context: AIExplanationContext,
+        messages: [AIConversationMessage],
+        configuration: AIConfiguration,
+        onChunk: @escaping @MainActor (String) -> Void
+    ) async throws -> String {
+        try await runTurn(
+            prompt: AIConversationPromptRenderer.transcriptPrompt(
+                context: context,
+                messages: messages
+            ),
+            configuration: configuration,
+            timeout: 180,
+            onChunk: onChunk
+        )
+    }
+
     private var initializeParams: [String: Any] {
         [
             "clientInfo": [

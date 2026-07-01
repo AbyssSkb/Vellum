@@ -79,7 +79,8 @@ enum ShortcutCatalog {
                 ShortcutItem(keys: ["y"], action: "Copy selected text"),
                 ShortcutItem(keys: ["c"], action: "Cycle highlight color"),
                 ShortcutItem(keys: ["d"], action: "Delete highlight under selection"),
-                ShortcutItem(keys: ["a"], action: "Explain selected text or highlight")
+                ShortcutItem(keys: ["a"], action: "Explain selected text or highlight"),
+                ShortcutItem(keys: ["i"], action: "Chat with AI about selection")
             ]
         ),
         ShortcutGroup(
@@ -90,6 +91,15 @@ enum ShortcutCatalog {
                 ShortcutItem(keys: ["m"], action: "Save explained text as highlight"),
                 ShortcutItem(keys: ["c"], action: "Cycle highlight color"),
                 ShortcutItem(keys: ["Esc"], action: "Dismiss explanation")
+            ]
+        ),
+        ShortcutGroup(
+            title: "AI Conversation",
+            systemImage: "bubble.left.and.bubble.right",
+            items: [
+                ShortcutItem(keys: ["i"], action: "Open conversation for selection"),
+                ShortcutItem(keys: ["Cmd Enter"], action: "Send message"),
+                ShortcutItem(keys: ["Esc"], action: "Close conversation")
             ]
         ),
         ShortcutGroup(
@@ -184,7 +194,8 @@ enum ShortcutCatalog {
                 ShortcutItem(keys: ["y"], action: "复制选中文本"),
                 ShortcutItem(keys: ["c"], action: "切换高亮颜色"),
                 ShortcutItem(keys: ["d"], action: "删除选中位置下的高亮"),
-                ShortcutItem(keys: ["a"], action: "解释选中文本或高亮")
+                ShortcutItem(keys: ["a"], action: "解释选中文本或高亮"),
+                ShortcutItem(keys: ["i"], action: "围绕选中文本进行 AI 对话")
             ]
         ),
         ShortcutGroup(
@@ -195,6 +206,15 @@ enum ShortcutCatalog {
                 ShortcutItem(keys: ["m"], action: "把解释文本保存为高亮"),
                 ShortcutItem(keys: ["c"], action: "切换高亮颜色"),
                 ShortcutItem(keys: ["Esc"], action: "关闭解释")
+            ]
+        ),
+        ShortcutGroup(
+            title: "AI 对话",
+            systemImage: "bubble.left.and.bubble.right",
+            items: [
+                ShortcutItem(keys: ["i"], action: "为选中文本打开对话"),
+                ShortcutItem(keys: ["Cmd Enter"], action: "发送消息"),
+                ShortcutItem(keys: ["Esc"], action: "关闭对话")
             ]
         ),
         ShortcutGroup(

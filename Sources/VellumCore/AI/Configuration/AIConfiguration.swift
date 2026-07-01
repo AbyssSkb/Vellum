@@ -6,6 +6,8 @@ enum AISettingsKeys {
     static let baseURL = "AIBaseURL"
     static let model = "AIModel"
     static let apiKey = "AIApiKey"
+    static let conversationProviderID = "AIConversationProviderID"
+    static let conversationProviderFormat = "AIConversationProviderFormat"
 
     static func baseURLKey(for providerID: String) -> String {
         providerScopedKey("BaseURL", providerID: providerID)
@@ -21,6 +23,78 @@ enum AISettingsKeys {
 
     private static func providerScopedKey(_ name: String, providerID: String) -> String {
         "AIProvider.\(providerID).\(name)"
+    }
+
+    static func conversationBaseURLKey(for providerID: String) -> String {
+        conversationProviderScopedKey("BaseURL", providerID: providerID)
+    }
+
+    static func conversationModelKey(for providerID: String) -> String {
+        conversationProviderScopedKey("Model", providerID: providerID)
+    }
+
+    static func conversationAPIKeyKey(for providerID: String) -> String {
+        conversationProviderScopedKey("APIKey", providerID: providerID)
+    }
+
+    private static func conversationProviderScopedKey(_ name: String, providerID: String) -> String {
+        "AIConversationProvider.\(providerID).\(name)"
+    }
+}
+
+enum AIConfigurationProfile: String, CaseIterable, Identifiable {
+    case explanation
+    case conversation
+
+    var id: String { rawValue }
+
+    var providerIDKey: String {
+        switch self {
+        case .explanation:
+            return AISettingsKeys.providerID
+        case .conversation:
+            return AISettingsKeys.conversationProviderID
+        }
+    }
+
+    var providerFormatKey: String {
+        switch self {
+        case .explanation:
+            return AISettingsKeys.providerFormat
+        case .conversation:
+            return AISettingsKeys.conversationProviderFormat
+        }
+    }
+
+    func baseURLKey(for providerID: String) -> String {
+        switch self {
+        case .explanation:
+            return AISettingsKeys.baseURLKey(for: providerID)
+        case .conversation:
+            return AISettingsKeys.conversationBaseURLKey(for: providerID)
+        }
+    }
+
+    func modelKey(for providerID: String) -> String {
+        switch self {
+        case .explanation:
+            return AISettingsKeys.modelKey(for: providerID)
+        case .conversation:
+            return AISettingsKeys.conversationModelKey(for: providerID)
+        }
+    }
+
+    func apiKeyKey(for providerID: String) -> String {
+        switch self {
+        case .explanation:
+            return AISettingsKeys.apiKeyKey(for: providerID)
+        case .conversation:
+            return AISettingsKeys.conversationAPIKeyKey(for: providerID)
+        }
+    }
+
+    var allowsLegacyFallback: Bool {
+        self == .explanation
     }
 }
 
@@ -145,27 +219,30 @@ struct AIConfiguration: Sendable {
     let apiKey: String
     let providerFormat: AIProviderFormat
 
-    static func current(requireModel: Bool = true) throws -> AIConfiguration {
-        let defaults = UserDefaults.standard
-        let providerID = defaults.string(forKey: AISettingsKeys.providerID)
+    static func current(
+        profile: AIConfigurationProfile = .explanation,
+        requireModel: Bool = true,
+        defaults: UserDefaults = .standard
+    ) throws -> AIConfiguration {
+        let providerID = defaults.string(forKey: profile.providerIDKey)
             ?? AIProviderPreset.presets.first?.id
             ?? AIProviderPreset.customID
         let provider = AIProviderPreset.preset(for: providerID)
         let baseURLString = providerScopedValue(
-            forKey: AISettingsKeys.baseURLKey(for: provider.id),
-            legacyKey: AISettingsKeys.baseURL,
+            forKey: profile.baseURLKey(for: provider.id),
+            legacyKey: profile.allowsLegacyFallback ? AISettingsKeys.baseURL : nil,
             defaultValue: provider.baseURL,
             defaults: defaults
         )
         let model = providerScopedValue(
-            forKey: AISettingsKeys.modelKey(for: provider.id),
-            legacyKey: AISettingsKeys.model,
+            forKey: profile.modelKey(for: provider.id),
+            legacyKey: profile.allowsLegacyFallback ? AISettingsKeys.model : nil,
             defaultValue: provider.defaultModel,
             defaults: defaults
         )
         let apiKey = providerScopedValue(
-            forKey: AISettingsKeys.apiKeyKey(for: provider.id),
-            legacyKey: AISettingsKeys.apiKey,
+            forKey: profile.apiKeyKey(for: provider.id),
+            legacyKey: profile.allowsLegacyFallback ? AISettingsKeys.apiKey : nil,
             defaultValue: "",
             defaults: defaults
         )
@@ -181,7 +258,7 @@ struct AIConfiguration: Sendable {
 
     private static func providerScopedValue(
         forKey key: String,
-        legacyKey: String,
+        legacyKey: String?,
         defaultValue: String,
         defaults: UserDefaults
     ) -> String {
@@ -191,9 +268,14 @@ struct AIConfiguration: Sendable {
                 .trimmingCharacters(in: .whitespacesAndNewlines)
         }
 
-        return defaults.string(forKey: legacyKey)?
+        if let legacyKey,
+           let legacyValue = defaults.string(forKey: legacyKey)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
-            .nilIfEmpty ?? defaultValue
+            .nilIfEmpty {
+            return legacyValue
+        }
+
+        return defaultValue
     }
 
     init(

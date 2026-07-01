@@ -162,4 +162,86 @@ extension VellumPDFView {
         }
         aiInteraction.explanationTask = task
     }
+
+    func vimStartAIConversation() {
+        guard let selection = currentSelection ?? searchController?.activeSearchSelection,
+              let selectedText = selection.string?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+              !selectedText.isEmpty else {
+            showAIMessage(AIExplanationError.noSelection.localizedDescription)
+            NSSound.beep()
+            return
+        }
+
+        guard let context = AIExplanationContextBuilder.context(
+            for: selection,
+            selectedText: selectedText,
+            document: document
+        ) else {
+            showAIMessage(AIExplanationError.noSelection.localizedDescription)
+            NSSound.beep()
+            return
+        }
+
+        aiInteraction.conversationTask?.cancel()
+        aiInteraction.activeSelection = selection.copy() as? PDFSelection ?? selection
+        let model = AIConversationPopoverModel(context: context)
+        showAIConversationPopover(model: model, at: selectionPopoverRect(for: selection))
+    }
+
+    func sendAIConversationMessage(_ prompt: String, model: AIConversationPopoverModel?) {
+        guard let model,
+              aiInteraction.activeConversationModel === model,
+              !model.isSending else { return }
+
+        let question = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !question.isEmpty else { return }
+
+        let configuration: AIConfiguration
+        do {
+            configuration = try AIConfiguration.current(profile: .conversation)
+        } catch {
+            model.errorMessage = error.localizedDescription
+            NSSound.beep()
+            return
+        }
+
+        model.errorMessage = nil
+        model.isSending = true
+        let context = model.context
+        model.messages.append(AIConversationMessage(role: .user, content: question))
+        model.messages.append(AIConversationMessage(role: .assistant, content: ""))
+        let messagesForRequest = Array(model.messages.dropLast())
+
+        aiInteraction.conversationTask?.cancel()
+        let task = Task { @MainActor [weak self, weak model] in
+            do {
+                let answer = try await AIExplanationClient.streamConversation(
+                    context: context,
+                    messages: messagesForRequest,
+                    configuration: configuration,
+                    onChunk: { chunk in
+                        model?.appendToLatestAssistant(chunk)
+                    }
+                )
+                guard let model else { return }
+                model.replaceLatestAssistant(with: answer)
+                model.isSending = false
+                self?.aiInteraction.conversationTask = nil
+            } catch {
+                guard !Task.isCancelled else { return }
+                guard let model else { return }
+                if let lastIndex = model.messages.indices.last,
+                   model.messages[lastIndex].role == .assistant,
+                   model.messages[lastIndex].content.isEmpty {
+                    model.messages.remove(at: lastIndex)
+                }
+                model.errorMessage = error.localizedDescription
+                model.isSending = false
+                self?.aiInteraction.conversationTask = nil
+                NSSound.beep()
+            }
+        }
+        aiInteraction.conversationTask = task
+    }
 }

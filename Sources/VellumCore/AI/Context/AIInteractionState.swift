@@ -5,9 +5,12 @@ import PDFKit
 final class AIInteractionState {
     var explanationPopover: NSPopover?
     var activeExplanationModel: AIExplanationPopoverModel?
+    var conversationPopover: NSPopover?
+    var activeConversationModel: AIConversationPopoverModel?
     var activeSelection: PDFSelection?
     var existingAnnotations: [PDFAnnotation] = []
     var explanationTask: Task<Void, Never>?
+    var conversationTask: Task<Void, Never>?
     weak var activeWebView: AIExplanationWebView?
     var continuousScrollKey: String?
     var pendingPopoverContentHeight: CGFloat?
@@ -21,12 +24,17 @@ final class AIInteractionState {
     var hoverPopoverHideWorkItem: DispatchWorkItem?
 
     var isActive: Bool {
-        explanationPopover?.isShown == true || activeExplanationModel != nil
+        explanationPopover?.isShown == true
+            || activeExplanationModel != nil
+            || conversationPopover?.isShown == true
+            || activeConversationModel != nil
     }
 
     func clearActiveRequest() {
         explanationTask?.cancel()
         explanationTask = nil
+        conversationTask?.cancel()
+        conversationTask = nil
         activeSelection = nil
         existingAnnotations = []
     }
@@ -38,6 +46,9 @@ final class AIInteractionState {
         explanationPopover?.close()
         explanationPopover = nil
         activeExplanationModel = nil
+        conversationPopover?.close()
+        conversationPopover = nil
+        activeConversationModel = nil
         activeWebView = nil
         hoveredAnnotation = nil
         hoveredText = nil

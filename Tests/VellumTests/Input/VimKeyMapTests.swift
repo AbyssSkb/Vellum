@@ -34,6 +34,13 @@ struct VimKeyMapTests {
     }
 
     @Test
+    func conversationKeyRoutesToAIConversation() {
+        #expect(VimKeyMap.isHandledKey("i", hasNavigableTextSelection: false, hasTextActionTarget: true))
+        #expect(VimKeyMap.command(for: "i") == .startAIConversation)
+        #expect(VimKeyMap.lowercaseFallback(for: "I") == "i")
+    }
+
+    @Test
     func searchKeysAreHandledWithoutSelection() {
         #expect(VimKeyMap.isHandledKey("/", hasNavigableTextSelection: false, hasTextActionTarget: false))
         #expect(VimKeyMap.isHandledKey("n", hasNavigableTextSelection: false, hasTextActionTarget: false))

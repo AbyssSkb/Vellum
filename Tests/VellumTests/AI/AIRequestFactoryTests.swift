@@ -6,7 +6,7 @@ import Testing
 struct AIRequestFactoryTests {
     @Test
     func currentConfigurationReadsSelectedProviderSettings() throws {
-        let defaults = UserDefaults.standard
+        let defaults = try isolatedDefaults(named: "currentConfigurationReadsSelectedProviderSettings")
         let providerID = "anthropic"
         let keys = [
             AISettingsKeys.providerID,
@@ -30,12 +30,50 @@ struct AIRequestFactoryTests {
         defaults.set("claude-test", forKey: AISettingsKeys.modelKey(for: providerID))
         defaults.set("anthropic-key", forKey: AISettingsKeys.apiKeyKey(for: providerID))
 
-        let configuration = try AIConfiguration.current()
+        let configuration = try AIConfiguration.current(defaults: defaults)
 
         #expect(configuration.baseURL.absoluteString == "https://api.anthropic.com/v1")
         #expect(configuration.model == "claude-test")
         #expect(configuration.apiKey == "anthropic-key")
         #expect(configuration.providerFormat == .anthropicMessages)
+    }
+
+    @Test
+    func conversationConfigurationIsIndependentFromExplanationSettings() throws {
+        let defaults = try isolatedDefaults(named: "conversationConfigurationIsIndependentFromExplanationSettings")
+        let keys = [
+            AISettingsKeys.providerID,
+            AISettingsKeys.conversationProviderID,
+            AISettingsKeys.baseURLKey(for: "openai"),
+            AISettingsKeys.modelKey(for: "openai"),
+            AISettingsKeys.apiKeyKey(for: "openai"),
+            AISettingsKeys.conversationBaseURLKey(for: "anthropic"),
+            AISettingsKeys.conversationModelKey(for: "anthropic"),
+            AISettingsKeys.conversationAPIKeyKey(for: "anthropic")
+        ]
+        keys.forEach { defaults.removeObject(forKey: $0) }
+        defer {
+            keys.forEach { defaults.removeObject(forKey: $0) }
+        }
+
+        defaults.set("openai", forKey: AISettingsKeys.providerID)
+        defaults.set("https://api.explain.example/v1", forKey: AISettingsKeys.baseURLKey(for: "openai"))
+        defaults.set("explain-model", forKey: AISettingsKeys.modelKey(for: "openai"))
+        defaults.set("explain-key", forKey: AISettingsKeys.apiKeyKey(for: "openai"))
+        defaults.set("anthropic", forKey: AISettingsKeys.conversationProviderID)
+        defaults.set("https://api.anthropic.com/v1", forKey: AISettingsKeys.conversationBaseURLKey(for: "anthropic"))
+        defaults.set("chat-model", forKey: AISettingsKeys.conversationModelKey(for: "anthropic"))
+        defaults.set("chat-key", forKey: AISettingsKeys.conversationAPIKeyKey(for: "anthropic"))
+
+        let explanation = try AIConfiguration.current(profile: .explanation, defaults: defaults)
+        let conversation = try AIConfiguration.current(profile: .conversation, defaults: defaults)
+
+        #expect(explanation.model == "explain-model")
+        #expect(explanation.apiKey == "explain-key")
+        #expect(explanation.providerFormat == .openAICompatible)
+        #expect(conversation.model == "chat-model")
+        #expect(conversation.apiKey == "chat-key")
+        #expect(conversation.providerFormat == .anthropicMessages)
     }
 
     @Test
@@ -179,6 +217,37 @@ struct AIRequestFactoryTests {
     }
 
     @Test
+    func streamingConversationRequestIncludesContextAndMessages() throws {
+        let configuration = try AIConfiguration(
+            baseURLString: "https://api.example.com/v1",
+            model: "chat-model",
+            apiKey: "secret"
+        )
+        let context = makeContext()
+        let messages = [
+            AIConversationMessage(role: .user, content: "Why does this matter?"),
+            AIConversationMessage(role: .assistant, content: "It frames the claim."),
+            AIConversationMessage(role: .user, content: "Give me a shorter version.")
+        ]
+
+        let request = try AIRequestFactory.streamingConversationRequest(
+            context: context,
+            messages: messages,
+            configuration: configuration
+        )
+        let body = try requestBody(request)
+        let requestMessages = try #require(body["messages"] as? [[String: String]])
+
+        #expect(request.url?.absoluteString == "https://api.example.com/v1/chat/completions")
+        #expect(request.timeoutInterval == 90)
+        #expect(body["stream"] as? Bool == true)
+        #expect(body["max_tokens"] as? Int == 1600)
+        #expect(requestMessages.first?["role"] == "system")
+        #expect(requestMessages.first?["content"]?.contains("Selected text:\nterm") == true)
+        #expect(requestMessages.dropFirst().map { $0["role"] } == ["user", "assistant", "user"])
+    }
+
+    @Test
     func siliconFlowRequestsDisableThinking() throws {
         let configuration = try AIConfiguration(
             baseURLString: "https://api.siliconflow.cn/v1",
@@ -250,6 +319,13 @@ struct AIRequestFactoryTests {
     private func requestBody(_ request: URLRequest) throws -> [String: Any] {
         let data = try #require(request.httpBody)
         return try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+    }
+
+    private func isolatedDefaults(named name: String) throws -> UserDefaults {
+        let suiteName = "VellumTests.\(name).\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
+        return defaults
     }
 
     private func makeContext() -> AIExplanationContext {

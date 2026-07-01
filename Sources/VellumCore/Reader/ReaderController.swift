@@ -32,6 +32,7 @@ protocol ReaderController: AnyObject {
     func vimCopySelection()
     func vimHighlightSelection(color: NSColor)
     func vimExplainSelectedHighlight()
+    func vimStartAIConversation()
     func vimZoom(by factor: CGFloat)
     func vimZoomToPageFit()
     func vimZoomToFit()

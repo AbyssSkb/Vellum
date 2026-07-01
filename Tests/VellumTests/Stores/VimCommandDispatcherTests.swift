@@ -88,6 +88,7 @@ struct VimCommandDispatcherTests {
         dispatcher.perform(.highlightSelection, on: target)
         dispatcher.perform(.cycleHighlightColor, on: target)
         dispatcher.perform(.explainHighlightSelection, on: target)
+        dispatcher.perform(.startAIConversation, on: target)
         dispatcher.perform(.zoomIn, on: target)
         dispatcher.perform(.zoomOut, on: target)
         dispatcher.perform(.zoomPageFit, on: target)
@@ -99,6 +100,7 @@ struct VimCommandDispatcherTests {
             .highlightSelection,
             .cycleHighlightColor,
             .explainHighlightSelection,
+            .startAIConversation,
             .zoom(VimCommandMetrics.zoomStepFactor),
             .zoom(1 / VimCommandMetrics.zoomStepFactor),
             .zoomPageFit,
@@ -203,6 +205,10 @@ private final class RecordingVimCommandTarget: VimCommandTarget {
         actions.append(.explainHighlightSelection)
     }
 
+    func startAIConversation() {
+        actions.append(.startAIConversation)
+    }
+
     func zoom(by factor: CGFloat) {
         actions.append(.zoom(factor))
     }
@@ -239,6 +245,7 @@ private final class RecordingVimCommandTarget: VimCommandTarget {
         case highlightSelection
         case cycleHighlightColor
         case explainHighlightSelection
+        case startAIConversation
         case zoom(CGFloat)
         case zoomPageFit
         case zoomFit
