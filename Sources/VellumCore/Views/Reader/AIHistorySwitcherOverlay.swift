@@ -259,7 +259,7 @@ private struct AIHistorySwitcherItem: Identifiable, Equatable {
 
     init(_ item: AIConversationHistoryItem) {
         id = item.id
-        title = item.selectedText.aiPopoverTitle
+        title = item.selectedText.aiHistorySwitcherTitle
         preview = item.messages.last(where: { !$0.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty })?.content
             ?? item.selectedText
         searchableText = item.searchableText
@@ -267,9 +267,18 @@ private struct AIHistorySwitcherItem: Identifiable, Equatable {
 
     init(_ item: AIExplanationHistoryItem) {
         id = item.id
-        title = item.selectedText.aiPopoverTitle
+        title = item.selectedText.aiHistorySwitcherTitle
         preview = item.explanation
         searchableText = item.searchableText
+    }
+}
+
+private extension String {
+    var aiHistorySwitcherTitle: String {
+        let title = trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "\n", with: " ")
+        guard title.count > 52 else { return title }
+        return String(title.prefix(52)) + "..."
     }
 }
 

@@ -61,6 +61,8 @@ public enum AppText {
     case aiExplanation
     case aiExplanationHistory
     case aiExplanationHeaderSubtitle
+    case aiExplanationLoadingRequesting
+    case aiExplanationLoadingStage
     case aiHeaderSubtitle
     case aiLogsCleared
     case aiLogsFailed(String)
@@ -241,6 +243,8 @@ public extension AppText {
         case .aiExplanation: return "AI Explanation"
         case .aiExplanationHistory: return "AI Explanations"
         case .aiExplanationHeaderSubtitle: return "Choose the provider, model, and prompt used by selected-text explanations."
+        case .aiExplanationLoadingRequesting: return "Requesting response"
+        case .aiExplanationLoadingStage: return "Stage"
         case .aiHeaderSubtitle: return "Choose a provider, enter its key, then pick the model Vellum should use."
         case .aiLogsCleared: return "AI request log cleared."
         case .aiLogsFailed(let error): return "Log action failed: \(error)"
@@ -412,6 +416,8 @@ public extension AppText {
         case .aiExplanation: return "AI 解释"
         case .aiExplanationHistory: return "AI 解释"
         case .aiExplanationHeaderSubtitle: return "选择选中文本解释使用的服务商、模型和提示词。"
+        case .aiExplanationLoadingRequesting: return "正在请求模型"
+        case .aiExplanationLoadingStage: return "阶段"
         case .aiHeaderSubtitle: return "选择服务商，填写密钥，然后选择 Vellum 使用的模型。"
         case .aiLogsCleared: return "AI 请求日志已清除。"
         case .aiLogsFailed(let error): return "日志操作失败：\(error)"

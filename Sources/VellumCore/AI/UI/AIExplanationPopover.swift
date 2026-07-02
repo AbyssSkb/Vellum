@@ -13,7 +13,7 @@ struct AIExplanationPopoverView: View {
 
     var body: some View {
         MarkdownWebView(
-            markdown: model.text.isEmpty ? "..." : model.text,
+            markdown: renderedMarkdown,
             onDismiss: onDismiss,
             onHighlight: onHighlight,
             onCycleColor: onCycleColor,
@@ -27,6 +27,26 @@ struct AIExplanationPopoverView: View {
         )
         .frame(width: model.preferredSize.width, height: model.preferredSize.height)
         .background(TokyoNight.panelElevatedColor)
+    }
+
+    private var renderedMarkdown: String {
+        let trimmed = model.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.isEmpty else { return model.text }
+        return loadingMarkdown
+    }
+
+    private var loadingMarkdown: String {
+        let configuration = try? AIConfiguration.current(profile: .explanation)
+        let provider = configuration?.providerFormat.title ?? language.text(.notSet)
+        let modelName = configuration?.model.nilIfEmpty
+            ?? (configuration?.providerFormat == .codexCLI ? language.text(.useCodexDefault) : language.text(.notSet))
+        return """
+        **\(language.text(.aiExplanation))**
+
+        - \(language.text(.aiExplanationLoadingStage)): \(language.text(.aiExplanationLoadingRequesting))
+        - \(language.text(.provider)): \(provider)
+        - \(language.text(.model)): \(modelName)
+        """
     }
 }
 

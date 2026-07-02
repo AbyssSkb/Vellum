@@ -235,12 +235,19 @@ struct AIConversationPopoverView: View {
             .background(TokyoNight.panelColor.opacity(0.22))
             .onPreferenceChange(AIConversationMessageContentHeightKey.self) { height in
                 applyMeasuredContentHeight(height)
+                scrollToBottom(proxy)
             }
             .onChange(of: model.messages) { _, _ in
                 scrollToBottom(proxy)
+                refocusInput()
             }
             .onChange(of: model.preferredHeight) { _, _ in
                 scrollToBottom(proxy)
+                refocusInput()
+            }
+            .onChange(of: model.isSending) { _, _ in
+                scrollToBottom(proxy)
+                refocusInput()
             }
         }
     }
@@ -355,9 +362,22 @@ struct AIConversationPopoverView: View {
     }
 
     private func scrollToBottom(_ proxy: ScrollViewProxy) {
-        DispatchQueue.main.async {
-            withAnimation(.easeOut(duration: 0.14)) {
+        func align() {
+            withTransaction(Transaction(animation: nil)) {
                 proxy.scrollTo("bottom", anchor: .bottom)
+            }
+        }
+
+        DispatchQueue.main.async {
+            align()
+            DispatchQueue.main.async {
+                align()
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                align()
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) {
+                align()
             }
         }
     }
@@ -429,10 +449,9 @@ private struct AIConversationInputTextView: NSViewRepresentable {
             textView.string = text
         }
 
-        let isFirstResponder = textView.window?.firstResponder === textView
-        if isFirstResponder != isFocused {
+        if textView.window?.firstResponder === textView, !isFocused {
             DispatchQueue.main.async {
-                isFocused = isFirstResponder
+                isFocused = true
             }
         }
 
@@ -470,7 +489,16 @@ private struct AIConversationInputTextView: NSViewRepresentable {
         }
 
         func textDidEndEditing(_ notification: Notification) {
-            isFocused = false
+            guard let textView = notification.object as? AIConversationNSTextView else { return }
+            guard textView.window != nil else {
+                isFocused = false
+                return
+            }
+
+            isFocused = true
+            DispatchQueue.main.async { [weak textView] in
+                textView?.focusAndShowInsertionPoint()
+            }
         }
     }
 }
