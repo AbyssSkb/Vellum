@@ -21,9 +21,10 @@ final class UpdateAvailableWindowController: NSWindowController {
 
     init(updateVersion: String, currentVersion: String, canInstall: Bool, releaseNotes: [String]) {
         self.canInstall = canInstall
+        let notesMetrics = Self.notesMetrics(for: releaseNotes)
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 500, height: 448),
+            contentRect: NSRect(x: 0, y: 0, width: 500, height: notesMetrics.windowHeight),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
@@ -38,7 +39,12 @@ final class UpdateAvailableWindowController: NSWindowController {
 
         super.init(window: window)
         window.delegate = self
-        buildContent(updateVersion: updateVersion, currentVersion: currentVersion, releaseNotes: releaseNotes)
+        buildContent(
+            updateVersion: updateVersion,
+            currentVersion: currentVersion,
+            releaseNotes: releaseNotes,
+            notesMetrics: notesMetrics
+        )
     }
 
     required init?(coder: NSCoder) {
@@ -63,7 +69,12 @@ final class UpdateAvailableWindowController: NSWindowController {
         }
     }
 
-    private func buildContent(updateVersion: String, currentVersion: String, releaseNotes: [String]) {
+    private func buildContent(
+        updateVersion: String,
+        currentVersion: String,
+        releaseNotes: [String],
+        notesMetrics: NotesMetrics
+    ) {
         guard let contentView = window?.contentView else { return }
         contentView.wantsLayer = true
         contentView.layer?.backgroundColor = TokyoNight.backgroundDeep.cgColor
@@ -104,9 +115,6 @@ final class UpdateAvailableWindowController: NSWindowController {
         let notesTitle = label(language.text(.whatsNew), size: 12.5, weight: .semibold)
         notesTitle.translatesAutoresizingMaskIntoConstraints = false
 
-        let noteRows = releaseNotes.isEmpty
-            ? [fallbackNoteRow()]
-            : releaseNotes.map(noteRow)
         let notesPanel = NSView()
         notesPanel.translatesAutoresizingMaskIntoConstraints = false
         notesPanel.wantsLayer = true
@@ -115,20 +123,18 @@ final class UpdateAvailableWindowController: NSWindowController {
         notesPanel.layer?.borderWidth = 1
         notesPanel.layer?.borderColor = TokyoNight.border.withAlphaComponent(0.62).cgColor
 
-        let notesStack = NSStackView(views: noteRows)
-        notesStack.orientation = .vertical
-        notesStack.alignment = .width
-        notesStack.spacing = 9
-        notesStack.translatesAutoresizingMaskIntoConstraints = false
+        let notesView = releaseNotes.isEmpty
+            ? fallbackNotesView()
+            : releaseNotesView(releaseNotes)
 
         let documentView = FlippedDocumentView()
         documentView.translatesAutoresizingMaskIntoConstraints = false
-        documentView.addSubview(notesStack)
+        documentView.addSubview(notesView)
 
         let scrollView = NSScrollView()
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.drawsBackground = false
-        scrollView.hasVerticalScroller = true
+        scrollView.hasVerticalScroller = notesMetrics.needsScrolling
         scrollView.autohidesScrollers = true
         scrollView.borderType = .noBorder
         scrollView.documentView = documentView
@@ -161,6 +167,8 @@ final class UpdateAvailableWindowController: NSWindowController {
         contentView.addSubview(actionStack)
 
         let sidePadding: CGFloat = 26
+        let notesToActionsConstraint = notesPanel.bottomAnchor.constraint(equalTo: actionStack.topAnchor, constant: -20)
+        notesToActionsConstraint.priority = .defaultHigh
 
         NSLayoutConstraint.activate([
             iconWell.widthAnchor.constraint(equalToConstant: 48),
@@ -184,7 +192,8 @@ final class UpdateAvailableWindowController: NSWindowController {
             notesPanel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: sidePadding),
             notesPanel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -sidePadding),
             notesPanel.topAnchor.constraint(equalTo: notesTitle.bottomAnchor, constant: 9),
-            notesPanel.bottomAnchor.constraint(equalTo: actionStack.topAnchor, constant: -20),
+            notesPanel.heightAnchor.constraint(equalToConstant: notesMetrics.panelHeight),
+            notesToActionsConstraint,
 
             scrollView.leadingAnchor.constraint(equalTo: notesPanel.leadingAnchor, constant: 12),
             scrollView.trailingAnchor.constraint(equalTo: notesPanel.trailingAnchor, constant: -12),
@@ -192,10 +201,10 @@ final class UpdateAvailableWindowController: NSWindowController {
             scrollView.bottomAnchor.constraint(equalTo: notesPanel.bottomAnchor, constant: -12),
 
             documentView.widthAnchor.constraint(equalTo: scrollView.contentView.widthAnchor),
-            notesStack.leadingAnchor.constraint(equalTo: documentView.leadingAnchor),
-            notesStack.trailingAnchor.constraint(equalTo: documentView.trailingAnchor),
-            notesStack.topAnchor.constraint(equalTo: documentView.topAnchor),
-            notesStack.bottomAnchor.constraint(equalTo: documentView.bottomAnchor),
+            notesView.leadingAnchor.constraint(equalTo: documentView.leadingAnchor),
+            notesView.trailingAnchor.constraint(equalTo: documentView.trailingAnchor),
+            notesView.topAnchor.constraint(equalTo: documentView.topAnchor),
+            notesView.bottomAnchor.constraint(equalTo: documentView.bottomAnchor),
 
             actionStack.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: sidePadding),
             actionStack.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -sidePadding),
@@ -223,32 +232,47 @@ final class UpdateAvailableWindowController: NSWindowController {
         return label
     }
 
-    private func noteRow(_ text: String) -> NSView {
-        let bullet = NSTextField(labelWithString: "•")
-        bullet.font = .systemFont(ofSize: 14, weight: .semibold)
-        bullet.textColor = TokyoNight.cyan
-        bullet.alignment = .center
-        bullet.translatesAutoresizingMaskIntoConstraints = false
-
-        let textLabel = label(cleanDisplayNote(text), size: 12.5, color: foregroundColor)
-        textLabel.maximumNumberOfLines = 0
-
-        let row = NSStackView(views: [bullet, textLabel])
-        row.orientation = .horizontal
-        row.alignment = .firstBaseline
-        row.spacing = 9
-        row.translatesAutoresizingMaskIntoConstraints = false
-
-        NSLayoutConstraint.activate([
-            bullet.widthAnchor.constraint(equalToConstant: 12)
-        ])
-        return row
+    private func releaseNotesView(_ notes: [String]) -> NSTextField {
+        let noteLabel = label("", size: 12.5, color: foregroundColor)
+        noteLabel.attributedStringValue = attributedReleaseNotes(notes)
+        noteLabel.maximumNumberOfLines = 0
+        return noteLabel
     }
 
-    private func fallbackNoteRow() -> NSView {
+    private func fallbackNotesView() -> NSTextField {
         let noteLabel = label(language.text(.releaseNotesFallback), size: 12.5, color: mutedColor)
         noteLabel.maximumNumberOfLines = 0
         return noteLabel
+    }
+
+    private func attributedReleaseNotes(_ notes: [String]) -> NSAttributedString {
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.lineSpacing = 2
+        paragraph.paragraphSpacing = 7
+        paragraph.firstLineHeadIndent = 0
+        paragraph.headIndent = 18
+        paragraph.tabStops = [NSTextTab(textAlignment: .left, location: 18)]
+
+        let result = NSMutableAttributedString()
+        for note in notes {
+            if result.length > 0 {
+                result.append(NSAttributedString(string: "\n"))
+            }
+
+            let line = "•\t\(cleanDisplayNote(note))"
+            let lineStart = result.length
+            result.append(NSAttributedString(
+                string: line,
+                attributes: [
+                    .font: NSFont.systemFont(ofSize: 12.5),
+                    .foregroundColor: foregroundColor,
+                    .paragraphStyle: paragraph
+                ]
+            ))
+            result.addAttribute(.foregroundColor, value: TokyoNight.cyan, range: NSRange(location: lineStart, length: 1))
+            result.addAttribute(.font, value: NSFont.systemFont(ofSize: 14, weight: .semibold), range: NSRange(location: lineStart, length: 1))
+        }
+        return result
     }
 
     private func cleanDisplayNote(_ note: String) -> String {
@@ -299,6 +323,40 @@ final class UpdateAvailableWindowController: NSWindowController {
     private var mutedColor: NSColor {
         TokyoNight.muted
     }
+
+    private static func notesMetrics(for releaseNotes: [String]) -> NotesMetrics {
+        let contentHeight = estimatedNotesContentHeight(for: releaseNotes)
+        let maxContentHeight: CGFloat = 158
+        let minContentHeight: CGFloat = releaseNotes.isEmpty ? 40 : 54
+        let clampedContentHeight = min(max(contentHeight, minContentHeight), maxContentHeight)
+        let panelHeight = clampedContentHeight + 24
+        let windowHeight = 224 + panelHeight
+        return NotesMetrics(
+            panelHeight: panelHeight,
+            windowHeight: windowHeight,
+            needsScrolling: contentHeight > maxContentHeight
+        )
+    }
+
+    private static func estimatedNotesContentHeight(for releaseNotes: [String]) -> CGFloat {
+        guard !releaseNotes.isEmpty else { return 40 }
+        let usableCharactersPerLine = 60
+        let lineHeight: CGFloat = 18
+        let paragraphSpacing: CGFloat = 7
+
+        return releaseNotes.enumerated().reduce(CGFloat.zero) { total, item in
+            let textLength = item.element.trimmingCharacters(in: .whitespacesAndNewlines).count
+            let visualLineCount = max(1, Int(ceil(Double(textLength) / Double(usableCharactersPerLine))))
+            let spacing = item.offset == releaseNotes.count - 1 ? 0 : paragraphSpacing
+            return total + CGFloat(visualLineCount) * lineHeight + spacing
+        }
+    }
+}
+
+private struct NotesMetrics {
+    let panelHeight: CGFloat
+    let windowHeight: CGFloat
+    let needsScrolling: Bool
 }
 
 private final class FlippedDocumentView: NSView {
