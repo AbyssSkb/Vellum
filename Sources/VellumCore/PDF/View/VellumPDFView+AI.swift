@@ -162,7 +162,7 @@ extension VellumPDFView {
             initialHeight: AIExplanationPopoverMetrics.streamingMinimumHeight,
             pronunciationSpeechText: pronunciationSpeechText
         )
-        showPopover(model: model, at: rect ?? selectionPopoverRect(for: currentSelection), kind: .streaming)
+        showPopover(model: model, at: rect, kind: .streaming)
         clearSuppressedHoverExplanation()
         aiInteraction.hoveredAnnotation = nil
         aiInteraction.hoveredText = nil
@@ -178,6 +178,11 @@ extension VellumPDFView {
         guard window != nil else { return }
         cancelPendingHoverPopoverHide()
         hideAIExplanationPopover()
+
+        guard kind == .hover else {
+            showAIExplanationWindow(model: model, kind: kind)
+            return
+        }
 
         let popover = NSPopover()
         popover.behavior = kind.behavior
@@ -244,6 +249,60 @@ extension VellumPDFView {
         aiInteraction.activeExplanationModel = model
     }
 
+    private func showAIExplanationWindow(
+        model: AIExplanationPopoverModel,
+        kind: AIExplanationPopoverKind
+    ) {
+        guard let parentWindow = window else { return }
+
+        let hostingController = NSHostingController(
+            rootView: AIExplanationPopoverView(
+                model: model,
+                kind: kind,
+                onDismiss: { [weak self] in
+                    self?.dismissActiveAIInteraction(clearSelection: true)
+                },
+                onHighlight: { [weak self] in
+                    self?.highlightActiveAISelection()
+                },
+                onCycleColor: { [weak self] in
+                    self?.appState?.cycleHighlightColor(preserveFocus: true)
+                },
+                onContentHeightChange: { [weak self, model, kind] contentHeight in
+                    guard kind.allowsDynamicHeight else { return }
+
+                    switch kind {
+                    case .streaming:
+                        self?.scheduleStreamingPopoverHeightUpdate(model: model, contentHeight: contentHeight)
+                    case .message:
+                        self?.applyPopoverHeight(model: model, contentHeight: contentHeight, scrollToBottom: false)
+                    case .hover:
+                        break
+                    }
+                },
+                onWebViewReady: { [weak self, kind] webView in
+                    self?.aiInteraction.activeWebView = webView
+                    guard kind.shouldFocusWebView else { return }
+
+                    DispatchQueue.main.async { [weak webView] in
+                        guard let webView else { return }
+                        webView.window?.makeFirstResponder(webView)
+                    }
+                }
+            )
+        )
+
+        let panel = AIFloatingPanel(contentRect: NSRect(origin: .zero, size: model.preferredSize))
+        panel.contentViewController = hostingController
+        panel.setContentSize(model.preferredSize)
+        positionAIFloatingWindow(panel, size: model.preferredSize)
+        parentWindow.addChildWindow(panel, ordered: .above)
+        panel.makeKeyAndOrderFront(nil)
+
+        aiInteraction.explanationWindow = panel
+        aiInteraction.activeExplanationModel = model
+    }
+
     func showAIConversationPopover(
         model: AIConversationPopoverModel,
         at rect: NSRect?
@@ -252,11 +311,14 @@ extension VellumPDFView {
         cancelPendingHoverPopoverHide()
         hideAIExplanationPopover()
 
-        let popover = NSPopover()
-        popover.behavior = .transient
-        popover.animates = true
-        popover.contentSize = model.preferredSize
-        popover.contentViewController = NSHostingController(
+        showAIConversationWindow(model: model)
+    }
+
+    private func showAIConversationWindow(model: AIConversationPopoverModel) {
+        guard let parentWindow = window else { return }
+
+        let panel = AIFloatingPanel(contentRect: NSRect(origin: .zero, size: model.preferredSize))
+        panel.contentViewController = NSHostingController(
             rootView: AIConversationPopoverView(
                 model: model,
                 onDismiss: { [weak self] in
@@ -265,28 +327,43 @@ extension VellumPDFView {
                 onSend: { [weak self, weak model] prompt in
                     self?.sendAIConversationMessage(prompt, model: model)
                 },
-                onPreferredSizeChange: { [weak popover] size in
-                    NSAnimationContext.runAnimationGroup { context in
-                        context.duration = 0
-                        context.allowsImplicitAnimation = false
-                        popover?.contentSize = size
-                    }
+                onPreferredSizeChange: { [weak self, weak panel] size in
+                    guard let self, let panel else { return }
+                    self.resizeAIFloatingWindow(panel, size: size)
                 }
             )
         )
+        panel.setContentSize(model.preferredSize)
+        positionAIFloatingWindow(panel, size: model.preferredSize)
+        parentWindow.addChildWindow(panel, ordered: .above)
+        panel.makeKeyAndOrderFront(nil)
 
-        let anchor = rect ?? NSRect(x: bounds.midX, y: bounds.midY, width: 1, height: 1)
-        let horizontalOrigin = currentHorizontalOrigin()
-        if horizontalOrigin != nil {
-            window?.disableScreenUpdatesUntilFlush()
-        }
-        popover.show(relativeTo: anchor, of: self, preferredEdge: .maxY)
-        restoreHorizontalOrigin(horizontalOrigin)
-        DispatchQueue.main.async { [weak self] in
-            self?.restoreHorizontalOrigin(horizontalOrigin)
-        }
-        aiInteraction.conversationPopover = popover
+        aiInteraction.conversationWindow = panel
         aiInteraction.activeConversationModel = model
+    }
+
+    private func resizeAIFloatingWindow(_ window: NSWindow, size: NSSize) {
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0
+            context.allowsImplicitAnimation = false
+            positionAIFloatingWindow(window, size: size)
+        }
+    }
+
+    private func positionAIFloatingWindow(_ floatingWindow: NSWindow, size: NSSize) {
+        guard let parentWindow = window else { return }
+
+        let visible = visibleRect
+        let topInset: CGFloat = 76
+        let minimumInset: CGFloat = 18
+        let originInView = NSPoint(
+            x: visible.midX - size.width / 2,
+            y: max(visible.minY + minimumInset, visible.maxY - topInset - size.height)
+        )
+        let viewRect = NSRect(origin: originInView, size: size)
+        let windowRect = convert(viewRect, to: nil)
+        let screenRect = parentWindow.convertToScreen(windowRect)
+        floatingWindow.setFrame(screenRect, display: true)
     }
 
     func scheduleStreamingPopoverHeightUpdate(model: AIExplanationPopoverModel, contentHeight: CGFloat) {
@@ -324,6 +401,9 @@ extension VellumPDFView {
                 context.duration = 0
                 context.allowsImplicitAnimation = false
                 aiInteraction.explanationPopover?.contentSize = model.preferredSize
+                if let explanationWindow = aiInteraction.explanationWindow {
+                    positionAIFloatingWindow(explanationWindow, size: model.preferredSize)
+                }
             }
         }
 
@@ -458,6 +538,11 @@ extension VellumPDFView {
     }
 
     func mouseIsInsideExplanationPopover() -> Bool {
+        if let explanationWindow = aiInteraction.explanationWindow,
+           explanationWindow.frame.insetBy(dx: -3, dy: -3).contains(NSEvent.mouseLocation) {
+            return true
+        }
+
         guard let popoverWindow = aiInteraction.explanationPopover?.contentViewController?.view.window else {
             return false
         }
@@ -684,6 +769,26 @@ extension VellumPDFView {
             convert(NSPoint(x: pageRect.maxX, y: pageRect.maxY), from: page)
         ])
     }
+}
+
+private final class AIFloatingPanel: NSPanel {
+    init(contentRect: NSRect) {
+        super.init(
+            contentRect: contentRect,
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        isReleasedWhenClosed = false
+        isOpaque = false
+        backgroundColor = .clear
+        hasShadow = true
+        hidesOnDeactivate = false
+        collectionBehavior = [.fullScreenAuxiliary]
+    }
+
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { false }
 }
 
 private final class AIToastView: NSView {

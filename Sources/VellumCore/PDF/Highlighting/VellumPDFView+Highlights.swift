@@ -97,7 +97,6 @@ extension VellumPDFView {
             return
         }
 
-        let anchor = selectionPopoverRect(for: selection)
         let targetAnnotations = highlightedAnnotations(intersecting: selection)
 
         let configuration: AIConfiguration
@@ -125,7 +124,7 @@ extension VellumPDFView {
         let popoverModel = showStreamingAIExplanationPopover(
             title: selectedText.aiPopoverTitle,
             pronunciationSpeechText: selectedText,
-            at: anchor
+            at: nil
         )
 
         let task = Task { @MainActor [weak self] in
@@ -197,7 +196,7 @@ extension VellumPDFView {
         aiInteraction.conversationTask?.cancel()
         aiInteraction.activeSelection = selection.copy() as? PDFSelection ?? selection
         let model = AIConversationPopoverModel(context: context)
-        showAIConversationPopover(model: model, at: selectionPopoverRect(for: selection))
+        showAIConversationPopover(model: model, at: nil)
     }
 
     func sendAIConversationMessage(_ prompt: String, model: AIConversationPopoverModel?) {

@@ -4,8 +4,10 @@ import PDFKit
 @MainActor
 final class AIInteractionState {
     var explanationPopover: NSPopover?
+    var explanationWindow: NSWindow?
     var activeExplanationModel: AIExplanationPopoverModel?
     var conversationPopover: NSPopover?
+    var conversationWindow: NSWindow?
     var activeConversationModel: AIConversationPopoverModel?
     var activeSelection: PDFSelection?
     var existingAnnotations: [PDFAnnotation] = []
@@ -27,8 +29,10 @@ final class AIInteractionState {
 
     var isActive: Bool {
         explanationPopover?.isShown == true
+            || explanationWindow?.isVisible == true
             || activeExplanationModel != nil
             || conversationPopover?.isShown == true
+            || conversationWindow?.isVisible == true
             || activeConversationModel != nil
     }
 
@@ -47,9 +51,19 @@ final class AIInteractionState {
         pendingPopoverContentHeight = nil
         explanationPopover?.close()
         explanationPopover = nil
+        if let explanationWindow {
+            explanationWindow.parent?.removeChildWindow(explanationWindow)
+            explanationWindow.close()
+        }
+        explanationWindow = nil
         activeExplanationModel = nil
         conversationPopover?.close()
         conversationPopover = nil
+        if let conversationWindow {
+            conversationWindow.parent?.removeChildWindow(conversationWindow)
+            conversationWindow.close()
+        }
+        conversationWindow = nil
         activeConversationModel = nil
         activeWebView = nil
         hoveredAnnotation = nil

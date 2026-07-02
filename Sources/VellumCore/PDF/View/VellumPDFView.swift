@@ -281,6 +281,13 @@ final class VellumPDFView: PDFView {
         completePendingRestoreBeforeUserInteraction()
         cancelPendingRestore()
         searchController?.markReaderNavigated()
+
+        if isMouseSelectingText || (NSEvent.pressedMouseButtons & 1) == 1 {
+            if scrollPDFViewDuringMouseSelection(with: event) {
+                return
+            }
+        }
+
         super.scrollWheel(with: event)
     }
 
@@ -410,17 +417,17 @@ final class VellumPDFView: PDFView {
     }
 
     private func handleMouseSelectionScrollWheel(_ event: NSEvent) -> NSEvent? {
-        guard isMouseSelectingText,
+        guard isMouseSelectingText || currentSelection != nil || lastMouseSelectionMouseUpTimestamp != nil,
               event.window === window else {
             return event
         }
 
         let isLeftMouseDown = (NSEvent.pressedMouseButtons & 1) == 1
-        if isLeftMouseDown {
+        if isLeftMouseDown || isMouseSelectingText {
             completePendingRestoreBeforeUserInteraction()
             cancelPendingRestore()
             searchController?.markReaderNavigated()
-            pdfScrollView?.scrollWheel(with: event)
+            scrollPDFViewDuringMouseSelection(with: event)
             return nil
         }
 
@@ -430,6 +437,34 @@ final class VellumPDFView: PDFView {
         }
 
         return event
+    }
+
+    @discardableResult
+    private func scrollPDFViewDuringMouseSelection(with event: NSEvent) -> Bool {
+        guard let scrollView = pdfScrollView else { return false }
+
+        let clipView = scrollView.contentView
+        let documentSize = scrollView.documentView?.bounds.size ?? .zero
+        guard documentSize.height > clipView.bounds.height || documentSize.width > clipView.bounds.width else {
+            return false
+        }
+
+        let multiplier: CGFloat = event.hasPreciseScrollingDeltas ? 1 : 10
+        let deltaX = event.scrollingDeltaX * multiplier
+        let deltaY = event.scrollingDeltaY * multiplier
+        let maximumX = max(0, documentSize.width - clipView.bounds.width)
+        let maximumY = max(0, documentSize.height - clipView.bounds.height)
+        let current = clipView.bounds.origin
+        let proposed = NSPoint(
+            x: min(max(0, current.x + deltaX), maximumX),
+            y: min(max(0, current.y - deltaY), maximumY)
+        )
+
+        guard proposed != current else { return false }
+        clipView.scroll(to: proposed)
+        scrollView.reflectScrolledClipView(clipView)
+        scheduleReaderStateSave()
+        return true
     }
 
     private func doubleClickTextSelectionPoint(for event: NSEvent) -> NSPoint? {
