@@ -213,13 +213,7 @@ final class VellumPDFView: PDFView {
         if handleDoubleClickTextSelectionMouseDown(with: event) {
             return
         }
-        if let window {
-            PDFMouseSelectionScrollBridge.beginTracking(self, in: window)
-            super.mouseDown(with: event)
-            PDFMouseSelectionScrollBridge.endTracking(self, in: window)
-        } else {
-            super.mouseDown(with: event)
-        }
+        super.mouseDown(with: event)
         restoreHorizontalOrigin(pendingClickHorizontalOrigin)
     }
 
