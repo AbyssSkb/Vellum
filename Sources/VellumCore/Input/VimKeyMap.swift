@@ -41,7 +41,7 @@ enum VimKeyMap {
         hasTextActionTarget: Bool
     ) -> Bool {
         switch key {
-        case "g", "G", "H", "L", "O", "N", "T", "\t", "/", "a", "c", "i", "j", "k", "d", "u", "D", "U", "h", "l", "m", "n", " ", "f", "b", "v", "+", "=", "-", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "z", "o", "t", "x", "]", "[":
+        case "g", "G", "H", "L", "O", "N", "T", "A", "I", "\t", "/", "a", "c", "i", "j", "k", "d", "u", "D", "U", "h", "l", "m", "n", " ", "f", "b", "v", "+", "=", "-", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "z", "o", "t", "x", "]", "[":
             return true
         case "w", "e", "y":
             return key == "y" ? hasTextActionTarget : hasNavigableTextSelection
@@ -60,7 +60,7 @@ enum VimKeyMap {
         guard lowered != key else { return nil }
 
         switch lowered {
-        case "a", "c", "i", "j", "k", "d", "u", "h", "l", "m", "f", "b", "v", "w", "e", "n", "o", "t", "x", "y", "z":
+        case "c", "j", "k", "d", "u", "h", "l", "m", "f", "b", "v", "w", "e", "n", "o", "t", "x", "y", "z":
             return lowered
         default:
             return nil
@@ -87,6 +87,10 @@ enum VimKeyMap {
             return .openInNewTab
         case "T":
             return .showTabSwitcher
+        case "A":
+            return .showAIExplanationHistory
+        case "I":
+            return .showAIConversationHistory
         case "j":
             return .scrollDown
         case "k":

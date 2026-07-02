@@ -80,7 +80,9 @@ enum ShortcutCatalog {
                 ShortcutItem(keys: ["c"], action: "Cycle highlight color"),
                 ShortcutItem(keys: ["d"], action: "Delete highlight under selection"),
                 ShortcutItem(keys: ["a"], action: "Explain selected text or highlight"),
-                ShortcutItem(keys: ["i"], action: "Chat with AI about selection")
+                ShortcutItem(keys: ["A"], action: "Search AI explanations"),
+                ShortcutItem(keys: ["i"], action: "Chat with AI about selection"),
+                ShortcutItem(keys: ["I"], action: "Search AI conversations")
             ]
         ),
         ShortcutGroup(
@@ -98,7 +100,8 @@ enum ShortcutCatalog {
             systemImage: "bubble.left.and.bubble.right",
             items: [
                 ShortcutItem(keys: ["i"], action: "Open conversation for selection"),
-                ShortcutItem(keys: ["Cmd Enter"], action: "Send message"),
+                ShortcutItem(keys: ["Enter"], action: "Send message"),
+                ShortcutItem(keys: ["Shift Enter"], action: "Insert newline"),
                 ShortcutItem(keys: ["Esc"], action: "Close conversation")
             ]
         ),

@@ -56,8 +56,10 @@ public enum AppText {
     case aiChatThinking
     case aiChatUser
     case aiConversation
+    case aiConversationHistory
     case aiConversationHeaderSubtitle
     case aiExplanation
+    case aiExplanationHistory
     case aiExplanationHeaderSubtitle
     case aiHeaderSubtitle
     case aiProviders
@@ -126,6 +128,8 @@ public enum AppText {
     case nextTab
     case noContents
     case noDocument
+    case noMatchingAIConversations
+    case noMatchingAIExplanations
     case noMatchingTabs
     case notChecked
     case notSet
@@ -154,6 +158,8 @@ public enum AppText {
     case restorePreviousTabs
     case restorePreviousTabsSubtitle
     case search
+    case searchAIConversations
+    case searchAIExplanations
     case searchNoMatch
     case searchOpenTabs
     case searchTypeHint
@@ -221,8 +227,10 @@ public extension AppText {
         case .aiChatThinking: return "Thinking..."
         case .aiChatUser: return "You"
         case .aiConversation: return "AI Conversation"
+        case .aiConversationHistory: return "AI Conversations"
         case .aiConversationHeaderSubtitle: return "Choose the provider, model, and prompt used by selected-text chat."
         case .aiExplanation: return "AI Explanation"
+        case .aiExplanationHistory: return "AI Explanations"
         case .aiExplanationHeaderSubtitle: return "Choose the provider, model, and prompt used by selected-text explanations."
         case .aiHeaderSubtitle: return "Choose a provider, enter its key, then pick the model Vellum should use."
         case .aiProviders: return "AI Providers"
@@ -291,6 +299,8 @@ public extension AppText {
         case .nextTab: return "Next Tab"
         case .noContents: return "No contents"
         case .noDocument: return "No document"
+        case .noMatchingAIConversations: return "No matching conversations"
+        case .noMatchingAIExplanations: return "No matching explanations"
         case .noMatchingTabs: return "No matching tabs"
         case .notChecked: return "Not checked"
         case .notSet: return "Not set"
@@ -319,6 +329,8 @@ public extension AppText {
         case .restorePreviousTabs: return "Restore Previous Tabs"
         case .restorePreviousTabsSubtitle: return "Reopen PDFs and reading positions from the last session."
         case .search: return "Search"
+        case .searchAIConversations: return "Search AI conversations"
+        case .searchAIExplanations: return "Search AI explanations"
         case .searchNoMatch: return "no match"
         case .searchOpenTabs: return "Search open tabs"
         case .searchTypeHint: return "type"
@@ -377,8 +389,10 @@ public extension AppText {
         case .aiChatThinking: return "思考中..."
         case .aiChatUser: return "你"
         case .aiConversation: return "AI 对话"
+        case .aiConversationHistory: return "AI 对话"
         case .aiConversationHeaderSubtitle: return "选择选中文本对话使用的服务商、模型和提示词。"
         case .aiExplanation: return "AI 解释"
+        case .aiExplanationHistory: return "AI 解释"
         case .aiExplanationHeaderSubtitle: return "选择选中文本解释使用的服务商、模型和提示词。"
         case .aiHeaderSubtitle: return "选择服务商，填写密钥，然后选择 Vellum 使用的模型。"
         case .aiProviders: return "AI 服务商"
@@ -447,6 +461,8 @@ public extension AppText {
         case .nextTab: return "下一个标签页"
         case .noContents: return "没有目录"
         case .noDocument: return "没有文档"
+        case .noMatchingAIConversations: return "没有匹配的对话"
+        case .noMatchingAIExplanations: return "没有匹配的解释"
         case .noMatchingTabs: return "没有匹配的标签页"
         case .notChecked: return "未检查"
         case .notSet: return "未设置"
@@ -475,6 +491,8 @@ public extension AppText {
         case .restorePreviousTabs: return "恢复上次标签页"
         case .restorePreviousTabsSubtitle: return "重新打开上次会话的 PDF 和阅读位置。"
         case .search: return "搜索"
+        case .searchAIConversations: return "搜索 AI 对话"
+        case .searchAIExplanations: return "搜索 AI 解释"
         case .searchNoMatch: return "无匹配"
         case .searchOpenTabs: return "搜索已打开的标签页"
         case .searchTypeHint: return "输入"

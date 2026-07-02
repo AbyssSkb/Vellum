@@ -547,6 +547,66 @@ extension VellumPDFView {
         dismissActiveAIInteraction(clearSelection: true)
     }
 
+    func aiExplanationHistoryItems() -> [AIExplanationHistoryItem] {
+        guard let document else { return [] }
+
+        var items: [AIExplanationHistoryItem] = []
+        var seen = Set<String>()
+
+        for pageIndex in 0..<document.pageCount {
+            guard let page = document.page(at: pageIndex) else { continue }
+
+            for annotation in page.annotations where annotation.type == "Highlight" {
+                guard let explanation = AIExplanationAnnotation.decode(annotation.contents) else { continue }
+
+                let groupID = HighlightAnnotationMetadata.groupID(for: annotation)
+                let key = groupID ?? "\(pageIndex):\(annotation.bounds.integral.debugDescription):\(explanation)"
+                guard seen.insert(key).inserted else { continue }
+
+                let selectedText = page.selection(for: annotation.bounds)?.string?
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .nilIfEmpty
+                    ?? explanation.aiPopoverTitle
+
+                items.append(
+                    AIExplanationHistoryItem(
+                        id: UUID(),
+                        selectedText: selectedText,
+                        explanation: explanation,
+                        fileName: document.documentURL?.lastPathComponent ?? "Untitled",
+                        pageNumbers: [pageIndex + 1],
+                        updatedAt: annotation.modificationDate ?? Date.distantPast
+                    )
+                )
+            }
+        }
+
+        return items.sorted { $0.updatedAt > $1.updatedAt }
+    }
+
+    func restoreAIExplanation(_ item: AIExplanationHistoryItem) {
+        aiInteraction.explanationTask?.cancel()
+        aiInteraction.activeSelection = nil
+        aiInteraction.existingAnnotations = []
+
+        let model = AIExplanationPopoverModel(
+            title: item.selectedText.aiPopoverTitle,
+            text: item.explanation,
+            initialHeight: AIExplanationPopoverMetrics.estimatedHeight(for: item.explanation),
+            pronunciationSpeechText: item.selectedText
+        )
+        showPopover(model: model, at: centeredPopoverRect(), kind: .message)
+    }
+
+    func restoreAIConversation(_ item: AIConversationHistoryItem) {
+        aiInteraction.conversationTask?.cancel()
+
+        let model = AIConversationPopoverModel(context: item.context, historyID: item.id)
+        model.messages = item.messages
+        model.refreshPreferredHeight()
+        showAIConversationPopover(model: model, at: centeredPopoverRect())
+    }
+
     func selectionPopoverRect(for selection: PDFSelection?) -> NSRect? {
         guard let selection else { return nil }
 
@@ -562,6 +622,10 @@ extension VellumPDFView {
         }
 
         return nil
+    }
+
+    func centeredPopoverRect() -> NSRect {
+        NSRect(x: bounds.midX, y: bounds.midY, width: 1, height: 1)
     }
 
     func viewRect(for pageRect: NSRect, on page: PDFPage) -> NSRect? {

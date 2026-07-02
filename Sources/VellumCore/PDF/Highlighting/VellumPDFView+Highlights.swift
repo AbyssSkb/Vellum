@@ -211,6 +211,8 @@ extension VellumPDFView {
         let context = model.context
         model.messages.append(AIConversationMessage(role: .user, content: question))
         model.messages.append(AIConversationMessage(role: .assistant, content: ""))
+        model.refreshPreferredHeight()
+        appState?.upsertAIConversationHistory(model.historyItem)
         let messagesForRequest = Array(model.messages.dropLast())
 
         aiInteraction.conversationTask?.cancel()
@@ -222,11 +224,15 @@ extension VellumPDFView {
                     configuration: configuration,
                     onChunk: { chunk in
                         model?.appendToLatestAssistant(chunk)
+                        if let model {
+                            self?.appState?.upsertAIConversationHistory(model.historyItem)
+                        }
                     }
                 )
                 guard let model else { return }
                 model.replaceLatestAssistant(with: answer)
                 model.isSending = false
+                self?.appState?.upsertAIConversationHistory(model.historyItem)
                 self?.aiInteraction.conversationTask = nil
             } catch {
                 guard !Task.isCancelled else { return }
@@ -238,6 +244,8 @@ extension VellumPDFView {
                 }
                 model.errorMessage = error.localizedDescription
                 model.isSending = false
+                model.refreshPreferredHeight()
+                self?.appState?.upsertAIConversationHistory(model.historyItem)
                 self?.aiInteraction.conversationTask = nil
                 NSSound.beep()
             }

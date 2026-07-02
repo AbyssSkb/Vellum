@@ -20,10 +20,12 @@ final class AIConversationPopoverModel: ObservableObject {
     @Published var isSending = false
     @Published var errorMessage: String?
     @Published private(set) var preferredHeight = AIConversationPopoverMetrics.minimumHeight
+    let historyID: UUID
     let context: AIExplanationContext
 
-    init(context: AIExplanationContext) {
+    init(context: AIExplanationContext, historyID: UUID = UUID()) {
         self.context = context
+        self.historyID = historyID
     }
 
     var selectedTextTitle: String {
@@ -66,6 +68,15 @@ final class AIConversationPopoverModel: ObservableObject {
 
     var preferredSize: NSSize {
         NSSize(width: AIConversationPopoverMetrics.width, height: preferredHeight)
+    }
+
+    var historyItem: AIConversationHistoryItem {
+        AIConversationHistoryItem(
+            id: historyID,
+            context: context,
+            messages: messages,
+            updatedAt: Date()
+        )
     }
 
     @discardableResult

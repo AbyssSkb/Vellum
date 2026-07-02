@@ -68,6 +68,10 @@ struct VimCommandDispatcher {
             target.explainHighlightSelection()
         case .startAIConversation:
             target.startAIConversation()
+        case .showAIExplanationHistory:
+            target.showAIExplanationHistory()
+        case .showAIConversationHistory:
+            target.showAIConversationHistory()
         case .zoomIn:
             target.zoom(by: VimCommandMetrics.zoomStepFactor)
         case .zoomOut:
@@ -106,6 +110,8 @@ protocol VimCommandTarget {
     func cycleHighlightColor()
     func explainHighlightSelection()
     func startAIConversation()
+    func showAIExplanationHistory()
+    func showAIConversationHistory()
     func zoom(by factor: CGFloat)
     func zoomToPageFit()
     func zoomToFit()

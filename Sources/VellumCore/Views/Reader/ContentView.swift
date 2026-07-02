@@ -30,6 +30,14 @@ public struct ContentView: View {
             if appState.isTabSwitcherPresented {
                 TabSwitcherOverlay()
             }
+
+            if appState.isAIConversationHistoryPresented {
+                AIConversationHistorySwitcherOverlay()
+            }
+
+            if appState.isAIExplanationHistoryPresented {
+                AIExplanationHistorySwitcherOverlay()
+            }
         }
         .overlay(alignment: .top) {
             TitlebarDragRegion(hasOpenDocuments: appState.hasOpenDocuments)

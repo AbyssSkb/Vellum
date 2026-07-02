@@ -7,6 +7,10 @@ public final class AppState: ObservableObject {
     @Published var tabStore = TabStore()
     @Published var isOutlineVisible = false
     @Published var isTabSwitcherPresented = false
+    @Published var isAIConversationHistoryPresented = false
+    @Published var isAIExplanationHistoryPresented = false
+    @Published var aiConversationHistory: [AIConversationHistoryItem] = []
+    @Published var aiExplanationHistory: [AIExplanationHistoryItem] = []
     @Published var outlineFocusGeneration = 0
     @Published private(set) var selectedHighlightColor: HighlightColor
 
@@ -118,6 +122,46 @@ public final class AppState: ObservableObject {
     func hideTabSwitcher() {
         isTabSwitcherPresented = false
         focusActiveReaderSoon()
+    }
+
+    func showAIConversationHistory() {
+        guard !aiConversationHistory.isEmpty else { return }
+        isAIConversationHistoryPresented = true
+    }
+
+    func hideAIConversationHistory() {
+        isAIConversationHistoryPresented = false
+        focusActiveReaderSoon()
+    }
+
+    func restoreAIConversation(_ item: AIConversationHistoryItem) {
+        isAIConversationHistoryPresented = false
+        activeReaderController?.restoreAIConversation(item)
+    }
+
+    func upsertAIConversationHistory(_ item: AIConversationHistoryItem) {
+        if let index = aiConversationHistory.firstIndex(where: { $0.id == item.id }) {
+            aiConversationHistory[index] = item
+        } else {
+            aiConversationHistory.insert(item, at: 0)
+        }
+        aiConversationHistory.sort { $0.updatedAt > $1.updatedAt }
+    }
+
+    func showAIExplanationHistory() {
+        aiExplanationHistory = activeReaderController?.aiExplanationHistoryItems() ?? []
+        guard !aiExplanationHistory.isEmpty else { return }
+        isAIExplanationHistoryPresented = true
+    }
+
+    func hideAIExplanationHistory() {
+        isAIExplanationHistoryPresented = false
+        focusActiveReaderSoon()
+    }
+
+    func restoreAIExplanation(_ item: AIExplanationHistoryItem) {
+        isAIExplanationHistoryPresented = false
+        activeReaderController?.restoreAIExplanation(item)
     }
 
     private let vimCommandDispatcher = VimCommandDispatcher()

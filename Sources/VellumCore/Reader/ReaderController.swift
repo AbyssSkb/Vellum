@@ -33,7 +33,20 @@ protocol ReaderController: AnyObject {
     func vimHighlightSelection(color: NSColor)
     func vimExplainSelectedHighlight()
     func vimStartAIConversation()
+    func aiExplanationHistoryItems() -> [AIExplanationHistoryItem]
+    func restoreAIExplanation(_ item: AIExplanationHistoryItem)
+    func restoreAIConversation(_ item: AIConversationHistoryItem)
     func vimZoom(by factor: CGFloat)
     func vimZoomToPageFit()
     func vimZoomToFit()
+}
+
+extension ReaderController {
+    func aiExplanationHistoryItems() -> [AIExplanationHistoryItem] {
+        []
+    }
+
+    func restoreAIExplanation(_ item: AIExplanationHistoryItem) {}
+
+    func restoreAIConversation(_ item: AIConversationHistoryItem) {}
 }

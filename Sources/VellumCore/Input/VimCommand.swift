@@ -31,6 +31,8 @@ enum VimCommand: Equatable {
     case cycleHighlightColor
     case explainHighlightSelection
     case startAIConversation
+    case showAIExplanationHistory
+    case showAIConversationHistory
     case zoomIn
     case zoomOut
     case zoomPageFit

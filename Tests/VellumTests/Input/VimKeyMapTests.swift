@@ -37,7 +37,16 @@ struct VimKeyMapTests {
     func conversationKeyRoutesToAIConversation() {
         #expect(VimKeyMap.isHandledKey("i", hasNavigableTextSelection: false, hasTextActionTarget: true))
         #expect(VimKeyMap.command(for: "i") == .startAIConversation)
-        #expect(VimKeyMap.lowercaseFallback(for: "I") == "i")
+        #expect(VimKeyMap.isHandledKey("I", hasNavigableTextSelection: false, hasTextActionTarget: false))
+        #expect(VimKeyMap.command(for: "I") == .showAIConversationHistory)
+        #expect(VimKeyMap.lowercaseFallback(for: "I") == nil)
+    }
+
+    @Test
+    func explanationHistoryKeyRoutesToAIExplanationHistory() {
+        #expect(VimKeyMap.isHandledKey("A", hasNavigableTextSelection: false, hasTextActionTarget: false))
+        #expect(VimKeyMap.command(for: "A") == .showAIExplanationHistory)
+        #expect(VimKeyMap.lowercaseFallback(for: "A") == nil)
     }
 
     @Test
@@ -66,7 +75,6 @@ struct VimKeyMapTests {
 
     @Test
     func uppercaseFallbackLeavesDedicatedUppercaseCommandsAlone() {
-        #expect(VimKeyMap.lowercaseFallback(for: "A") == "a")
         #expect(VimKeyMap.lowercaseFallback(for: "G") == nil)
         #expect(VimKeyMap.lowercaseFallback(for: "N") == "n")
     }
