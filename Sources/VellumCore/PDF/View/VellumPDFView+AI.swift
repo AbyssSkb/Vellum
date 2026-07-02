@@ -302,6 +302,7 @@ extension VellumPDFView {
         aiInteraction.explanationWindow = panel
         aiInteraction.activeExplanationModel = model
         installAIFloatingWindowDismissMonitor()
+        installAIFloatingWindowActivationObserver()
     }
 
     func showAIConversationPopover(
@@ -323,7 +324,7 @@ extension VellumPDFView {
             rootView: AIConversationPopoverView(
                 model: model,
                 onDismiss: { [weak self] in
-                    self?.dismissActiveAIInteraction(clearSelection: false)
+                    self?.dismissActiveAIInteraction(clearSelection: true)
                 },
                 onSend: { [weak self, weak model] prompt in
                     self?.sendAIConversationMessage(prompt, model: model)
@@ -342,6 +343,7 @@ extension VellumPDFView {
         aiInteraction.conversationWindow = panel
         aiInteraction.activeConversationModel = model
         installAIFloatingWindowDismissMonitor()
+        installAIFloatingWindowActivationObserver()
     }
 
     private func installAIFloatingWindowDismissMonitor() {
@@ -362,9 +364,22 @@ extension VellumPDFView {
                 return event
             }
 
-            let shouldClearSelection = self.aiInteraction.activeExplanationModel != nil
-            self.dismissActiveAIInteraction(clearSelection: shouldClearSelection)
+            self.dismissActiveAIInteraction(clearSelection: true)
             return event
+        }
+    }
+
+    private func installAIFloatingWindowActivationObserver() {
+        guard aiInteraction.floatingWindowActivationObserver == nil else { return }
+
+        aiInteraction.floatingWindowActivationObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.restoreAIFloatingWindowPresentation()
+            }
         }
     }
 
@@ -388,6 +403,77 @@ extension VellumPDFView {
             context.allowsImplicitAnimation = false
             positionAIFloatingWindow(window, size: size)
         }
+    }
+
+    func restoreAIFloatingWindowPresentation() {
+        guard isAIInteractionActive,
+              let parentWindow = window,
+              parentWindow.isVisible else {
+            return
+        }
+
+        if let explanationWindow = aiInteraction.explanationWindow,
+           let activeExplanationModel = aiInteraction.activeExplanationModel {
+            restoreAIFloatingWindow(
+                explanationWindow,
+                parentWindow: parentWindow,
+                size: activeExplanationModel.preferredSize,
+                makeKey: aiInteraction.activeConversationModel == nil
+            )
+        }
+
+        if let conversationWindow = aiInteraction.conversationWindow,
+           let activeConversationModel = aiInteraction.activeConversationModel {
+            restoreAIFloatingWindow(
+                conversationWindow,
+                parentWindow: parentWindow,
+                size: activeConversationModel.preferredSize,
+                makeKey: true
+            )
+            refocusAIConversationInput(in: conversationWindow)
+        }
+    }
+
+    private func restoreAIFloatingWindow(
+        _ floatingWindow: NSWindow,
+        parentWindow: NSWindow,
+        size: NSSize,
+        makeKey: Bool
+    ) {
+        if floatingWindow.parent !== parentWindow {
+            floatingWindow.parent?.removeChildWindow(floatingWindow)
+            parentWindow.addChildWindow(floatingWindow, ordered: .above)
+        }
+
+        positionAIFloatingWindow(floatingWindow, size: size)
+        if makeKey {
+            floatingWindow.makeKeyAndOrderFront(nil)
+        } else {
+            floatingWindow.orderFront(nil)
+        }
+    }
+
+    private func refocusAIConversationInput(in window: NSWindow) {
+        guard let textView = firstTextView(in: window.contentView) else { return }
+        window.makeFirstResponder(textView)
+        textView.setSelectedRange(NSRange(location: textView.string.utf16.count, length: 0))
+        textView.scrollRangeToVisible(textView.selectedRange())
+        textView.needsDisplay = true
+    }
+
+    private func firstTextView(in view: NSView?) -> NSTextView? {
+        guard let view else { return nil }
+        if let textView = view as? NSTextView {
+            return textView
+        }
+
+        for subview in view.subviews {
+            if let textView = firstTextView(in: subview) {
+                return textView
+            }
+        }
+
+        return nil
     }
 
     private func positionAIFloatingWindow(_ floatingWindow: NSWindow, size: NSSize) {
@@ -636,7 +722,7 @@ extension VellumPDFView {
 
         if aiInteraction.activeConversationModel != nil {
             if key == "\u{1b}", event.type == .keyDown {
-                dismissActiveAIInteraction(clearSelection: false)
+                dismissActiveAIInteraction(clearSelection: true)
                 return true
             }
             return false
