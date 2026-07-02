@@ -15,7 +15,8 @@ struct AIPromptSettingsTests {
             fileName: "paper.pdf",
             directoryName: "Reading",
             outlineTitle: "Methods",
-            pageNumbers: [2, 3]
+            pageNumbers: [2, 3],
+            anchoredContext: "The <selected>salient</selected> factor matters."
         )
         let configuration = AIPromptConfiguration(
             targetLanguage: "Japanese",
@@ -30,6 +31,7 @@ struct AIPromptSettingsTests {
             Current={{currentParagraph}}
             Next={{nextParagraph}}
             Nearby={{nearbyText}}
+            Anchored={{anchoredContext}}
             """
         )
 
@@ -45,6 +47,7 @@ struct AIPromptSettingsTests {
         #expect(prompt.contains("Current=The salient factor matters."))
         #expect(prompt.contains("Next=After"))
         #expect(prompt.contains("Nearby=Nearby context"))
+        #expect(prompt.contains("Anchored=The <selected>salient</selected> factor matters."))
         #expect(!prompt.contains("{{"))
     }
 
@@ -64,12 +67,11 @@ struct AIPromptSettingsTests {
 
         let prompt = AIPromptRenderer.renderUserPrompt(context: context, configuration: .default)
 
-        #expect(prompt.contains("Selection kind: single token or compact term"))
-        #expect(prompt.contains("Pronunciation requirement: Expected: if this is a natural-language word, name, or term in any source language"))
-        #expect(prompt.contains("Selected text:\nsalient"))
-        #expect(prompt.contains("Selection kind:\nsingle token or compact term"))
-        #expect(prompt.contains("Pronunciation requirement:\nExpected: if this is a natural-language word"))
-        #expect(prompt.contains("For a single natural-language word, name, or term in any source language, include the pronunciation section. Do not omit it."))
+        #expect(prompt.contains("- Selection kind: single token or compact term"))
+        #expect(prompt.contains("Policy: Expected: if this is a natural-language word, name, or term in any source language"))
+        #expect(prompt.contains("<selected_text>\nsalient\n</selected_text>"))
+        #expect(prompt.contains("<anchored_context>\nNo anchored occurrence could be reliably extracted from the PDF.\n</anchored_context>"))
+        #expect(prompt.contains("Include only for a single word, name, short term, or short phrase where pronunciation helps."))
     }
 
     @Test
@@ -110,14 +112,14 @@ struct AIPromptSettingsTests {
 
         #expect(configuration.targetLanguage == AIPromptSettings.defaultTargetLanguage)
         #expect(configuration.template == AIPromptSettings.defaultTemplate)
-        #expect(configuration.template.contains("Target output language: {{targetLanguage}}"))
-        #expect(configuration.template.contains("Few-shots:"))
+        #expect(configuration.template.contains("Answer in {{targetLanguage}}. Use concise Markdown."))
         #expect(configuration.template.contains("### 音标"))
         #expect(configuration.template.contains("### 翻译"))
         #expect(configuration.template.contains("### 上下文解释"))
-        #expect(configuration.template.contains("If the selection is continuous prose broken only by PDF line wrapping, treat it as one passage rather than separate fragments."))
-        #expect(configuration.template.contains("write one fluent translation that preserves the original sentence flow"))
-        #expect(configuration.template.contains("verify that every line, paragraph, and non-contiguous fragment"))
+        #expect(configuration.template.contains("<selected_text>"))
+        #expect(configuration.template.contains("<anchored_context>"))
+        #expect(configuration.template.contains("Use `$...$` for inline math and `$$...$$` for display math."))
+        #expect(!configuration.template.contains("Few-shots:"))
         #expect(!configuration.template.contains("### Pronunciation"))
     }
 
@@ -206,15 +208,17 @@ struct AIPromptSettingsTests {
             fileName: "paper.pdf",
             directoryName: nil,
             outlineTitle: nil,
-            pageNumbers: [1, 4]
+            pageNumbers: [1, 4],
+            anchoredContext: "Before\n<selected>First selected sentence.</selected>\nOther text\n<selected>Second selected sentence.</selected>\nAfter"
         )
 
         let prompt = AIPromptRenderer.render(context: context).combined
 
-        #expect(prompt.contains("Cover the complete selection in its original order."))
-        #expect(prompt.contains("do not split it into a numbered list merely because the PDF text wrapped across lines."))
-        #expect(prompt.contains("Before finalizing, verify that every line, paragraph, and non-contiguous fragment"))
-        #expect(prompt.contains("First selected sentence.\n\nSecond selected sentence."))
+        #expect(prompt.contains("Cover the complete selected text in its original order."))
+        #expect(prompt.contains("If <anchored_context> contains <selected>...</selected> and the same text appears multiple times, use only the marked occurrence."))
+        #expect(prompt.contains("<selected_text>\nFirst selected sentence.\n\nSecond selected sentence.\n</selected_text>"))
+        #expect(prompt.contains("<selected>First selected sentence.</selected>"))
+        #expect(prompt.contains("Use `$...$` for inline math and `$$...$$` for display math."))
     }
 
     @Test
@@ -232,8 +236,9 @@ struct AIPromptSettingsTests {
             configuration: .defaultConversation
         )
 
-        #expect(prompt.contains("Treat every fragment inside Selected text as part of the user's target."))
-        #expect(prompt.contains("cover all selected fragments in their original order"))
-        #expect(prompt.contains("verify that every selected line, paragraph, and non-contiguous fragment"))
+        #expect(prompt.contains("The user selected the text inside <selected_text>. Use it as the main object of discussion."))
+        #expect(prompt.contains("If the selected text contains multiple fragments, cover all relevant fragments in order."))
+        #expect(prompt.contains("<selected_text>\nFirst claim.\nSecond claim.\n</selected_text>"))
+        #expect(prompt.contains("If <anchored_context> contains <selected>...</selected> and the same text appears multiple times, use only the marked occurrence."))
     }
 }

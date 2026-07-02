@@ -11,6 +11,7 @@ struct AIExplanationContext: Sendable {
     var directoryName: String?
     var outlineTitle: String?
     var pageNumbers: [Int]
+    var anchoredContext: String? = nil
 
     var prompt: String {
         AIPromptRenderer.renderUserPrompt(context: self)

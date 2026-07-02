@@ -21,6 +21,11 @@ enum AIExplanationContextBuilder {
             selectedText: selectedText,
             in: pageText
         )
+        let anchoredContext = anchoredContext(
+            for: selection,
+            selectedText: selectedText,
+            document: document
+        )
         let url = document.documentURL
 
         return AIExplanationContext(
@@ -33,8 +38,224 @@ enum AIExplanationContextBuilder {
             documentKey: url?.standardizedFileURL.path,
             directoryName: url?.deletingLastPathComponent().lastPathComponent,
             outlineTitle: document.outlineItem(for: selection)?.label?.nilIfEmpty,
-            pageNumbers: pageNumbers.isEmpty ? [1] : pageNumbers
+            pageNumbers: pageNumbers.isEmpty ? [1] : pageNumbers,
+            anchoredContext: anchoredContext
         )
+    }
+
+    private static func anchoredContext(
+        for selection: PDFSelection,
+        selectedText: String,
+        document: PDFDocument
+    ) -> String? {
+        let lineSelections = selection.selectionsByLine()
+        let pages = selection.pages
+        guard !pages.isEmpty else { return nil }
+
+        let sections = pages.compactMap { page -> String? in
+            let pageIndex = document.index(for: page)
+            let pageNumber = pageIndex == NSNotFound ? nil : pageIndex + 1
+            let pageBounds = page.bounds(for: .cropBox)
+            let selectedLines = lineSelections.filter { lineSelection in
+                lineSelection.pages.contains { $0 === page }
+            }
+            let bounds = selectedBounds(for: selectedLines, fallbackSelection: selection, page: page)
+            guard !bounds.isEmpty else { return nil }
+
+            let before = contextText(
+                on: page,
+                in: contextRectAbove(bounds, pageBounds: pageBounds)
+            )
+            let after = contextText(
+                on: page,
+                in: contextRectBelow(bounds, pageBounds: pageBounds)
+            )
+            let selectedBlock = anchoredSelectedBlock(
+                selectedLines: selectedLines,
+                selectedText: selectedText,
+                page: page,
+                pageBounds: pageBounds
+            )
+
+            let label = pageNumber.map { "Page \($0):" } ?? "Page:"
+            let body = [
+                before,
+                selectedBlock,
+                after
+            ]
+            .compactMap { $0?.nilIfEmpty }
+            .joined(separator: "\n")
+            .limitedForAIContext(2200)
+
+            guard !body.isEmpty else { return nil }
+            return "\(label)\n\(body)"
+        }
+
+        return sections
+            .joined(separator: "\n\n")
+            .limitedForAIContext(5200)
+            .nilIfEmpty
+    }
+
+    private static func selectedBounds(
+        for lineSelections: [PDFSelection],
+        fallbackSelection: PDFSelection,
+        page: PDFPage
+    ) -> NSRect {
+        let lineBounds = lineSelections
+            .map { $0.bounds(for: page) }
+            .filter { !$0.isEmpty }
+        if let first = lineBounds.first {
+            return lineBounds.dropFirst().reduce(first) { $0.union($1) }
+        }
+
+        return fallbackSelection.bounds(for: page)
+    }
+
+    private static func anchoredSelectedBlock(
+        selectedLines: [PDFSelection],
+        selectedText: String,
+        page: PDFPage,
+        pageBounds: NSRect
+    ) -> String? {
+        let lineBlocks = selectedLines.compactMap { lineSelection -> String? in
+            guard let selectedLineText = lineSelection.string?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .nilIfEmpty else { return nil }
+
+            let lineBounds = lineSelection.bounds(for: page)
+            let lineContext = contextText(
+                on: page,
+                in: expandedLineRect(for: lineBounds, pageBounds: pageBounds)
+            ) ?? selectedLineText
+
+            return markSelectedText(
+                selectedLineText,
+                in: lineContext,
+                selectedBounds: lineBounds,
+                pageBounds: pageBounds
+            )
+        }
+
+        if !lineBlocks.isEmpty {
+            return lineBlocks.joined(separator: "\n")
+        }
+
+        let trimmed = selectedText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        return "<selected>\(trimmed)</selected>"
+    }
+
+    private static func markSelectedText(
+        _ selectedText: String,
+        in contextText: String,
+        selectedBounds: NSRect,
+        pageBounds: NSRect
+    ) -> String {
+        let trimmedSelection = selectedText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedContext = contextText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedSelection.isEmpty, !trimmedContext.isEmpty else {
+            return "<selected>\(trimmedSelection)</selected>"
+        }
+
+        let ranges = ranges(of: trimmedSelection, in: trimmedContext)
+        guard let range = chosenRange(
+            from: ranges,
+            in: trimmedContext,
+            selectedBounds: selectedBounds,
+            pageBounds: pageBounds
+        ) else {
+            return "\(trimmedContext)\n<selected>\(trimmedSelection)</selected>"
+        }
+
+        var marked = trimmedContext
+        marked.insert(contentsOf: "</selected>", at: range.upperBound)
+        marked.insert(contentsOf: "<selected>", at: range.lowerBound)
+        return marked
+    }
+
+    private static func ranges(of needle: String, in haystack: String) -> [Range<String.Index>] {
+        var ranges: [Range<String.Index>] = []
+        var searchStart = haystack.startIndex
+        while searchStart < haystack.endIndex,
+              let range = haystack.range(of: needle, range: searchStart..<haystack.endIndex) {
+            ranges.append(range)
+            searchStart = range.upperBound
+        }
+        return ranges
+    }
+
+    private static func chosenRange(
+        from ranges: [Range<String.Index>],
+        in text: String,
+        selectedBounds: NSRect,
+        pageBounds: NSRect
+    ) -> Range<String.Index>? {
+        guard ranges.count > 1, pageBounds.width > 0 else {
+            return ranges.first
+        }
+
+        let selectedFraction = max(
+            0,
+            min(1, (selectedBounds.midX - pageBounds.minX) / pageBounds.width)
+        )
+        let textLength = max(1, text.utf16.count)
+
+        return ranges.min { lhs, rhs in
+            distance(lhs) < distance(rhs)
+        }
+
+        func distance(_ range: Range<String.Index>) -> CGFloat {
+            let nsRange = NSRange(range, in: text)
+            let rangeFraction = (CGFloat(nsRange.location) + CGFloat(nsRange.length) / 2) / CGFloat(textLength)
+            return abs(rangeFraction - selectedFraction)
+        }
+    }
+
+    private static func contextText(on page: PDFPage, in rect: NSRect?) -> String? {
+        guard let rect, !rect.isEmpty else { return nil }
+        return page.selection(for: rect)?
+            .string?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .nilIfEmpty
+    }
+
+    private static func expandedLineRect(for lineBounds: NSRect, pageBounds: NSRect) -> NSRect {
+        guard !lineBounds.isEmpty else { return .zero }
+
+        let verticalPadding: CGFloat = 2
+        return NSRect(
+            x: pageBounds.minX,
+            y: max(pageBounds.minY, lineBounds.minY - verticalPadding),
+            width: pageBounds.width,
+            height: min(
+                pageBounds.maxY,
+                lineBounds.maxY + verticalPadding
+            ) - max(pageBounds.minY, lineBounds.minY - verticalPadding)
+        )
+    }
+
+    private static func contextRectAbove(_ selectedBounds: NSRect, pageBounds: NSRect) -> NSRect? {
+        contextRect(
+            x: pageBounds.minX,
+            y: selectedBounds.maxY + 3,
+            width: pageBounds.width,
+            height: min(360, pageBounds.maxY - selectedBounds.maxY - 3)
+        )
+    }
+
+    private static func contextRectBelow(_ selectedBounds: NSRect, pageBounds: NSRect) -> NSRect? {
+        contextRect(
+            x: pageBounds.minX,
+            y: max(pageBounds.minY, selectedBounds.minY - 363),
+            width: pageBounds.width,
+            height: min(360, selectedBounds.minY - pageBounds.minY - 3)
+        )
+    }
+
+    private static func contextRect(x: CGFloat, y: CGFloat, width: CGFloat, height: CGFloat) -> NSRect? {
+        guard width > 0, height > 1 else { return nil }
+        return NSRect(x: x, y: y, width: width, height: height)
     }
 
     private static func paragraphContext(

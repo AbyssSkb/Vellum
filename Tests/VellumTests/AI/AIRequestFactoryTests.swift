@@ -272,7 +272,7 @@ struct AIRequestFactoryTests {
         #expect(body["stream"] as? Bool == true)
         #expect(body["max_tokens"] == nil)
         #expect(requestMessages.first?["role"] == "system")
-        #expect(requestMessages.first?["content"]?.contains("Selected text:\nterm") == true)
+        #expect(requestMessages.first?["content"]?.contains("<selected_text>\nterm\n</selected_text>") == true)
         #expect(requestMessages.dropFirst().map { $0["role"] } == ["user", "assistant", "user"])
     }
 

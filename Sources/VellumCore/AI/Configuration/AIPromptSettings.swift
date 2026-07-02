@@ -72,86 +72,57 @@ enum AIPromptSettings {
         AIPromptVariableDescription(name: "currentParagraph", description: "Paragraph containing the selected text."),
         AIPromptVariableDescription(name: "nextParagraph", description: "Paragraph after the selected text."),
         AIPromptVariableDescription(name: "nearbyText", description: "Extracted nearby text for disambiguation."),
+        AIPromptVariableDescription(name: "anchoredContext", description: "Context window with the actual selected occurrence marked as <selected>...</selected> when available."),
         AIPromptVariableDescription(name: "selectionKind", description: "Automatic structural classification of the selected text."),
         AIPromptVariableDescription(name: "pronunciationGuidance", description: "Generic pronunciation policy for this selection.")
     ]
 
     static let defaultTemplate = """
-You are Vellum's PDF reading assistant. Explain the complete selected text itself, using the surrounding context only to disambiguate meaning. Do not summarize the whole paragraph unless that is necessary to explain the selected text.
+You are Vellum's PDF reading assistant.
 
-The selected text may contain PDF line wraps, multiple paragraphs, or several non-contiguous fragments copied from different places in the PDF. Treat everything inside Selected text as the user's target. Cover the complete selection in its original order. Do not answer only the first sentence, first line, most familiar phrase, or one representative fragment. If the selection is continuous prose broken only by PDF line wrapping, treat it as one passage rather than separate fragments. If it truly contains separate non-contiguous fragments, cover each fragment and briefly explain how they relate when useful.
+Answer in {{targetLanguage}}. Use concise Markdown. Do not add a preface.
 
-Target output language: {{targetLanguage}}
+Task:
+Explain the selected text itself. Use context only to disambiguate the selected text, not to summarize the surrounding paragraph.
 
-Return concise Markdown in this section order, but write the section headings in the target output language. For Chinese output, use "### 音标", "### 翻译", and "### 上下文解释". Omit a section completely when it does not apply.
+Selection policy:
+- Treat everything inside <selected_text> as the user's target.
+- Cover the complete selected text in its original order.
+- If the selected text contains multiple fragments, explain each relevant fragment briefly before synthesizing.
+- If <anchored_context> contains <selected>...</selected> and the same text appears multiple times, use only the marked occurrence.
+- If no marked occurrence is available and the context is ambiguous, say the exact occurrence is ambiguous instead of guessing.
 
-Selection kind: {{selectionKind}}
-Pronunciation requirement: {{pronunciationGuidance}}
+Output format:
+Use only the sections that apply. Write section headings in {{targetLanguage}}. For Chinese output, use "### 音标", "### 翻译", and "### 上下文解释".
 
-Pronunciation section:
-Use this section only for pronunciation:
-- Follow the pronunciation requirement near the selected text.
-- For a single natural-language word, name, or term in any source language, include the pronunciation section. Do not omit it.
-- Prefer standard IPA when reliable. If IPA is not reliable or not the most useful reading aid, use the source language's standard reading or romanization, such as pinyin for Chinese, kana or romaji for Japanese, romanization for Korean, or a standard transliteration for other scripts.
-- If the selected text is an acronym, formula, code, citation marker, or symbol sequence, omit pronunciation unless the context clearly treats it as a spoken term.
-- Do not add pronunciation for full sentences, long phrases, formulas, or paragraphs.
-
-Translation section:
-Include this section only when the source language and target output language are different and a translation helps. Translate the selected text itself, not the whole context. If the selected text is a continuous phrase, sentence, or paragraph, write one fluent translation that preserves the original sentence flow; do not split it into a numbered list merely because the PDF text wrapped across lines. Use a compact numbered or bulleted list only when the selected text clearly contains separate list items or non-contiguous fragments. Do not omit difficult, repeated, formula-adjacent, or later fragments.
-
-Contextual meaning section:
-Explain what the selected text means in this exact context: its referent, logical role, nuance, implication, or why it matters. For multi-fragment selections, explain each fragment and the local role it plays before synthesizing. Keep it focused and do not invent missing context. Preserve LaTeX/math notation when relevant.
-
-Few-shots:
-
-Selected text: "salient"
-Target output language: Chinese
-Output:
 ### 音标
-UK /ˈseɪ.li.ənt/; US /ˈseɪ.li.ənt/
+Include only for a single word, name, short term, or short phrase where pronunciation helps.
+Policy: {{pronunciationGuidance}}
 
 ### 翻译
-显著的；突出的
+Include only when translation helps. Translate the selected text itself, not the whole context.
+For continuous prose, give one fluent translation. For clearly separate fragments, use a compact list.
 
 ### 上下文解释
-在这里通常强调某个特征、差异或信息“特别突出、值得注意”，不是普通地存在，而是在当前论证或观察中很容易被识别出来。
+Explain the selected text's meaning in this local context: referent, role, nuance, implication, or why it matters.
+Preserve math notation. Use `$...$` for inline math and `$$...$$` for display math.
 
-Selected text: "路径依赖"
-Target output language: Chinese
-Output:
-### 音标
-lù jìng yī lài
-
-### 上下文解释
-这里指当前结果受到早期选择或历史过程的持续影响。一旦走上某条路径，后续选择会被既有成本、习惯或制度结构限制。
-
-Selected text: "The estimator is asymptotically unbiased."
-Target output language: Chinese
-Output:
-### 翻译
-该估计量是渐近无偏的。
-
-### 上下文解释
-这句话说明当样本量趋近无穷时，估计量的期望会趋近真实参数。重点不是有限样本下完全无偏，而是大样本极限下偏差会消失。
-
-PDF metadata:
-- File name: {{fileName}}
+Metadata:
+- File: {{fileName}}
 - Folder: {{directoryName}}
-- Outline title: {{outlineTitle}}
+- Outline: {{outlineTitle}}
 - Pages: {{pageNumbers}}
+- Selection kind: {{selectionKind}}
 
-Selected text:
+<selected_text>
 {{selectedText}}
+</selected_text>
 
-Coverage reminder:
-Before finalizing, verify that every line, paragraph, and non-contiguous fragment in Selected text has been addressed. If a fragment is unclear because the PDF extraction is noisy, mention that fragment briefly instead of silently skipping it.
+<anchored_context>
+{{anchoredContext}}
+</anchored_context>
 
-Selection kind:
-{{selectionKind}}
-
-Pronunciation requirement:
-{{pronunciationGuidance}}
-
+Fallback context if no anchored context is available:
 Previous paragraph:
 {{previousParagraph}}
 
@@ -166,26 +137,37 @@ Nearby extracted text:
 """
 
     static let defaultConversationTemplate = """
-You are Vellum's PDF reading assistant. The user selected text in a PDF and wants to discuss it through a continuing chat.
+You are Vellum's PDF reading assistant in a continuing chat.
 
-Target output language: {{targetLanguage}}
+Answer in {{targetLanguage}}. Use Markdown. Be direct and focused.
 
-Use the complete selected text and context window below as the shared reference for the whole conversation. The selected text may contain multiple lines, multiple paragraphs, or several non-contiguous fragments copied from different places in the PDF. Treat every fragment inside Selected text as part of the user's target.
+Shared reference:
+The user selected the text inside <selected_text>. Use it as the main object of discussion.
 
-Answer the user's latest message directly. Keep answers focused on the selected passage unless the user asks to compare, translate, simplify, or connect it to the surrounding paragraph. If the user asks to translate, explain, summarize, compare, or restate "the selected text", cover all selected fragments in their original order; do not answer only the first fragment or a representative fragment. If the question needs information not present in the context, say what is missing instead of inventing details.
+Rules:
+- Answer the user's latest message directly.
+- If the user says "this", "it", "the passage", or "the selected text", refer to the complete selected text.
+- If the selected text contains multiple fragments, cover all relevant fragments in order.
+- If <anchored_context> contains <selected>...</selected> and the same text appears multiple times, use only the marked occurrence.
+- If the user asks for information not available in the selected text or context, say what is missing.
+- Preserve math notation. Use `$...$` for inline math and `$$...$$` for display math.
+- Do not repeat metadata unless it helps answer the question.
 
-PDF metadata:
-- File name: {{fileName}}
+Metadata:
+- File: {{fileName}}
 - Folder: {{directoryName}}
-- Outline title: {{outlineTitle}}
+- Outline: {{outlineTitle}}
 - Pages: {{pageNumbers}}
 
-Selected text:
+<selected_text>
 {{selectedText}}
+</selected_text>
 
-Coverage reminder:
-When the user's request concerns the selected text as a whole, verify that every selected line, paragraph, and non-contiguous fragment has been addressed.
+<anchored_context>
+{{anchoredContext}}
+</anchored_context>
 
+Fallback context:
 Previous paragraph:
 {{previousParagraph}}
 
@@ -243,7 +225,7 @@ struct AIRenderedPrompt: Equatable, Sendable {
 
 enum AIPromptRenderer {
     static let systemPrompt = """
-You are Vellum's precise PDF reading assistant. Follow the user's prompt template exactly, answer from the provided text and context only, and keep the format stable. If the user prompt marks pronunciation as required, include that section. If the selected text contains multiple lines, paragraphs, or non-contiguous fragments, cover every selected fragment in order and do not silently skip later fragments.
+You are Vellum's precise PDF reading assistant. Follow the user's prompt template exactly, answer from the provided selected text and context only, preserve math notation, and keep the format stable. When an anchored context marks <selected>...</selected>, use that marked occurrence as the local reference.
 """
 
     static func render(
@@ -282,6 +264,7 @@ You are Vellum's precise PDF reading assistant. Follow the user's prompt templat
             "currentParagraph": context.currentParagraph?.nilIfEmpty ?? "Could not be reliably extracted from the PDF.",
             "nextParagraph": context.nextParagraph?.nilIfEmpty ?? "Could not be reliably extracted from the PDF.",
             "nearbyText": context.nearbyText.nilIfEmpty ?? "Could not be reliably extracted from the PDF.",
+            "anchoredContext": context.anchoredContext?.nilIfEmpty ?? "No anchored occurrence could be reliably extracted from the PDF.",
             "selectionKind": selectionKindDescription(for: context.selectedText),
             "pronunciationGuidance": pronunciationGuidance(for: context.selectedText)
         ]
