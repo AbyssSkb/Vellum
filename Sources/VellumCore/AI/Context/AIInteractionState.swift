@@ -4,10 +4,10 @@ import PDFKit
 @MainActor
 final class AIInteractionState {
     var explanationPopover: NSPopover?
-    var explanationWindow: NSWindow?
+    var explanationOverlay: NSView?
     var activeExplanationModel: AIExplanationPopoverModel?
     var conversationPopover: NSPopover?
-    var conversationWindow: NSWindow?
+    var conversationOverlay: NSView?
     var activeConversationModel: AIConversationPopoverModel?
     var activeSelection: PDFSelection?
     var existingAnnotations: [PDFAnnotation] = []
@@ -26,15 +26,15 @@ final class AIInteractionState {
     var hoverPopoverHideWorkItem: DispatchWorkItem?
     weak var toastView: NSView?
     var toastHideWorkItem: DispatchWorkItem?
-    var floatingWindowDismissMonitor: Any?
-    var floatingWindowActivationObserver: NSObjectProtocol?
+    var floatingOverlayDismissMonitor: Any?
+    var floatingOverlayActivationObserver: NSObjectProtocol?
 
     var isActive: Bool {
         explanationPopover?.isShown == true
-            || explanationWindow?.isVisible == true
+            || explanationOverlay?.superview != nil
             || activeExplanationModel != nil
             || conversationPopover?.isShown == true
-            || conversationWindow?.isVisible == true
+            || conversationOverlay?.superview != nil
             || activeConversationModel != nil
     }
 
@@ -53,27 +53,21 @@ final class AIInteractionState {
         pendingPopoverContentHeight = nil
         explanationPopover?.close()
         explanationPopover = nil
-        if let floatingWindowDismissMonitor {
-            NSEvent.removeMonitor(floatingWindowDismissMonitor)
+        if let floatingOverlayDismissMonitor {
+            NSEvent.removeMonitor(floatingOverlayDismissMonitor)
         }
-        floatingWindowDismissMonitor = nil
-        if let floatingWindowActivationObserver {
-            NotificationCenter.default.removeObserver(floatingWindowActivationObserver)
+        floatingOverlayDismissMonitor = nil
+        if let floatingOverlayActivationObserver {
+            NotificationCenter.default.removeObserver(floatingOverlayActivationObserver)
         }
-        floatingWindowActivationObserver = nil
-        if let explanationWindow {
-            explanationWindow.parent?.removeChildWindow(explanationWindow)
-            explanationWindow.close()
-        }
-        explanationWindow = nil
+        floatingOverlayActivationObserver = nil
+        explanationOverlay?.removeFromSuperview()
+        explanationOverlay = nil
         activeExplanationModel = nil
         conversationPopover?.close()
         conversationPopover = nil
-        if let conversationWindow {
-            conversationWindow.parent?.removeChildWindow(conversationWindow)
-            conversationWindow.close()
-        }
-        conversationWindow = nil
+        conversationOverlay?.removeFromSuperview()
+        conversationOverlay = nil
         activeConversationModel = nil
         activeWebView = nil
         hoveredAnnotation = nil

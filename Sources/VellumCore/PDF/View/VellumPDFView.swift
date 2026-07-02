@@ -163,6 +163,7 @@ final class VellumPDFView: PDFView {
     override func layout() {
         super.layout()
         configurePDFScrollers()
+        updateAIFloatingOverlayFrames()
     }
 
     override func updateTrackingAreas() {

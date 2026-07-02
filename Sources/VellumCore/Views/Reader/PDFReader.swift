@@ -30,7 +30,7 @@ struct PDFReader: NSViewRepresentable {
         appState.setActiveReaderController(view, for: tabID)
         if isActive, !appState.isOutlineVisible {
             if view.isAIInteractionActive {
-                view.restoreAIFloatingWindowPresentation()
+                view.restoreAIFloatingOverlayPresentation()
             } else {
                 view.focus()
             }
@@ -63,7 +63,7 @@ struct PDFReader: NSViewRepresentable {
         if isActive, !appState.isOutlineVisible {
             DispatchQueue.main.async {
                 if nsView.isAIInteractionActive {
-                    nsView.restoreAIFloatingWindowPresentation()
+                    nsView.restoreAIFloatingOverlayPresentation()
                 } else {
                     nsView.focus()
                 }

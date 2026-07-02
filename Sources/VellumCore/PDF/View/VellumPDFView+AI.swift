@@ -180,7 +180,7 @@ extension VellumPDFView {
         hideAIExplanationPopover()
 
         guard kind == .hover else {
-            showAIExplanationWindow(model: model, kind: kind)
+            showAIExplanationOverlay(model: model, kind: kind)
             return
         }
 
@@ -249,13 +249,11 @@ extension VellumPDFView {
         aiInteraction.activeExplanationModel = model
     }
 
-    private func showAIExplanationWindow(
+    private func showAIExplanationOverlay(
         model: AIExplanationPopoverModel,
         kind: AIExplanationPopoverKind
     ) {
-        guard let parentWindow = window else { return }
-
-        let hostingController = NSHostingController(
+        let overlay = showAIFloatingOverlay(
             rootView: AIExplanationPopoverView(
                 model: model,
                 kind: kind,
@@ -289,20 +287,13 @@ extension VellumPDFView {
                         webView.window?.makeFirstResponder(webView)
                     }
                 }
-            )
+            ),
+            size: model.preferredSize
         )
-
-        let panel = AIFloatingPanel(contentRect: NSRect(origin: .zero, size: model.preferredSize))
-        panel.contentViewController = hostingController
-        panel.setContentSize(model.preferredSize)
-        positionAIFloatingWindow(panel, size: model.preferredSize)
-        parentWindow.addChildWindow(panel, ordered: .above)
-        panel.makeKeyAndOrderFront(nil)
-
-        aiInteraction.explanationWindow = panel
+        aiInteraction.explanationOverlay = overlay
         aiInteraction.activeExplanationModel = model
-        installAIFloatingWindowDismissMonitor()
-        installAIFloatingWindowActivationObserver()
+        installAIFloatingOverlayDismissMonitor()
+        installAIFloatingOverlayActivationObserver()
     }
 
     func showAIConversationPopover(
@@ -313,14 +304,13 @@ extension VellumPDFView {
         cancelPendingHoverPopoverHide()
         hideAIExplanationPopover()
 
-        showAIConversationWindow(model: model)
+        showAIConversationOverlay(model: model)
     }
 
-    private func showAIConversationWindow(model: AIConversationPopoverModel) {
-        guard let parentWindow = window else { return }
+    private func showAIConversationOverlay(model: AIConversationPopoverModel) {
+        var overlay: NSView?
 
-        let panel = AIFloatingPanel(contentRect: NSRect(origin: .zero, size: model.preferredSize))
-        panel.contentViewController = NSHostingController(
+        let createdOverlay = showAIFloatingOverlay(
             rootView: AIConversationPopoverView(
                 model: model,
                 onDismiss: { [weak self] in
@@ -329,38 +319,36 @@ extension VellumPDFView {
                 onSend: { [weak self, weak model] prompt in
                     self?.sendAIConversationMessage(prompt, model: model)
                 },
-                onPreferredSizeChange: { [weak self, weak panel] size in
-                    guard let self, let panel else { return }
-                    self.resizeAIFloatingWindow(panel, size: size)
+                onPreferredSizeChange: { [weak self] size in
+                    guard let self, let overlay else { return }
+                    self.resizeAIFloatingOverlay(overlay, size: size)
                 }
-            )
+            ),
+            size: model.preferredSize
         )
-        panel.setContentSize(model.preferredSize)
-        positionAIFloatingWindow(panel, size: model.preferredSize)
-        parentWindow.addChildWindow(panel, ordered: .above)
-        panel.makeKeyAndOrderFront(nil)
+        overlay = createdOverlay
 
-        aiInteraction.conversationWindow = panel
+        aiInteraction.conversationOverlay = createdOverlay
         aiInteraction.activeConversationModel = model
-        installAIFloatingWindowDismissMonitor()
-        installAIFloatingWindowActivationObserver()
+        installAIFloatingOverlayDismissMonitor()
+        installAIFloatingOverlayActivationObserver()
     }
 
-    private func installAIFloatingWindowDismissMonitor() {
-        if let floatingWindowDismissMonitor = aiInteraction.floatingWindowDismissMonitor {
-            NSEvent.removeMonitor(floatingWindowDismissMonitor)
+    private func installAIFloatingOverlayDismissMonitor() {
+        if let floatingOverlayDismissMonitor = aiInteraction.floatingOverlayDismissMonitor {
+            NSEvent.removeMonitor(floatingOverlayDismissMonitor)
         }
 
-        aiInteraction.floatingWindowDismissMonitor = NSEvent.addLocalMonitorForEvents(
+        aiInteraction.floatingOverlayDismissMonitor = NSEvent.addLocalMonitorForEvents(
             matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]
         ) { [weak self] event in
             guard let self else { return event }
-            guard self.aiInteraction.explanationWindow?.isVisible == true
-                || self.aiInteraction.conversationWindow?.isVisible == true else {
+            guard self.aiInteraction.explanationOverlay?.superview != nil
+                || self.aiInteraction.conversationOverlay?.superview != nil else {
                 return event
             }
 
-            if self.eventIsInsideActiveAIFloatingWindow(event) {
+            if self.eventIsInsideActiveAIFloatingOverlay(event) {
                 return event
             }
 
@@ -369,96 +357,120 @@ extension VellumPDFView {
         }
     }
 
-    private func installAIFloatingWindowActivationObserver() {
-        guard aiInteraction.floatingWindowActivationObserver == nil else { return }
+    private func installAIFloatingOverlayActivationObserver() {
+        guard aiInteraction.floatingOverlayActivationObserver == nil else { return }
 
-        aiInteraction.floatingWindowActivationObserver = NotificationCenter.default.addObserver(
+        aiInteraction.floatingOverlayActivationObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didBecomeActiveNotification,
             object: nil,
             queue: .main
         ) { [weak self] _ in
             MainActor.assumeIsolated {
-                self?.restoreAIFloatingWindowPresentation()
+                self?.restoreAIFloatingOverlayPresentation()
             }
         }
     }
 
-    private func eventIsInsideActiveAIFloatingWindow(_ event: NSEvent) -> Bool {
-        if let explanationWindow = aiInteraction.explanationWindow,
-           event.window === explanationWindow {
+    private func eventIsInsideActiveAIFloatingOverlay(_ event: NSEvent) -> Bool {
+        guard event.window === window else { return false }
+        let pointInView = convert(event.locationInWindow, from: nil)
+        if let explanationOverlay = aiInteraction.explanationOverlay,
+           explanationOverlay.superview != nil,
+           explanationOverlay.frame.insetBy(dx: -3, dy: -3).contains(pointInView) {
             return true
         }
 
-        if let conversationWindow = aiInteraction.conversationWindow,
-           event.window === conversationWindow {
+        if let conversationOverlay = aiInteraction.conversationOverlay,
+           conversationOverlay.superview != nil,
+           conversationOverlay.frame.insetBy(dx: -3, dy: -3).contains(pointInView) {
             return true
         }
 
         return false
     }
 
-    private func resizeAIFloatingWindow(_ window: NSWindow, size: NSSize) {
+    private func showAIFloatingOverlay<Content: View>(
+        rootView: Content,
+        size: NSSize
+    ) -> NSView {
+        let hostingView = NSHostingView(rootView: rootView)
+        hostingView.translatesAutoresizingMaskIntoConstraints = true
+        hostingView.frame = AIFloatingOverlayLayout.frame(in: visibleRect, size: size)
+        hostingView.wantsLayer = true
+        hostingView.layer?.cornerRadius = 8
+        hostingView.layer?.cornerCurve = .continuous
+        hostingView.layer?.masksToBounds = true
+        hostingView.layer?.shadowColor = NSColor.black.cgColor
+        hostingView.layer?.shadowOpacity = 0.24
+        hostingView.layer?.shadowRadius = 22
+        hostingView.layer?.shadowOffset = NSSize(width: 0, height: -8)
+        addSubview(hostingView)
+
+        DispatchQueue.main.async { [weak self, weak hostingView] in
+            guard let self, let hostingView else { return }
+            self.window?.makeFirstResponder(self.firstTextView(in: hostingView) ?? hostingView)
+        }
+
+        return hostingView
+    }
+
+    private func resizeAIFloatingOverlay(_ overlay: NSView, size: NSSize) {
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0
             context.allowsImplicitAnimation = false
-            positionAIFloatingWindow(window, size: size)
+            overlay.frame = AIFloatingOverlayLayout.frame(in: visibleRect, size: size)
         }
     }
 
-    func restoreAIFloatingWindowPresentation() {
+    func updateAIFloatingOverlayFrames() {
+        if let explanationOverlay = aiInteraction.explanationOverlay,
+           let activeExplanationModel = aiInteraction.activeExplanationModel {
+            explanationOverlay.frame = AIFloatingOverlayLayout.frame(
+                in: visibleRect,
+                size: activeExplanationModel.preferredSize
+            )
+        }
+
+        if let conversationOverlay = aiInteraction.conversationOverlay,
+           let activeConversationModel = aiInteraction.activeConversationModel {
+            conversationOverlay.frame = AIFloatingOverlayLayout.frame(
+                in: visibleRect,
+                size: activeConversationModel.preferredSize
+            )
+        }
+    }
+
+    func restoreAIFloatingOverlayPresentation() {
         guard isAIInteractionActive,
-              let parentWindow = window,
-              parentWindow.isVisible else {
+              window?.isVisible == true else {
             return
         }
 
-        if let explanationWindow = aiInteraction.explanationWindow,
+        if let explanationOverlay = aiInteraction.explanationOverlay,
            let activeExplanationModel = aiInteraction.activeExplanationModel {
-            restoreAIFloatingWindow(
-                explanationWindow,
-                parentWindow: parentWindow,
-                size: activeExplanationModel.preferredSize,
-                makeKey: aiInteraction.activeConversationModel == nil
-            )
+            resizeAIFloatingOverlay(explanationOverlay, size: activeExplanationModel.preferredSize)
+            if aiInteraction.activeConversationModel == nil {
+                focusAIFloatingOverlay(explanationOverlay)
+            }
         }
 
-        if let conversationWindow = aiInteraction.conversationWindow,
+        if let conversationOverlay = aiInteraction.conversationOverlay,
            let activeConversationModel = aiInteraction.activeConversationModel {
-            restoreAIFloatingWindow(
-                conversationWindow,
-                parentWindow: parentWindow,
-                size: activeConversationModel.preferredSize,
-                makeKey: true
-            )
-            refocusAIConversationInput(in: conversationWindow)
+            resizeAIFloatingOverlay(conversationOverlay, size: activeConversationModel.preferredSize)
+            focusAIFloatingOverlay(conversationOverlay)
         }
     }
 
-    private func restoreAIFloatingWindow(
-        _ floatingWindow: NSWindow,
-        parentWindow: NSWindow,
-        size: NSSize,
-        makeKey: Bool
-    ) {
-        if floatingWindow.parent !== parentWindow {
-            floatingWindow.parent?.removeChildWindow(floatingWindow)
-            parentWindow.addChildWindow(floatingWindow, ordered: .above)
+    private func focusAIFloatingOverlay(_ overlay: NSView) {
+        if let textView = firstTextView(in: overlay) {
+            window?.makeFirstResponder(textView)
+            textView.setSelectedRange(NSRange(location: textView.string.utf16.count, length: 0))
+            textView.scrollRangeToVisible(textView.selectedRange())
+            textView.needsDisplay = true
+            return
         }
 
-        positionAIFloatingWindow(floatingWindow, size: size)
-        if makeKey {
-            floatingWindow.makeKeyAndOrderFront(nil)
-        } else {
-            floatingWindow.orderFront(nil)
-        }
-    }
-
-    private func refocusAIConversationInput(in window: NSWindow) {
-        guard let textView = firstTextView(in: window.contentView) else { return }
-        window.makeFirstResponder(textView)
-        textView.setSelectedRange(NSRange(location: textView.string.utf16.count, length: 0))
-        textView.scrollRangeToVisible(textView.selectedRange())
-        textView.needsDisplay = true
+        window?.makeFirstResponder(overlay)
     }
 
     private func firstTextView(in view: NSView?) -> NSTextView? {
@@ -474,22 +486,6 @@ extension VellumPDFView {
         }
 
         return nil
-    }
-
-    private func positionAIFloatingWindow(_ floatingWindow: NSWindow, size: NSSize) {
-        guard let parentWindow = window else { return }
-
-        let visible = visibleRect
-        let topInset: CGFloat = 76
-        let minimumInset: CGFloat = 18
-        let originInView = NSPoint(
-            x: visible.midX - size.width / 2,
-            y: max(visible.minY + minimumInset, visible.maxY - topInset - size.height)
-        )
-        let viewRect = NSRect(origin: originInView, size: size)
-        let windowRect = convert(viewRect, to: nil)
-        let screenRect = parentWindow.convertToScreen(windowRect)
-        floatingWindow.setFrame(screenRect, display: true)
     }
 
     func scheduleStreamingPopoverHeightUpdate(model: AIExplanationPopoverModel, contentHeight: CGFloat) {
@@ -527,8 +523,8 @@ extension VellumPDFView {
                 context.duration = 0
                 context.allowsImplicitAnimation = false
                 aiInteraction.explanationPopover?.contentSize = model.preferredSize
-                if let explanationWindow = aiInteraction.explanationWindow {
-                    positionAIFloatingWindow(explanationWindow, size: model.preferredSize)
+                if let explanationOverlay = aiInteraction.explanationOverlay {
+                    explanationOverlay.frame = AIFloatingOverlayLayout.frame(in: visibleRect, size: model.preferredSize)
                 }
             }
         }
@@ -664,11 +660,6 @@ extension VellumPDFView {
     }
 
     func mouseIsInsideExplanationPopover() -> Bool {
-        if let explanationWindow = aiInteraction.explanationWindow,
-           explanationWindow.frame.insetBy(dx: -3, dy: -3).contains(NSEvent.mouseLocation) {
-            return true
-        }
-
         guard let popoverWindow = aiInteraction.explanationPopover?.contentViewController?.view.window else {
             return false
         }
@@ -897,34 +888,16 @@ extension VellumPDFView {
     }
 }
 
-private final class AIFloatingPanel: NSWindow {
-    private static let cornerRadius: CGFloat = 8
-
-    init(contentRect: NSRect) {
-        super.init(
-            contentRect: contentRect,
-            styleMask: [.borderless],
-            backing: .buffered,
-            defer: false
+private enum AIFloatingOverlayLayout {
+    static func frame(in visibleRect: NSRect, size: NSSize) -> NSRect {
+        let topInset: CGFloat = 76
+        let minimumInset: CGFloat = 18
+        let origin = NSPoint(
+            x: visibleRect.midX - size.width / 2,
+            y: max(visibleRect.minY + minimumInset, visibleRect.maxY - topInset - size.height)
         )
-        isReleasedWhenClosed = false
-        isOpaque = false
-        backgroundColor = .clear
-        hasShadow = true
-        collectionBehavior = [.fullScreenAuxiliary]
+        return NSRect(origin: origin, size: size)
     }
-
-    override var contentView: NSView? {
-        didSet {
-            contentView?.wantsLayer = true
-            contentView?.layer?.cornerRadius = Self.cornerRadius
-            contentView?.layer?.cornerCurve = .continuous
-            contentView?.layer?.masksToBounds = true
-        }
-    }
-
-    override var canBecomeKey: Bool { true }
-    override var canBecomeMain: Bool { false }
 }
 
 private final class AIToastView: NSView {
