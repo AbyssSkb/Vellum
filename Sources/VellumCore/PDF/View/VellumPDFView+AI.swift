@@ -47,7 +47,7 @@ extension VellumPDFView {
 
         if aiInteraction.hoveredKey == hoverKey,
            aiInteraction.hoveredText == explanation,
-           aiInteraction.explanationPopover?.isShown == true {
+           aiInteraction.explanationOverlay?.superview != nil {
             aiInteraction.hoveredAnnotation = annotation
             return
         }
@@ -179,16 +179,14 @@ extension VellumPDFView {
         cancelPendingHoverPopoverHide()
         hideAIExplanationPopover()
 
-        guard kind == .hover else {
-            showAIExplanationOverlay(model: model, kind: kind)
-            return
-        }
+        showAIExplanationOverlay(model: model, kind: kind)
+    }
 
-        let popover = NSPopover()
-        popover.behavior = kind.behavior
-        popover.animates = kind.animates
-        popover.contentSize = model.preferredSize
-        popover.contentViewController = NSHostingController(
+    private func showAIExplanationOverlay(
+        model: AIExplanationPopoverModel,
+        kind: AIExplanationPopoverKind
+    ) {
+        let overlay = showAIFloatingOverlay(
             rootView: AIExplanationPopoverView(
                 model: model,
                 kind: kind,
@@ -232,63 +230,9 @@ extension VellumPDFView {
                         webView.window?.makeFirstResponder(webView)
                     }
                 }
-            )
-        )
-
-        let anchor = rect ?? NSRect(x: bounds.midX, y: bounds.midY, width: 1, height: 1)
-        let horizontalOrigin = currentHorizontalOrigin()
-        if horizontalOrigin != nil {
-            window?.disableScreenUpdatesUntilFlush()
-        }
-        popover.show(relativeTo: anchor, of: self, preferredEdge: .maxY)
-        restoreHorizontalOrigin(horizontalOrigin)
-        DispatchQueue.main.async { [weak self] in
-            self?.restoreHorizontalOrigin(horizontalOrigin)
-        }
-        aiInteraction.explanationPopover = popover
-        aiInteraction.activeExplanationModel = model
-    }
-
-    private func showAIExplanationOverlay(
-        model: AIExplanationPopoverModel,
-        kind: AIExplanationPopoverKind
-    ) {
-        let overlay = showAIFloatingOverlay(
-            rootView: AIExplanationPopoverView(
-                model: model,
-                kind: kind,
-                onDismiss: { [weak self] in
-                    self?.dismissActiveAIInteraction(clearSelection: true)
-                },
-                onHighlight: { [weak self] in
-                    self?.highlightActiveAISelection()
-                },
-                onCycleColor: { [weak self] in
-                    self?.appState?.cycleHighlightColor(preserveFocus: true)
-                },
-                onContentHeightChange: { [weak self, model, kind] contentHeight in
-                    guard kind.allowsDynamicHeight else { return }
-
-                    switch kind {
-                    case .streaming:
-                        self?.scheduleStreamingPopoverHeightUpdate(model: model, contentHeight: contentHeight)
-                    case .message:
-                        self?.applyPopoverHeight(model: model, contentHeight: contentHeight, scrollToBottom: false)
-                    case .hover:
-                        break
-                    }
-                },
-                onWebViewReady: { [weak self, kind] webView in
-                    self?.aiInteraction.activeWebView = webView
-                    guard kind.shouldFocusWebView else { return }
-
-                    DispatchQueue.main.async { [weak webView] in
-                        guard let webView else { return }
-                        webView.window?.makeFirstResponder(webView)
-                    }
-                }
             ),
-            size: model.preferredSize
+            size: model.preferredSize,
+            focusWhenReady: kind.shouldFocusWebView
         )
         aiInteraction.explanationOverlay = overlay
         aiInteraction.activeExplanationModel = model
@@ -324,7 +268,8 @@ extension VellumPDFView {
                     self.resizeAIFloatingOverlay(overlay, size: size)
                 }
             ),
-            size: model.preferredSize
+            size: model.preferredSize,
+            focusWhenReady: true
         )
         overlay = createdOverlay
 
@@ -391,34 +336,31 @@ extension VellumPDFView {
 
     private func showAIFloatingOverlay<Content: View>(
         rootView: Content,
-        size: NSSize
+        size: NSSize,
+        focusWhenReady: Bool
     ) -> NSView {
         let hostingView = NSHostingView(rootView: rootView)
         hostingView.translatesAutoresizingMaskIntoConstraints = true
-        hostingView.frame = AIFloatingOverlayLayout.frame(in: visibleRect, size: size)
-        hostingView.wantsLayer = true
-        hostingView.layer?.cornerRadius = 8
-        hostingView.layer?.cornerCurve = .continuous
-        hostingView.layer?.masksToBounds = true
-        hostingView.layer?.shadowColor = NSColor.black.cgColor
-        hostingView.layer?.shadowOpacity = 0.24
-        hostingView.layer?.shadowRadius = 22
-        hostingView.layer?.shadowOffset = NSSize(width: 0, height: -8)
-        addSubview(hostingView)
 
-        DispatchQueue.main.async { [weak self, weak hostingView] in
-            guard let self, let hostingView else { return }
-            self.window?.makeFirstResponder(self.firstTextView(in: hostingView) ?? hostingView)
+        let overlay = AIFloatingOverlayContainerView(contentView: hostingView)
+        overlay.frame = floatingOverlayFrame(for: size)
+        addSubview(overlay)
+
+        if focusWhenReady {
+            DispatchQueue.main.async { [weak self, weak overlay] in
+                guard let self, let overlay else { return }
+                self.window?.makeFirstResponder(self.firstTextView(in: overlay) ?? overlay)
+            }
         }
 
-        return hostingView
+        return overlay
     }
 
     private func resizeAIFloatingOverlay(_ overlay: NSView, size: NSSize) {
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0
             context.allowsImplicitAnimation = false
-            overlay.frame = AIFloatingOverlayLayout.frame(in: visibleRect, size: size)
+            overlay.frame = floatingOverlayFrame(for: size)
         }
     }
 
@@ -427,7 +369,8 @@ extension VellumPDFView {
            let activeExplanationModel = aiInteraction.activeExplanationModel {
             explanationOverlay.frame = AIFloatingOverlayLayout.frame(
                 in: visibleRect,
-                size: activeExplanationModel.preferredSize
+                size: activeExplanationModel.preferredSize,
+                backingScale: backingScale
             )
         }
 
@@ -435,7 +378,8 @@ extension VellumPDFView {
            let activeConversationModel = aiInteraction.activeConversationModel {
             conversationOverlay.frame = AIFloatingOverlayLayout.frame(
                 in: visibleRect,
-                size: activeConversationModel.preferredSize
+                size: activeConversationModel.preferredSize,
+                backingScale: backingScale
             )
         }
     }
@@ -522,9 +466,8 @@ extension VellumPDFView {
             NSAnimationContext.runAnimationGroup { context in
                 context.duration = 0
                 context.allowsImplicitAnimation = false
-                aiInteraction.explanationPopover?.contentSize = model.preferredSize
                 if let explanationOverlay = aiInteraction.explanationOverlay {
-                    explanationOverlay.frame = AIFloatingOverlayLayout.frame(in: visibleRect, size: model.preferredSize)
+                    explanationOverlay.frame = floatingOverlayFrame(for: model.preferredSize)
                 }
             }
         }
@@ -660,6 +603,12 @@ extension VellumPDFView {
     }
 
     func mouseIsInsideExplanationPopover() -> Bool {
+        if let explanationOverlay = aiInteraction.explanationOverlay,
+           explanationOverlay.superview != nil,
+           let point = currentMousePointInView() {
+            return explanationOverlay.frame.insetBy(dx: -3, dy: -3).contains(point)
+        }
+
         guard let popoverWindow = aiInteraction.explanationPopover?.contentViewController?.view.window else {
             return false
         }
@@ -878,6 +827,17 @@ extension VellumPDFView {
         NSRect(x: bounds.midX, y: bounds.midY, width: 1, height: 1)
     }
 
+    private var backingScale: CGFloat {
+        window?.backingScaleFactor
+            ?? window?.screen?.backingScaleFactor
+            ?? NSScreen.main?.backingScaleFactor
+            ?? 2
+    }
+
+    private func floatingOverlayFrame(for size: NSSize) -> NSRect {
+        AIFloatingOverlayLayout.frame(in: visibleRect, size: size, backingScale: backingScale)
+    }
+
     func viewRect(for pageRect: NSRect, on page: PDFPage) -> NSRect? {
         HighlightGeometry.rect(containing: [
             convert(NSPoint(x: pageRect.minX, y: pageRect.minY), from: page),
@@ -889,14 +849,78 @@ extension VellumPDFView {
 }
 
 private enum AIFloatingOverlayLayout {
-    static func frame(in visibleRect: NSRect, size: NSSize) -> NSRect {
+    static func frame(in visibleRect: NSRect, size: NSSize, backingScale: CGFloat) -> NSRect {
         let topInset: CGFloat = 76
         let minimumInset: CGFloat = 18
         let origin = NSPoint(
             x: visibleRect.midX - size.width / 2,
             y: max(visibleRect.minY + minimumInset, visibleRect.maxY - topInset - size.height)
         )
-        return NSRect(origin: origin, size: size)
+        return pixelAligned(NSRect(origin: origin, size: size), backingScale: backingScale)
+    }
+
+    private static func pixelAligned(_ rect: NSRect, backingScale: CGFloat) -> NSRect {
+        guard backingScale > 0 else { return rect.integral }
+
+        func align(_ value: CGFloat) -> CGFloat {
+            (value * backingScale).rounded() / backingScale
+        }
+
+        return NSRect(
+            x: align(rect.origin.x),
+            y: align(rect.origin.y),
+            width: max(1 / backingScale, align(rect.size.width)),
+            height: max(1 / backingScale, align(rect.size.height))
+        )
+    }
+}
+
+private final class AIFloatingOverlayContainerView: NSView {
+    private let contentView: NSView
+
+    init(contentView: NSView) {
+        self.contentView = contentView
+        super.init(frame: .zero)
+
+        wantsLayer = true
+        canDrawSubviewsIntoLayer = false
+        layer?.masksToBounds = false
+        layer?.shadowColor = NSColor.black.cgColor
+        layer?.shadowOpacity = 0.24
+        layer?.shadowRadius = 22
+        layer?.shadowOffset = NSSize(width: 0, height: -8)
+
+        contentView.translatesAutoresizingMaskIntoConstraints = true
+        contentView.frame = bounds
+        contentView.autoresizingMask = [.width, .height]
+        addSubview(contentView)
+    }
+
+    override var acceptsFirstResponder: Bool { true }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        nil
+    }
+
+    override func layout() {
+        super.layout()
+        contentView.frame = bounds
+        updateShadowPath()
+    }
+
+    override func viewDidChangeBackingProperties() {
+        super.viewDidChangeBackingProperties()
+        updateShadowPath()
+    }
+
+    private func updateShadowPath() {
+        layer?.shadowPath = CGPath(
+            roundedRect: bounds,
+            cornerWidth: 8,
+            cornerHeight: 8,
+            transform: nil
+        )
     }
 }
 
