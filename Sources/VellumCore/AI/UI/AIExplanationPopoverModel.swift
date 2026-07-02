@@ -73,6 +73,7 @@ final class AIExplanationPopoverModel: ObservableObject {
     @Published var title: String
     @Published var text: String
     @Published var isStreaming: Bool
+    @Published var requestStatus: AIRequestVisualStatus
     @Published private(set) var preferredHeight: CGFloat
     let pronunciationSpeechText: String?
     let maximumHeight: CGFloat
@@ -88,6 +89,7 @@ final class AIExplanationPopoverModel: ObservableObject {
         self.title = title
         self.text = text
         self.isStreaming = isStreaming
+        self.requestStatus = isStreaming ? .streaming : .idle
         self.preferredHeight = initialHeight
         self.pronunciationSpeechText = AIExplanationPronunciationSpeech.normalizedSelectionText(pronunciationSpeechText)
         self.maximumHeight = maximumHeight
@@ -96,6 +98,9 @@ final class AIExplanationPopoverModel: ObservableObject {
     func append(_ chunk: String) {
         if text == "..." {
             text = ""
+        }
+        if requestStatus == .idle {
+            requestStatus = .streaming
         }
         text += chunk
     }

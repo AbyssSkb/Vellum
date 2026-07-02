@@ -8,6 +8,8 @@ enum AIExplanationError: LocalizedError {
     case noSelection
     case noHighlightedText
     case emptyResponse
+    case responseTruncated
+    case streamEndedPrematurely
     case server(String)
     case transport(String)
 
@@ -27,6 +29,10 @@ enum AIExplanationError: LocalizedError {
             return "当前选区没有命中任何高亮。"
         case .emptyResponse:
             return "AI 没有返回可用解释。"
+        case .responseTruncated:
+            return "AI 输出被服务端截断，内容可能不完整。"
+        case .streamEndedPrematurely:
+            return "AI 流式响应提前结束，内容可能不完整，请重试。"
         case .server(let message):
             return message
         case .transport(let message):

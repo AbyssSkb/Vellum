@@ -29,6 +29,12 @@ struct AIExplanationPopoverView: View {
         .frame(width: model.preferredSize.width, height: model.preferredSize.height)
         .background(TokyoNight.panelElevatedColor)
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(alignment: .topTrailing) {
+            if shouldShowFloatingStatus {
+                AIRequestStatusIndicator(status: model.requestStatus)
+                    .padding(8)
+            }
+        }
     }
 
     private var renderedMarkdown: String {
@@ -51,6 +57,11 @@ struct AIExplanationPopoverView: View {
             return "vellum-loading:{}"
         }
         return "vellum-loading:\(json)"
+    }
+
+    private var shouldShowFloatingStatus: Bool {
+        guard model.requestStatus != .idle else { return false }
+        return !(model.requestStatus == .streaming && renderedMarkdown.hasPrefix("vellum-loading:"))
     }
 
     private static func providerDisplayName(profile: AIConfigurationProfile) -> String {

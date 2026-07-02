@@ -18,6 +18,7 @@ final class AIConversationPopoverModel: ObservableObject {
     @Published var messages: [AIConversationMessage] = []
     @Published var draft = ""
     @Published var isSending = false
+    @Published var requestStatus: AIRequestVisualStatus = .idle
     @Published var errorMessage: String?
     @Published private(set) var preferredHeight = AIConversationPopoverMetrics.minimumHeight
     let historyID: UUID
@@ -245,6 +246,13 @@ struct AIConversationPopoverView: View {
             }
             .frame(height: messageViewportHeight)
             .background(TokyoNight.panelColor.opacity(0.22))
+            .overlay(alignment: .bottomTrailing) {
+                if model.requestStatus != .idle {
+                    AIRequestStatusIndicator(status: model.requestStatus)
+                        .padding(.trailing, 8)
+                        .padding(.bottom, 8)
+                }
+            }
             .onChange(of: model.messages) { _, _ in
                 scrollToBottom(proxy)
                 refocusInput()

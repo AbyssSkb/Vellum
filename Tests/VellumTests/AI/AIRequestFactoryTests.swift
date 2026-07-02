@@ -238,7 +238,7 @@ struct AIRequestFactoryTests {
 
         #expect(request.timeoutInterval == 60)
         #expect(body["stream"] as? Bool == true)
-        #expect(body["max_tokens"] as? Int == 1200)
+        #expect(body["max_tokens"] == nil)
         #expect(messages.first?["role"] == "system")
         #expect(messages.first?["content"] == renderedPrompt.system)
         #expect(messages.last?["role"] == "user")
@@ -270,7 +270,7 @@ struct AIRequestFactoryTests {
         #expect(request.url?.absoluteString == "https://api.example.com/v1/chat/completions")
         #expect(request.timeoutInterval == 90)
         #expect(body["stream"] as? Bool == true)
-        #expect(body["max_tokens"] as? Int == 1600)
+        #expect(body["max_tokens"] == nil)
         #expect(requestMessages.first?["role"] == "system")
         #expect(requestMessages.first?["content"]?.contains("Selected text:\nterm") == true)
         #expect(requestMessages.dropFirst().map { $0["role"] } == ["user", "assistant", "user"])

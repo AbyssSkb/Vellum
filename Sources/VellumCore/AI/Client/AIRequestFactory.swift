@@ -88,7 +88,6 @@ enum AIRequestFactory {
                 ChatMessage(role: "user", content: prompt.user)
             ],
             temperature: 0.2,
-            maxTokens: 1200,
             enableThinking: configuration.supportsSiliconFlowThinkingControls ? false : nil
         )
 
@@ -125,7 +124,6 @@ enum AIRequestFactory {
                 ChatMessage(role: "user", content: prompt.user)
             ],
             temperature: 0.2,
-            maxTokens: 1200,
             stream: true,
             enableThinking: configuration.supportsSiliconFlowThinkingControls ? false : nil
         )
@@ -163,7 +161,6 @@ enum AIRequestFactory {
             messages: [ChatMessage(role: "system", content: systemPrompt)]
                 + messages.map { ChatMessage(role: $0.role.rawValue, content: $0.content) },
             temperature: 0.2,
-            maxTokens: 1600,
             enableThinking: configuration.supportsSiliconFlowThinkingControls ? false : nil
         )
 
@@ -205,7 +202,6 @@ enum AIRequestFactory {
             ]
                 + messages.map { ChatMessage(role: $0.role.rawValue, content: $0.content) },
             temperature: 0.2,
-            maxTokens: 1600,
             stream: true,
             enableThinking: configuration.supportsSiliconFlowThinkingControls ? false : nil
         )

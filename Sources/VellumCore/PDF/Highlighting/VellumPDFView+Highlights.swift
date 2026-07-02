@@ -160,11 +160,13 @@ extension VellumPDFView {
                     )
                 )
                 popoverModel?.isStreaming = false
+                popoverModel?.requestStatus = .completed
                 self.aiInteraction.explanationTask = nil
             } catch {
                 guard !Task.isCancelled else { return }
                 self?.aiInteraction.explanationTask = nil
                 popoverModel?.isStreaming = false
+                popoverModel?.requestStatus = .failed
                 popoverModel?.title = "AI request failed"
                 popoverModel?.text = error.localizedDescription
                 NSSound.beep()
@@ -212,12 +214,14 @@ extension VellumPDFView {
             configuration = try AIConfiguration.current(profile: .conversation)
         } catch {
             model.errorMessage = error.localizedDescription
+            model.requestStatus = .failed
             NSSound.beep()
             return
         }
 
         model.errorMessage = nil
         model.isSending = true
+        model.requestStatus = .streaming
         let context = model.context
         model.messages.append(AIConversationMessage(role: .user, content: question))
         model.messages.append(AIConversationMessage(role: .assistant, content: ""))
@@ -242,6 +246,7 @@ extension VellumPDFView {
                 guard let model else { return }
                 model.replaceLatestAssistant(with: answer)
                 model.isSending = false
+                model.requestStatus = .completed
                 self?.appState?.upsertAIConversationHistory(model.historyItem)
                 self?.aiInteraction.conversationTask = nil
             } catch {
@@ -254,6 +259,7 @@ extension VellumPDFView {
                 }
                 model.errorMessage = error.localizedDescription
                 model.isSending = false
+                model.requestStatus = .failed
                 model.refreshPreferredHeight()
                 self?.appState?.upsertAIConversationHistory(model.historyItem)
                 self?.aiInteraction.conversationTask = nil

@@ -23,6 +23,20 @@ struct AIStreamParserTests {
     }
 
     @Test
+    func recognizesFinishReason() {
+        let line = #"data: {"choices":[{"delta":{},"finish_reason":"stop"}]}"#
+
+        #expect(AIStreamParser.event(from: line) == .finished(reason: "stop"))
+    }
+
+    @Test
+    func preservesContentWhenFinishReasonArrivesWithDelta() {
+        let line = #"data: {"choices":[{"delta":{"content":"done"},"finish_reason":"stop"}]}"#
+
+        #expect(AIStreamParser.event(from: line) == .chunkAndFinished("done", reason: "stop"))
+    }
+
+    @Test
     func ignoresNonDataAndMalformedLines() {
         #expect(AIStreamParser.event(from: ": keep-alive") == .ignored)
         #expect(AIStreamParser.event(from: "data: {") == .ignored)

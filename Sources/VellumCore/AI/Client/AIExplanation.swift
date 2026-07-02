@@ -86,6 +86,8 @@ struct OpenAICompatibleAIExplanationClient: AIExplaining {
         )
 
         var fullText = ""
+        var didReceiveDone = false
+        var finishReason: String?
         do {
             try validate(response: response)
 
@@ -97,17 +99,27 @@ struct OpenAICompatibleAIExplanationClient: AIExplaining {
                     await MainActor.run {
                         onChunk(delta)
                     }
+                case .chunkAndFinished(let delta, let reason):
+                    fullText += delta
+                    finishReason = reason
+                    await MainActor.run {
+                        onChunk(delta)
+                    }
+                case .finished(let reason):
+                    finishReason = reason
                 case .done:
+                    didReceiveDone = true
                     break streamLoop
                 case .ignored:
                     continue
                 }
             }
 
-            let trimmed = fullText.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty else {
-                throw AIExplanationError.emptyResponse
-            }
+            let trimmed = try validatedStreamText(
+                fullText,
+                didReceiveDone: didReceiveDone,
+                finishReason: finishReason
+            )
 
             AIRequestLogger.recordHTTP(
                 operation: "streamExplanation",
@@ -115,7 +127,10 @@ struct OpenAICompatibleAIExplanationClient: AIExplaining {
                 request: request,
                 response: response,
                 startedAt: startedAt,
-                responseText: trimmed
+                responseText: trimmed,
+                streamCompleted: true,
+                streamDoneReceived: didReceiveDone,
+                finishReason: finishReason
             )
             return trimmed
         } catch {
@@ -126,7 +141,10 @@ struct OpenAICompatibleAIExplanationClient: AIExplaining {
                 response: response,
                 startedAt: startedAt,
                 responseText: fullText,
-                error: error
+                error: error,
+                streamCompleted: false,
+                streamDoneReceived: didReceiveDone,
+                finishReason: finishReason
             )
             throw error
         }
@@ -167,6 +185,8 @@ struct OpenAICompatibleAIExplanationClient: AIExplaining {
         )
 
         var fullText = ""
+        var didReceiveDone = false
+        var finishReason: String?
         do {
             try validate(response: response)
 
@@ -178,17 +198,27 @@ struct OpenAICompatibleAIExplanationClient: AIExplaining {
                     await MainActor.run {
                         onChunk(delta)
                     }
+                case .chunkAndFinished(let delta, let reason):
+                    fullText += delta
+                    finishReason = reason
+                    await MainActor.run {
+                        onChunk(delta)
+                    }
+                case .finished(let reason):
+                    finishReason = reason
                 case .done:
+                    didReceiveDone = true
                     break streamLoop
                 case .ignored:
                     continue
                 }
             }
 
-            let trimmed = fullText.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty else {
-                throw AIExplanationError.emptyResponse
-            }
+            let trimmed = try validatedStreamText(
+                fullText,
+                didReceiveDone: didReceiveDone,
+                finishReason: finishReason
+            )
 
             AIRequestLogger.recordHTTP(
                 operation: "streamConversation",
@@ -196,7 +226,10 @@ struct OpenAICompatibleAIExplanationClient: AIExplaining {
                 request: request,
                 response: response,
                 startedAt: startedAt,
-                responseText: trimmed
+                responseText: trimmed,
+                streamCompleted: true,
+                streamDoneReceived: didReceiveDone,
+                finishReason: finishReason
             )
             return trimmed
         } catch {
@@ -207,7 +240,10 @@ struct OpenAICompatibleAIExplanationClient: AIExplaining {
                 response: response,
                 startedAt: startedAt,
                 responseText: fullText,
-                error: error
+                error: error,
+                streamCompleted: false,
+                streamDoneReceived: didReceiveDone,
+                finishReason: finishReason
             )
             throw error
         }
@@ -226,6 +262,27 @@ struct OpenAICompatibleAIExplanationClient: AIExplaining {
            !(200..<300).contains(httpResponse.statusCode) {
             throw AIExplanationError.server("AI 请求失败，HTTP \(httpResponse.statusCode)。")
         }
+    }
+
+    private func validatedStreamText(
+        _ fullText: String,
+        didReceiveDone: Bool,
+        finishReason: String?
+    ) throws -> String {
+        let trimmed = fullText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            throw AIExplanationError.emptyResponse
+        }
+
+        if finishReason == "length" {
+            throw AIExplanationError.responseTruncated
+        }
+
+        if didReceiveDone || finishReason != nil {
+            return trimmed
+        }
+
+        throw AIExplanationError.streamEndedPrematurely
     }
 
     private func data(

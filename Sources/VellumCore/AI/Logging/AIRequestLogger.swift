@@ -14,6 +14,9 @@ struct AIRequestLogEntry: Codable, Equatable {
     var requestBody: String?
     var responseBody: String?
     var error: String?
+    var streamCompleted: Bool? = nil
+    var streamDoneReceived: Bool? = nil
+    var finishReason: String? = nil
 }
 
 enum AIRequestLogger {
@@ -33,7 +36,10 @@ enum AIRequestLogger {
         startedAt: Date,
         responseData: Data? = nil,
         responseText: String? = nil,
-        error: Error? = nil
+        error: Error? = nil,
+        streamCompleted: Bool? = nil,
+        streamDoneReceived: Bool? = nil,
+        finishReason: String? = nil
     ) {
         let entry = AIRequestLogEntry(
             timestamp: Date(),
@@ -48,7 +54,10 @@ enum AIRequestLogger {
             requestBody: textPreview(from: request.httpBody, maxCharacters: maxRequestBodyCharacters),
             responseBody: responseText?.limitedForLog(maxResponseBodyCharacters)
                 ?? textPreview(from: responseData, maxCharacters: maxResponseBodyCharacters),
-            error: error.map { String(describing: $0).limitedForLog(maxResponseBodyCharacters) }
+            error: error.map { logDescription(for: $0).limitedForLog(maxResponseBodyCharacters) },
+            streamCompleted: streamCompleted,
+            streamDoneReceived: streamDoneReceived,
+            finishReason: finishReason
         )
         append(entry)
     }
@@ -73,7 +82,7 @@ enum AIRequestLogger {
             requestHeaders: [:],
             requestBody: prompt?.limitedForLog(maxRequestBodyCharacters),
             responseBody: responseText?.limitedForLog(maxResponseBodyCharacters),
-            error: error.map { String(describing: $0).limitedForLog(maxResponseBodyCharacters) }
+            error: error.map { logDescription(for: $0).limitedForLog(maxResponseBodyCharacters) }
         )
         append(entry)
     }
@@ -156,6 +165,12 @@ enum AIRequestLogger {
 
     private static func durationMs(since start: Date) -> Int {
         max(0, Int(Date().timeIntervalSince(start) * 1000))
+    }
+
+    private static func logDescription(for error: Error) -> String {
+        let localized = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !localized.isEmpty else { return String(describing: error) }
+        return localized
     }
 
     private static func prettyPrintedJSON(from data: Data) -> String? {
