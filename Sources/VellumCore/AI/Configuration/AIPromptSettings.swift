@@ -77,7 +77,9 @@ enum AIPromptSettings {
     ]
 
     static let defaultTemplate = """
-You are Vellum's PDF reading assistant. Explain only the selected text itself, using the surrounding context only to disambiguate meaning. Do not summarize the whole paragraph unless that is necessary to explain the selected text.
+You are Vellum's PDF reading assistant. Explain the complete selected text itself, using the surrounding context only to disambiguate meaning. Do not summarize the whole paragraph unless that is necessary to explain the selected text.
+
+The selected text may contain multiple lines, multiple paragraphs, or several non-contiguous fragments copied from different places in the PDF. Treat everything inside Selected text as the user's target. Cover every selected fragment in its original order. Do not answer only the first sentence, first line, most familiar phrase, or one representative fragment. If the selection contains several fragments, translate and explain each fragment, then briefly explain how they relate when useful.
 
 Target output language: {{targetLanguage}}
 
@@ -95,10 +97,10 @@ Use this section only for pronunciation:
 - Do not add pronunciation for full sentences, long phrases, formulas, or paragraphs.
 
 Translation section:
-Include this section only when the source language and target output language are different and a translation helps. Translate the selected text itself, not the whole context.
+Include this section only when the source language and target output language are different and a translation helps. Translate the selected text itself, not the whole context. If the selected text contains multiple fragments, translate all fragments in order. Use a compact numbered or bulleted list when that makes coverage clearer. Do not omit difficult, repeated, formula-adjacent, or later fragments.
 
 Contextual meaning section:
-Explain what the selected text means in this exact context: its referent, logical role, nuance, implication, or why it matters. Keep it focused and do not invent missing context. Preserve LaTeX/math notation when relevant.
+Explain what the selected text means in this exact context: its referent, logical role, nuance, implication, or why it matters. For multi-fragment selections, explain each fragment and the local role it plays before synthesizing. Keep it focused and do not invent missing context. Preserve LaTeX/math notation when relevant.
 
 Few-shots:
 
@@ -140,6 +142,9 @@ PDF metadata:
 
 Selected text:
 {{selectedText}}
+
+Coverage reminder:
+Before finalizing, verify that every line, paragraph, and non-contiguous fragment in Selected text has been addressed. If a fragment is unclear because the PDF extraction is noisy, mention that fragment briefly instead of silently skipping it.
 
 Selection kind:
 {{selectionKind}}
@@ -165,7 +170,9 @@ You are Vellum's PDF reading assistant. The user selected text in a PDF and want
 
 Target output language: {{targetLanguage}}
 
-Use the selected text and context window below as the shared reference for the whole conversation. Answer the user's latest message directly. Keep answers focused on the selected passage unless the user asks to compare, translate, simplify, or connect it to the surrounding paragraph. If the question needs information not present in the context, say what is missing instead of inventing details.
+Use the complete selected text and context window below as the shared reference for the whole conversation. The selected text may contain multiple lines, multiple paragraphs, or several non-contiguous fragments copied from different places in the PDF. Treat every fragment inside Selected text as part of the user's target.
+
+Answer the user's latest message directly. Keep answers focused on the selected passage unless the user asks to compare, translate, simplify, or connect it to the surrounding paragraph. If the user asks to translate, explain, summarize, compare, or restate "the selected text", cover all selected fragments in their original order; do not answer only the first fragment or a representative fragment. If the question needs information not present in the context, say what is missing instead of inventing details.
 
 PDF metadata:
 - File name: {{fileName}}
@@ -176,78 +183,8 @@ PDF metadata:
 Selected text:
 {{selectedText}}
 
-Previous paragraph:
-{{previousParagraph}}
-
-Current paragraph:
-{{currentParagraph}}
-
-Next paragraph:
-{{nextParagraph}}
-
-Nearby extracted text:
-{{nearbyText}}
-"""
-
-    static let legacyEnglishHeadingTemplate = """
-You are Vellum's PDF reading assistant. Explain only the selected text itself, using the surrounding context only to disambiguate meaning. Do not summarize the whole paragraph unless that is necessary to explain the selected text.
-
-Target output language: {{targetLanguage}}
-
-Return concise Markdown in this section order. Omit a section completely when it does not apply.
-
-### Pronunciation
-Use this section only for pronunciation:
-- If the selected text is a single English word or a common English inflected form, include common UK and US IPA. If only one reliable pronunciation is known, provide one and say it may vary.
-- If the selected text is a short Chinese phrase, include pinyin.
-- Do not add pronunciation for full sentences, long phrases, formulas, or paragraphs.
-
-### Translation
-Include this section only when the source language and target output language are different and a translation helps. Translate the selected text itself, not the whole context.
-
-### Contextual meaning
-Explain what the selected text means in this exact context: its referent, logical role, nuance, implication, or why it matters. Keep it focused and do not invent missing context. Preserve LaTeX/math notation when relevant.
-
-Few-shots:
-
-Selected text: "salient"
-Target output language: Chinese
-Output:
-### Pronunciation
-UK /ˈseɪ.li.ənt/; US /ˈseɪ.li.ənt/
-
-### Translation
-显著的；突出的
-
-### Contextual meaning
-在这里通常强调某个特征、差异或信息“特别突出、值得注意”，不是普通地存在，而是在当前论证或观察中很容易被识别出来。
-
-Selected text: "路径依赖"
-Target output language: Chinese
-Output:
-### Pronunciation
-lù jìng yī lài
-
-### Contextual meaning
-这里指当前结果受到早期选择或历史过程的持续影响。一旦走上某条路径，后续选择会被既有成本、习惯或制度结构限制。
-
-Selected text: "The estimator is asymptotically unbiased."
-Target output language: Chinese
-Output:
-### Translation
-该估计量是渐近无偏的。
-
-### Contextual meaning
-这句话说明当样本量趋近无穷时，估计量的期望会趋近真实参数。重点不是有限样本下完全无偏，而是大样本极限下偏差会消失。
-
-PDF metadata:
-- File name: {{fileName}}
-- Folder: {{directoryName}}
-- Outline title: {{outlineTitle}}
-- Pages: {{pageNumbers}}
-
-Selected text:
-{{selectedText}}
+Coverage reminder:
+When the user's request concerns the selected text as a whole, verify that every selected line, paragraph, and non-contiguous fragment has been addressed.
 
 Previous paragraph:
 {{previousParagraph}}
@@ -272,9 +209,7 @@ Nearby extracted text:
         let storedTemplate = defaults.string(forKey: profile.promptTemplateKey)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .nilIfEmpty
-        let template = profile == .explanation && isPreviousBuiltInTemplate(storedTemplate)
-            ? profile.defaultTemplate
-            : storedTemplate ?? profile.defaultTemplate
+        let template = storedTemplate ?? profile.defaultTemplate
         return AIPromptConfiguration(targetLanguage: targetLanguage, template: template)
     }
 
@@ -295,17 +230,6 @@ Nearby extracted text:
         defaults.removeObject(forKey: profile.promptTemplateKey)
     }
 
-    private static func isPreviousBuiltInTemplate(_ template: String?) -> Bool {
-        guard let template else { return false }
-        if template == legacyEnglishHeadingTemplate {
-            return true
-        }
-
-        return template.contains("For Chinese output, use \"### 音标\", \"### 翻译\", and \"### 上下文解释\".")
-            && template.contains("If the selected text is a single English word or a common English inflected form, include common UK and US IPA.")
-            && template.contains("Selected text: \"salient\"")
-            && !template.contains("Pronunciation requirement: {{pronunciationGuidance}}")
-    }
 }
 
 struct AIRenderedPrompt: Equatable, Sendable {
@@ -319,7 +243,7 @@ struct AIRenderedPrompt: Equatable, Sendable {
 
 enum AIPromptRenderer {
     static let systemPrompt = """
-You are Vellum's precise PDF reading assistant. Follow the user's prompt template exactly, answer from the provided text and context only, and keep the format stable. If the user prompt marks pronunciation as required, include that section.
+You are Vellum's precise PDF reading assistant. Follow the user's prompt template exactly, answer from the provided text and context only, and keep the format stable. If the user prompt marks pronunciation as required, include that section. If the selected text contains multiple lines, paragraphs, or non-contiguous fragments, cover every selected fragment in order and do not silently skip later fragments.
 """
 
     static func render(

@@ -115,6 +115,8 @@ struct AIPromptSettingsTests {
         #expect(configuration.template.contains("### 音标"))
         #expect(configuration.template.contains("### 翻译"))
         #expect(configuration.template.contains("### 上下文解释"))
+        #expect(configuration.template.contains("Cover every selected fragment in its original order."))
+        #expect(configuration.template.contains("verify that every line, paragraph, and non-contiguous fragment"))
         #expect(!configuration.template.contains("### Pronunciation"))
     }
 
@@ -193,36 +195,44 @@ struct AIPromptSettingsTests {
     }
 
     @Test
-    func legacyDefaultPromptMigratesToLocalizedHeadings() {
-        let suiteName = "AIPromptSettingsTests-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defer {
-            defaults.removePersistentDomain(forName: suiteName)
-        }
-        defaults.set(AIPromptSettings.legacyEnglishHeadingTemplate, forKey: AIPromptSettings.promptTemplateKey)
+    func defaultPromptEmphasizesCompleteMultiFragmentCoverage() {
+        let context = AIExplanationContext(
+            selectedText: "First selected sentence.\n\nSecond selected sentence.",
+            previousParagraph: "Before",
+            currentParagraph: "First selected sentence. Other text. Second selected sentence.",
+            nextParagraph: "After",
+            nearbyText: "Nearby",
+            fileName: "paper.pdf",
+            directoryName: nil,
+            outlineTitle: nil,
+            pageNumbers: [1, 4]
+        )
 
-        let configuration = AIPromptSettings.current(defaults: defaults)
+        let prompt = AIPromptRenderer.render(context: context).combined
 
-        #expect(configuration.template == AIPromptSettings.defaultTemplate)
-        #expect(configuration.template.contains("For Chinese output, use \"### 音标\", \"### 翻译\", and \"### 上下文解释\"."))
+        #expect(prompt.contains("Cover every selected fragment in its original order."))
+        #expect(prompt.contains("If the selected text contains multiple fragments, translate all fragments in order."))
+        #expect(prompt.contains("Before finalizing, verify that every line, paragraph, and non-contiguous fragment"))
+        #expect(prompt.contains("First selected sentence.\n\nSecond selected sentence."))
     }
 
     @Test
-    func previousBuiltInPromptMigratesToPronunciationGuidance() {
-        let suiteName = "AIPromptSettingsTests-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defer {
-            defaults.removePersistentDomain(forName: suiteName)
-        }
+    func defaultConversationPromptEmphasizesCompleteSelectionCoverage() {
+        let context = AIExplanationContext(
+            selectedText: "First claim.\nSecond claim.",
+            currentParagraph: "First claim. Second claim.",
+            nearbyText: "Nearby",
+            fileName: "paper.pdf",
+            pageNumbers: [5]
+        )
 
-        let previousTemplate = AIPromptSettings.defaultTemplate
-            .replacingOccurrences(of: "\nSelection kind: {{selectionKind}}\nPronunciation requirement: {{pronunciationGuidance}}\n", with: "\n")
-            .replacingOccurrences(of: "- Follow the pronunciation requirement near the selected text.\n- For a single natural-language word, name, or term in any source language, include the pronunciation section. Do not omit it.\n- Prefer standard IPA when reliable. If IPA is not reliable or not the most useful reading aid, use the source language's standard reading or romanization, such as pinyin for Chinese, kana or romaji for Japanese, romanization for Korean, or a standard transliteration for other scripts.\n- If the selected text is an acronym, formula, code, citation marker, or symbol sequence, omit pronunciation unless the context clearly treats it as a spoken term.", with: "- If the selected text is a single English word or a common English inflected form, include common UK and US IPA. If only one reliable pronunciation is known, provide one and say it may vary.\n- If the selected text is a short Chinese phrase, include pinyin.")
-        defaults.set(previousTemplate, forKey: AIPromptSettings.promptTemplateKey)
+        let prompt = AIConversationPromptRenderer.systemPrompt(
+            context: context,
+            configuration: .defaultConversation
+        )
 
-        let configuration = AIPromptSettings.current(defaults: defaults)
-
-        #expect(configuration.template == AIPromptSettings.defaultTemplate)
-        #expect(configuration.template.contains("Pronunciation requirement: {{pronunciationGuidance}}"))
+        #expect(prompt.contains("Treat every fragment inside Selected text as part of the user's target."))
+        #expect(prompt.contains("cover all selected fragments in their original order"))
+        #expect(prompt.contains("verify that every selected line, paragraph, and non-contiguous fragment"))
     }
 }
