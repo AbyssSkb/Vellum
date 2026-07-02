@@ -212,9 +212,6 @@ final class VellumPDFView: PDFView {
         if handleDoubleClickTextSelectionMouseDown(with: event) {
             return
         }
-        if pendingClickHorizontalOrigin != nil {
-            window?.disableScreenUpdatesUntilFlush()
-        }
         super.mouseDown(with: event)
         restoreHorizontalOrigin(pendingClickHorizontalOrigin)
     }
