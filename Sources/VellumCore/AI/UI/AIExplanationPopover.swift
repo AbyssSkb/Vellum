@@ -28,6 +28,7 @@ struct AIExplanationPopoverView: View {
         )
         .frame(width: model.preferredSize.width, height: model.preferredSize.height)
         .background(TokyoNight.panelElevatedColor)
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
     private var renderedMarkdown: String {
@@ -38,7 +39,7 @@ struct AIExplanationPopoverView: View {
 
     private var loadingMarkdown: String {
         let configuration = try? AIConfiguration.current(profile: .explanation)
-        let provider = configuration?.providerFormat.title ?? language.text(.notSet)
+        let provider = Self.providerDisplayName(profile: .explanation)
         let modelName = configuration?.model.nilIfEmpty
             ?? (configuration?.providerFormat == .codexCLI ? language.text(.useCodexDefault) : language.text(.notSet))
         let payload = [
@@ -50,6 +51,13 @@ struct AIExplanationPopoverView: View {
             return "vellum-loading:{}"
         }
         return "vellum-loading:\(json)"
+    }
+
+    private static func providerDisplayName(profile: AIConfigurationProfile) -> String {
+        let providerID = UserDefaults.standard.string(forKey: profile.providerIDKey)
+            ?? AIProviderPreset.presets.first?.id
+            ?? AIProviderPreset.customID
+        return AIProviderPreset.preset(for: providerID).name
     }
 
     private var autoPronunciationLanguageCode: String? {

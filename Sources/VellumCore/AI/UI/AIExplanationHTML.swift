@@ -43,11 +43,12 @@ enum AIExplanationHTML {
         p { margin: 0 0 0.75em; }
         .loading-row {
           min-height: 28px;
-          display: inline-flex;
+          display: flex;
           align-items: center;
           gap: 9px;
           color: #A9B1D6;
           font-size: 12.5px;
+          line-height: 1;
         }
         .loading-spinner {
           width: 13px;
@@ -59,8 +60,12 @@ enum AIExplanationHTML {
           flex: none;
         }
         .loading-model {
+          display: inline-flex;
+          align-items: center;
+          min-height: 16px;
           color: #C0CAF5;
           font-weight: 600;
+          line-height: 1;
         }
         @keyframes vellum-spin {
           to { transform: rotate(360deg); }

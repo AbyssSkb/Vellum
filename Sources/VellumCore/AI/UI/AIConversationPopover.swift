@@ -164,6 +164,7 @@ struct AIConversationPopoverView: View {
         visibleContent
         .frame(width: AIConversationPopoverMetrics.width, height: model.preferredHeight)
         .background(TokyoNight.panelElevatedColor)
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .foregroundStyle(TokyoNight.foregroundColor)
         .onChange(of: model.preferredHeight) { _, _ in
             onPreferredSizeChange(model.preferredSize)

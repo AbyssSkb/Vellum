@@ -26,6 +26,7 @@ final class AIInteractionState {
     var hoverPopoverHideWorkItem: DispatchWorkItem?
     weak var toastView: NSView?
     var toastHideWorkItem: DispatchWorkItem?
+    var floatingWindowDismissMonitor: Any?
 
     var isActive: Bool {
         explanationPopover?.isShown == true
@@ -51,6 +52,10 @@ final class AIInteractionState {
         pendingPopoverContentHeight = nil
         explanationPopover?.close()
         explanationPopover = nil
+        if let floatingWindowDismissMonitor {
+            NSEvent.removeMonitor(floatingWindowDismissMonitor)
+        }
+        floatingWindowDismissMonitor = nil
         if let explanationWindow {
             explanationWindow.parent?.removeChildWindow(explanationWindow)
             explanationWindow.close()

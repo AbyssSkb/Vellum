@@ -18,6 +18,16 @@ enum ScrollGeometry {
         return clamped(origin + delta, maxValue: maxValue)
     }
 
+    static func directWheelDelta(
+        scrollingDelta: CGFloat,
+        fallbackDelta: CGFloat,
+        hasPreciseScrollingDeltas: Bool
+    ) -> CGFloat {
+        let rawDelta = abs(scrollingDelta) > .ulpOfOne ? scrollingDelta : fallbackDelta
+        let multiplier: CGFloat = hasPreciseScrollingDeltas ? 1 : 10
+        return rawDelta * multiplier
+    }
+
     static func restoredCoordinate(
         origin: CGFloat,
         contentLength: CGFloat,

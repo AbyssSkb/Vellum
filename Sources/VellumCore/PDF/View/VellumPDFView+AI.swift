@@ -301,6 +301,7 @@ extension VellumPDFView {
 
         aiInteraction.explanationWindow = panel
         aiInteraction.activeExplanationModel = model
+        installAIFloatingWindowDismissMonitor()
     }
 
     func showAIConversationPopover(
@@ -340,6 +341,45 @@ extension VellumPDFView {
 
         aiInteraction.conversationWindow = panel
         aiInteraction.activeConversationModel = model
+        installAIFloatingWindowDismissMonitor()
+    }
+
+    private func installAIFloatingWindowDismissMonitor() {
+        if let floatingWindowDismissMonitor = aiInteraction.floatingWindowDismissMonitor {
+            NSEvent.removeMonitor(floatingWindowDismissMonitor)
+        }
+
+        aiInteraction.floatingWindowDismissMonitor = NSEvent.addLocalMonitorForEvents(
+            matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]
+        ) { [weak self] event in
+            guard let self else { return event }
+            guard self.aiInteraction.explanationWindow?.isVisible == true
+                || self.aiInteraction.conversationWindow?.isVisible == true else {
+                return event
+            }
+
+            if self.eventIsInsideActiveAIFloatingWindow(event) {
+                return event
+            }
+
+            let shouldClearSelection = self.aiInteraction.activeExplanationModel != nil
+            self.dismissActiveAIInteraction(clearSelection: shouldClearSelection)
+            return event
+        }
+    }
+
+    private func eventIsInsideActiveAIFloatingWindow(_ event: NSEvent) -> Bool {
+        if let explanationWindow = aiInteraction.explanationWindow,
+           event.window === explanationWindow {
+            return true
+        }
+
+        if let conversationWindow = aiInteraction.conversationWindow,
+           event.window === conversationWindow {
+            return true
+        }
+
+        return false
     }
 
     private func resizeAIFloatingWindow(_ window: NSWindow, size: NSSize) {
@@ -772,6 +812,8 @@ extension VellumPDFView {
 }
 
 private final class AIFloatingPanel: NSPanel {
+    private static let cornerRadius: CGFloat = 8
+
     init(contentRect: NSRect) {
         super.init(
             contentRect: contentRect,
@@ -785,6 +827,15 @@ private final class AIFloatingPanel: NSPanel {
         hasShadow = true
         hidesOnDeactivate = false
         collectionBehavior = [.fullScreenAuxiliary]
+    }
+
+    override var contentView: NSView? {
+        didSet {
+            contentView?.wantsLayer = true
+            contentView?.layer?.cornerRadius = Self.cornerRadius
+            contentView?.layer?.cornerCurve = .continuous
+            contentView?.layer?.masksToBounds = true
+        }
     }
 
     override var canBecomeKey: Bool { true }

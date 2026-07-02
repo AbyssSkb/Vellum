@@ -449,15 +449,22 @@ final class VellumPDFView: PDFView {
             return false
         }
 
-        let multiplier: CGFloat = event.hasPreciseScrollingDeltas ? 1 : 10
-        let deltaX = event.scrollingDeltaX * multiplier
-        let deltaY = event.scrollingDeltaY * multiplier
+        let deltaX = ScrollGeometry.directWheelDelta(
+            scrollingDelta: event.scrollingDeltaX,
+            fallbackDelta: event.deltaX,
+            hasPreciseScrollingDeltas: event.hasPreciseScrollingDeltas
+        )
+        let deltaY = ScrollGeometry.directWheelDelta(
+            scrollingDelta: event.scrollingDeltaY,
+            fallbackDelta: event.deltaY,
+            hasPreciseScrollingDeltas: event.hasPreciseScrollingDeltas
+        )
         let maximumX = max(0, documentSize.width - clipView.bounds.width)
         let maximumY = max(0, documentSize.height - clipView.bounds.height)
         let current = clipView.bounds.origin
         let proposed = NSPoint(
             x: min(max(0, current.x + deltaX), maximumX),
-            y: min(max(0, current.y - deltaY), maximumY)
+            y: min(max(0, current.y + deltaY), maximumY)
         )
 
         guard proposed != current else { return false }
