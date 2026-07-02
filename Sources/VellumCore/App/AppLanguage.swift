@@ -63,6 +63,11 @@ public enum AppText {
     case aiExplanationHeaderSubtitle
     case aiExplanationLoadingRequesting
     case aiExplanationLoadingStage
+    case aiExplanationPronunciation
+    case aiExplanationPronunciationAccent
+    case aiExplanationPronunciationAccentSubtitle
+    case aiExplanationAutoPronunciation
+    case aiExplanationAutoPronunciationSubtitle
     case aiHeaderSubtitle
     case aiLogsCleared
     case aiLogsFailed(String)
@@ -74,10 +79,12 @@ public enum AppText {
     case appLanguage
     case appLanguageSubtitle
     case appUI
+    case americanEnglish
     case askingTarget(String)
     case automaticallyCheck
     case automaticallyCheckSubtitle
     case baseURL
+    case britishEnglish
     case cancel
     case checkNow
     case checkForUpdatesMenu
@@ -245,6 +252,11 @@ public extension AppText {
         case .aiExplanationHeaderSubtitle: return "Choose the provider, model, and prompt used by selected-text explanations."
         case .aiExplanationLoadingRequesting: return "Requesting response"
         case .aiExplanationLoadingStage: return "Stage"
+        case .aiExplanationPronunciation: return "Pronunciation"
+        case .aiExplanationPronunciationAccent: return "Accent"
+        case .aiExplanationPronunciationAccentSubtitle: return "Choose which voice is used when auto-pronunciation is enabled."
+        case .aiExplanationAutoPronunciation: return "Auto Pronunciation"
+        case .aiExplanationAutoPronunciationSubtitle: return "Automatically speak the selected word or term after an AI explanation is shown."
         case .aiHeaderSubtitle: return "Choose a provider, enter its key, then pick the model Vellum should use."
         case .aiLogsCleared: return "AI request log cleared."
         case .aiLogsFailed(let error): return "Log action failed: \(error)"
@@ -256,10 +268,12 @@ public extension AppText {
         case .appLanguage: return "App Language"
         case .appLanguageSubtitle: return "Choose the language used by Vellum's interface."
         case .appUI: return "App UI"
+        case .americanEnglish: return "US"
         case .askingTarget(let target): return "Asking \(target)..."
         case .automaticallyCheck: return "Automatically Check"
         case .automaticallyCheckSubtitle: return "Look for new releases shortly after launch."
         case .baseURL: return "Base URL"
+        case .britishEnglish: return "UK"
         case .cancel: return "Cancel"
         case .checkNow: return "Check Now"
         case .checkForUpdatesMenu: return "Check for Updates..."
@@ -418,6 +432,11 @@ public extension AppText {
         case .aiExplanationHeaderSubtitle: return "选择选中文本解释使用的服务商、模型和提示词。"
         case .aiExplanationLoadingRequesting: return "正在请求模型"
         case .aiExplanationLoadingStage: return "阶段"
+        case .aiExplanationPronunciation: return "发音"
+        case .aiExplanationPronunciationAccent: return "口音"
+        case .aiExplanationPronunciationAccentSubtitle: return "选择自动发音使用美式还是英式。"
+        case .aiExplanationAutoPronunciation: return "自动发音"
+        case .aiExplanationAutoPronunciationSubtitle: return "AI 解释显示后，自动朗读选中的单词或术语。"
         case .aiHeaderSubtitle: return "选择服务商，填写密钥，然后选择 Vellum 使用的模型。"
         case .aiLogsCleared: return "AI 请求日志已清除。"
         case .aiLogsFailed(let error): return "日志操作失败：\(error)"
@@ -429,10 +448,12 @@ public extension AppText {
         case .appLanguage: return "应用语言"
         case .appLanguageSubtitle: return "选择 Vellum 界面使用的语言。"
         case .appUI: return "应用界面"
+        case .americanEnglish: return "美式"
         case .askingTarget(let target): return "正在请求 \(target)..."
         case .automaticallyCheck: return "自动检查"
         case .automaticallyCheckSubtitle: return "启动后自动检查新版本。"
         case .baseURL: return "Base URL"
+        case .britishEnglish: return "英式"
         case .cancel: return "取消"
         case .checkNow: return "立即检查"
         case .checkForUpdatesMenu: return "检查更新..."

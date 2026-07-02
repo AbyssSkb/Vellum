@@ -41,6 +41,37 @@ enum AIExplanationHTML {
         h1, h2, h3 { color: #E0E7FF; margin: 0.8em 0 0.35em; line-height: 1.25; }
         h1 { font-size: 18px; } h2 { font-size: 16px; } h3 { font-size: 14px; }
         p { margin: 0 0 0.75em; }
+        .loading-row {
+          min-height: 28px;
+          display: inline-flex;
+          align-items: center;
+          gap: 9px;
+          color: #A9B1D6;
+          font-size: 12.5px;
+        }
+        .loading-spinner {
+          width: 13px;
+          height: 13px;
+          border: 1.5px solid #3B4261;
+          border-top-color: #7DCFFF;
+          border-radius: 50%;
+          animation: vellum-spin 0.8s linear infinite;
+          flex: none;
+        }
+        .loading-model {
+          color: #C0CAF5;
+          font-weight: 600;
+        }
+        @keyframes vellum-spin {
+          to { transform: rotate(360deg); }
+        }
+        .pronunciation-line {
+          display: flex;
+          align-items: center;
+          flex-wrap: wrap;
+          column-gap: 8px;
+          row-gap: 5px;
+        }
         ul, ol { margin: 0 0 0.85em 1.25em; padding: 0; }
         li { margin: 0.2em 0; }
         blockquote {
@@ -76,18 +107,19 @@ enum AIExplanationHTML {
         }
         .speak-button {
           appearance: none;
-          width: 22px;
-          height: 22px;
+          min-width: 24px;
+          height: 20px;
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          margin: -2px 0 0 1px;
-          padding: 0;
+          margin: 0;
+          padding: 0 6px;
           border: 1px solid #3B4261;
-          border-radius: 6px;
-          background: #24283B;
+          border-radius: 5px;
+          background: #1A1B26;
           color: #7DCFFF;
-          font: 12px -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+          font: 11px -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+          font-weight: 650;
           line-height: 1;
           cursor: default;
         }
@@ -103,6 +135,7 @@ enum AIExplanationHTML {
           display: inline-flex;
           align-items: center;
           gap: 4px;
+          flex: none;
         }
       </style>
     </head>
@@ -157,6 +190,18 @@ enum AIExplanationHTML {
             .replace(/\\*([^*]+)\\*/g, '<em>$1</em>')
             .replace(/\\[([^\\]]+)\\]\\(([^\\)]+)\\)/g, '<a href="$2">$1</a>');
         }
+        function loadingHTML(markdown) {
+          if (!markdown || !markdown.startsWith('vellum-loading:')) { return null; }
+          try {
+            const payload = JSON.parse(markdown.slice('vellum-loading:'.length) || '{}');
+            const provider = escapeHTML(payload.provider || '');
+            const model = escapeHTML(payload.model || '');
+            const label = [provider, model].filter(Boolean).join(' · ');
+            return `<div class="loading-row"><span class="loading-spinner" aria-hidden="true"></span><span class="loading-model">${label || 'AI'}</span></div>`;
+          } catch (_) {
+            return `<div class="loading-row"><span class="loading-spinner" aria-hidden="true"></span><span class="loading-model">AI</span></div>`;
+          }
+        }
         function isPronunciationHeading(value) {
           const normalized = value
             .replace(/<[^>]*>/g, '')
@@ -174,6 +219,9 @@ enum AIExplanationHTML {
           return `<span class="speak-actions"><button class="speak-button" type="button" title="${usTitle}" aria-label="${usTitle}" onclick="postVellumCommand('speakPronunciationUS')">US</button><button class="speak-button" type="button" title="${ukTitle}" aria-label="${ukTitle}" onclick="postVellumCommand('speakPronunciationUK')">UK</button></span>`;
         }
         function renderMarkdown(markdown) {
+          const loading = loadingHTML(markdown);
+          if (loading !== null) { return loading; }
+
           const fenceMap = [];
           let text = escapeHTML(markdown || '...');
           text = text.replace(/```([\\s\\S]*?)```/g, (_, code) => {
@@ -184,6 +232,7 @@ enum AIExplanationHTML {
           const lines = text.split(/\\n/);
           let html = '';
           let list = null;
+          var attachPronunciationActions = false;
           function closeList() {
             if (list) { html += `</${list}>`; list = null; }
           }
@@ -194,20 +243,26 @@ enum AIExplanationHTML {
             if ((match = line.match(/^(#{1,3})\\s+(.+)$/))) {
               closeList();
               const heading = inlineMarkdown(match[2]);
-              const action = isPronunciationHeading(match[2]) ? speakButtonHTML() : '';
-              html += `<h${match[1].length}><span class="heading-row">${heading}${action}</span></h${match[1].length}>`;
+              attachPronunciationActions = isPronunciationHeading(match[2]);
+              html += `<h${match[1].length}><span class="heading-row">${heading}</span></h${match[1].length}>`;
             } else if ((match = line.match(/^[-*]\\s+(.+)$/))) {
               if (list !== 'ul') { closeList(); html += '<ul>'; list = 'ul'; }
               html += `<li>${inlineMarkdown(match[1])}</li>`;
+              attachPronunciationActions = false;
             } else if ((match = line.match(/^\\d+\\.\\s+(.+)$/))) {
               if (list !== 'ol') { closeList(); html += '<ol>'; list = 'ol'; }
               html += `<li>${inlineMarkdown(match[1])}</li>`;
+              attachPronunciationActions = false;
             } else if ((match = line.match(/^&gt;\\s*(.+)$/))) {
               closeList();
               html += `<blockquote>${inlineMarkdown(match[1])}</blockquote>`;
+              attachPronunciationActions = false;
             } else {
               closeList();
-              html += `<p>${inlineMarkdown(line)}</p>`;
+              const actions = attachPronunciationActions ? speakButtonHTML() : '';
+              const className = attachPronunciationActions && actions ? ' class="pronunciation-line"' : '';
+              html += `<p${className}><span>${inlineMarkdown(line)}</span>${actions}</p>`;
+              attachPronunciationActions = false;
             }
           }
           closeList();

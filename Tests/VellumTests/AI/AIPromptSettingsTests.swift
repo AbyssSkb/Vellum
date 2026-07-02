@@ -115,7 +115,8 @@ struct AIPromptSettingsTests {
         #expect(configuration.template.contains("### 音标"))
         #expect(configuration.template.contains("### 翻译"))
         #expect(configuration.template.contains("### 上下文解释"))
-        #expect(configuration.template.contains("Cover every selected fragment in its original order."))
+        #expect(configuration.template.contains("If the selection is continuous prose broken only by PDF line wrapping, treat it as one passage rather than separate fragments."))
+        #expect(configuration.template.contains("write one fluent translation that preserves the original sentence flow"))
         #expect(configuration.template.contains("verify that every line, paragraph, and non-contiguous fragment"))
         #expect(!configuration.template.contains("### Pronunciation"))
     }
@@ -210,8 +211,8 @@ struct AIPromptSettingsTests {
 
         let prompt = AIPromptRenderer.render(context: context).combined
 
-        #expect(prompt.contains("Cover every selected fragment in its original order."))
-        #expect(prompt.contains("If the selected text contains multiple fragments, translate all fragments in order."))
+        #expect(prompt.contains("Cover the complete selection in its original order."))
+        #expect(prompt.contains("do not split it into a numbered list merely because the PDF text wrapped across lines."))
         #expect(prompt.contains("Before finalizing, verify that every line, paragraph, and non-contiguous fragment"))
         #expect(prompt.contains("First selected sentence.\n\nSecond selected sentence."))
     }

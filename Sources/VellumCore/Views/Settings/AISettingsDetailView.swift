@@ -372,6 +372,8 @@ struct AIProviderSettingsDetailView: View {
 
 struct AISettingsDetailView: View {
     @Environment(\.appUILanguage) var language
+    @AppStorage(AppPreferenceKeys.aiExplanationAutoPronunciationEnabled) private var autoPronunciationEnabled = false
+    @AppStorage(AppPreferenceKeys.aiExplanationAutoPronunciationAccent) private var autoPronunciationAccent = AIPronunciationAccentPreference.american.rawValue
     let page: AISettingsConfigurationPage
     @State var providerID = "openai"
     @State var model = ""
@@ -391,6 +393,9 @@ struct AISettingsDetailView: View {
                 providerSection
                 modelSection
                 promptSection
+                if page == .explanation {
+                    pronunciationSection
+                }
                 validationSection
             }
             .padding(.horizontal, 24)
@@ -577,6 +582,30 @@ struct AISettingsDetailView: View {
         }
     }
 
+    private var pronunciationSection: some View {
+        SettingsPanel(title: language.text(.aiExplanationPronunciation), systemImage: "speaker.wave.2") {
+            VStack(spacing: 10) {
+                AIPronunciationToggleRow(
+                    title: language.text(.aiExplanationAutoPronunciation),
+                    subtitle: language.text(.aiExplanationAutoPronunciationSubtitle),
+                    isOn: $autoPronunciationEnabled
+                )
+
+                if autoPronunciationEnabled {
+                    AIPronunciationOptionRow(
+                        title: language.text(.aiExplanationPronunciationAccent),
+                        subtitle: language.text(.aiExplanationPronunciationAccentSubtitle)
+                    ) {
+                        AIPronunciationAccentSegmentedControl(
+                            selection: $autoPronunciationAccent,
+                            language: language
+                        )
+                    }
+                }
+            }
+        }
+    }
+
     private var validationSection: some View {
         SettingsPanel(title: language.text(.validation), systemImage: "checkmark.seal") {
             VStack(alignment: .leading, spacing: 14) {
@@ -751,6 +780,167 @@ struct AISettingsDetailView: View {
         targetLanguage = AIPromptSettings.defaultTargetLanguage
         promptTemplate = page.promptProfile.defaultTemplate
         didLoadPromptSettings = true
+    }
+}
+
+private struct AIPronunciationToggleRow: View {
+    let title: String
+    let subtitle: String
+    @Binding var isOn: Bool
+    @State private var isHovered = false
+
+    var body: some View {
+        Button {
+            isOn.toggle()
+        } label: {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(TokyoNight.foregroundColor)
+
+                    Text(subtitle)
+                        .font(.system(size: 12))
+                        .foregroundStyle(TokyoNight.mutedColor)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                AISettingsTogglePill(isOn: isOn)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(minHeight: 54)
+            .background(rowBackground, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .stroke(rowStroke, lineWidth: 1)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+    }
+
+    private var rowBackground: Color {
+        if isOn {
+            return TokyoNight.selectionColor.opacity(isHovered ? 0.66 : 0.54)
+        }
+        return TokyoNight.backgroundDeepColor.opacity(isHovered ? 0.72 : 0.56)
+    }
+
+    private var rowStroke: Color {
+        if isOn {
+            return TokyoNight.cyanColor.opacity(isHovered ? 0.68 : 0.48)
+        }
+        return TokyoNight.borderColor.opacity(isHovered ? 0.72 : 0.48)
+    }
+}
+
+private struct AIPronunciationOptionRow<Content: View>: View {
+    let title: String
+    let subtitle: String
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(TokyoNight.foregroundColor)
+
+                Text(subtitle)
+                    .font(.system(size: 12))
+                    .foregroundStyle(TokyoNight.mutedColor)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            content
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .frame(minHeight: 54)
+        .background(TokyoNight.backgroundDeepColor.opacity(0.56), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .stroke(TokyoNight.borderColor.opacity(0.48), lineWidth: 1)
+        }
+    }
+}
+
+private struct AIPronunciationAccentSegmentedControl: View {
+    @Binding var selection: String
+    let language: AppUILanguage
+
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(AIPronunciationAccentPreference.allCases) { option in
+                AIPronunciationSegmentButton(
+                    title: option.title(language: language),
+                    systemImage: option.systemImage,
+                    isSelected: selection == option.rawValue
+                ) {
+                    selection = option.rawValue
+                }
+            }
+        }
+        .padding(3)
+        .background(TokyoNight.panelColor.opacity(0.86), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .stroke(TokyoNight.borderColor.opacity(0.54), lineWidth: 1)
+        }
+    }
+}
+
+private struct AIPronunciationSegmentButton: View {
+    let title: String
+    let systemImage: String
+    let isSelected: Bool
+    let action: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(isSelected ? TokyoNight.backgroundDeepColor : TokyoNight.foregroundColor)
+                .padding(.horizontal, 10)
+                .frame(height: 28)
+                .background(background, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+    }
+
+    private var background: Color {
+        if isSelected {
+            return TokyoNight.cyanColor
+        }
+        return isHovered ? TokyoNight.selectionColor.opacity(0.55) : .clear
+    }
+}
+
+private struct AISettingsTogglePill: View {
+    let isOn: Bool
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: 10, style: .continuous)
+            .fill(isOn ? TokyoNight.cyanColor : TokyoNight.panelElevatedColor)
+            .frame(width: 34, height: 20)
+            .overlay(alignment: isOn ? .trailing : .leading) {
+                Circle()
+                    .fill(isOn ? TokyoNight.backgroundDeepColor : TokyoNight.mutedColor)
+                    .frame(width: 14, height: 14)
+                    .padding(3)
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(isOn ? TokyoNight.cyanColor.opacity(0.65) : TokyoNight.borderColor.opacity(0.7), lineWidth: 1)
+            }
     }
 }
 

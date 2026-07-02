@@ -21,6 +21,7 @@ struct AIExplanationPopoverView: View {
             focusWhenReady: kind.shouldFocusWebView,
             autoScrollOnUpdate: kind.autoScrollOnUpdate,
             pronunciationSpeechText: model.pronunciationSpeechText,
+            autoPronunciationLanguageCode: autoPronunciationLanguageCode,
             speakAmericanButtonTitle: language.text(.speakAmericanPronunciation),
             speakBritishButtonTitle: language.text(.speakBritishPronunciation),
             onReady: onWebViewReady
@@ -40,13 +41,25 @@ struct AIExplanationPopoverView: View {
         let provider = configuration?.providerFormat.title ?? language.text(.notSet)
         let modelName = configuration?.model.nilIfEmpty
             ?? (configuration?.providerFormat == .codexCLI ? language.text(.useCodexDefault) : language.text(.notSet))
-        return """
-        **\(language.text(.aiExplanation))**
+        let payload = [
+            "provider": provider,
+            "model": modelName
+        ]
+        guard let data = try? JSONSerialization.data(withJSONObject: payload),
+              let json = String(data: data, encoding: .utf8) else {
+            return "vellum-loading:{}"
+        }
+        return "vellum-loading:\(json)"
+    }
 
-        - \(language.text(.aiExplanationLoadingStage)): \(language.text(.aiExplanationLoadingRequesting))
-        - \(language.text(.provider)): \(provider)
-        - \(language.text(.model)): \(modelName)
-        """
+    private var autoPronunciationLanguageCode: String? {
+        guard kind != .hover,
+              !model.isStreaming,
+              AppPreferences.automaticallyPronouncesAIExplanation() else {
+            return nil
+        }
+
+        return AppPreferences.aiExplanationAutoPronunciationAccent().languageCode
     }
 }
 
@@ -59,6 +72,7 @@ struct MarkdownWebView: NSViewRepresentable {
     let focusWhenReady: Bool
     let autoScrollOnUpdate: Bool
     let pronunciationSpeechText: String?
+    let autoPronunciationLanguageCode: String?
     let speakAmericanButtonTitle: String
     let speakBritishButtonTitle: String
     let onReady: (AIExplanationWebView) -> Void
@@ -72,6 +86,7 @@ struct MarkdownWebView: NSViewRepresentable {
         webView.shouldFocusWhenReady = focusWhenReady
         webView.autoScrollOnUpdate = autoScrollOnUpdate
         webView.pronunciationSpeechText = pronunciationSpeechText
+        webView.autoPronunciationLanguageCode = autoPronunciationLanguageCode
         webView.speakAmericanButtonTitle = speakAmericanButtonTitle
         webView.speakBritishButtonTitle = speakBritishButtonTitle
         onReady(webView)
@@ -87,6 +102,7 @@ struct MarkdownWebView: NSViewRepresentable {
         webView.shouldFocusWhenReady = focusWhenReady
         webView.autoScrollOnUpdate = autoScrollOnUpdate
         webView.pronunciationSpeechText = pronunciationSpeechText
+        webView.autoPronunciationLanguageCode = autoPronunciationLanguageCode
         webView.speakAmericanButtonTitle = speakAmericanButtonTitle
         webView.speakBritishButtonTitle = speakBritishButtonTitle
         onReady(webView)

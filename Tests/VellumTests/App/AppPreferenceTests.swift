@@ -28,11 +28,27 @@ struct AppPreferenceTests {
     }
 
     @Test
+    func aiPronunciationAccentFallsBackToAmerican() {
+        let defaults = isolatedDefaults()
+
+        #expect(AppPreferences.aiExplanationAutoPronunciationAccent(in: defaults) == .american)
+        #expect(AIPronunciationAccentPreference.american.languageCode == "en-US")
+        #expect(AIPronunciationAccentPreference.british.languageCode == "en-GB")
+
+        defaults.set(AIPronunciationAccentPreference.british.rawValue, forKey: AppPreferenceKeys.aiExplanationAutoPronunciationAccent)
+        #expect(AppPreferences.aiExplanationAutoPronunciationAccent(in: defaults) == .british)
+
+        defaults.set("australian", forKey: AppPreferenceKeys.aiExplanationAutoPronunciationAccent)
+        #expect(AppPreferences.aiExplanationAutoPronunciationAccent(in: defaults) == .american)
+    }
+
+    @Test
     func booleanPreferencesUseExpectedDefaults() {
         let defaults = isolatedDefaults()
 
         #expect(AppPreferences.automaticallyChecksForUpdates(in: defaults))
         #expect(AppPreferences.doubleClickTranslatesSelection(in: defaults))
+        #expect(!AppPreferences.automaticallyPronouncesAIExplanation(in: defaults))
         #expect(!AppPreferences.restoresPreviousTabs(in: defaults))
     }
 
@@ -56,6 +72,7 @@ struct AppPreferenceTests {
         #expect(AppUILanguage.chinese.text(.settings) == "设置")
         #expect(DefaultOpenModePreference.newTabs.title(language: .chinese) == "新标签页")
         #expect(OpenFileZoomPreference.fitWidth.title(language: .chinese) == "适合宽度")
+        #expect(AIPronunciationAccentPreference.british.title(language: .chinese) == "英式")
     }
 
     @Test

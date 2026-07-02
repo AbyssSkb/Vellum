@@ -6,6 +6,8 @@ public enum AppPreferenceKeys {
     public static let defaultOpenMode = "VellumDefaultOpenMode"
     public static let defaultHighlightColor = "VellumDefaultHighlightColor"
     public static let doubleClickTranslatesSelection = "VellumDoubleClickTranslatesSelection"
+    public static let aiExplanationAutoPronunciationEnabled = "VellumAIExplanationAutoPronunciationEnabled"
+    public static let aiExplanationAutoPronunciationAccent = "VellumAIExplanationAutoPronunciationAccent"
     public static let restorePreviousTabs = "VellumRestorePreviousTabs"
     public static let openFileZoomBehavior = "VellumOpenFileZoomBehavior"
 }
@@ -90,6 +92,48 @@ public enum OpenFileZoomPreference: String, CaseIterable, Identifiable {
     }
 }
 
+public enum AIPronunciationAccentPreference: String, CaseIterable, Identifiable {
+    case american
+    case british
+
+    public var id: String { rawValue }
+
+    public func title(language: AppUILanguage = AppUILanguage.saved()) -> String {
+        switch self {
+        case .american:
+            return language.text(.americanEnglish)
+        case .british:
+            return language.text(.britishEnglish)
+        }
+    }
+
+    public var systemImage: String {
+        switch self {
+        case .american:
+            return "speaker.wave.2"
+        case .british:
+            return "speaker.wave.2.fill"
+        }
+    }
+
+    public var languageCode: String {
+        switch self {
+        case .american:
+            return "en-US"
+        case .british:
+            return "en-GB"
+        }
+    }
+
+    public static func saved(in defaults: UserDefaults = .standard) -> Self {
+        guard let rawValue = defaults.string(forKey: AppPreferenceKeys.aiExplanationAutoPronunciationAccent),
+              let accent = Self(rawValue: rawValue) else {
+            return .american
+        }
+        return accent
+    }
+}
+
 public enum AppPreferences {
     public static func appLanguage(in defaults: UserDefaults = .standard) -> AppUILanguage {
         AppUILanguage.saved(in: defaults)
@@ -101,6 +145,14 @@ public enum AppPreferences {
 
     public static func doubleClickTranslatesSelection(in defaults: UserDefaults = .standard) -> Bool {
         defaults.object(forKey: AppPreferenceKeys.doubleClickTranslatesSelection) as? Bool ?? true
+    }
+
+    public static func automaticallyPronouncesAIExplanation(in defaults: UserDefaults = .standard) -> Bool {
+        defaults.object(forKey: AppPreferenceKeys.aiExplanationAutoPronunciationEnabled) as? Bool ?? false
+    }
+
+    public static func aiExplanationAutoPronunciationAccent(in defaults: UserDefaults = .standard) -> AIPronunciationAccentPreference {
+        AIPronunciationAccentPreference.saved(in: defaults)
     }
 
     public static func restoresPreviousTabs(in defaults: UserDefaults = .standard) -> Bool {

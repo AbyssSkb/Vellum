@@ -24,10 +24,12 @@ final class AIExplanationWebView: WKWebView, WKNavigationDelegate, WKScriptMessa
     var shouldFocusWhenReady = true
     var autoScrollOnUpdate = false
     var pronunciationSpeechText: String?
+    var autoPronunciationLanguageCode: String?
     var speakAmericanButtonTitle = "Speak American pronunciation"
     var speakBritishButtonTitle = "Speak British pronunciation"
     private var pendingMarkdown = ""
     private var didLoadDocument = false
+    private var lastAutoPronouncedKey: String?
     private let speechSynthesizer = AVSpeechSynthesizer()
 
     init() {
@@ -52,16 +54,16 @@ final class AIExplanationWebView: WKWebView, WKNavigationDelegate, WKScriptMessa
         guard didLoadDocument else { return }
 
         let encoded = Self.javascriptString(markdown)
-        let speechText = Self.javascriptString(
-            AIExplanationPronunciationSpeech.speechText(
-                selectedText: pronunciationSpeechText,
-                markdown: markdown
-            ) ?? ""
+        let resolvedSpeechText = AIExplanationPronunciationSpeech.speechText(
+            selectedText: pronunciationSpeechText,
+            markdown: markdown
         )
+        let speechText = Self.javascriptString(resolvedSpeechText ?? "")
         let usTitle = Self.javascriptString(speakAmericanButtonTitle)
         let ukTitle = Self.javascriptString(speakBritishButtonTitle)
         evaluateJavaScript("window.vellumSetPronunciationSpeech(\(speechText), \(usTitle), \(ukTitle));")
         evaluateJavaScript("window.vellumSetMarkdown(\(encoded), \(autoScrollOnUpdate ? "true" : "false"));")
+        autoPronounceIfNeeded(speechText: resolvedSpeechText, markdown: markdown)
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
@@ -209,6 +211,27 @@ final class AIExplanationWebView: WKWebView, WKNavigationDelegate, WKScriptMessa
         let utterance = AVSpeechUtterance(string: text)
         utterance.voice = AVSpeechSynthesisVoice(language: languageCode)
         speechSynthesizer.speak(utterance)
+    }
+
+    private func autoPronounceIfNeeded(speechText: String?, markdown: String) {
+        guard let languageCode = autoPronunciationLanguageCode,
+              let speechText,
+              !speechText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              !markdown.hasPrefix("vellum-loading:") else {
+            lastAutoPronouncedKey = nil
+            return
+        }
+
+        let key = "\(languageCode)\n\(speechText)\n\(markdown)"
+        guard lastAutoPronouncedKey != key else { return }
+        lastAutoPronouncedKey = key
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) { [weak self] in
+            guard let self,
+                  self.autoPronunciationLanguageCode == languageCode,
+                  self.lastAutoPronouncedKey == key else { return }
+            self.speakPronunciation(languageCode: languageCode)
+        }
     }
 
     private static func key(for command: String) -> String {
