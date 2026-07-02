@@ -71,6 +71,7 @@ struct UpdateVersionTests {
         ## v0.6.29
         - Add AI request logs.
         - Add log controls.
+        **Full Changelog**: https://example.com/v0.6.28...v0.6.29
 
         ## v0.6.28
         - Improve multi-selection prompts.
@@ -88,6 +89,25 @@ struct UpdateVersionTests {
             AppReleaseNotesSection(
                 version: "v0.6.28",
                 notes: ["Improve multi-selection prompts."]
+            )
+        ])
+    }
+
+    @Test
+    func releaseNotesParserDropsChangelogLinksAfterMarkdownCleanup() {
+        let notes = """
+        What's Changed
+        - Fix update notes styling.
+        - **Full Changelog**: https://example.com/v0.6.42...v0.6.43
+        * Full Changelog: https://example.com/v0.6.41...v0.6.42
+        """
+
+        let sections = AppReleaseNotesParser.sections(from: notes)
+
+        #expect(sections == [
+            AppReleaseNotesSection(
+                version: nil,
+                notes: ["Fix update notes styling."]
             )
         ])
     }

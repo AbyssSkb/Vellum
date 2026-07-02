@@ -161,8 +161,16 @@ public enum AppReleaseNotesParser {
             .replacingOccurrences(of: "`", with: "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
+        if line.lowercased().hasPrefix("full changelog") {
+            return nil
+        }
+
         while line.hasPrefix("-") || line.hasPrefix("*") {
             line = String(line.dropFirst()).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        if line.lowercased().hasPrefix("full changelog") {
+            return nil
         }
 
         guard !line.isEmpty else { return nil }

@@ -233,16 +233,39 @@ final class UpdateAvailableWindowController: NSWindowController {
     }
 
     private func releaseNotesView(_ notes: [AppReleaseNotesSection]) -> NSTextField {
-        let noteLabel = label("", size: 12.5, color: foregroundColor)
+        let noteLabel = nonInteractiveLabel("", size: 12.5, color: foregroundColor)
         noteLabel.attributedStringValue = attributedReleaseNotes(notes)
         noteLabel.maximumNumberOfLines = 0
         return noteLabel
     }
 
     private func fallbackNotesView() -> NSTextField {
-        let noteLabel = label(language.text(.releaseNotesFallback), size: 12.5, color: mutedColor)
+        let noteLabel = nonInteractiveLabel(language.text(.releaseNotesFallback), size: 12.5, color: mutedColor)
         noteLabel.maximumNumberOfLines = 0
         return noteLabel
+    }
+
+    private func nonInteractiveLabel(
+        _ text: String,
+        size: CGFloat,
+        weight: NSFont.Weight = .regular,
+        color: NSColor? = nil
+    ) -> NSTextField {
+        let label = NonInteractiveTextField(frame: .zero)
+        label.stringValue = text
+        label.font = .systemFont(ofSize: size, weight: weight)
+        label.textColor = color ?? foregroundColor
+        label.backgroundColor = .clear
+        label.isBezeled = false
+        label.isEditable = false
+        label.isSelectable = false
+        label.allowsEditingTextAttributes = false
+        label.focusRingType = .none
+        label.lineBreakMode = .byWordWrapping
+        label.cell?.wraps = true
+        label.cell?.isScrollable = false
+        label.translatesAutoresizingMaskIntoConstraints = false
+        return label
     }
 
     private func attributedReleaseNotes(_ sections: [AppReleaseNotesSection]) -> NSAttributedString {
@@ -388,6 +411,16 @@ private struct NotesMetrics {
 
 private final class FlippedDocumentView: NSView {
     override var isFlipped: Bool { true }
+}
+
+private final class NonInteractiveTextField: NSTextField {
+    override var acceptsFirstResponder: Bool { false }
+
+    override func becomeFirstResponder() -> Bool {
+        false
+    }
+
+    override func mouseDown(with event: NSEvent) {}
 }
 
 extension UpdateAvailableWindowController: NSWindowDelegate {

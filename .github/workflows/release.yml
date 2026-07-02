@@ -115,9 +115,6 @@ jobs:
 
             if [[ -n "$PREVIOUS_TAG" ]]; then
               git log --reverse --pretty=format:'- %s (%h)' "${PREVIOUS_TAG}..${GITHUB_SHA}"
-              echo
-              echo
-              echo "**Full Changelog**: https://github.com/${GITHUB_REPOSITORY}/compare/${PREVIOUS_TAG}...${TAG}"
             else
               git log --reverse --pretty=format:'- %s (%h)' -n 20 "${GITHUB_SHA}"
             fi
