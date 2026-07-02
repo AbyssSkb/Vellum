@@ -106,7 +106,7 @@ extension AppState {
         prepareForSelectedReaderChange()
     }
 
-    func saveCurrentSession() {
+    public func saveCurrentSession() {
         AppSessionPersistence.save(tabs: tabs, selectedTabID: selectedTabID)
     }
 }

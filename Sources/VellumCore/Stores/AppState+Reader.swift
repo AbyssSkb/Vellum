@@ -15,7 +15,7 @@ extension AppState {
         AppSessionPersistence.save(tabs: tabs, selectedTabID: selectedTabID)
     }
 
-    func saveActiveReaderState() {
+    public func saveActiveReaderState() {
         guard let activeReaderController,
               let selectedTabID,
               let snapshot = activeReaderController.snapshot() else { return }

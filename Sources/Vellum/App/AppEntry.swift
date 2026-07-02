@@ -23,6 +23,8 @@ struct VellumApp: App {
 
             CommandGroup(replacing: .appTermination) {
                 Button(language.text(.quitVellum)) {
+                    appState.saveActiveReaderState()
+                    appState.saveCurrentSession()
                     NSApp.terminate(nil)
                 }
                 .keyboardShortcut("q", modifiers: [.command])
