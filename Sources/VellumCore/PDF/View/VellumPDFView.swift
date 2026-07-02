@@ -444,34 +444,19 @@ final class VellumPDFView: PDFView {
         guard let scrollView = pdfScrollView else { return false }
 
         let clipView = scrollView.contentView
-        let documentSize = scrollView.documentView?.bounds.size ?? .zero
-        guard documentSize.height > clipView.bounds.height || documentSize.width > clipView.bounds.width else {
-            return false
+        let originBeforeScroll = clipView.bounds.origin
+        let hasScrollDelta = event.scrollingDeltaX != 0
+            || event.scrollingDeltaY != 0
+            || event.deltaX != 0
+            || event.deltaY != 0
+
+        scrollView.scrollWheel(with: event)
+
+        if clipView.bounds.origin != originBeforeScroll {
+            scheduleReaderStateSave()
         }
 
-        let deltaX = ScrollGeometry.directWheelDelta(
-            scrollingDelta: event.scrollingDeltaX,
-            fallbackDelta: event.deltaX,
-            hasPreciseScrollingDeltas: event.hasPreciseScrollingDeltas
-        )
-        let deltaY = ScrollGeometry.directWheelDelta(
-            scrollingDelta: event.scrollingDeltaY,
-            fallbackDelta: event.deltaY,
-            hasPreciseScrollingDeltas: event.hasPreciseScrollingDeltas
-        )
-        let maximumX = max(0, documentSize.width - clipView.bounds.width)
-        let maximumY = max(0, documentSize.height - clipView.bounds.height)
-        let current = clipView.bounds.origin
-        let proposed = NSPoint(
-            x: min(max(0, current.x + deltaX), maximumX),
-            y: min(max(0, current.y + deltaY), maximumY)
-        )
-
-        guard proposed != current else { return false }
-        clipView.scroll(to: proposed)
-        scrollView.reflectScrolledClipView(clipView)
-        scheduleReaderStateSave()
-        return true
+        return hasScrollDelta
     }
 
     private func doubleClickTextSelectionPoint(for event: NSEvent) -> NSPoint? {

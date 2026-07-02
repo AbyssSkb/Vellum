@@ -159,6 +159,7 @@ struct AIConversationPopoverView: View {
     let onPreferredSizeChange: (NSSize) -> Void
     @State private var inputIsFocused = true
     @State private var inputFocusGeneration = 0
+    private let bottomAnchorID = "bottom"
 
     var body: some View {
         visibleContent
@@ -240,6 +241,7 @@ struct AIConversationPopoverView: View {
                 messageStack
                     .padding(.horizontal, 14)
                     .padding(.vertical, 14)
+                    .id(bottomAnchorID)
             }
             .frame(height: messageViewportHeight)
             .background(TokyoNight.panelColor.opacity(0.22))
@@ -268,10 +270,6 @@ struct AIConversationPopoverView: View {
             if let errorMessage = model.errorMessage {
                 AIConversationErrorRow(message: errorMessage)
             }
-
-            Color.clear
-                .frame(height: 1)
-                .id("bottom")
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -373,7 +371,7 @@ struct AIConversationPopoverView: View {
     private func scrollToBottom(_ proxy: ScrollViewProxy) {
         func align() {
             withTransaction(Transaction(animation: nil)) {
-                proxy.scrollTo("bottom", anchor: .bottom)
+                proxy.scrollTo(bottomAnchorID, anchor: .bottom)
             }
         }
 

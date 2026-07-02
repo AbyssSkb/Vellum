@@ -18,23 +18,6 @@ struct ScrollGeometryTests {
     }
 
     @Test
-    func directWheelDeltaUsesPreciseDeltaWithoutLineScaling() {
-        #expect(ScrollGeometry.directWheelDelta(scrollingDelta: 12, fallbackDelta: 0, hasPreciseScrollingDeltas: true) == 12)
-        #expect(ScrollGeometry.nextCoordinate(origin: 20, delta: 12, contentLength: 300, viewportLength: 100, maxValue: 200) == 32)
-    }
-
-    @Test
-    func directWheelDeltaScalesLegacyWheelTicks() {
-        #expect(ScrollGeometry.directWheelDelta(scrollingDelta: -3, fallbackDelta: 0, hasPreciseScrollingDeltas: false) == -30)
-        #expect(ScrollGeometry.nextCoordinate(origin: 80, delta: -30, contentLength: 300, viewportLength: 100, maxValue: 200) == 50)
-    }
-
-    @Test
-    func directWheelDeltaFallsBackToLegacyDeltaWhenScrollingDeltaIsEmpty() {
-        #expect(ScrollGeometry.directWheelDelta(scrollingDelta: 0, fallbackDelta: 4, hasPreciseScrollingDeltas: false) == 40)
-    }
-
-    @Test
     func restoredCoordinateClampsOnlyScrollableContent() {
         #expect(ScrollGeometry.restoredCoordinate(origin: -10, contentLength: 300, viewportLength: 100, maxValue: 200) == 0)
         #expect(ScrollGeometry.restoredCoordinate(origin: 240, contentLength: 300, viewportLength: 100, maxValue: 200) == 200)
