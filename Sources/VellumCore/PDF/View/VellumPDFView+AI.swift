@@ -897,7 +897,7 @@ extension VellumPDFView {
     }
 }
 
-private final class AIFloatingPanel: NSPanel {
+private final class AIFloatingPanel: NSWindow {
     private static let cornerRadius: CGFloat = 8
 
     init(contentRect: NSRect) {
@@ -911,7 +911,6 @@ private final class AIFloatingPanel: NSPanel {
         isOpaque = false
         backgroundColor = .clear
         hasShadow = true
-        hidesOnDeactivate = false
         collectionBehavior = [.fullScreenAuxiliary]
     }
 
