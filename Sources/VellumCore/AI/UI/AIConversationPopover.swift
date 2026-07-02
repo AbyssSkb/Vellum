@@ -44,20 +44,24 @@ final class AIConversationPopoverModel: ObservableObject {
         guard let lastIndex = messages.indices.last,
               messages[lastIndex].role == .assistant else {
             messages.append(AIConversationMessage(role: .assistant, content: chunk))
+            refreshPreferredHeight()
             return
         }
 
         messages[lastIndex].content += chunk
+        refreshPreferredHeight()
     }
 
     func replaceLatestAssistant(with text: String) {
         guard let lastIndex = messages.indices.last,
               messages[lastIndex].role == .assistant else {
             messages.append(AIConversationMessage(role: .assistant, content: text))
+            refreshPreferredHeight()
             return
         }
 
         messages[lastIndex].content = text
+        refreshPreferredHeight()
     }
 
     var preferredSize: NSSize {
@@ -75,6 +79,69 @@ final class AIConversationPopoverModel: ObservableObject {
         preferredHeight = clampedHeight
         return true
     }
+
+    @discardableResult
+    func refreshPreferredHeight() -> Bool {
+        updateContentHeight(
+            Self.estimatedContentHeight(messages: messages, errorMessage: errorMessage)
+        )
+    }
+
+    private static func estimatedContentHeight(
+        messages: [AIConversationMessage],
+        errorMessage: String?
+    ) -> CGFloat {
+        guard !messages.isEmpty || errorMessage != nil else {
+            return AIConversationPopoverMetrics.minimumHeight
+        }
+
+        var messageHeights = messages.map(estimatedMessageHeight)
+        if let errorMessage {
+            messageHeights.append(estimatedTextHeight(errorMessage, charactersPerLine: 54) + 18)
+        }
+
+        let spacing = CGFloat(max(0, messageHeights.count - 1)) * 14
+        let messageAreaHeight = 28 + messageHeights.reduce(0, +) + spacing
+        return messageAreaHeight
+            + AIConversationPopoverMetrics.dividerHeight
+            + AIConversationPopoverMetrics.composerHeight
+    }
+
+    private static func estimatedMessageHeight(_ message: AIConversationMessage) -> CGFloat {
+        switch message.role {
+        case .user:
+            return estimatedTextHeight(message.content, charactersPerLine: 38) + 18
+        case .assistant:
+            let trimmed = message.content.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return 20 }
+
+            let lines = trimmed.components(separatedBy: .newlines)
+            let estimatedLines = lines.reduce(0) { partialResult, line in
+                let trimmedLine = line.trimmingCharacters(in: .whitespaces)
+                guard !trimmedLine.isEmpty else { return partialResult + 1 }
+                let charactersPerLine = trimmedLine.hasPrefix("```") ? 46 : 56
+                return partialResult + max(1, Int(ceil(Double(trimmedLine.count) / Double(charactersPerLine))))
+            }
+            let headingCount = lines.filter { $0.trimmingCharacters(in: .whitespaces).hasPrefix("#") }.count
+            let listCount = lines.filter { line in
+                let trimmedLine = line.trimmingCharacters(in: .whitespaces)
+                return trimmedLine.hasPrefix("- ")
+                    || trimmedLine.hasPrefix("* ")
+                    || trimmedLine.range(of: #"^\d+\.\s+"#, options: .regularExpression) != nil
+            }.count
+            return CGFloat(max(1, estimatedLines)) * 20
+                + CGFloat(headingCount) * 4
+                + CGFloat(listCount) * 2
+        }
+    }
+
+    private static func estimatedTextHeight(_ text: String, charactersPerLine: Int) -> CGFloat {
+        let lines = text.components(separatedBy: .newlines)
+        let estimatedLines = lines.reduce(0) { partialResult, line in
+            partialResult + max(1, Int(ceil(Double(max(1, line.count)) / Double(charactersPerLine))))
+        }
+        return CGFloat(max(1, estimatedLines)) * 19
+    }
 }
 
 struct AIConversationPopoverView: View {
@@ -90,19 +157,19 @@ struct AIConversationPopoverView: View {
         .frame(width: AIConversationPopoverMetrics.width, height: model.preferredHeight)
         .background(TokyoNight.panelElevatedColor)
         .foregroundStyle(TokyoNight.foregroundColor)
-        .overlay(alignment: .top) {
-            idealHeightProbe
-        }
-        .onPreferenceChange(AIConversationIdealHeightKey.self) { height in
-            guard model.updateContentHeight(height) else { return }
-            onPreferredSizeChange(model.preferredSize)
-        }
         .onChange(of: model.preferredHeight) { _, _ in
             onPreferredSizeChange(model.preferredSize)
+        }
+        .onChange(of: model.messages) { _, _ in
+            applyEstimatedHeight()
+        }
+        .onChange(of: model.errorMessage) { _, _ in
+            applyEstimatedHeight()
         }
         .onAppear {
             DispatchQueue.main.async {
                 inputIsFocused = true
+                applyEstimatedHeight()
                 onPreferredSizeChange(model.preferredSize)
             }
         }
@@ -166,29 +233,6 @@ struct AIConversationPopoverView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private var idealHeightProbe: some View {
-        VStack(spacing: 0) {
-            if hasConversationContent {
-                messageStack
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 14)
-                Color.clear.frame(height: AIConversationPopoverMetrics.dividerHeight)
-            }
-
-            Color.clear.frame(height: AIConversationPopoverMetrics.composerHeight)
-        }
-        .frame(width: AIConversationPopoverMetrics.width)
-        .fixedSize(horizontal: false, vertical: true)
-        .background {
-            GeometryReader { geometry in
-                Color.clear.preference(key: AIConversationIdealHeightKey.self, value: geometry.size.height)
-            }
-        }
-        .opacity(0)
-        .accessibilityHidden(true)
-        .allowsHitTesting(false)
-    }
-
     private var composer: some View {
         ZStack(alignment: .trailing) {
             AIConversationInputTextView(
@@ -200,7 +244,7 @@ struct AIConversationPopoverView: View {
             .padding(.leading, 12)
             .padding(.trailing, 42)
 
-            if model.draft.isEmpty {
+            if model.draft.isEmpty && !inputIsFocused {
                 Text(language.text(.aiChatPlaceholder))
                     .font(.system(size: 13))
                     .foregroundStyle(TokyoNight.mutedColor)
@@ -219,7 +263,6 @@ struct AIConversationPopoverView: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(AIConversationSendButtonStyle())
-            .keyboardShortcut(.return, modifiers: [.command])
             .disabled(model.isSending || model.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             .help(language.text(.aiChatSend))
             .padding(.trailing, 7)
@@ -241,13 +284,11 @@ struct AIConversationPopoverView: View {
         model.draft = ""
         onSend(prompt)
     }
-}
 
-private struct AIConversationIdealHeightKey: PreferenceKey {
-    static let defaultValue: CGFloat = AIConversationPopoverMetrics.minimumHeight
-
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
+    private func applyEstimatedHeight() {
+        if model.refreshPreferredHeight() {
+            onPreferredSizeChange(model.preferredSize)
+        }
     }
 }
 
@@ -273,6 +314,7 @@ private struct AIConversationInputTextView: NSViewRepresentable {
         let textView = AIConversationNSTextView()
         textView.delegate = context.coordinator
         textView.onCommandReturn = onSubmit
+        textView.shouldFocusWhenAttached = isFocused
         textView.string = text
         textView.isRichText = false
         textView.importsGraphics = false
@@ -302,6 +344,7 @@ private struct AIConversationInputTextView: NSViewRepresentable {
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         guard let textView = scrollView.documentView as? AIConversationNSTextView else { return }
         textView.onCommandReturn = onSubmit
+        textView.shouldFocusWhenAttached = isFocused
         if textView.string != text {
             textView.string = text
         }
@@ -309,7 +352,7 @@ private struct AIConversationInputTextView: NSViewRepresentable {
         if isFocused, textView.window?.firstResponder !== textView {
             DispatchQueue.main.async { [weak textView] in
                 guard let textView else { return }
-                textView.window?.makeFirstResponder(textView)
+                textView.focusAndShowInsertionPoint()
             }
         }
     }
@@ -342,11 +385,32 @@ private struct AIConversationInputTextView: NSViewRepresentable {
 
 private final class AIConversationNSTextView: NSTextView {
     var onCommandReturn: (() -> Void)?
+    var shouldFocusWhenAttached = true
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        guard shouldFocusWhenAttached, window != nil else { return }
+
+        DispatchQueue.main.async { [weak self] in
+            self?.focusAndShowInsertionPoint()
+        }
+    }
+
+    func focusAndShowInsertionPoint() {
+        window?.makeFirstResponder(self)
+        setSelectedRange(NSRange(location: string.utf16.count, length: 0))
+        scrollRangeToVisible(selectedRange())
+        needsDisplay = true
+    }
 
     override func keyDown(with event: NSEvent) {
-        let isCommandReturn = event.modifierFlags.contains(.command)
-            && (event.keyCode == 36 || event.keyCode == 76)
-        guard isCommandReturn else {
+        let isReturn = event.keyCode == 36 || event.keyCode == 76
+        let commandModifiers: NSEvent.ModifierFlags = [.command, .control, .option]
+        let shouldSend = isReturn
+            && event.modifierFlags.intersection(commandModifiers).isEmpty
+            && !event.modifierFlags.contains(.shift)
+
+        guard shouldSend else {
             super.keyDown(with: event)
             return
         }
