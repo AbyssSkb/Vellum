@@ -46,24 +46,20 @@ final class AIConversationPopoverModel: ObservableObject {
         guard let lastIndex = messages.indices.last,
               messages[lastIndex].role == .assistant else {
             messages.append(AIConversationMessage(role: .assistant, content: chunk))
-            refreshPreferredHeight()
             return
         }
 
         messages[lastIndex].content += chunk
-        refreshPreferredHeight()
     }
 
     func replaceLatestAssistant(with text: String) {
         guard let lastIndex = messages.indices.last,
               messages[lastIndex].role == .assistant else {
             messages.append(AIConversationMessage(role: .assistant, content: text))
-            refreshPreferredHeight()
             return
         }
 
         messages[lastIndex].content = text
-        refreshPreferredHeight()
     }
 
     var preferredSize: NSSize {
@@ -172,19 +168,19 @@ struct AIConversationPopoverView: View {
         .onChange(of: model.preferredHeight) { _, _ in
             onPreferredSizeChange(model.preferredSize)
         }
-        .onChange(of: model.messages) { _, _ in
-            applyEstimatedHeight()
-        }
         .onChange(of: model.errorMessage) { _, _ in
-            applyEstimatedHeight()
+            applyFallbackHeightIfNeeded()
         }
         .onChange(of: model.isSending) { _, _ in
             refocusInput()
         }
+        .onPreferenceChange(AIConversationMessageContentHeightKey.self) { height in
+            applyMeasuredContentHeight(height)
+        }
         .onAppear {
             DispatchQueue.main.async {
                 refocusInput()
-                applyEstimatedHeight()
+                applyFallbackHeightIfNeeded()
                 onPreferredSizeChange(model.preferredSize)
             }
         }
@@ -208,6 +204,7 @@ struct AIConversationPopoverView: View {
     private var visibleContent: some View {
         VStack(spacing: 0) {
             if hasConversationContent {
+                messageMeasurementView
                 messagesView
                 TokyoNightDivider(axis: .horizontal)
             }
@@ -216,27 +213,35 @@ struct AIConversationPopoverView: View {
         }
     }
 
+    private var messageMeasurementView: some View {
+        messageStack
+            .padding(.horizontal, 14)
+            .padding(.vertical, 14)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(width: AIConversationPopoverMetrics.width, alignment: .topLeading)
+            .background {
+                GeometryReader { proxy in
+                    Color.clear.preference(
+                        key: AIConversationMessageContentHeightKey.self,
+                        value: proxy.size.height
+                    )
+                }
+            }
+            .hidden()
+            .frame(height: 0)
+            .clipped()
+            .accessibilityHidden(true)
+    }
+
     private var messagesView: some View {
         ScrollViewReader { proxy in
             ScrollView(.vertical, showsIndicators: false) {
                 messageStack
                     .padding(.horizontal, 14)
                     .padding(.vertical, 14)
-                    .background {
-                        GeometryReader { proxy in
-                            Color.clear.preference(
-                                key: AIConversationMessageContentHeightKey.self,
-                                value: proxy.size.height
-                            )
-                        }
-                    }
             }
             .frame(height: messageViewportHeight)
             .background(TokyoNight.panelColor.opacity(0.22))
-            .onPreferenceChange(AIConversationMessageContentHeightKey.self) { height in
-                applyMeasuredContentHeight(height)
-                scrollToBottom(proxy)
-            }
             .onChange(of: model.messages) { _, _ in
                 scrollToBottom(proxy)
                 refocusInput()
@@ -345,7 +350,10 @@ struct AIConversationPopoverView: View {
         inputFocusGeneration += 1
     }
 
-    private func applyEstimatedHeight() {
+    private func applyFallbackHeightIfNeeded() {
+        guard hasConversationContent,
+              model.preferredHeight <= AIConversationPopoverMetrics.minimumHeight + 1 else { return }
+
         if model.refreshPreferredHeight() {
             onPreferredSizeChange(model.preferredSize)
         }
