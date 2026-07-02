@@ -17,6 +17,11 @@ struct TabSwitcherOverlay: View {
         }
     }
 
+    private var listHeight: CGFloat {
+        let visibleRows = matches.isEmpty ? 1 : min(matches.count, 6)
+        return CGFloat(visibleRows) * TabSwitcherRow.metricsHeight
+    }
+
     var body: some View {
         ZStack {
             Rectangle()
@@ -135,7 +140,7 @@ struct TabSwitcherOverlay: View {
                 }
             }
             .scrollIndicators(.visible)
-            .frame(maxHeight: 360)
+            .frame(height: listHeight)
             .background(TokyoNight.panelElevatedColor.opacity(0.82))
             .onChange(of: selectedTabIDForScroll) { _, id in
                 guard let id else { return }
@@ -391,6 +396,7 @@ private final class TabSwitcherTextFieldCell: NSTextFieldCell {
 
 private struct TabSwitcherRow: View {
     @Environment(\.appUILanguage) private var language
+    static let metricsHeight: CGFloat = 58
     let tab: PDFTab
     let isSelected: Bool
     let isCurrent: Bool
@@ -425,7 +431,7 @@ private struct TabSwitcherRow: View {
             }
         }
         .padding(.horizontal, 16)
-        .frame(height: 58)
+        .frame(height: Self.metricsHeight)
         .background(rowBackground)
         .overlay(alignment: .leading) {
             if isSelected {
