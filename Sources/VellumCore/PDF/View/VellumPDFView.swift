@@ -29,6 +29,8 @@ final class VellumPDFView: PDFView {
     var explanationTrackingArea: NSTrackingArea?
     let aiInteraction = AIInteractionState()
     var isMouseSelectingText = false
+    nonisolated(unsafe) var mouseSelectionScrollWheelMonitor: Any?
+    var lastMouseSelectionMouseUpTimestamp: TimeInterval?
     var pendingDoubleClickTextSelectionPoint: NSPoint?
     var pendingClickHorizontalOrigin: CGFloat?
     var didHandleDoubleClickTextSelectionMouseDown = false
@@ -40,6 +42,12 @@ final class VellumPDFView: PDFView {
     var searchController: PDFSearchController?
 
     override var acceptsFirstResponder: Bool { true }
+
+    deinit {
+        if let mouseSelectionScrollWheelMonitor {
+            NSEvent.removeMonitor(mouseSelectionScrollWheelMonitor)
+        }
+    }
 
     var isAIInteractionActive: Bool {
         aiInteraction.isActive
@@ -124,10 +132,12 @@ final class VellumPDFView: PDFView {
         super.viewDidMoveToWindow()
         window?.acceptsMouseMovedEvents = true
         configurePDFScrollers()
+        configureMouseSelectionScrollWheelMonitor()
         updateExplanationTrackingArea()
         didDragDuringCurrentMouseSequence = false
         pendingClickHorizontalOrigin = nil
         pendingDoubleClickTextSelectionPoint = nil
+        lastMouseSelectionMouseUpTimestamp = nil
         didHandleDoubleClickTextSelectionMouseDown = false
         didCompleteInitialPointerInteraction = false
         if appState?.isOutlineVisible != true {
@@ -189,6 +199,7 @@ final class VellumPDFView: PDFView {
     override func mouseDown(with event: NSEvent) {
         completePendingRestoreBeforeUserInteraction()
         isMouseSelectingText = true
+        lastMouseSelectionMouseUpTimestamp = nil
         pendingDoubleClickTextSelectionPoint = doubleClickTextSelectionPoint(for: event)
         pendingClickHorizontalOrigin = clickHorizontalOriginToPreserve(for: event)
         didHandleDoubleClickTextSelectionMouseDown = false
@@ -267,6 +278,7 @@ final class VellumPDFView: PDFView {
     }
 
     override func mouseUp(with event: NSEvent) {
+        lastMouseSelectionMouseUpTimestamp = event.timestamp
         let didHandleDoubleClickTextSelectionMouseDown = didHandleDoubleClickTextSelectionMouseDown
         self.didHandleDoubleClickTextSelectionMouseDown = false
         if !didHandleDoubleClickTextSelectionMouseDown {
@@ -295,6 +307,7 @@ final class VellumPDFView: PDFView {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) { [weak self] in
             guard let self else { return }
             self.isMouseSelectingText = false
+            self.lastMouseSelectionMouseUpTimestamp = nil
             self.explainDoubleClickedTextIfNeeded(at: doubleClickPoint)
         }
     }
@@ -334,6 +347,46 @@ final class VellumPDFView: PDFView {
         scrollView.hasHorizontalScroller = true
         scrollView.drawsBackground = false
         scrollView.backgroundColor = .clear
+    }
+
+    private func configureMouseSelectionScrollWheelMonitor() {
+        if window == nil {
+            removeMouseSelectionScrollWheelMonitor()
+        } else if mouseSelectionScrollWheelMonitor == nil {
+            mouseSelectionScrollWheelMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
+                self?.handleMouseSelectionScrollWheel(event) ?? event
+            }
+        }
+    }
+
+    private func removeMouseSelectionScrollWheelMonitor() {
+        if let mouseSelectionScrollWheelMonitor {
+            NSEvent.removeMonitor(mouseSelectionScrollWheelMonitor)
+            self.mouseSelectionScrollWheelMonitor = nil
+        }
+    }
+
+    private func handleMouseSelectionScrollWheel(_ event: NSEvent) -> NSEvent? {
+        guard isMouseSelectingText,
+              event.window === window else {
+            return event
+        }
+
+        let isLeftMouseDown = (NSEvent.pressedMouseButtons & 1) == 1
+        if isLeftMouseDown {
+            completePendingRestoreBeforeUserInteraction()
+            cancelPendingRestore()
+            searchController?.markReaderNavigated()
+            pdfScrollView?.scrollWheel(with: event)
+            return nil
+        }
+
+        if let lastMouseSelectionMouseUpTimestamp,
+           event.timestamp <= lastMouseSelectionMouseUpTimestamp {
+            return nil
+        }
+
+        return event
     }
 
     private func doubleClickTextSelectionPoint(for event: NSEvent) -> NSPoint? {
