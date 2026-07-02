@@ -30,6 +30,7 @@ enum AIExplanationContextBuilder {
             nextParagraph: paragraphContext.next,
             nearbyText: paragraphContext.nearby,
             fileName: url?.lastPathComponent ?? "Untitled PDF",
+            documentKey: url?.standardizedFileURL.path,
             directoryName: url?.deletingLastPathComponent().lastPathComponent,
             outlineTitle: document.outlineItem(for: selection)?.label?.nilIfEmpty,
             pageNumbers: pageNumbers.isEmpty ? [1] : pageNumbers

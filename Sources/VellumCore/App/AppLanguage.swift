@@ -130,6 +130,8 @@ public enum AppText {
     case noDocument
     case noMatchingAIConversations
     case noMatchingAIExplanations
+    case noAIConversationsInFile
+    case noAIExplanationsInFile
     case noMatchingTabs
     case notChecked
     case notSet
@@ -301,6 +303,8 @@ public extension AppText {
         case .noDocument: return "No document"
         case .noMatchingAIConversations: return "No matching conversations"
         case .noMatchingAIExplanations: return "No matching explanations"
+        case .noAIConversationsInFile: return "No AI conversations in this file yet"
+        case .noAIExplanationsInFile: return "No AI explanations in this file yet"
         case .noMatchingTabs: return "No matching tabs"
         case .notChecked: return "Not checked"
         case .notSet: return "Not set"
@@ -463,6 +467,8 @@ public extension AppText {
         case .noDocument: return "没有文档"
         case .noMatchingAIConversations: return "没有匹配的对话"
         case .noMatchingAIExplanations: return "没有匹配的解释"
+        case .noAIConversationsInFile: return "当前文件还没有 AI 对话"
+        case .noAIExplanationsInFile: return "当前文件还没有 AI 解释"
         case .noMatchingTabs: return "没有匹配的标签页"
         case .notChecked: return "未检查"
         case .notSet: return "未设置"

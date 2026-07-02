@@ -14,6 +14,8 @@ public final class AppState: ObservableObject {
     @Published var outlineFocusGeneration = 0
     @Published private(set) var selectedHighlightColor: HighlightColor
 
+    private var allAIConversationHistory: [AIConversationHistoryItem] = []
+    private var allAIExplanationHistory: [AIExplanationHistoryItem] = []
     let documentCoordinator = DocumentCoordinator()
     let keyboardController = KeyboardController()
     private var highlightColorPreferenceObserver: NSObjectProtocol?
@@ -125,7 +127,11 @@ public final class AppState: ObservableObject {
     }
 
     func showAIConversationHistory() {
-        guard !aiConversationHistory.isEmpty else { return }
+        aiConversationHistory = aiConversationHistoryItemsForActiveDocument()
+        guard !aiConversationHistory.isEmpty else {
+            activeReaderController?.showAINotification(AppUILanguage.saved().text(.noAIConversationsInFile))
+            return
+        }
         isAIConversationHistoryPresented = true
     }
 
@@ -140,17 +146,21 @@ public final class AppState: ObservableObject {
     }
 
     func upsertAIConversationHistory(_ item: AIConversationHistoryItem) {
-        if let index = aiConversationHistory.firstIndex(where: { $0.id == item.id }) {
-            aiConversationHistory[index] = item
+        if let index = allAIConversationHistory.firstIndex(where: { $0.id == item.id }) {
+            allAIConversationHistory[index] = item
         } else {
-            aiConversationHistory.insert(item, at: 0)
+            allAIConversationHistory.insert(item, at: 0)
         }
-        aiConversationHistory.sort { $0.updatedAt > $1.updatedAt }
+        allAIConversationHistory.sort { $0.updatedAt > $1.updatedAt }
+        aiConversationHistory = aiConversationHistoryItemsForActiveDocument()
     }
 
     func showAIExplanationHistory() {
-        aiExplanationHistory = activeReaderController?.aiExplanationHistoryItems() ?? []
-        guard !aiExplanationHistory.isEmpty else { return }
+        aiExplanationHistory = aiExplanationHistoryItemsForActiveDocument()
+        guard !aiExplanationHistory.isEmpty else {
+            activeReaderController?.showAINotification(AppUILanguage.saved().text(.noAIExplanationsInFile))
+            return
+        }
         isAIExplanationHistoryPresented = true
     }
 
@@ -162,6 +172,42 @@ public final class AppState: ObservableObject {
     func restoreAIExplanation(_ item: AIExplanationHistoryItem) {
         isAIExplanationHistoryPresented = false
         activeReaderController?.restoreAIExplanation(item)
+    }
+
+    func upsertAIExplanationHistory(_ item: AIExplanationHistoryItem) {
+        if let index = allAIExplanationHistory.firstIndex(where: { $0.id == item.id }) {
+            allAIExplanationHistory[index] = item
+        } else {
+            allAIExplanationHistory.insert(item, at: 0)
+        }
+        allAIExplanationHistory.sort { $0.updatedAt > $1.updatedAt }
+        aiExplanationHistory = aiExplanationHistoryItemsForActiveDocument()
+    }
+
+    private func aiConversationHistoryItemsForActiveDocument() -> [AIConversationHistoryItem] {
+        let key = activeReaderController?.documentKey
+        return allAIConversationHistory
+            .filter { $0.context.documentKey == key }
+            .sorted { $0.updatedAt > $1.updatedAt }
+    }
+
+    private func aiExplanationHistoryItemsForActiveDocument() -> [AIExplanationHistoryItem] {
+        let key = activeReaderController?.documentKey
+        let transientItems = allAIExplanationHistory.filter { $0.documentKey == key }
+        let annotationItems = activeReaderController?.aiExplanationHistoryItems() ?? []
+        var seen = Set<String>()
+
+        return (transientItems + annotationItems)
+            .filter { item in
+                let dedupeKey = [
+                    item.documentKey ?? "",
+                    item.selectedText,
+                    item.explanation,
+                    item.pageNumbers.map(String.init).joined(separator: ",")
+                ].joined(separator: "\u{1f}")
+                return seen.insert(dedupeKey).inserted
+            }
+            .sorted { $0.updatedAt > $1.updatedAt }
     }
 
     private let vimCommandDispatcher = VimCommandDispatcher()

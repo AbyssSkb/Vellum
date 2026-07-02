@@ -92,16 +92,63 @@ extension VellumPDFView {
     }
 
     func showAIMessage(_ message: String, at rect: NSRect? = nil) {
-        let model = AIExplanationPopoverModel(
-            title: "Vellum",
-            text: message,
-            initialHeight: AIExplanationPopoverMetrics.compactInitialHeight
-        )
-        showPopover(model: model, at: rect ?? selectionPopoverRect(for: currentSelection), kind: .message)
+        showAIToast(message)
         clearSuppressedHoverExplanation()
         aiInteraction.hoveredAnnotation = nil
         aiInteraction.hoveredText = message
         aiInteraction.hoveredKey = nil
+    }
+
+    func showAINotification(_ message: String) {
+        showAIToast(message)
+    }
+
+    func showAIToast(_ message: String) {
+        guard window != nil else { return }
+
+        dismissAIToast()
+
+        let toast = AIToastView(message: message)
+        toast.translatesAutoresizingMaskIntoConstraints = false
+        toast.alphaValue = 0
+        toast.addGestureRecognizer(NSClickGestureRecognizer(target: self, action: #selector(dismissAIToast)))
+        addSubview(toast)
+
+        NSLayoutConstraint.activate([
+            toast.centerXAnchor.constraint(equalTo: centerXAnchor),
+            toast.topAnchor.constraint(equalTo: topAnchor, constant: 18),
+            toast.widthAnchor.constraint(lessThanOrEqualToConstant: 460),
+            toast.leadingAnchor.constraint(greaterThanOrEqualTo: leadingAnchor, constant: 18),
+            toast.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -18)
+        ])
+
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.12
+            toast.animator().alphaValue = 1
+        }
+
+        let workItem = DispatchWorkItem { [weak self] in
+            self?.dismissAIToast()
+        }
+        aiInteraction.toastView = toast
+        aiInteraction.toastHideWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.2, execute: workItem)
+    }
+
+    @objc func dismissAIToast() {
+        aiInteraction.toastHideWorkItem?.cancel()
+        aiInteraction.toastHideWorkItem = nil
+
+        guard let toast = aiInteraction.toastView else { return }
+        aiInteraction.toastView = nil
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.10
+            toast.animator().alphaValue = 0
+        } completionHandler: {
+            Task { @MainActor in
+                toast.removeFromSuperview()
+            }
+        }
     }
 
     func showStreamingAIExplanationPopover(
@@ -574,6 +621,7 @@ extension VellumPDFView {
                         selectedText: selectedText,
                         explanation: explanation,
                         fileName: document.documentURL?.lastPathComponent ?? "Untitled",
+                        documentKey: document.documentURL?.standardizedFileURL.path,
                         pageNumbers: [pageIndex + 1],
                         updatedAt: annotation.modificationDate ?? Date.distantPast
                     )
@@ -635,5 +683,53 @@ extension VellumPDFView {
             convert(NSPoint(x: pageRect.minX, y: pageRect.maxY), from: page),
             convert(NSPoint(x: pageRect.maxX, y: pageRect.maxY), from: page)
         ])
+    }
+}
+
+private final class AIToastView: NSView {
+    init(message: String) {
+        super.init(frame: .zero)
+        wantsLayer = true
+        layer?.backgroundColor = TokyoNight.panelElevated.withAlphaComponent(0.96).cgColor
+        layer?.cornerRadius = 8
+        layer?.borderWidth = 1
+        layer?.borderColor = TokyoNight.border.withAlphaComponent(0.85).cgColor
+        layer?.shadowColor = NSColor.black.cgColor
+        layer?.shadowOpacity = 0.24
+        layer?.shadowRadius = 14
+        layer?.shadowOffset = NSSize(width: 0, height: -5)
+
+        let icon = NSImageView()
+        icon.image = NSImage(systemSymbolName: "exclamationmark.circle.fill", accessibilityDescription: nil)
+        icon.contentTintColor = TokyoNight.cyan
+        icon.translatesAutoresizingMaskIntoConstraints = false
+
+        let label = NSTextField(wrappingLabelWithString: message)
+        label.font = .systemFont(ofSize: 12.5, weight: .medium)
+        label.textColor = TokyoNight.foreground
+        label.backgroundColor = .clear
+        label.isBezeled = false
+        label.maximumNumberOfLines = 2
+        label.translatesAutoresizingMaskIntoConstraints = false
+
+        addSubview(icon)
+        addSubview(label)
+
+        NSLayoutConstraint.activate([
+            icon.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
+            icon.centerYAnchor.constraint(equalTo: centerYAnchor),
+            icon.widthAnchor.constraint(equalToConstant: 16),
+            icon.heightAnchor.constraint(equalToConstant: 16),
+
+            label.leadingAnchor.constraint(equalTo: icon.trailingAnchor, constant: 8),
+            label.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
+            label.topAnchor.constraint(equalTo: topAnchor, constant: 9),
+            label.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -9)
+        ])
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        nil
     }
 }

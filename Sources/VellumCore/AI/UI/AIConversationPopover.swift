@@ -162,6 +162,7 @@ struct AIConversationPopoverView: View {
     let onSend: (String) -> Void
     let onPreferredSizeChange: (NSSize) -> Void
     @State private var inputIsFocused = true
+    @State private var inputFocusGeneration = 0
 
     var body: some View {
         visibleContent
@@ -221,11 +222,11 @@ struct AIConversationPopoverView: View {
             }
             .frame(height: messageViewportHeight)
             .background(TokyoNight.panelColor.opacity(0.22))
-            .onChange(of: model.messages) { _, messages in
-                guard let last = messages.last else { return }
-                withAnimation(.easeOut(duration: 0.14)) {
-                    proxy.scrollTo(last.id, anchor: .bottom)
-                }
+            .onChange(of: model.messages) { _, _ in
+                scrollToBottom(proxy)
+            }
+            .onChange(of: model.preferredHeight) { _, _ in
+                scrollToBottom(proxy)
             }
         }
     }
@@ -240,6 +241,10 @@ struct AIConversationPopoverView: View {
             if let errorMessage = model.errorMessage {
                 AIConversationErrorRow(message: errorMessage)
             }
+
+            Color.clear
+                .frame(height: 1)
+                .id("bottom")
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -249,6 +254,7 @@ struct AIConversationPopoverView: View {
             AIConversationInputTextView(
                 text: $model.draft,
                 isFocused: $inputIsFocused,
+                focusGeneration: inputFocusGeneration,
                 onSubmit: sendDraft
             )
             .frame(height: 40)
@@ -290,10 +296,17 @@ struct AIConversationPopoverView: View {
     }
 
     private func sendDraft() {
+        guard !model.isSending else { return }
         let prompt = model.draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !prompt.isEmpty else { return }
         model.draft = ""
+        inputIsFocused = true
+        inputFocusGeneration += 1
         onSend(prompt)
+        DispatchQueue.main.async {
+            inputIsFocused = true
+            inputFocusGeneration += 1
+        }
     }
 
     private func applyEstimatedHeight() {
@@ -301,11 +314,20 @@ struct AIConversationPopoverView: View {
             onPreferredSizeChange(model.preferredSize)
         }
     }
+
+    private func scrollToBottom(_ proxy: ScrollViewProxy) {
+        DispatchQueue.main.async {
+            withAnimation(.easeOut(duration: 0.14)) {
+                proxy.scrollTo("bottom", anchor: .bottom)
+            }
+        }
+    }
 }
 
 private struct AIConversationInputTextView: NSViewRepresentable {
     @Binding var text: String
     @Binding var isFocused: Bool
+    let focusGeneration: Int
     let onSubmit: () -> Void
 
     func makeCoordinator() -> Coordinator {
@@ -360,7 +382,11 @@ private struct AIConversationInputTextView: NSViewRepresentable {
             textView.string = text
         }
 
-        if isFocused, textView.window?.firstResponder !== textView {
+        let shouldRefocus = isFocused
+            && (context.coordinator.focusGeneration != focusGeneration || textView.window?.firstResponder !== textView)
+        context.coordinator.focusGeneration = focusGeneration
+
+        if shouldRefocus {
             DispatchQueue.main.async { [weak textView] in
                 guard let textView else { return }
                 textView.focusAndShowInsertionPoint()
@@ -371,6 +397,7 @@ private struct AIConversationInputTextView: NSViewRepresentable {
     final class Coordinator: NSObject, NSTextViewDelegate {
         @Binding var text: String
         @Binding var isFocused: Bool
+        var focusGeneration = 0
         weak var textView: NSTextView?
 
         init(text: Binding<String>, isFocused: Binding<Bool>) {

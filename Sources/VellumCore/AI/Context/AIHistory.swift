@@ -32,6 +32,7 @@ struct AIExplanationHistoryItem: Identifiable {
     var selectedText: String
     var explanation: String
     var fileName: String
+    var documentKey: String? = nil
     var pageNumbers: [Int]
     var updatedAt: Date
 

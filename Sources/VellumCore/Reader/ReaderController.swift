@@ -7,6 +7,7 @@ protocol ReaderController: AnyObject {
     var hasNavigableTextSelection: Bool { get }
     var hasSearchTextTarget: Bool { get }
     var isPageOverviewActive: Bool { get }
+    var documentKey: String? { get }
 
     func snapshot() -> ReaderSnapshot?
     func focus()
@@ -34,6 +35,7 @@ protocol ReaderController: AnyObject {
     func vimExplainSelectedHighlight()
     func vimStartAIConversation()
     func aiExplanationHistoryItems() -> [AIExplanationHistoryItem]
+    func showAINotification(_ message: String)
     func restoreAIExplanation(_ item: AIExplanationHistoryItem)
     func restoreAIConversation(_ item: AIConversationHistoryItem)
     func vimZoom(by factor: CGFloat)
@@ -42,9 +44,15 @@ protocol ReaderController: AnyObject {
 }
 
 extension ReaderController {
+    var documentKey: String? {
+        nil
+    }
+
     func aiExplanationHistoryItems() -> [AIExplanationHistoryItem] {
         []
     }
+
+    func showAINotification(_ message: String) {}
 
     func restoreAIExplanation(_ item: AIExplanationHistoryItem) {}
 

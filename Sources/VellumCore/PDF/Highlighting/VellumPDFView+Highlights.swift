@@ -149,6 +149,17 @@ extension VellumPDFView {
                     self.needsDisplay = true
                     self.persistAnnotationsIfPossible()
                 }
+                self.appState?.upsertAIExplanationHistory(
+                    AIExplanationHistoryItem(
+                        id: UUID(),
+                        selectedText: context.selectedText,
+                        explanation: explanation,
+                        fileName: context.fileName,
+                        documentKey: context.documentKey,
+                        pageNumbers: context.pageNumbers,
+                        updatedAt: Date()
+                    )
+                )
                 popoverModel?.isStreaming = false
                 self.aiInteraction.explanationTask = nil
             } catch {

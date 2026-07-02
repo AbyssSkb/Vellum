@@ -7,6 +7,7 @@ struct AIExplanationContext: Sendable {
     var nextParagraph: String?
     var nearbyText: String
     var fileName: String
+    var documentKey: String? = nil
     var directoryName: String?
     var outlineTitle: String?
     var pageNumbers: [Int]

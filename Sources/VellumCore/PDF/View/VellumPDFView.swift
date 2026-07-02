@@ -68,6 +68,10 @@ final class VellumPDFView: PDFView {
         pageOverviewController != nil
     }
 
+    var documentKey: String? {
+        document?.documentURL?.standardizedFileURL.path
+    }
+
     func handleTextSelectionKeyEvent(_ event: NSEvent) -> Bool {
         guard event.modifierFlags.intersection([.command, .control, .option]).isEmpty,
               let rawKey = event.charactersIgnoringModifiers,
