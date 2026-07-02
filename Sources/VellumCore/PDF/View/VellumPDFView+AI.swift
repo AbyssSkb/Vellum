@@ -208,7 +208,7 @@ extension VellumPDFView {
         let popover = NSPopover()
         popover.behavior = .transient
         popover.animates = true
-        popover.contentSize = AIConversationPopoverMetrics.size
+        popover.contentSize = model.preferredSize
         popover.contentViewController = NSHostingController(
             rootView: AIConversationPopoverView(
                 model: model,
@@ -217,6 +217,13 @@ extension VellumPDFView {
                 },
                 onSend: { [weak self, weak model] prompt in
                     self?.sendAIConversationMessage(prompt, model: model)
+                },
+                onPreferredSizeChange: { [weak popover] size in
+                    NSAnimationContext.runAnimationGroup { context in
+                        context.duration = 0
+                        context.allowsImplicitAnimation = false
+                        popover?.contentSize = size
+                    }
                 }
             )
         )

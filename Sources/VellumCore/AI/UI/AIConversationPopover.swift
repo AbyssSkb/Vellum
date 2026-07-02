@@ -1,7 +1,16 @@
+@preconcurrency import AppKit
 import SwiftUI
 
 enum AIConversationPopoverMetrics {
-    static let size = CGSize(width: 620, height: 520)
+    static let width: CGFloat = AIExplanationPopoverMetrics.width
+    static let minimumHeight: CGFloat = 56
+    static let maximumHeight: CGFloat = AIExplanationPopoverMetrics.maximumHeight
+    static let composerHeight: CGFloat = 56
+    static let dividerHeight: CGFloat = 1
+
+    static var initialSize: NSSize {
+        NSSize(width: width, height: minimumHeight)
+    }
 }
 
 @MainActor
@@ -10,6 +19,7 @@ final class AIConversationPopoverModel: ObservableObject {
     @Published var draft = ""
     @Published var isSending = false
     @Published var errorMessage: String?
+    @Published private(set) var preferredHeight = AIConversationPopoverMetrics.minimumHeight
     let context: AIExplanationContext
 
     init(context: AIExplanationContext) {
@@ -49,6 +59,22 @@ final class AIConversationPopoverModel: ObservableObject {
 
         messages[lastIndex].content = text
     }
+
+    var preferredSize: NSSize {
+        NSSize(width: AIConversationPopoverMetrics.width, height: preferredHeight)
+    }
+
+    @discardableResult
+    func updateContentHeight(_ contentHeight: CGFloat) -> Bool {
+        let clampedHeight = min(
+            AIConversationPopoverMetrics.maximumHeight,
+            max(AIConversationPopoverMetrics.minimumHeight, ceil(contentHeight))
+        )
+
+        guard abs(preferredHeight - clampedHeight) > 1 else { return false }
+        preferredHeight = clampedHeight
+        return true
+    }
 }
 
 struct AIConversationPopoverView: View {
@@ -56,46 +82,67 @@ struct AIConversationPopoverView: View {
     @ObservedObject var model: AIConversationPopoverModel
     let onDismiss: () -> Void
     let onSend: (String) -> Void
-    @FocusState private var inputIsFocused: Bool
+    let onPreferredSizeChange: (NSSize) -> Void
+    @State private var inputIsFocused = true
 
     var body: some View {
-        VStack(spacing: 0) {
-            messagesView
-            composer
-        }
-        .frame(width: AIConversationPopoverMetrics.size.width, height: AIConversationPopoverMetrics.size.height)
+        visibleContent
+        .frame(width: AIConversationPopoverMetrics.width, height: model.preferredHeight)
         .background(TokyoNight.panelElevatedColor)
         .foregroundStyle(TokyoNight.foregroundColor)
+        .overlay(alignment: .top) {
+            idealHeightProbe
+        }
+        .onPreferenceChange(AIConversationIdealHeightKey.self) { height in
+            guard model.updateContentHeight(height) else { return }
+            onPreferredSizeChange(model.preferredSize)
+        }
+        .onChange(of: model.preferredHeight) { _, _ in
+            onPreferredSizeChange(model.preferredSize)
+        }
         .onAppear {
             DispatchQueue.main.async {
                 inputIsFocused = true
+                onPreferredSizeChange(model.preferredSize)
             }
         }
         .onExitCommand(perform: onDismiss)
     }
 
+    private var hasConversationContent: Bool {
+        !model.messages.isEmpty || model.errorMessage != nil
+    }
+
+    private var messageViewportHeight: CGFloat {
+        guard hasConversationContent else { return 0 }
+        return max(
+            0,
+            model.preferredHeight
+                - AIConversationPopoverMetrics.composerHeight
+                - AIConversationPopoverMetrics.dividerHeight
+        )
+    }
+
+    private var visibleContent: some View {
+        VStack(spacing: 0) {
+            if hasConversationContent {
+                messagesView
+                TokyoNightDivider(axis: .horizontal)
+            }
+
+            composer
+        }
+    }
+
     private var messagesView: some View {
         ScrollViewReader { proxy in
-            ScrollView(.vertical, showsIndicators: true) {
-                LazyVStack(alignment: .leading, spacing: 16) {
-                    if model.messages.isEmpty {
-                        emptyState
-                    }
-
-                    ForEach(model.messages) { message in
-                        AIConversationMessageRow(message: message)
-                            .id(message.id)
-                    }
-
-                    if let errorMessage = model.errorMessage {
-                        AIConversationErrorRow(message: errorMessage)
-                    }
-                }
-                .padding(.horizontal, 16)
-                .padding(.top, 16)
-                .padding(.bottom, 14)
+            ScrollView(.vertical, showsIndicators: false) {
+                messageStack
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 14)
             }
-            .background(TokyoNight.panelColor.opacity(0.28))
+            .frame(height: messageViewportHeight)
+            .background(TokyoNight.panelColor.opacity(0.22))
             .onChange(of: model.messages) { _, messages in
                 guard let last = messages.last else { return }
                 withAnimation(.easeOut(duration: 0.14)) {
@@ -105,75 +152,87 @@ struct AIConversationPopoverView: View {
         }
     }
 
-    private var emptyState: some View {
-        Text(model.selectedTextTitle)
-            .font(.system(size: 12.5))
-            .lineSpacing(2)
-            .foregroundStyle(TokyoNight.mutedColor)
-            .textSelection(.enabled)
-            .lineLimit(5)
-            .fixedSize(horizontal: false, vertical: true)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(TokyoNight.backgroundDeepColor.opacity(0.36), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
-            .overlay(alignment: .leading) {
-                Rectangle()
-                    .fill(TokyoNight.cyanColor.opacity(0.42))
-                    .frame(width: 2)
-                    .clipShape(RoundedRectangle(cornerRadius: 1, style: .continuous))
+    private var messageStack: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            ForEach(model.messages) { message in
+                AIConversationMessageRow(message: message)
+                    .id(message.id)
             }
+
+            if let errorMessage = model.errorMessage {
+                AIConversationErrorRow(message: errorMessage)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var idealHeightProbe: some View {
+        VStack(spacing: 0) {
+            if hasConversationContent {
+                messageStack
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 14)
+                Color.clear.frame(height: AIConversationPopoverMetrics.dividerHeight)
+            }
+
+            Color.clear.frame(height: AIConversationPopoverMetrics.composerHeight)
+        }
+        .frame(width: AIConversationPopoverMetrics.width)
+        .fixedSize(horizontal: false, vertical: true)
+        .background {
+            GeometryReader { geometry in
+                Color.clear.preference(key: AIConversationIdealHeightKey.self, value: geometry.size.height)
+            }
+        }
+        .opacity(0)
+        .accessibilityHidden(true)
+        .allowsHitTesting(false)
     }
 
     private var composer: some View {
-        VStack(spacing: 0) {
-            TokyoNightDivider(axis: .horizontal)
+        ZStack(alignment: .trailing) {
+            AIConversationInputTextView(
+                text: $model.draft,
+                isFocused: $inputIsFocused,
+                onSubmit: sendDraft
+            )
+            .frame(height: 40)
+            .padding(.leading, 12)
+            .padding(.trailing, 42)
 
-            ZStack(alignment: .bottomTrailing) {
-                ZStack(alignment: .topLeading) {
-                    TextEditor(text: $model.draft)
-                        .font(.system(size: 13))
-                        .foregroundStyle(TokyoNight.foregroundColor)
-                        .scrollContentBackground(.hidden)
-                        .focused($inputIsFocused)
-                        .padding(.trailing, 36)
-                        .padding(.bottom, 22)
-
-                    if model.draft.isEmpty {
-                        Text(language.text(.aiChatPlaceholder))
-                            .font(.system(size: 13))
-                            .foregroundStyle(TokyoNight.mutedColor)
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 8)
-                            .allowsHitTesting(false)
-                    }
-                }
-                .padding(.horizontal, 9)
-                .padding(.vertical, 7)
-                .frame(height: 92)
-                .background(TokyoNight.backgroundDeepColor.opacity(0.86), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(inputIsFocused ? TokyoNight.cyanColor.opacity(0.58) : TokyoNight.borderColor.opacity(0.62), lineWidth: 1)
-                }
-
-                Button {
-                    sendDraft()
-                } label: {
-                    Image(systemName: model.isSending ? "hourglass" : "arrow.up")
-                        .font(.system(size: 12, weight: .bold))
-                        .frame(width: 28, height: 28)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(AIConversationSendButtonStyle())
-                .keyboardShortcut(.return, modifiers: [.command])
-                .disabled(model.isSending || model.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                .help(language.text(.aiChatSend))
-                .padding(8)
+            if model.draft.isEmpty {
+                Text(language.text(.aiChatPlaceholder))
+                    .font(.system(size: 13))
+                    .foregroundStyle(TokyoNight.mutedColor)
+                    .padding(.leading, 12)
+                    .padding(.trailing, 42)
+                    .allowsHitTesting(false)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(12)
-            .background(TokyoNight.panelElevatedColor)
+
+            Button {
+                sendDraft()
+            } label: {
+                Image(systemName: model.isSending ? "hourglass" : "arrow.up")
+                    .font(.system(size: 11.5, weight: .bold))
+                    .frame(width: 26, height: 26)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(AIConversationSendButtonStyle())
+            .keyboardShortcut(.return, modifiers: [.command])
+            .disabled(model.isSending || model.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .help(language.text(.aiChatSend))
+            .padding(.trailing, 7)
         }
+        .frame(height: 40)
+        .background(TokyoNight.backgroundDeepColor.opacity(0.88), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(inputIsFocused ? TokyoNight.cyanColor.opacity(0.58) : TokyoNight.borderColor.opacity(0.62), lineWidth: 1)
+        }
+        .padding(8)
+        .frame(height: AIConversationPopoverMetrics.composerHeight)
+        .background(TokyoNight.panelElevatedColor)
     }
 
     private func sendDraft() {
@@ -181,6 +240,118 @@ struct AIConversationPopoverView: View {
         guard !prompt.isEmpty else { return }
         model.draft = ""
         onSend(prompt)
+    }
+}
+
+private struct AIConversationIdealHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = AIConversationPopoverMetrics.minimumHeight
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
+private struct AIConversationInputTextView: NSViewRepresentable {
+    @Binding var text: String
+    @Binding var isFocused: Bool
+    let onSubmit: () -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(text: $text, isFocused: $isFocused)
+    }
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let scrollView = NSScrollView()
+        scrollView.drawsBackground = false
+        scrollView.borderType = .noBorder
+        scrollView.hasVerticalScroller = false
+        scrollView.hasHorizontalScroller = false
+        scrollView.autohidesScrollers = true
+        scrollView.verticalScrollElasticity = .none
+        scrollView.horizontalScrollElasticity = .none
+
+        let textView = AIConversationNSTextView()
+        textView.delegate = context.coordinator
+        textView.onCommandReturn = onSubmit
+        textView.string = text
+        textView.isRichText = false
+        textView.importsGraphics = false
+        textView.allowsUndo = true
+        textView.drawsBackground = false
+        textView.font = .systemFont(ofSize: 13)
+        textView.textColor = TokyoNight.foreground
+        textView.insertionPointColor = TokyoNight.foreground
+        textView.textContainerInset = NSSize(width: 0, height: 11)
+        textView.textContainer?.lineFragmentPadding = 0
+        textView.textContainer?.widthTracksTextView = true
+        textView.isHorizontallyResizable = false
+        textView.isVerticallyResizable = true
+        textView.minSize = NSSize(width: 0, height: 40)
+        textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+        textView.autoresizingMask = [.width]
+        textView.selectedTextAttributes = [
+            .backgroundColor: TokyoNight.selection,
+            .foregroundColor: TokyoNight.foreground
+        ]
+
+        scrollView.documentView = textView
+        context.coordinator.textView = textView
+        return scrollView
+    }
+
+    func updateNSView(_ scrollView: NSScrollView, context: Context) {
+        guard let textView = scrollView.documentView as? AIConversationNSTextView else { return }
+        textView.onCommandReturn = onSubmit
+        if textView.string != text {
+            textView.string = text
+        }
+
+        if isFocused, textView.window?.firstResponder !== textView {
+            DispatchQueue.main.async { [weak textView] in
+                guard let textView else { return }
+                textView.window?.makeFirstResponder(textView)
+            }
+        }
+    }
+
+    final class Coordinator: NSObject, NSTextViewDelegate {
+        @Binding var text: String
+        @Binding var isFocused: Bool
+        weak var textView: NSTextView?
+
+        init(text: Binding<String>, isFocused: Binding<Bool>) {
+            _text = text
+            _isFocused = isFocused
+            super.init()
+        }
+
+        func textDidChange(_ notification: Notification) {
+            guard let textView = notification.object as? NSTextView else { return }
+            text = textView.string
+        }
+
+        func textDidBeginEditing(_ notification: Notification) {
+            isFocused = true
+        }
+
+        func textDidEndEditing(_ notification: Notification) {
+            isFocused = false
+        }
+    }
+}
+
+private final class AIConversationNSTextView: NSTextView {
+    var onCommandReturn: (() -> Void)?
+
+    override func keyDown(with event: NSEvent) {
+        let isCommandReturn = event.modifierFlags.contains(.command)
+            && (event.keyCode == 36 || event.keyCode == 76)
+        guard isCommandReturn else {
+            super.keyDown(with: event)
+            return
+        }
+
+        onCommandReturn?()
     }
 }
 
