@@ -19,9 +19,7 @@ struct AIConversationHistoryItem: Identifiable {
     }
 
     var searchableText: String {
-        ([context.selectedText, context.fileName, context.directoryName, context.outlineTitle]
-            + context.pageNumbers.map(String.init)
-            + messages.map(\.content))
+        ([context.selectedText, context.outlineTitle] + messages.map(\.content))
             .compactMap { $0 }
             .joined(separator: " ")
     }
@@ -37,7 +35,7 @@ struct AIExplanationHistoryItem: Identifiable {
     var updatedAt: Date
 
     var searchableText: String {
-        ([selectedText, explanation, fileName] + pageNumbers.map(String.init))
+        [selectedText, explanation]
             .joined(separator: " ")
     }
 }

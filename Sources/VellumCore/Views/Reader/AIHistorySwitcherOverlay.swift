@@ -254,14 +254,12 @@ private struct AIHistorySwitcherOverlay: View {
 private struct AIHistorySwitcherItem: Identifiable, Equatable {
     let id: UUID
     let title: String
-    let subtitle: String
     let preview: String
     let searchableText: String
 
     init(_ item: AIConversationHistoryItem) {
         id = item.id
         title = item.selectedText.aiPopoverTitle
-        subtitle = Self.subtitle(fileName: item.fileName, pageNumbers: item.pageNumbers)
         preview = item.messages.last(where: { !$0.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty })?.content
             ?? item.selectedText
         searchableText = item.searchableText
@@ -270,35 +268,23 @@ private struct AIHistorySwitcherItem: Identifiable, Equatable {
     init(_ item: AIExplanationHistoryItem) {
         id = item.id
         title = item.selectedText.aiPopoverTitle
-        subtitle = Self.subtitle(fileName: item.fileName, pageNumbers: item.pageNumbers)
         preview = item.explanation
         searchableText = item.searchableText
-    }
-
-    private static func subtitle(fileName: String, pageNumbers: [Int]) -> String {
-        let pages = pageNumbers.map(String.init).joined(separator: ", ")
-        return pages.isEmpty ? fileName : "\(fileName) · p. \(pages)"
     }
 }
 
 private struct AIHistorySwitcherRow: View {
-    static let metricsHeight: CGFloat = 72
+    static let metricsHeight: CGFloat = 58
     let item: AIHistorySwitcherItem
     let isSelected: Bool
 
     var body: some View {
         HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 5) {
+            VStack(alignment: .leading, spacing: 6) {
                 Text(item.title)
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(TokyoNight.foregroundColor)
                     .lineLimit(1)
-
-                Text(item.subtitle)
-                    .font(.system(size: 11))
-                    .foregroundStyle(TokyoNight.mutedColor)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
 
                 Text(item.preview)
                     .font(.system(size: 11.5))
