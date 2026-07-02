@@ -10,6 +10,7 @@ struct CodexAppServerAIExplanationClient: AIExplaining {
 
     func testFunction(configuration: AIConfiguration) async throws -> String {
         let text = try await runTurn(
+            operation: "codex.testFunction",
             prompt: "Reply with OK.",
             configuration: configuration,
             timeout: 90,
@@ -19,49 +20,69 @@ struct CodexAppServerAIExplanationClient: AIExplaining {
     }
 
     func fetchModels(configuration: AIConfiguration) async throws -> [String] {
-        try await withAppServerSession(configuration: configuration, timeout: 45) { session in
-            try session.send([
-                "id": 0,
-                "method": "initialize",
-                "params": initializeParams
-            ])
+        let startedAt = Date()
+        do {
+            let models = try await withAppServerSession(configuration: configuration, timeout: 45) { session in
+                try session.send([
+                    "id": 0,
+                    "method": "initialize",
+                    "params": initializeParams
+                ])
 
-            var didInitialize = false
-            var models: [String] = []
+                var didInitialize = false
+                var models: [String] = []
 
-            try await session.readMessages { message in
-                if let error = CodexAppServerMessageParser.errorMessage(from: message) {
-                    throw AIExplanationError.server(error)
-                }
+                try await session.readMessages { message in
+                    if let error = CodexAppServerMessageParser.errorMessage(from: message) {
+                        throw AIExplanationError.server(error)
+                    }
 
-                if CodexAppServerMessageParser.responseID(from: message) == 0 {
-                    didInitialize = true
-                    try session.send(["method": "initialized", "params": [:]])
-                    try session.send([
-                        "id": 1,
-                        "method": "model/list",
-                        "params": [
-                            "includeHidden": false,
-                            "limit": 100
-                        ]
-                    ])
+                    if CodexAppServerMessageParser.responseID(from: message) == 0 {
+                        didInitialize = true
+                        try session.send(["method": "initialized", "params": [:]])
+                        try session.send([
+                            "id": 1,
+                            "method": "model/list",
+                            "params": [
+                                "includeHidden": false,
+                                "limit": 100
+                            ]
+                        ])
+                        return false
+                    }
+
+                    if didInitialize, CodexAppServerMessageParser.responseID(from: message) == 1 {
+                        models = CodexAppServerMessageParser.modelIDs(from: message)
+                        return true
+                    }
+
                     return false
                 }
 
-                if didInitialize, CodexAppServerMessageParser.responseID(from: message) == 1 {
-                    models = CodexAppServerMessageParser.modelIDs(from: message)
-                    return true
-                }
-
-                return false
+                return models
             }
 
+            AIRequestLogger.recordLocal(
+                operation: "codex.fetchModels",
+                configuration: configuration,
+                responseText: "Models: \(models.joined(separator: ", "))",
+                startedAt: startedAt
+            )
             return models
+        } catch {
+            AIRequestLogger.recordLocal(
+                operation: "codex.fetchModels",
+                configuration: configuration,
+                startedAt: startedAt,
+                error: error
+            )
+            throw error
         }
     }
 
     func explain(context: AIExplanationContext, configuration: AIConfiguration) async throws -> String {
         try await runTurn(
+            operation: "codex.explain",
             prompt: explanationPrompt(for: context),
             configuration: configuration,
             timeout: 180,
@@ -75,6 +96,7 @@ struct CodexAppServerAIExplanationClient: AIExplaining {
         onChunk: @escaping @MainActor (String) -> Void
     ) async throws -> String {
         try await runTurn(
+            operation: "codex.streamExplanation",
             prompt: explanationPrompt(for: context),
             configuration: configuration,
             timeout: 180,
@@ -89,6 +111,7 @@ struct CodexAppServerAIExplanationClient: AIExplaining {
         onChunk: @escaping @MainActor (String) -> Void
     ) async throws -> String {
         try await runTurn(
+            operation: "codex.streamConversation",
             prompt: AIConversationPromptRenderer.transcriptPrompt(
                 context: context,
                 messages: messages
@@ -113,87 +136,109 @@ struct CodexAppServerAIExplanationClient: AIExplaining {
     }
 
     private func runTurn(
+        operation: String,
         prompt: String,
         configuration: AIConfiguration,
         timeout: TimeInterval,
         onChunk: (@MainActor (String) -> Void)?
     ) async throws -> String {
-        try await withAppServerSession(configuration: configuration, timeout: timeout) { session in
-            try session.send([
-                "id": 0,
-                "method": "initialize",
-                "params": initializeParams
-            ])
+        let startedAt = Date()
+        do {
+            let text = try await withAppServerSession(configuration: configuration, timeout: timeout) { session in
+                try session.send([
+                    "id": 0,
+                    "method": "initialize",
+                    "params": initializeParams
+                ])
 
-            var threadID: String?
-            var turnID: String?
-            var streamedText = ""
-            var completedText = ""
+                var threadID: String?
+                var turnID: String?
+                var streamedText = ""
+                var completedText = ""
 
-            try await session.readMessages { message in
-                if let error = CodexAppServerMessageParser.errorMessage(from: message) {
-                    throw AIExplanationError.server(error)
-                }
-
-                if CodexAppServerMessageParser.responseID(from: message) == 0 {
-                    try session.send(["method": "initialized", "params": [:]])
-                    try session.send([
-                        "id": 1,
-                        "method": "thread/start",
-                        "params": threadStartParams(configuration: configuration)
-                    ])
-                    return false
-                }
-
-                if CodexAppServerMessageParser.responseID(from: message) == 1 {
-                    guard let id = CodexAppServerMessageParser.threadID(from: message) else {
-                        throw AIExplanationError.transport("Codex App Server 没有返回 thread id。")
+                try await session.readMessages { message in
+                    if let error = CodexAppServerMessageParser.errorMessage(from: message) {
+                        throw AIExplanationError.server(error)
                     }
-                    threadID = id
-                    try session.send([
-                        "id": 2,
-                        "method": "turn/start",
-                        "params": turnStartParams(
-                            threadID: id,
-                            prompt: prompt,
-                            configuration: configuration
-                        )
-                    ])
-                    return false
-                }
 
-                if CodexAppServerMessageParser.responseID(from: message) == 2 {
-                    turnID = CodexAppServerMessageParser.turnID(from: message)
-                    return false
-                }
+                    if CodexAppServerMessageParser.responseID(from: message) == 0 {
+                        try session.send(["method": "initialized", "params": [:]])
+                        try session.send([
+                            "id": 1,
+                            "method": "thread/start",
+                            "params": threadStartParams(configuration: configuration)
+                        ])
+                        return false
+                    }
 
-                if let delta = CodexAppServerMessageParser.agentMessageDelta(from: message, threadID: threadID, turnID: turnID) {
-                    streamedText += delta
-                    if let onChunk {
-                        await MainActor.run {
-                            onChunk(delta)
+                    if CodexAppServerMessageParser.responseID(from: message) == 1 {
+                        guard let id = CodexAppServerMessageParser.threadID(from: message) else {
+                            throw AIExplanationError.transport("Codex App Server 没有返回 thread id。")
                         }
+                        threadID = id
+                        try session.send([
+                            "id": 2,
+                            "method": "turn/start",
+                            "params": turnStartParams(
+                                threadID: id,
+                                prompt: prompt,
+                                configuration: configuration
+                            )
+                        ])
+                        return false
                     }
+
+                    if CodexAppServerMessageParser.responseID(from: message) == 2 {
+                        turnID = CodexAppServerMessageParser.turnID(from: message)
+                        return false
+                    }
+
+                    if let delta = CodexAppServerMessageParser.agentMessageDelta(from: message, threadID: threadID, turnID: turnID) {
+                        streamedText += delta
+                        if let onChunk {
+                            await MainActor.run {
+                                onChunk(delta)
+                            }
+                        }
+                        return false
+                    }
+
+                    if let text = CodexAppServerMessageParser.completedAgentMessage(from: message, threadID: threadID, turnID: turnID) {
+                        completedText = text
+                        return false
+                    }
+
+                    if CodexAppServerMessageParser.isTurnCompleted(message, threadID: threadID, turnID: turnID) {
+                        return true
+                    }
+
                     return false
                 }
 
-                if let text = CodexAppServerMessageParser.completedAgentMessage(from: message, threadID: threadID, turnID: turnID) {
-                    completedText = text
-                    return false
+                let text = completedText.nilIfEmpty ?? streamedText.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !text.isEmpty else {
+                    throw AIExplanationError.emptyResponse
                 }
-
-                if CodexAppServerMessageParser.isTurnCompleted(message, threadID: threadID, turnID: turnID) {
-                    return true
-                }
-
-                return false
+                return text
             }
 
-            let text = completedText.nilIfEmpty ?? streamedText.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !text.isEmpty else {
-                throw AIExplanationError.emptyResponse
-            }
+            AIRequestLogger.recordLocal(
+                operation: operation,
+                configuration: configuration,
+                prompt: prompt,
+                responseText: text,
+                startedAt: startedAt
+            )
             return text
+        } catch {
+            AIRequestLogger.recordLocal(
+                operation: operation,
+                configuration: configuration,
+                prompt: prompt,
+                startedAt: startedAt,
+                error: error
+            )
+            throw error
         }
     }
 

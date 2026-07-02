@@ -9,6 +9,7 @@ struct GeneralSettingsView: View {
     @AppStorage(AppPreferenceKeys.doubleClickTranslatesSelection) private var doubleClickTranslatesSelection = true
     @AppStorage(AppPreferenceKeys.restorePreviousTabs) private var restorePreviousTabs = false
     @AppStorage(AppPreferenceKeys.openFileZoomBehavior) private var openFileZoomBehavior = OpenFileZoomPreference.fitWidth.rawValue
+    @State private var logStatusMessage: String?
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
@@ -18,6 +19,7 @@ struct GeneralSettingsView: View {
                 startupSection
                 readingSection
                 updatesSection
+                diagnosticsSection
             }
             .padding(.horizontal, 24)
             .padding(.vertical, 22)
@@ -145,6 +147,77 @@ struct GeneralSettingsView: View {
     private var appVersionText: String {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
         return version?.nilIfEmpty ?? "Development"
+    }
+
+    private var diagnosticsSection: some View {
+        GeneralSettingsPanel(title: language.text(.diagnostics), systemImage: "waveform.path.ecg") {
+            VStack(spacing: 10) {
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(language.text(.aiRequestLogs))
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(TokyoNight.foregroundColor)
+
+                        Text(language.text(.aiRequestLogsSubtitle))
+                            .font(.system(size: 12))
+                            .foregroundStyle(TokyoNight.mutedColor)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        if let logStatusMessage {
+                            Text(logStatusMessage)
+                                .font(.system(size: 11.5))
+                                .foregroundStyle(TokyoNight.cyanColor)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                    Spacer()
+
+                    HStack(spacing: 8) {
+                        Button {
+                            openAIRequestLog()
+                        } label: {
+                            Label(language.text(.openLog), systemImage: "doc.text.magnifyingglass")
+                        }
+                        .buttonStyle(GeneralActionButtonStyle())
+
+                        Button {
+                            clearAIRequestLog()
+                        } label: {
+                            Label(language.text(.clearLog), systemImage: "trash")
+                        }
+                        .buttonStyle(GeneralActionButtonStyle())
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .frame(minHeight: 62)
+                .background(TokyoNight.backgroundDeepColor.opacity(0.56), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .stroke(TokyoNight.borderColor.opacity(0.48), lineWidth: 1)
+                }
+            }
+        }
+    }
+
+    private func openAIRequestLog() {
+        do {
+            try AIRequestLogger.openLog()
+            logStatusMessage = AIRequestLogger.logFileURL.path
+        } catch {
+            logStatusMessage = language.text(.aiLogsFailed(error.localizedDescription))
+        }
+    }
+
+    private func clearAIRequestLog() {
+        do {
+            try AIRequestLogger.clearLog()
+            logStatusMessage = language.text(.aiLogsCleared)
+        } catch {
+            logStatusMessage = language.text(.aiLogsFailed(error.localizedDescription))
+        }
     }
 }
 

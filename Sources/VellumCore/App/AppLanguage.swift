@@ -62,6 +62,10 @@ public enum AppText {
     case aiExplanationHistory
     case aiExplanationHeaderSubtitle
     case aiHeaderSubtitle
+    case aiLogsCleared
+    case aiLogsFailed(String)
+    case aiRequestLogs
+    case aiRequestLogsSubtitle
     case aiProviders
     case aiProvidersHeaderSubtitle
     case apiKey
@@ -78,6 +82,7 @@ public enum AppText {
     case checkingCodex
     case checkingEndpoint
     case chooseFile
+    case clearLog
     case closeTab
     case closeTabNamed(String)
     case codex
@@ -92,6 +97,7 @@ public enum AppText {
     case defaultOpenMode
     case defaultOpenModeSubtitle
     case defaultStatus
+    case diagnostics
     case diagnosticsModels
     case diagnosticsRequest
     case doubleClickTranslate
@@ -139,6 +145,7 @@ public enum AppText {
     case openFileZoomSubtitle
     case openGitHub
     case openDiskImage
+    case openLog
     case openMenu
     case openPDF
     case openReleases
@@ -235,6 +242,10 @@ public extension AppText {
         case .aiExplanationHistory: return "AI Explanations"
         case .aiExplanationHeaderSubtitle: return "Choose the provider, model, and prompt used by selected-text explanations."
         case .aiHeaderSubtitle: return "Choose a provider, enter its key, then pick the model Vellum should use."
+        case .aiLogsCleared: return "AI request log cleared."
+        case .aiLogsFailed(let error): return "Log action failed: \(error)"
+        case .aiRequestLogs: return "AI Request Logs"
+        case .aiRequestLogsSubtitle: return "Record AI request metadata, prompts, responses, status codes, durations, and errors. API keys are redacted."
         case .aiProviders: return "AI Providers"
         case .aiProvidersHeaderSubtitle: return "Configure shared endpoints, API keys, and local provider access."
         case .apiKey: return "API Key"
@@ -251,6 +262,7 @@ public extension AppText {
         case .checkingCodex: return "Checking Codex..."
         case .checkingEndpoint: return "Checking endpoint..."
         case .chooseFile: return "Choose File"
+        case .clearLog: return "Clear Log"
         case .closeTab: return "Close Tab"
         case .closeTabNamed(let title): return "Close \(title)"
         case .codex: return "Codex"
@@ -265,6 +277,7 @@ public extension AppText {
         case .defaultOpenMode: return "Default Open Mode"
         case .defaultOpenModeSubtitle: return "Choose where the Open command places PDFs."
         case .defaultStatus: return "Default"
+        case .diagnostics: return "Diagnostics"
         case .diagnosticsModels: return "Models"
         case .diagnosticsRequest: return "Request"
         case .doubleClickTranslate: return "Double-Click Translate"
@@ -312,6 +325,7 @@ public extension AppText {
         case .openFileZoomSubtitle: return "Choose the initial zoom for newly opened PDFs."
         case .openGitHub: return "Open GitHub"
         case .openDiskImage: return "Open Disk Image"
+        case .openLog: return "Open Log"
         case .openMenu: return "Open..."
         case .openPDF: return "Open a PDF"
         case .openReleases: return "Open Releases"
@@ -399,6 +413,10 @@ public extension AppText {
         case .aiExplanationHistory: return "AI 解释"
         case .aiExplanationHeaderSubtitle: return "选择选中文本解释使用的服务商、模型和提示词。"
         case .aiHeaderSubtitle: return "选择服务商，填写密钥，然后选择 Vellum 使用的模型。"
+        case .aiLogsCleared: return "AI 请求日志已清除。"
+        case .aiLogsFailed(let error): return "日志操作失败：\(error)"
+        case .aiRequestLogs: return "AI 请求日志"
+        case .aiRequestLogsSubtitle: return "记录 AI 请求元信息、提示词、响应、状态码、耗时和错误。API 密钥会被隐藏。"
         case .aiProviders: return "AI 服务商"
         case .aiProvidersHeaderSubtitle: return "配置共享端点、API 密钥和本地服务商访问方式。"
         case .apiKey: return "API 密钥"
@@ -415,6 +433,7 @@ public extension AppText {
         case .checkingCodex: return "正在检查 Codex..."
         case .checkingEndpoint: return "正在检查端点..."
         case .chooseFile: return "选择文件"
+        case .clearLog: return "清除日志"
         case .closeTab: return "关闭标签页"
         case .closeTabNamed(let title): return "关闭 \(title)"
         case .codex: return "Codex"
@@ -429,6 +448,7 @@ public extension AppText {
         case .defaultOpenMode: return "默认打开方式"
         case .defaultOpenModeSubtitle: return "选择打开命令把 PDF 放到哪里。"
         case .defaultStatus: return "默认"
+        case .diagnostics: return "诊断"
         case .diagnosticsModels: return "模型"
         case .diagnosticsRequest: return "请求"
         case .doubleClickTranslate: return "双击翻译"
@@ -476,6 +496,7 @@ public extension AppText {
         case .openFileZoomSubtitle: return "选择新打开 PDF 的初始缩放方式。"
         case .openGitHub: return "打开 GitHub"
         case .openDiskImage: return "打开磁盘镜像"
+        case .openLog: return "打开日志"
         case .openMenu: return "打开..."
         case .openPDF: return "打开 PDF"
         case .openReleases: return "打开发布页面"
