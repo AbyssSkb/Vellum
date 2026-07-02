@@ -30,6 +30,9 @@ final class VellumPDFView: PDFView {
     let aiInteraction = AIInteractionState()
     var isMouseSelectingText = false
     nonisolated(unsafe) var mouseSelectionScrollWheelMonitor: Any?
+    var scrollBoundsObserver: NSObjectProtocol?
+    weak var observedScrollClipView: NSClipView?
+    var readerStateSaveWorkItem: DispatchWorkItem?
     var lastMouseSelectionMouseUpTimestamp: TimeInterval?
     var pendingDoubleClickTextSelectionPoint: NSPoint?
     var pendingClickHorizontalOrigin: CGFloat?
@@ -47,6 +50,10 @@ final class VellumPDFView: PDFView {
         if let mouseSelectionScrollWheelMonitor {
             NSEvent.removeMonitor(mouseSelectionScrollWheelMonitor)
         }
+        if let scrollBoundsObserver {
+            NotificationCenter.default.removeObserver(scrollBoundsObserver)
+        }
+        readerStateSaveWorkItem?.cancel()
     }
 
     var isAIInteractionActive: Bool {
@@ -347,6 +354,42 @@ final class VellumPDFView: PDFView {
         scrollView.hasHorizontalScroller = true
         scrollView.drawsBackground = false
         scrollView.backgroundColor = .clear
+        configureReaderStatePersistence(for: scrollView)
+    }
+
+    private func configureReaderStatePersistence(for scrollView: NSScrollView) {
+        let clipView = scrollView.contentView
+        guard observedScrollClipView !== clipView else { return }
+
+        if let scrollBoundsObserver {
+            NotificationCenter.default.removeObserver(scrollBoundsObserver)
+        }
+
+        observedScrollClipView = clipView
+        clipView.postsBoundsChangedNotifications = true
+        scrollBoundsObserver = NotificationCenter.default.addObserver(
+            forName: NSView.boundsDidChangeNotification,
+            object: clipView,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.scheduleReaderStateSave()
+            }
+        }
+    }
+
+    func scheduleReaderStateSave(delay: TimeInterval = 0.35) {
+        guard window != nil else { return }
+        readerStateSaveWorkItem?.cancel()
+
+        let workItem = DispatchWorkItem { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.appState?.saveActiveReaderState()
+            }
+        }
+        readerStateSaveWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
     }
 
     private func configureMouseSelectionScrollWheelMonitor() {
