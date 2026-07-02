@@ -64,4 +64,49 @@ struct UpdateVersionTests {
 
         #expect(AppUpdateCatalog.preferredInstallerAsset(in: [genericDMG, checksum, macOSDMG]) == macOSDMG)
     }
+
+    @Test
+    func releaseNotesParserGroupsMultipleVersionSections() {
+        let notes = """
+        ## v0.6.29
+        - Add AI request logs.
+        - Add log controls.
+
+        ## v0.6.28
+        - Improve multi-selection prompts.
+
+        Full Changelog: https://example.com
+        """
+
+        let sections = AppReleaseNotesParser.sections(from: notes)
+
+        #expect(sections == [
+            AppReleaseNotesSection(
+                version: "v0.6.29",
+                notes: ["Add AI request logs.", "Add log controls."]
+            ),
+            AppReleaseNotesSection(
+                version: "v0.6.28",
+                notes: ["Improve multi-selection prompts."]
+            )
+        ])
+    }
+
+    @Test
+    func releaseNotesParserKeepsPlainLatestNotesCompact() {
+        let notes = """
+        What's Changed
+        - Fixed update dialog.
+        * Render release notes.
+        """
+
+        let sections = AppReleaseNotesParser.sections(from: notes)
+
+        #expect(sections == [
+            AppReleaseNotesSection(
+                version: nil,
+                notes: ["Fixed update dialog.", "Render release notes."]
+            )
+        ])
+    }
 }

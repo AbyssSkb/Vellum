@@ -19,7 +19,7 @@ final class UpdateAvailableWindowController: NSWindowController {
     private let language = AppUILanguage.saved()
     private var response: Response = .later
 
-    init(updateVersion: String, currentVersion: String, canInstall: Bool, releaseNotes: [String]) {
+    init(updateVersion: String, currentVersion: String, canInstall: Bool, releaseNotes: [AppReleaseNotesSection]) {
         self.canInstall = canInstall
         let notesMetrics = Self.notesMetrics(for: releaseNotes)
 
@@ -72,7 +72,7 @@ final class UpdateAvailableWindowController: NSWindowController {
     private func buildContent(
         updateVersion: String,
         currentVersion: String,
-        releaseNotes: [String],
+        releaseNotes: [AppReleaseNotesSection],
         notesMetrics: NotesMetrics
     ) {
         guard let contentView = window?.contentView else { return }
@@ -232,7 +232,7 @@ final class UpdateAvailableWindowController: NSWindowController {
         return label
     }
 
-    private func releaseNotesView(_ notes: [String]) -> NSTextField {
+    private func releaseNotesView(_ notes: [AppReleaseNotesSection]) -> NSTextField {
         let noteLabel = label("", size: 12.5, color: foregroundColor)
         noteLabel.attributedStringValue = attributedReleaseNotes(notes)
         noteLabel.maximumNumberOfLines = 0
@@ -245,44 +245,63 @@ final class UpdateAvailableWindowController: NSWindowController {
         return noteLabel
     }
 
-    private func attributedReleaseNotes(_ notes: [String]) -> NSAttributedString {
-        let paragraph = NSMutableParagraphStyle()
-        paragraph.lineSpacing = 2
-        paragraph.paragraphSpacing = 7
-        paragraph.firstLineHeadIndent = 0
-        paragraph.headIndent = 18
-        paragraph.tabStops = [NSTextTab(textAlignment: .left, location: 18)]
+    private func attributedReleaseNotes(_ sections: [AppReleaseNotesSection]) -> NSAttributedString {
+        let headingParagraph = NSMutableParagraphStyle()
+        headingParagraph.lineSpacing = 1
+        headingParagraph.paragraphSpacing = 6
+
+        let noteParagraph = NSMutableParagraphStyle()
+        noteParagraph.lineSpacing = 2
+        noteParagraph.paragraphSpacing = 7
+        noteParagraph.firstLineHeadIndent = 0
+        noteParagraph.headIndent = 18
+        noteParagraph.tabStops = [NSTextTab(textAlignment: .left, location: 18)]
 
         let result = NSMutableAttributedString()
-        for note in notes {
+        for section in sections {
+            appendReleaseNotesSection(section, to: result, headingParagraph: headingParagraph, noteParagraph: noteParagraph)
+        }
+        return result
+    }
+
+    private func appendReleaseNotesSection(
+        _ section: AppReleaseNotesSection,
+        to result: NSMutableAttributedString,
+        headingParagraph: NSParagraphStyle,
+        noteParagraph: NSParagraphStyle
+    ) {
+        if let version = section.version {
+            if result.length > 0 {
+                result.append(NSAttributedString(string: "\n\n"))
+            }
+            result.append(NSAttributedString(
+                string: version,
+                attributes: [
+                    .font: NSFont.systemFont(ofSize: 12, weight: .semibold),
+                    .foregroundColor: TokyoNight.cyan,
+                    .paragraphStyle: headingParagraph
+                ]
+            ))
+        }
+
+        for note in section.notes {
             if result.length > 0 {
                 result.append(NSAttributedString(string: "\n"))
             }
 
-            let line = "•\t\(cleanDisplayNote(note))"
+            let line = "•\t\(note)"
             let lineStart = result.length
             result.append(NSAttributedString(
                 string: line,
                 attributes: [
                     .font: NSFont.systemFont(ofSize: 12.5),
                     .foregroundColor: foregroundColor,
-                    .paragraphStyle: paragraph
+                    .paragraphStyle: noteParagraph
                 ]
             ))
             result.addAttribute(.foregroundColor, value: TokyoNight.cyan, range: NSRange(location: lineStart, length: 1))
             result.addAttribute(.font, value: NSFont.systemFont(ofSize: 14, weight: .semibold), range: NSRange(location: lineStart, length: 1))
         }
-        return result
-    }
-
-    private func cleanDisplayNote(_ note: String) -> String {
-        var text = note.trimmingCharacters(in: .whitespacesAndNewlines)
-        while text.hasPrefix("-") || text.hasPrefix("*") {
-            text = String(text.dropFirst()).trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-        return text
-            .replacingOccurrences(of: "**", with: "")
-            .replacingOccurrences(of: "`", with: "")
     }
 
     private func button(_ title: String, action: Selector, isPrimary: Bool = false) -> NSButton {
@@ -324,7 +343,7 @@ final class UpdateAvailableWindowController: NSWindowController {
         TokyoNight.muted
     }
 
-    private static func notesMetrics(for releaseNotes: [String]) -> NotesMetrics {
+    private static func notesMetrics(for releaseNotes: [AppReleaseNotesSection]) -> NotesMetrics {
         let contentHeight = estimatedNotesContentHeight(for: releaseNotes)
         let maxContentHeight: CGFloat = 158
         let minContentHeight: CGFloat = releaseNotes.isEmpty ? 40 : 54
@@ -338,17 +357,25 @@ final class UpdateAvailableWindowController: NSWindowController {
         )
     }
 
-    private static func estimatedNotesContentHeight(for releaseNotes: [String]) -> CGFloat {
+    private static func estimatedNotesContentHeight(for releaseNotes: [AppReleaseNotesSection]) -> CGFloat {
         guard !releaseNotes.isEmpty else { return 40 }
         let usableCharactersPerLine = 60
         let lineHeight: CGFloat = 18
         let paragraphSpacing: CGFloat = 7
+        let sectionSpacing: CGFloat = 14
+        let headingHeight: CGFloat = 18
 
-        return releaseNotes.enumerated().reduce(CGFloat.zero) { total, item in
-            let textLength = item.element.trimmingCharacters(in: .whitespacesAndNewlines).count
-            let visualLineCount = max(1, Int(ceil(Double(textLength) / Double(usableCharactersPerLine))))
-            let spacing = item.offset == releaseNotes.count - 1 ? 0 : paragraphSpacing
-            return total + CGFloat(visualLineCount) * lineHeight + spacing
+        return releaseNotes.enumerated().reduce(CGFloat.zero) { total, sectionItem in
+            let section = sectionItem.element
+            let heading = section.version == nil ? 0 : headingHeight
+            let notesHeight = section.notes.enumerated().reduce(CGFloat.zero) { noteTotal, noteItem in
+                let textLength = noteItem.element.trimmingCharacters(in: .whitespacesAndNewlines).count
+                let visualLineCount = max(1, Int(ceil(Double(textLength) / Double(usableCharactersPerLine))))
+                let spacing = noteItem.offset == section.notes.count - 1 ? 0 : paragraphSpacing
+                return noteTotal + CGFloat(visualLineCount) * lineHeight + spacing
+            }
+            let spacing = sectionItem.offset == releaseNotes.count - 1 ? 0 : sectionSpacing
+            return total + heading + notesHeight + spacing
         }
     }
 }

@@ -42,6 +42,7 @@ final class GitHubUpdateChecker {
     }
 
     private static let latestReleaseURL = URL(string: "https://api.github.com/repos/AbyssSkb/Vellum/releases/latest")!
+    private static let releasesAPIURL = URL(string: "https://api.github.com/repos/AbyssSkb/Vellum/releases?per_page=100")!
     private static let releasesAtomURL = URL(string: "https://github.com/AbyssSkb/Vellum/releases.atom")!
     private static let tagsAPIURL = URL(string: "https://api.github.com/repos/AbyssSkb/Vellum/tags")!
     private static let tagsPageURL = URL(string: "https://github.com/AbyssSkb/Vellum/tags")!
@@ -67,9 +68,10 @@ final class GitHubUpdateChecker {
         task = Task { [weak self] in
             guard let self else { return }
             do {
-                let update = try await fetchLatestUpdate()
+                let currentVersion = self.currentAppVersion()
+                let update = try await fetchLatestUpdate(currentVersion: currentVersion)
                 await MainActor.run {
-                    self.handle(update: update, mode: mode)
+                    self.handle(update: update, currentVersion: currentVersion, mode: mode)
                 }
             } catch {
                 await MainActor.run {
@@ -87,9 +89,10 @@ final class GitHubUpdateChecker {
             try? await Task.sleep(for: .seconds(2))
             guard !Task.isCancelled, let self else { return }
             do {
-                let update = try await fetchLatestUpdate()
+                let currentVersion = self.currentAppVersion()
+                let update = try await fetchLatestUpdate(currentVersion: currentVersion)
                 await MainActor.run {
-                    self.handle(update: update, mode: .automatic)
+                    self.handle(update: update, currentVersion: currentVersion, mode: .automatic)
                 }
             } catch {
                 // Background checks stay quiet. The menu action reports errors.
@@ -97,7 +100,7 @@ final class GitHubUpdateChecker {
         }
     }
 
-    private func fetchLatestUpdate() async throws -> AppUpdateInfo {
+    private func fetchLatestUpdate(currentVersion: String) async throws -> AppUpdateInfo {
         var latestReleaseUpdate: AppUpdateInfo?
         var latestReleaseError: Error?
 
@@ -111,16 +114,17 @@ final class GitHubUpdateChecker {
             let redirectUpdate = try await fetchLatestReleaseRedirectUpdate()
             if let latestReleaseUpdate,
                !redirectUpdate.isNewer(than: latestReleaseUpdate.version) {
-                return latestReleaseUpdate
+                return await updateIncludingReleaseHistory(latestReleaseUpdate, currentVersion: currentVersion)
             }
-            return redirectUpdate
+            return await updateIncludingReleaseHistory(redirectUpdate, currentVersion: currentVersion)
         } catch {
             if let latestReleaseUpdate {
-                return latestReleaseUpdate
+                return await updateIncludingReleaseHistory(latestReleaseUpdate, currentVersion: currentVersion)
             }
 
             do {
-                return try await fetchLatestTaggedUpdate()
+                let update = try await fetchLatestTaggedUpdate()
+                return await updateIncludingReleaseHistory(update, currentVersion: currentVersion)
             } catch {
                 throw latestReleaseError ?? error
             }
@@ -239,6 +243,59 @@ final class GitHubUpdateChecker {
         )
     }
 
+    private func updateIncludingReleaseHistory(_ update: AppUpdateInfo, currentVersion: String) async -> AppUpdateInfo {
+        guard update.isNewer(than: currentVersion),
+              let releaseNotes = try? await fetchReleaseHistoryNotes(currentVersion: currentVersion, latestVersion: update.version) else {
+            return update
+        }
+
+        return AppUpdateInfo(
+            version: update.version,
+            releaseURL: update.releaseURL,
+            downloadURL: update.downloadURL,
+            releaseNotes: releaseNotes
+        )
+    }
+
+    private func fetchReleaseHistoryNotes(currentVersion: String, latestVersion: String) async throws -> String? {
+        let request = githubAPIRequest(url: Self.releasesAPIURL)
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200..<300).contains(httpResponse.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+
+        let current = UpdateVersion(currentVersion)
+        let latest = UpdateVersion(latestVersion)
+        let releases = try JSONDecoder().decode([LatestRelease].self, from: data)
+            .filter { release in
+                guard !release.draft, !release.prerelease else { return false }
+                let version = UpdateVersion(release.tagName)
+                return version > current && version <= latest
+            }
+            .sorted { UpdateVersion($0.tagName) > UpdateVersion($1.tagName) }
+
+        let sections = await releaseHistorySections(from: Array(releases.prefix(12)))
+        guard !sections.isEmpty else { return nil }
+        return sections.joined(separator: "\n\n")
+    }
+
+    private func releaseHistorySections(from releases: [LatestRelease]) async -> [String] {
+        var sections: [String] = []
+
+        for release in releases {
+            var releaseNotes = normalizedReleaseNotes(release.body)
+            if releaseNotes == nil {
+                releaseNotes = try? await fetchReleaseNotesFromAtom(tagName: release.tagName)
+            }
+
+            guard let releaseNotes else { continue }
+            sections.append("## \(release.tagName)\n\(releaseNotes)")
+        }
+
+        return sections
+    }
+
     private func fetchReleaseNotesFromAtom(tagName: String) async throws -> String? {
         let request = githubAtomRequest(url: Self.releasesAtomURL)
         let (data, response) = try await session.data(for: request)
@@ -249,8 +306,7 @@ final class GitHubUpdateChecker {
         return ReleaseNotesAtomParser.releaseNotes(for: tagName, from: data)
     }
 
-    private func handle(update: AppUpdateInfo, mode: CheckMode) {
-        let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0"
+    private func handle(update: AppUpdateInfo, currentVersion: String, mode: CheckMode) {
         guard update.isNewer(than: currentVersion) else {
             if mode == .manual {
                 showNoUpdate(currentVersion: currentVersion, latestVersion: update.version)
@@ -271,7 +327,7 @@ final class GitHubUpdateChecker {
             updateVersion: update.version,
             currentVersion: currentVersion,
             canInstall: update.downloadURL != nil,
-            releaseNotes: releaseNoteLines(update.releaseNotes)
+            releaseNotes: AppReleaseNotesParser.sections(from: update.releaseNotes)
         )
 
         switch alert.runModal() {
@@ -305,6 +361,10 @@ final class GitHubUpdateChecker {
         return notes
     }
 
+    private func currentAppVersion() -> String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0"
+    }
+
     private func githubAPIRequest(url: URL) -> URLRequest {
         var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalAndRemoteCacheData)
         request.setValue("Vellum", forHTTPHeaderField: "User-Agent")
@@ -327,40 +387,6 @@ final class GitHubUpdateChecker {
         var request = githubWebRequest(url: url)
         request.setValue("application/atom+xml, application/xml;q=0.9, */*;q=0.8", forHTTPHeaderField: "Accept")
         return request
-    }
-
-    private func releaseNoteLines(_ releaseNotes: String?) -> [String] {
-        guard let releaseNotes else { return [] }
-        return releaseNotes
-            .split(whereSeparator: \.isNewline)
-            .compactMap(cleanReleaseNoteLine)
-            .prefix(8)
-            .map { $0 }
-    }
-
-    private func cleanReleaseNoteLine(_ rawLine: Substring) -> String? {
-        var line = String(rawLine)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !line.isEmpty else { return nil }
-
-        line = line
-            .replacingOccurrences(of: "**", with: "")
-            .replacingOccurrences(of: "`", with: "")
-            .replacingOccurrences(of: "#", with: "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-
-        let lowercasedLine = line.lowercased()
-        guard !lowercasedLine.hasPrefix("what's changed"),
-              !lowercasedLine.hasPrefix("full changelog") else {
-            return nil
-        }
-
-        while line.hasPrefix("-") || line.hasPrefix("*") {
-            line = String(line.dropFirst()).trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-
-        guard !line.isEmpty else { return nil }
-        return line
     }
 
     private func showUpdateError(_ error: Error) {

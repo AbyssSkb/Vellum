@@ -62,6 +62,114 @@ public struct AppReleaseAsset: Equatable {
     }
 }
 
+public struct AppReleaseNotesSection: Equatable {
+    public let version: String?
+    public let notes: [String]
+
+    public init(version: String?, notes: [String]) {
+        self.version = version
+        self.notes = notes
+    }
+}
+
+public enum AppReleaseNotesParser {
+    public static func sections(
+        from releaseNotes: String?,
+        maxPlainNotes: Int = 8,
+        maxNotesPerVersion: Int = 8
+    ) -> [AppReleaseNotesSection] {
+        guard let releaseNotes else { return [] }
+
+        var plainNotes: [String] = []
+        var sections: [AppReleaseNotesSection] = []
+        var currentVersion: String?
+        var currentNotes: [String] = []
+
+        func appendCurrentSectionIfNeeded() {
+            guard let currentVersion, !currentNotes.isEmpty else { return }
+            sections.append(AppReleaseNotesSection(
+                version: currentVersion,
+                notes: Array(currentNotes.prefix(maxNotesPerVersion))
+            ))
+            currentNotes.removeAll()
+        }
+
+        for rawLine in releaseNotes.split(whereSeparator: \.isNewline) {
+            let line = String(rawLine)
+            if let version = versionHeading(from: line) {
+                appendCurrentSectionIfNeeded()
+                currentVersion = version
+                continue
+            }
+
+            guard let note = cleanReleaseNoteLine(line) else { continue }
+            if currentVersion != nil {
+                currentNotes.append(note)
+            } else if sections.isEmpty {
+                plainNotes.append(note)
+            }
+        }
+
+        appendCurrentSectionIfNeeded()
+
+        if !sections.isEmpty {
+            return sections
+        }
+
+        guard !plainNotes.isEmpty else { return [] }
+        return [AppReleaseNotesSection(version: nil, notes: Array(plainNotes.prefix(maxPlainNotes)))]
+    }
+
+    private static func versionHeading(from line: String) -> String? {
+        var heading = line.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard heading.hasPrefix("#") else { return nil }
+
+        while heading.hasPrefix("#") {
+            heading = String(heading.dropFirst()).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        heading = heading
+            .replacingOccurrences(of: "**", with: "")
+            .replacingOccurrences(of: "`", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard let first = heading.first else { return nil }
+        if first == "v" || first == "V" {
+            let remaining = heading.dropFirst()
+            return remaining.first?.isNumber == true ? heading : nil
+        }
+
+        return first.isNumber ? heading : nil
+    }
+
+    private static func cleanReleaseNoteLine(_ rawLine: String) -> String? {
+        var line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !line.isEmpty else { return nil }
+
+        let lowercasedLine = line.lowercased()
+        guard !lowercasedLine.hasPrefix("what's changed"),
+              !lowercasedLine.hasPrefix("full changelog") else {
+            return nil
+        }
+
+        if line.hasPrefix("#") {
+            return nil
+        }
+
+        line = line
+            .replacingOccurrences(of: "**", with: "")
+            .replacingOccurrences(of: "`", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        while line.hasPrefix("-") || line.hasPrefix("*") {
+            line = String(line.dropFirst()).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        guard !line.isEmpty else { return nil }
+        return line
+    }
+}
+
 public enum AppUpdateCatalog {
     public static func githubReleaseUpdate(tagName: String, repositoryURL: URL) -> AppUpdateInfo {
         let version = tagName.hasPrefix("v") || tagName.hasPrefix("V")
