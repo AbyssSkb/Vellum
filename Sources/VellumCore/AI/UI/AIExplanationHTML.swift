@@ -17,7 +17,7 @@ enum AIExplanationHTML {
         html, body {
           margin: 0;
           padding: 0;
-          background: #292E42;
+          background: transparent;
           color: #C0CAF5;
           font: 13px -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
           line-height: 1.55;
@@ -104,6 +104,12 @@ enum AIExplanationHTML {
         pre code { background: transparent; padding: 0; }
         strong { color: #E0E7FF; }
         a { color: #7AA2F7; }
+        .math-display {
+          margin: 0.85em 0;
+          overflow-x: auto;
+          scrollbar-width: none;
+        }
+        mjx-container { color: #C0CAF5; }
         .empty { color: #565F89; }
         .heading-row {
           display: inline-flex;
@@ -188,12 +194,32 @@ enum AIExplanationHTML {
         function escapeHTML(value) {
           return value.replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
         }
+        function restoreTokens(value, tokens) {
+          for (const token of tokens) {
+            value = value.split(token.placeholder).join(token.html);
+          }
+          return value;
+        }
+        function protectInlineMath(value) {
+          const tokens = [];
+          value = value.replace(/(\\\\\\([\\s\\S]*?\\\\\\)|\\$[^\\n$]+\\$)/g, (match, _group, offset, source) => {
+            if (match.startsWith('$') && (source[offset - 1] === '$' || source[offset + match.length] === '$')) {
+              return match;
+            }
+            const placeholder = `@@INLINE_MATH_${tokens.length}@@`;
+            tokens.push({ placeholder, html: match });
+            return placeholder;
+          });
+          return { value, tokens };
+        }
         function inlineMarkdown(value) {
-          return value
+          const protectedMath = protectInlineMath(value);
+          value = protectedMath.value
             .replace(/`([^`]+)`/g, '<code>$1</code>')
             .replace(/\\*\\*([^*]+)\\*\\*/g, '<strong>$1</strong>')
             .replace(/\\*([^*]+)\\*/g, '<em>$1</em>')
             .replace(/\\[([^\\]]+)\\]\\(([^\\)]+)\\)/g, '<a href="$2">$1</a>');
+          return restoreTokens(value, protectedMath.tokens);
         }
         function loadingHTML(markdown) {
           if (!markdown || !markdown.startsWith('vellum-loading:')) { return null; }
@@ -227,12 +253,18 @@ enum AIExplanationHTML {
           const loading = loadingHTML(markdown);
           if (loading !== null) { return loading; }
 
-          const fenceMap = [];
+          const blocks = [];
+          function stashBlock(html) {
+            const placeholder = `@@BLOCK_${blocks.length}@@`;
+            blocks.push({ placeholder, html });
+            return placeholder;
+          }
           let text = escapeHTML(markdown || '...');
           text = text.replace(/```([\\s\\S]*?)```/g, (_, code) => {
-            const token = `@@CODE_${fenceMap.length}@@`;
-            fenceMap.push(`<pre><code>${code.trim()}</code></pre>`);
-            return token;
+            return stashBlock(`<pre><code>${code.trim()}</code></pre>`);
+          });
+          text = text.replace(/(\\$\\$[\\s\\S]*?\\$\\$|\\\\\\[[\\s\\S]*?\\\\\\])/g, match => {
+            return stashBlock(`<div class="math-display">${match}</div>`);
           });
           const lines = text.split(/\\n/);
           let html = '';
@@ -244,6 +276,12 @@ enum AIExplanationHTML {
           for (const raw of lines) {
             const line = raw.trim();
             if (!line) { closeList(); continue; }
+            if (/^@@BLOCK_\\d+@@$/.test(line)) {
+              closeList();
+              html += line;
+              attachPronunciationActions = false;
+              continue;
+            }
             let match;
             if ((match = line.match(/^(#{1,3})\\s+(.+)$/))) {
               closeList();
@@ -271,10 +309,7 @@ enum AIExplanationHTML {
             }
           }
           closeList();
-          for (let i = 0; i < fenceMap.length; i++) {
-            html = html.replace(`@@CODE_${i}@@`, fenceMap[i]);
-          }
-          return html;
+          return restoreTokens(html, blocks);
         }
         window.vellumSetMarkdown = function(markdown, followBottom) {
           const content = document.getElementById('content');

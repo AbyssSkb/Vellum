@@ -1,5 +1,6 @@
 @preconcurrency import AppKit
 import SwiftUI
+import WebKit
 
 enum AIConversationPopoverMetrics {
     static let width: CGFloat = AIExplanationPopoverMetrics.width
@@ -160,7 +161,6 @@ struct AIConversationPopoverView: View {
     let onPreferredSizeChange: (NSSize) -> Void
     @State private var inputIsFocused = true
     @State private var inputFocusGeneration = 0
-    private let bottomAnchorID = "bottom"
 
     var body: some View {
         visibleContent
@@ -182,9 +182,6 @@ struct AIConversationPopoverView: View {
         }
         .onChange(of: model.isSending) { _, _ in
             refocusInput()
-        }
-        .onPreferenceChange(AIConversationMessageContentHeightKey.self) { height in
-            applyMeasuredContentHeight(height)
         }
         .onAppear {
             DispatchQueue.main.async {
@@ -213,7 +210,6 @@ struct AIConversationPopoverView: View {
     private var visibleContent: some View {
         VStack(spacing: 0) {
             if hasConversationContent {
-                messageMeasurementView
                 messagesView
                 TokyoNightDivider(axis: .horizontal)
             }
@@ -222,63 +218,26 @@ struct AIConversationPopoverView: View {
         }
     }
 
-    private var messageMeasurementView: some View {
-        messageStack
-            .padding(.horizontal, 14)
-            .padding(.vertical, 14)
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(width: AIConversationPopoverMetrics.width, alignment: .topLeading)
-            .background {
-                GeometryReader { proxy in
-                    Color.clear.preference(
-                        key: AIConversationMessageContentHeightKey.self,
-                        value: proxy.size.height
-                    )
-                }
-            }
-            .hidden()
-            .frame(height: 0)
-            .clipped()
-            .accessibilityHidden(true)
-    }
-
     private var messagesView: some View {
-        ScrollViewReader { proxy in
-            ScrollView(.vertical, showsIndicators: false) {
-                messageStack
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 14)
-                    .id(bottomAnchorID)
-            }
-            .frame(height: messageViewportHeight)
-            .background(TokyoNight.panelColor.opacity(0.22))
-            .onChange(of: model.messages) { _, _ in
-                scrollToBottom(proxy)
-                refocusInput()
-            }
-            .onChange(of: model.preferredHeight) { _, _ in
-                scrollToBottom(proxy)
-                refocusInput()
-            }
-            .onChange(of: model.isSending) { _, _ in
-                scrollToBottom(proxy)
-                refocusInput()
-            }
+        AIConversationTranscriptWebView(
+            messages: model.messages,
+            errorMessage: model.errorMessage,
+            isSending: model.isSending,
+            thinkingText: language.text(.aiChatThinking),
+            onDismiss: onDismiss,
+            onContentHeightChange: applyMeasuredContentHeight
+        )
+        .frame(height: messageViewportHeight)
+        .background(TokyoNight.panelColor.opacity(0.22))
+        .onChange(of: model.messages) { _, _ in
+            refocusInput()
         }
-    }
-
-    private var messageStack: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            ForEach(model.messages) { message in
-                AIConversationMessageRow(message: message)
-                    .id(message.id)
-            }
-
-            if let errorMessage = model.errorMessage {
-                AIConversationErrorRow(message: errorMessage)
-            }
+        .onChange(of: model.preferredHeight) { _, _ in
+            refocusInput()
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .onChange(of: model.isSending) { _, _ in
+            refocusInput()
+        }
     }
 
     private var composer: some View {
@@ -375,34 +334,6 @@ struct AIConversationPopoverView: View {
         }
     }
 
-    private func scrollToBottom(_ proxy: ScrollViewProxy) {
-        func align() {
-            withTransaction(Transaction(animation: nil)) {
-                proxy.scrollTo(bottomAnchorID, anchor: .bottom)
-            }
-        }
-
-        DispatchQueue.main.async {
-            align()
-            DispatchQueue.main.async {
-                align()
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                align()
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) {
-                align()
-            }
-        }
-    }
-}
-
-private struct AIConversationMessageContentHeightKey: PreferenceKey {
-    static let defaultValue: CGFloat = 0
-
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = max(value, nextValue())
-    }
 }
 
 private struct AIConversationInputTextView: NSViewRepresentable {
@@ -556,313 +487,116 @@ private final class AIConversationNSTextView: NSTextView {
     }
 }
 
-private struct AIConversationMessageRow: View {
-    let message: AIConversationMessage
+private struct AIConversationTranscriptWebView: NSViewRepresentable {
+    let messages: [AIConversationMessage]
+    let errorMessage: String?
+    let isSending: Bool
+    let thinkingText: String
+    let onDismiss: () -> Void
+    let onContentHeightChange: (CGFloat) -> Void
 
-    var body: some View {
-        switch message.role {
-        case .user:
-            HStack(alignment: .top, spacing: 0) {
-                Spacer(minLength: 68)
-                Text(message.content)
-                    .font(.system(size: 13))
-                    .lineSpacing(2)
-                    .foregroundStyle(TokyoNight.foregroundColor)
-                    .textSelection(.enabled)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 9)
-                    .background(TokyoNight.selectionColor.opacity(0.42), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .stroke(TokyoNight.blueColor.opacity(0.34), lineWidth: 1)
-                    }
-            }
-            .frame(maxWidth: .infinity, alignment: .trailing)
+    func makeNSView(context: Context) -> AIConversationTranscriptWKWebView {
+        let webView = AIConversationTranscriptWKWebView()
+        webView.onDismiss = onDismiss
+        webView.onContentHeightChange = onContentHeightChange
+        webView.render(messages: messages, errorMessage: errorMessage, isSending: isSending, thinkingText: thinkingText)
+        return webView
+    }
 
-        case .assistant:
-            AIConversationAssistantMessage(content: message.content)
-        }
+    func updateNSView(_ webView: AIConversationTranscriptWKWebView, context: Context) {
+        webView.onDismiss = onDismiss
+        webView.onContentHeightChange = onContentHeightChange
+        webView.render(messages: messages, errorMessage: errorMessage, isSending: isSending, thinkingText: thinkingText)
     }
 }
 
-private struct AIConversationAssistantMessage: View {
-    @Environment(\.appUILanguage) private var language
-    let content: String
+private final class AIConversationTranscriptWKWebView: WKWebView, WKNavigationDelegate, WKScriptMessageHandler {
+    var onDismiss: (() -> Void)?
+    var onContentHeightChange: ((CGFloat) -> Void)?
+    private var pendingPayload = "[]"
+    private var pendingFollowBottom = true
+    private var didLoadDocument = false
 
-    var body: some View {
-        Group {
-            if content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Text(language.text(.aiChatThinking))
-                    .font(.system(size: 13))
-                    .foregroundStyle(TokyoNight.mutedColor)
-                    .italic()
-            } else {
-                AIConversationMarkdownView(markdown: content)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
-private struct AIConversationErrorRow: View {
-    let message: String
-
-    var body: some View {
-        Text(message)
-            .font(.system(size: 12.5))
-            .foregroundStyle(TokyoNight.redColor)
-            .textSelection(.enabled)
-            .fixedSize(horizontal: false, vertical: true)
-            .padding(.horizontal, 11)
-            .padding(.vertical, 8)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(TokyoNight.redColor.opacity(0.11), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .stroke(TokyoNight.redColor.opacity(0.38), lineWidth: 1)
-            }
-    }
-}
-
-private struct AIConversationMarkdownView: View {
-    let markdown: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 9) {
-            ForEach(Array(AIConversationMarkdownParser.blocks(from: markdown).enumerated()), id: \.offset) { _, block in
-                blockView(block)
-            }
-        }
-        .textSelection(.enabled)
-        .frame(maxWidth: .infinity, alignment: .leading)
+    init() {
+        let configuration = WKWebViewConfiguration()
+        configuration.defaultWebpagePreferences.allowsContentJavaScript = true
+        super.init(frame: .zero, configuration: configuration)
+        navigationDelegate = self
+        configuration.userContentController.add(WeakScriptMessageHandler(self), name: "vellumConversation")
+        setValue(false, forKey: "drawsBackground")
+        loadHTMLString(AIConversationTranscriptHTML.document, baseURL: nil)
     }
 
-    @ViewBuilder
-    private func blockView(_ block: AIConversationMarkdownBlock) -> some View {
-        switch block.kind {
-        case .heading(let level, let text):
-            AIConversationMarkdownText(text, size: level == 1 ? 15 : 14, weight: .semibold)
-                .foregroundStyle(TokyoNight.foregroundColor)
-                .padding(.top, level == 1 ? 2 : 0)
-
-        case .paragraph(let text):
-            AIConversationMarkdownText(text, size: 13, weight: .regular)
-                .lineSpacing(2)
-                .foregroundStyle(TokyoNight.foregroundColor)
-
-        case .unorderedList(let items):
-            VStack(alignment: .leading, spacing: 5) {
-                ForEach(Array(items.enumerated()), id: \.offset) { _, item in
-                    AIConversationListItem(marker: "•", text: item)
-                }
-            }
-
-        case .orderedList(let items):
-            VStack(alignment: .leading, spacing: 5) {
-                ForEach(Array(items.enumerated()), id: \.offset) { index, item in
-                    AIConversationListItem(marker: "\(index + 1).", text: item)
-                }
-            }
-
-        case .blockquote(let text):
-            AIConversationMarkdownText(text, size: 12.5, weight: .regular)
-                .lineSpacing(2)
-                .foregroundStyle(TokyoNight.mutedColor)
-                .padding(.leading, 10)
-                .overlay(alignment: .leading) {
-                    Rectangle()
-                        .fill(TokyoNight.blueColor.opacity(0.55))
-                        .frame(width: 2)
-                        .clipShape(RoundedRectangle(cornerRadius: 1, style: .continuous))
-                }
-
-        case .code(let text):
-            ScrollView(.horizontal, showsIndicators: false) {
-                Text(text)
-                    .font(.system(size: 12, design: .monospaced))
-                    .foregroundStyle(TokyoNight.cyanColor)
-                    .textSelection(.enabled)
-                    .padding(10)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .background(TokyoNight.backgroundDeepColor.opacity(0.8), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .stroke(TokyoNight.borderColor.opacity(0.56), lineWidth: 1)
-            }
-        }
-    }
-}
-
-private struct AIConversationMarkdownText: View {
-    let text: String
-    let size: CGFloat
-    let weight: Font.Weight
-
-    init(_ text: String, size: CGFloat, weight: Font.Weight) {
-        self.text = text
-        self.size = size
-        self.weight = weight
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        nil
     }
 
-    var body: some View {
-        Text(attributedText)
-            .font(.system(size: size, weight: weight))
-            .fixedSize(horizontal: false, vertical: true)
-    }
+    override var acceptsFirstResponder: Bool { true }
 
-    private var attributedText: AttributedString {
-        do {
-            return try AttributedString(
-                markdown: text,
-                options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
-            )
-        } catch {
-            return AttributedString(text)
-        }
-    }
-}
-
-private struct AIConversationListItem: View {
-    let marker: String
-    let text: String
-
-    var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Text(marker)
-                .font(.system(size: 12.5, weight: .semibold))
-                .foregroundStyle(TokyoNight.mutedColor)
-                .frame(width: 18, alignment: .trailing)
-
-            AIConversationMarkdownText(text, size: 13, weight: .regular)
-                .lineSpacing(2)
-                .foregroundStyle(TokyoNight.foregroundColor)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-}
-
-private struct AIConversationMarkdownBlock {
-    enum Kind {
-        case heading(level: Int, text: String)
-        case paragraph(String)
-        case unorderedList([String])
-        case orderedList([String])
-        case blockquote(String)
-        case code(String)
-    }
-
-    let kind: Kind
-}
-
-private enum AIConversationMarkdownParser {
-    static func blocks(from markdown: String) -> [AIConversationMarkdownBlock] {
-        var blocks: [AIConversationMarkdownBlock] = []
-        var paragraphLines: [String] = []
-        var unorderedItems: [String] = []
-        var orderedItems: [String] = []
-        var codeLines: [String] = []
-        var isInCodeBlock = false
-
-        func flushParagraph() {
-            guard !paragraphLines.isEmpty else { return }
-            blocks.append(AIConversationMarkdownBlock(kind: .paragraph(paragraphLines.joined(separator: "\n"))))
-            paragraphLines.removeAll()
+    override func keyDown(with event: NSEvent) {
+        guard event.modifierFlags.intersection([.command, .control, .option]).isEmpty,
+              event.keyCode == 53 || event.charactersIgnoringModifiers == "\u{1b}" else {
+            super.keyDown(with: event)
+            return
         }
 
-        func flushUnorderedList() {
-            guard !unorderedItems.isEmpty else { return }
-            blocks.append(AIConversationMarkdownBlock(kind: .unorderedList(unorderedItems)))
-            unorderedItems.removeAll()
-        }
-
-        func flushOrderedList() {
-            guard !orderedItems.isEmpty else { return }
-            blocks.append(AIConversationMarkdownBlock(kind: .orderedList(orderedItems)))
-            orderedItems.removeAll()
-        }
-
-        func flushInlineBlocks() {
-            flushParagraph()
-            flushUnorderedList()
-            flushOrderedList()
-        }
-
-        for rawLine in markdown.components(separatedBy: .newlines) {
-            let line = rawLine.trimmingCharacters(in: .whitespaces)
-
-            if line.hasPrefix("```") {
-                if isInCodeBlock {
-                    blocks.append(AIConversationMarkdownBlock(kind: .code(codeLines.joined(separator: "\n"))))
-                    codeLines.removeAll()
-                    isInCodeBlock = false
-                } else {
-                    flushInlineBlocks()
-                    isInCodeBlock = true
-                }
-                continue
-            }
-
-            if isInCodeBlock {
-                codeLines.append(rawLine)
-                continue
-            }
-
-            guard !line.isEmpty else {
-                flushInlineBlocks()
-                continue
-            }
-
-            if let heading = heading(from: line) {
-                flushInlineBlocks()
-                blocks.append(AIConversationMarkdownBlock(kind: .heading(level: heading.level, text: heading.text)))
-            } else if let item = unorderedItem(from: line) {
-                flushParagraph()
-                flushOrderedList()
-                unorderedItems.append(item)
-            } else if let item = orderedItem(from: line) {
-                flushParagraph()
-                flushUnorderedList()
-                orderedItems.append(item)
-            } else if line.hasPrefix("> ") {
-                flushInlineBlocks()
-                blocks.append(AIConversationMarkdownBlock(kind: .blockquote(String(line.dropFirst(2)))))
-            } else {
-                flushUnorderedList()
-                flushOrderedList()
-                paragraphLines.append(line)
-            }
-        }
-
-        if isInCodeBlock {
-            blocks.append(AIConversationMarkdownBlock(kind: .code(codeLines.joined(separator: "\n"))))
-        }
-        flushInlineBlocks()
-        return blocks
+        onDismiss?()
     }
 
-    private static func heading(from line: String) -> (level: Int, text: String)? {
-        let markerCount = line.prefix { $0 == "#" }.count
-        guard (1...3).contains(markerCount),
-              line.dropFirst(markerCount).first == " " else { return nil }
-        let text = line.dropFirst(markerCount + 1).trimmingCharacters(in: .whitespaces)
-        guard !text.isEmpty else { return nil }
-        return (markerCount, text)
+    func render(messages: [AIConversationMessage], errorMessage: String?, isSending: Bool, thinkingText: String) {
+        pendingPayload = Self.javascriptLiteral(
+            messages.map { message in
+                [
+                    "id": message.id.uuidString,
+                    "role": message.role.rawValue,
+                    "content": message.content
+                ]
+            },
+            errorMessage: errorMessage,
+            isSending: isSending,
+            thinkingText: thinkingText
+        )
+        pendingFollowBottom = true
+        guard didLoadDocument else { return }
+        evaluateJavaScript("window.vellumSetConversation(\(pendingPayload), \(pendingFollowBottom ? "true" : "false"));")
     }
 
-    private static func unorderedItem(from line: String) -> String? {
-        guard line.hasPrefix("- ") || line.hasPrefix("* ") else { return nil }
-        return String(line.dropFirst(2)).trimmingCharacters(in: .whitespaces)
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        didLoadDocument = true
+        evaluateJavaScript("window.vellumSetConversation(\(pendingPayload), true);")
     }
 
-    private static func orderedItem(from line: String) -> String? {
-        guard let dotIndex = line.firstIndex(of: ".") else { return nil }
-        let number = line[..<dotIndex]
-        guard !number.isEmpty, number.allSatisfy(\.isNumber) else { return nil }
-        let remainder = line[line.index(after: dotIndex)...]
-        guard remainder.first == " " else { return nil }
-        return String(remainder.dropFirst()).trimmingCharacters(in: .whitespaces)
+    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        guard message.name == "vellumConversation",
+              let payload = message.body as? [String: Any],
+              let command = payload["command"] as? String,
+              command == "contentHeight",
+              let height = payload["height"] as? NSNumber else { return }
+        onContentHeightChange?(CGFloat(truncating: height))
+    }
+
+    private static func javascriptLiteral(
+        _ messages: [[String: String]],
+        errorMessage: String?,
+        isSending: Bool,
+        thinkingText: String
+    ) -> String {
+        var payload: [String: Any] = [
+            "messages": messages,
+            "isSending": isSending,
+            "thinkingText": thinkingText
+        ]
+        if let errorMessage {
+            payload["errorMessage"] = errorMessage
+        }
+
+        guard JSONSerialization.isValidJSONObject(payload),
+              let data = try? JSONSerialization.data(withJSONObject: payload),
+              let string = String(data: data, encoding: .utf8) else {
+            return #"{"messages":[],"isSending":false}"#
+        }
+        return string
     }
 }
 
