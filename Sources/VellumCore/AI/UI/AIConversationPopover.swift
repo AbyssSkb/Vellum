@@ -178,9 +178,12 @@ struct AIConversationPopoverView: View {
         .onChange(of: model.errorMessage) { _, _ in
             applyEstimatedHeight()
         }
+        .onChange(of: model.isSending) { _, _ in
+            refocusInput()
+        }
         .onAppear {
             DispatchQueue.main.async {
-                inputIsFocused = true
+                refocusInput()
                 applyEstimatedHeight()
                 onPreferredSizeChange(model.preferredSize)
             }
@@ -219,9 +222,20 @@ struct AIConversationPopoverView: View {
                 messageStack
                     .padding(.horizontal, 14)
                     .padding(.vertical, 14)
+                    .background {
+                        GeometryReader { proxy in
+                            Color.clear.preference(
+                                key: AIConversationMessageContentHeightKey.self,
+                                value: proxy.size.height
+                            )
+                        }
+                    }
             }
             .frame(height: messageViewportHeight)
             .background(TokyoNight.panelColor.opacity(0.22))
+            .onPreferenceChange(AIConversationMessageContentHeightKey.self) { height in
+                applyMeasuredContentHeight(height)
+            }
             .onChange(of: model.messages) { _, _ in
                 scrollToBottom(proxy)
             }
@@ -261,7 +275,7 @@ struct AIConversationPopoverView: View {
             .padding(.leading, 12)
             .padding(.trailing, 42)
 
-            if model.draft.isEmpty && !inputIsFocused {
+            if model.draft.isEmpty {
                 Text(language.text(.aiChatPlaceholder))
                     .font(.system(size: 13))
                     .foregroundStyle(TokyoNight.mutedColor)
@@ -280,6 +294,7 @@ struct AIConversationPopoverView: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(AIConversationSendButtonStyle())
+            .focusable(false)
             .disabled(model.isSending || model.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             .help(language.text(.aiChatSend))
             .padding(.trailing, 7)
@@ -288,7 +303,15 @@ struct AIConversationPopoverView: View {
         .background(TokyoNight.backgroundDeepColor.opacity(0.88), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(inputIsFocused ? TokyoNight.cyanColor.opacity(0.58) : TokyoNight.borderColor.opacity(0.62), lineWidth: 1)
+                .stroke(
+                    inputIsFocused ? TokyoNight.cyanColor.opacity(0.94) : TokyoNight.borderColor.opacity(0.62),
+                    lineWidth: inputIsFocused ? 1.5 : 1
+                )
+        }
+        .shadow(color: inputIsFocused ? TokyoNight.cyanColor.opacity(0.16) : .clear, radius: 7, y: 0)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            refocusInput()
         }
         .padding(8)
         .frame(height: AIConversationPopoverMetrics.composerHeight)
@@ -300,17 +323,33 @@ struct AIConversationPopoverView: View {
         let prompt = model.draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !prompt.isEmpty else { return }
         model.draft = ""
-        inputIsFocused = true
-        inputFocusGeneration += 1
+        refocusInput()
         onSend(prompt)
         DispatchQueue.main.async {
-            inputIsFocused = true
-            inputFocusGeneration += 1
+            refocusInput()
         }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            refocusInput()
+        }
+    }
+
+    private func refocusInput() {
+        inputIsFocused = true
+        inputFocusGeneration += 1
     }
 
     private func applyEstimatedHeight() {
         if model.refreshPreferredHeight() {
+            onPreferredSizeChange(model.preferredSize)
+        }
+    }
+
+    private func applyMeasuredContentHeight(_ messageContentHeight: CGFloat) {
+        guard hasConversationContent, messageContentHeight > 0 else { return }
+        let measuredHeight = messageContentHeight
+            + AIConversationPopoverMetrics.dividerHeight
+            + AIConversationPopoverMetrics.composerHeight
+        if model.updateContentHeight(measuredHeight) {
             onPreferredSizeChange(model.preferredSize)
         }
     }
@@ -321,6 +360,14 @@ struct AIConversationPopoverView: View {
                 proxy.scrollTo("bottom", anchor: .bottom)
             }
         }
+    }
+}
+
+private struct AIConversationMessageContentHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
     }
 }
 
@@ -380,6 +427,13 @@ private struct AIConversationInputTextView: NSViewRepresentable {
         textView.shouldFocusWhenAttached = isFocused
         if textView.string != text {
             textView.string = text
+        }
+
+        let isFirstResponder = textView.window?.firstResponder === textView
+        if isFirstResponder != isFocused {
+            DispatchQueue.main.async {
+                isFocused = isFirstResponder
+            }
         }
 
         let shouldRefocus = isFocused
@@ -454,6 +508,9 @@ private final class AIConversationNSTextView: NSTextView {
         }
 
         onCommandReturn?()
+        DispatchQueue.main.async { [weak self] in
+            self?.focusAndShowInsertionPoint()
+        }
     }
 }
 
