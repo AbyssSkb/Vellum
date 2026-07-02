@@ -168,6 +168,12 @@ struct AIConversationPopoverView: View {
         .background(TokyoNight.panelElevatedColor)
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .foregroundStyle(TokyoNight.foregroundColor)
+        .overlay(alignment: .topLeading) {
+            if model.requestStatus != .idle {
+                AIRequestStatusIndicator(status: model.requestStatus)
+                    .padding(8)
+            }
+        }
         .onChange(of: model.preferredHeight) { _, _ in
             onPreferredSizeChange(model.preferredSize)
         }
@@ -246,13 +252,6 @@ struct AIConversationPopoverView: View {
             }
             .frame(height: messageViewportHeight)
             .background(TokyoNight.panelColor.opacity(0.22))
-            .overlay(alignment: .bottomTrailing) {
-                if model.requestStatus != .idle {
-                    AIRequestStatusIndicator(status: model.requestStatus)
-                        .padding(.trailing, 8)
-                        .padding(.bottom, 8)
-                }
-            }
             .onChange(of: model.messages) { _, _ in
                 scrollToBottom(proxy)
                 refocusInput()

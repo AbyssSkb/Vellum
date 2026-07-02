@@ -9,7 +9,6 @@ enum AIRequestVisualStatus: Equatable {
 
 struct AIRequestStatusIndicator: View {
     let status: AIRequestVisualStatus
-    @State private var isSpinning = false
 
     var body: some View {
         Group {
@@ -41,22 +40,23 @@ struct AIRequestStatusIndicator: View {
     private var spinningRing: some View {
         ZStack {
             base
-            Circle()
-                .trim(from: 0.18, to: 0.82)
-                .stroke(
-                    TokyoNight.cyanColor,
-                    style: StrokeStyle(lineWidth: 1.8, lineCap: .round)
-                )
-                .rotationEffect(.degrees(isSpinning ? 360 : 0))
-                .frame(width: 12, height: 12)
-                .onAppear {
-                    isSpinning = true
-                }
-                .animation(
-                    .linear(duration: 0.76).repeatForever(autoreverses: false),
-                    value: isSpinning
-                )
+            TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { timeline in
+                Circle()
+                    .trim(from: 0.18, to: 0.82)
+                    .stroke(
+                        TokyoNight.cyanColor,
+                        style: StrokeStyle(lineWidth: 1.8, lineCap: .round)
+                    )
+                    .rotationEffect(.degrees(rotationAngle(at: timeline.date)))
+                    .frame(width: 12, height: 12)
+            }
         }
+    }
+
+    private func rotationAngle(at date: Date) -> Double {
+        let cycle = 0.76
+        let phase = date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: cycle)
+        return phase / cycle * 360
     }
 
     private func symbol(_ name: String, color: Color) -> some View {
