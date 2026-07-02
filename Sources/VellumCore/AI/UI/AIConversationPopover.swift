@@ -4,24 +4,53 @@ import WebKit
 
 enum AIConversationPopoverMetrics {
     static let width: CGFloat = AIExplanationPopoverMetrics.width
-    static let minimumHeight: CGFloat = 56
     static let maximumHeight: CGFloat = AIExplanationPopoverMetrics.maximumHeight
-    static let composerHeight: CGFloat = 56
+    static let composerTextMinimumHeight: CGFloat = 40
+    static let composerOuterVerticalPadding: CGFloat = 16
     static let dividerHeight: CGFloat = 1
+
+    static var minimumComposerHeight: CGFloat {
+        composerHeight(forTextHeight: composerTextMinimumHeight)
+    }
+
+    static var minimumHeight: CGFloat {
+        minimumComposerHeight
+    }
 
     static var initialSize: NSSize {
         NSSize(width: width, height: minimumHeight)
+    }
+
+    static func normalizedComposerTextHeight(_ textHeight: CGFloat) -> CGFloat {
+        min(
+            maximumHeight - composerOuterVerticalPadding,
+            max(composerTextMinimumHeight, ceil(textHeight))
+        )
+    }
+
+    static func composerHeight(forTextHeight textHeight: CGFloat) -> CGFloat {
+        normalizedComposerTextHeight(textHeight) + composerOuterVerticalPadding
     }
 }
 
 @MainActor
 final class AIConversationPopoverModel: ObservableObject {
-    @Published var messages: [AIConversationMessage] = []
+    @Published var messages: [AIConversationMessage] = [] {
+        didSet {
+            measuredMessageContentHeight = nil
+        }
+    }
     @Published var draft = ""
     @Published var isSending = false
     @Published var requestStatus: AIRequestVisualStatus = .idle
-    @Published var errorMessage: String?
+    @Published var errorMessage: String? {
+        didSet {
+            measuredMessageContentHeight = nil
+        }
+    }
+    @Published private(set) var composerTextHeight = AIConversationPopoverMetrics.composerTextMinimumHeight
     @Published private(set) var preferredHeight = AIConversationPopoverMetrics.minimumHeight
+    private var measuredMessageContentHeight: CGFloat?
     let historyID: UUID
     let context: AIExplanationContext
 
@@ -68,6 +97,10 @@ final class AIConversationPopoverModel: ObservableObject {
         NSSize(width: AIConversationPopoverMetrics.width, height: preferredHeight)
     }
 
+    var composerHeight: CGFloat {
+        AIConversationPopoverMetrics.composerHeight(forTextHeight: composerTextHeight)
+    }
+
     var historyItem: AIConversationHistoryItem {
         AIConversationHistoryItem(
             id: historyID,
@@ -78,10 +111,25 @@ final class AIConversationPopoverModel: ObservableObject {
     }
 
     @discardableResult
-    func updateContentHeight(_ contentHeight: CGFloat) -> Bool {
+    func updateComposerTextHeight(_ textHeight: CGFloat) -> Bool {
+        let normalizedHeight = AIConversationPopoverMetrics.normalizedComposerTextHeight(textHeight)
+        guard abs(composerTextHeight - normalizedHeight) > 0.5 else { return false }
+
+        composerTextHeight = normalizedHeight
+        return recalculatePreferredHeight()
+    }
+
+    @discardableResult
+    func updateMessageContentHeight(_ contentHeight: CGFloat) -> Bool {
+        measuredMessageContentHeight = max(0, ceil(contentHeight))
+        return recalculatePreferredHeight()
+    }
+
+    @discardableResult
+    private func updateContentHeight(_ contentHeight: CGFloat) -> Bool {
         let clampedHeight = min(
             AIConversationPopoverMetrics.maximumHeight,
-            max(AIConversationPopoverMetrics.minimumHeight, ceil(contentHeight))
+            max(composerHeight, ceil(contentHeight))
         )
 
         guard abs(preferredHeight - clampedHeight) > 1 else { return false }
@@ -91,17 +139,35 @@ final class AIConversationPopoverModel: ObservableObject {
 
     @discardableResult
     func refreshPreferredHeight() -> Bool {
-        updateContentHeight(
-            Self.estimatedContentHeight(messages: messages, errorMessage: errorMessage)
-        )
+        recalculatePreferredHeight()
     }
 
-    private static func estimatedContentHeight(
+    @discardableResult
+    private func recalculatePreferredHeight() -> Bool {
+        let messageContentHeight = currentMessageContentHeight()
+        let totalHeight = messageContentHeight > 0
+            ? messageContentHeight
+                + AIConversationPopoverMetrics.dividerHeight
+                + composerHeight
+            : composerHeight
+
+        return updateContentHeight(totalHeight)
+    }
+
+    private func currentMessageContentHeight() -> CGFloat {
+        if let measuredMessageContentHeight {
+            return measuredMessageContentHeight
+        }
+
+        return Self.estimatedMessageContentHeight(messages: messages, errorMessage: errorMessage)
+    }
+
+    private static func estimatedMessageContentHeight(
         messages: [AIConversationMessage],
         errorMessage: String?
     ) -> CGFloat {
         guard !messages.isEmpty || errorMessage != nil else {
-            return AIConversationPopoverMetrics.minimumHeight
+            return 0
         }
 
         var messageHeights = messages.map(estimatedMessageHeight)
@@ -110,10 +176,7 @@ final class AIConversationPopoverModel: ObservableObject {
         }
 
         let spacing = CGFloat(max(0, messageHeights.count - 1)) * 14
-        let messageAreaHeight = 28 + messageHeights.reduce(0, +) + spacing
-        return messageAreaHeight
-            + AIConversationPopoverMetrics.dividerHeight
-            + AIConversationPopoverMetrics.composerHeight
+        return 28 + messageHeights.reduce(0, +) + spacing
     }
 
     private static func estimatedMessageHeight(_ message: AIConversationMessage) -> CGFloat {
@@ -202,7 +265,7 @@ struct AIConversationPopoverView: View {
         return max(
             0,
             model.preferredHeight
-                - AIConversationPopoverMetrics.composerHeight
+                - model.composerHeight
                 - AIConversationPopoverMetrics.dividerHeight
         )
     }
@@ -241,14 +304,15 @@ struct AIConversationPopoverView: View {
     }
 
     private var composer: some View {
-        ZStack(alignment: .trailing) {
+        ZStack(alignment: .bottomTrailing) {
             AIConversationInputTextView(
                 text: $model.draft,
                 isFocused: $inputIsFocused,
                 focusGeneration: inputFocusGeneration,
+                onHeightChange: applyMeasuredComposerTextHeight,
                 onSubmit: sendDraft
             )
-            .frame(height: 40)
+            .frame(height: model.composerTextHeight)
             .padding(.leading, 12)
             .padding(.trailing, 42)
 
@@ -256,10 +320,11 @@ struct AIConversationPopoverView: View {
                 Text(language.text(.aiChatPlaceholder))
                     .font(.system(size: 13))
                     .foregroundStyle(TokyoNight.mutedColor)
+                    .padding(.top, 11)
                     .padding(.leading, 12)
                     .padding(.trailing, 42)
                     .allowsHitTesting(false)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
 
             Button {
@@ -275,8 +340,9 @@ struct AIConversationPopoverView: View {
             .disabled(model.isSending || model.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             .help(language.text(.aiChatSend))
             .padding(.trailing, 7)
+            .padding(.bottom, 7)
         }
-        .frame(height: 40)
+        .frame(height: model.composerTextHeight)
         .background(TokyoNight.backgroundDeepColor.opacity(0.88), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -291,7 +357,7 @@ struct AIConversationPopoverView: View {
             refocusInput()
         }
         .padding(8)
-        .frame(height: AIConversationPopoverMetrics.composerHeight)
+        .frame(height: model.composerHeight)
         .background(TokyoNight.panelElevatedColor)
     }
 
@@ -326,10 +392,13 @@ struct AIConversationPopoverView: View {
 
     private func applyMeasuredContentHeight(_ messageContentHeight: CGFloat) {
         guard hasConversationContent, messageContentHeight > 0 else { return }
-        let measuredHeight = messageContentHeight
-            + AIConversationPopoverMetrics.dividerHeight
-            + AIConversationPopoverMetrics.composerHeight
-        if model.updateContentHeight(measuredHeight) {
+        if model.updateMessageContentHeight(messageContentHeight) {
+            onPreferredSizeChange(model.preferredSize)
+        }
+    }
+
+    private func applyMeasuredComposerTextHeight(_ textHeight: CGFloat) {
+        if model.updateComposerTextHeight(textHeight) {
             onPreferredSizeChange(model.preferredSize)
         }
     }
@@ -340,10 +409,11 @@ private struct AIConversationInputTextView: NSViewRepresentable {
     @Binding var text: String
     @Binding var isFocused: Bool
     let focusGeneration: Int
+    let onHeightChange: (CGFloat) -> Void
     let onSubmit: () -> Void
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(text: $text, isFocused: $isFocused)
+        Coordinator(text: $text, isFocused: $isFocused, onHeightChange: onHeightChange)
     }
 
     func makeNSView(context: Context) -> NSScrollView {
@@ -390,9 +460,11 @@ private struct AIConversationInputTextView: NSViewRepresentable {
         guard let textView = scrollView.documentView as? AIConversationNSTextView else { return }
         textView.onCommandReturn = onSubmit
         textView.shouldFocusWhenAttached = isFocused
+        context.coordinator.onHeightChange = onHeightChange
         if textView.string != text {
             textView.string = text
         }
+        context.coordinator.reportTextHeight(in: scrollView)
 
         if textView.window?.firstResponder === textView, !isFocused {
             DispatchQueue.main.async {
@@ -412,21 +484,26 @@ private struct AIConversationInputTextView: NSViewRepresentable {
         }
     }
 
+    @MainActor
     final class Coordinator: NSObject, NSTextViewDelegate {
         @Binding var text: String
         @Binding var isFocused: Bool
+        var onHeightChange: (CGFloat) -> Void
         var focusGeneration = 0
+        private var lastReportedHeight: CGFloat?
         weak var textView: NSTextView?
 
-        init(text: Binding<String>, isFocused: Binding<Bool>) {
+        init(text: Binding<String>, isFocused: Binding<Bool>, onHeightChange: @escaping (CGFloat) -> Void) {
             _text = text
             _isFocused = isFocused
+            self.onHeightChange = onHeightChange
             super.init()
         }
 
         func textDidChange(_ notification: Notification) {
             guard let textView = notification.object as? NSTextView else { return }
             text = textView.string
+            reportTextHeight(in: textView.enclosingScrollView)
         }
 
         func textDidBeginEditing(_ notification: Notification) {
@@ -444,6 +521,39 @@ private struct AIConversationInputTextView: NSViewRepresentable {
             DispatchQueue.main.async { [weak textView] in
                 textView?.focusAndShowInsertionPoint()
             }
+        }
+
+        func reportTextHeight(in scrollView: NSScrollView?) {
+            guard let scrollView,
+                  let textView = scrollView.documentView as? NSTextView else { return }
+
+            let availableWidth = scrollView.contentSize.width
+            guard availableWidth > 1 else { return }
+
+            if abs(textView.frame.width - availableWidth) > 0.5 {
+                textView.frame.size.width = availableWidth
+            }
+
+            guard let textContainer = textView.textContainer,
+                  let layoutManager = textView.layoutManager else { return }
+
+            textContainer.containerSize = NSSize(
+                width: availableWidth,
+                height: CGFloat.greatestFiniteMagnitude
+            )
+            layoutManager.ensureLayout(for: textContainer)
+
+            let usedHeight = layoutManager.usedRect(for: textContainer).height
+            let measuredHeight = ceil(usedHeight + textView.textContainerInset.height * 2 + 1)
+            let normalizedHeight = AIConversationPopoverMetrics.normalizedComposerTextHeight(measuredHeight)
+            let documentHeight = max(normalizedHeight, scrollView.contentSize.height)
+            if abs(textView.frame.height - documentHeight) > 0.5 {
+                textView.frame.size.height = documentHeight
+            }
+
+            guard lastReportedHeight.map({ abs($0 - normalizedHeight) > 0.5 }) ?? true else { return }
+            lastReportedHeight = normalizedHeight
+            onHeightChange(normalizedHeight)
         }
     }
 }
