@@ -344,7 +344,7 @@ extension VellumPDFView {
 
         let overlay = AIFloatingOverlayContainerView(contentView: hostingView)
         overlay.frame = floatingOverlayFrame(for: size)
-        addSubview(overlay)
+        placeAIFloatingOverlayOnTop(overlay)
 
         if focusWhenReady {
             DispatchQueue.main.async { [weak self, weak overlay] in
@@ -360,6 +360,7 @@ extension VellumPDFView {
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0
             context.allowsImplicitAnimation = false
+            placeAIFloatingOverlayOnTop(overlay)
             overlay.frame = floatingOverlayFrame(for: size)
         }
     }
@@ -367,6 +368,7 @@ extension VellumPDFView {
     func updateAIFloatingOverlayFrames() {
         if let explanationOverlay = aiInteraction.explanationOverlay,
            let activeExplanationModel = aiInteraction.activeExplanationModel {
+            placeAIFloatingOverlayOnTop(explanationOverlay)
             explanationOverlay.frame = AIFloatingOverlayLayout.frame(
                 in: visibleRect,
                 size: activeExplanationModel.preferredSize,
@@ -376,6 +378,7 @@ extension VellumPDFView {
 
         if let conversationOverlay = aiInteraction.conversationOverlay,
            let activeConversationModel = aiInteraction.activeConversationModel {
+            placeAIFloatingOverlayOnTop(conversationOverlay)
             conversationOverlay.frame = AIFloatingOverlayLayout.frame(
                 in: visibleRect,
                 size: activeConversationModel.preferredSize,
@@ -392,6 +395,7 @@ extension VellumPDFView {
 
         if let explanationOverlay = aiInteraction.explanationOverlay,
            let activeExplanationModel = aiInteraction.activeExplanationModel {
+            placeAIFloatingOverlayOnTop(explanationOverlay)
             resizeAIFloatingOverlay(explanationOverlay, size: activeExplanationModel.preferredSize)
             if aiInteraction.activeConversationModel == nil {
                 focusAIFloatingOverlay(explanationOverlay)
@@ -400,9 +404,15 @@ extension VellumPDFView {
 
         if let conversationOverlay = aiInteraction.conversationOverlay,
            let activeConversationModel = aiInteraction.activeConversationModel {
+            placeAIFloatingOverlayOnTop(conversationOverlay)
             resizeAIFloatingOverlay(conversationOverlay, size: activeConversationModel.preferredSize)
             focusAIFloatingOverlay(conversationOverlay)
         }
+    }
+
+    func placeAIFloatingOverlayOnTop(_ overlay: NSView) {
+        guard overlay.superview !== self || subviews.last !== overlay else { return }
+        addSubview(overlay, positioned: .above, relativeTo: nil)
     }
 
     private func focusAIFloatingOverlay(_ overlay: NSView) {
@@ -467,6 +477,7 @@ extension VellumPDFView {
                 context.duration = 0
                 context.allowsImplicitAnimation = false
                 if let explanationOverlay = aiInteraction.explanationOverlay {
+                    placeAIFloatingOverlayOnTop(explanationOverlay)
                     explanationOverlay.frame = floatingOverlayFrame(for: model.preferredSize)
                 }
             }
