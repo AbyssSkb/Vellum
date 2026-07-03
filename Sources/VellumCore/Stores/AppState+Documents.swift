@@ -53,14 +53,23 @@ extension AppState {
     }
 
     public func closeSelectedTab() {
+        guard let selectedTabID else { return }
+        closeTab(selectedTabID)
+    }
+
+    func closeTab(_ id: PDFTab.ID) {
+        let previousSelectedTabID = selectedTabID
         saveActiveReaderState()
-        guard tabStore.closeSelectedTab() else { return }
+        guard tabStore.closeTab(id) else { return }
         saveCurrentSession()
 
         if !tabStore.hasOpenDocuments {
             isOutlineVisible = false
         }
-        prepareForSelectedReaderChange()
+
+        if previousSelectedTabID == id || selectedTabID != previousSelectedTabID {
+            prepareForSelectedReaderChange()
+        }
     }
 
     func restoreClosedPDFTab() {

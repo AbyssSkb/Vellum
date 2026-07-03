@@ -242,24 +242,29 @@ enum AIConversationTranscriptHTML {
           const content = document.getElementById('content');
           const messages = Array.isArray(payload && payload.messages) ? payload.messages : [];
           const thinkingText = payload && payload.thinkingText ? payload.thinkingText : 'Thinking...';
+          const previousScrollY = window.scrollY || window.pageYOffset || 0;
+          const wasNearBottom = isNearBottom();
           let html = `<div class="messages">${messages.map(message => renderMessage(message, thinkingText)).join('')}`;
           if (payload && payload.errorMessage) {
             html += `<div class="row error"><div class="error-bubble">${escapeHTML(payload.errorMessage)}</div></div>`;
           }
           html += '</div>';
           content.innerHTML = html;
-          requestAnimationFrame(() => afterRender(followBottom));
+          requestAnimationFrame(() => afterRender(followBottom, wasNearBottom, previousScrollY));
           if (window.MathJax && window.MathJax.typesetPromise) {
             window.MathJax.typesetPromise([content])
-              .then(() => { afterRender(followBottom); })
-              .catch(() => { afterRender(followBottom); });
+              .then(() => { afterRender(followBottom, wasNearBottom, previousScrollY); })
+              .catch(() => { afterRender(followBottom, wasNearBottom, previousScrollY); });
           }
         };
-        function afterRender(followBottom) {
+        function afterRender(followBottom, wasNearBottom, previousScrollY) {
           reportContentHeight();
-          if (followBottom && isContentOverflowing()) {
+          if ((followBottom || wasNearBottom) && isContentOverflowing()) {
             scrollToBottom();
             requestAnimationFrame(scrollToBottom);
+          } else {
+            restoreScrollPosition(previousScrollY);
+            requestAnimationFrame(() => restoreScrollPosition(previousScrollY));
           }
         }
         function isContentOverflowing() {
@@ -269,6 +274,15 @@ enum AIConversationTranscriptHTML {
           );
           return height - window.innerHeight > 8;
         }
+        function isNearBottom() {
+          const height = Math.max(
+            document.documentElement.scrollHeight,
+            document.body.scrollHeight
+          );
+          const maxScroll = Math.max(0, height - window.innerHeight);
+          const currentScroll = window.scrollY || window.pageYOffset || 0;
+          return maxScroll - currentScroll <= 10;
+        }
         function scrollToBottom() {
           const height = Math.max(
             document.documentElement.scrollHeight,
@@ -276,6 +290,14 @@ enum AIConversationTranscriptHTML {
           );
           const maxScroll = Math.max(0, height - window.innerHeight);
           window.scrollTo(0, maxScroll <= 8 ? 0 : maxScroll);
+        }
+        function restoreScrollPosition(previousScrollY) {
+          const height = Math.max(
+            document.documentElement.scrollHeight,
+            document.body.scrollHeight
+          );
+          const maxScroll = Math.max(0, height - window.innerHeight);
+          window.scrollTo(0, Math.max(0, Math.min(previousScrollY, maxScroll)));
         }
         function postVellumMessage(message) {
           if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.vellumConversation) {

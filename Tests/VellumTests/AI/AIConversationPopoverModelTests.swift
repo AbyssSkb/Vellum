@@ -31,6 +31,22 @@ struct AIConversationPopoverModelTests {
         #expect(model.preferredHeight == 120 + AIConversationPopoverMetrics.dividerHeight + model.composerHeight)
     }
 
+    @Test
+    func transcriptScrollRequestOnlyChangesWhenExplicitlyRequested() {
+        let model = AIConversationPopoverModel(context: Self.context())
+        let initialGeneration = model.transcriptScrollToBottomGeneration
+
+        _ = model.updateComposerTextHeight(92)
+        model.draft = "A longer prompt that resizes the composer."
+        model.messages = [
+            AIConversationMessage(role: .assistant, content: "Existing answer")
+        ]
+        #expect(model.transcriptScrollToBottomGeneration == initialGeneration)
+
+        model.requestTranscriptScrollToBottom()
+        #expect(model.transcriptScrollToBottomGeneration == initialGeneration + 1)
+    }
+
     private static func context() -> AIExplanationContext {
         AIExplanationContext(
             selectedText: "selected",

@@ -57,15 +57,20 @@ struct TabStore {
     }
 
     mutating func closeSelectedTab() -> Bool {
-        guard let selectedTabID,
-              let index = tabs.firstIndex(where: { $0.id == selectedTabID }) else { return false }
+        guard let selectedTabID else { return false }
+        return closeTab(selectedTabID)
+    }
 
+    mutating func closeTab(_ id: PDFTab.ID) -> Bool {
+        guard let index = tabs.firstIndex(where: { $0.id == id }) else { return false }
+
+        let closedSelectedTab = tabs[index].id == selectedTabID
         closedPDFTabHistory.remember(tabs[index])
         tabs.remove(at: index)
 
         if tabs.isEmpty {
             self.selectedTabID = nil
-        } else {
+        } else if closedSelectedTab {
             self.selectedTabID = tabs[min(index, tabs.count - 1)].id
         }
 

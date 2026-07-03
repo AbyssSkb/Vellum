@@ -82,6 +82,40 @@ struct TabStoreTests {
     }
 
     @Test
+    func closingNonSelectedTabKeepsCurrentSelection() {
+        var store = TabStore()
+        let first = tab(named: "first")
+        let second = tab(named: "second")
+        let third = tab(named: "third")
+
+        _ = store.openInNewTabs([first, second, third])
+        let selectedSecond = store.selectTab(second.id)
+        let closedFirst = store.closeTab(first.id)
+
+        #expect(selectedSecond)
+        #expect(closedFirst)
+        #expect(store.tabs.map(\.id) == [second.id, third.id])
+        #expect(store.selectedTabID == second.id)
+    }
+
+    @Test
+    func closingSpecificSelectedTabSelectsRightNeighbor() {
+        var store = TabStore()
+        let first = tab(named: "first")
+        let second = tab(named: "second")
+        let third = tab(named: "third")
+
+        _ = store.openInNewTabs([first, second, third])
+        let selectedSecond = store.selectTab(second.id)
+        let closedSecond = store.closeTab(second.id)
+
+        #expect(selectedSecond)
+        #expect(closedSecond)
+        #expect(store.tabs.map(\.id) == [first.id, third.id])
+        #expect(store.selectedTabID == third.id)
+    }
+
+    @Test
     func restoringClosedTabAppendsAndSelectsIt() {
         var store = TabStore()
         let first = tab(named: "first")

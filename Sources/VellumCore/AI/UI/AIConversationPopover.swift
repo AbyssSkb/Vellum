@@ -50,6 +50,7 @@ final class AIConversationPopoverModel: ObservableObject {
     }
     @Published private(set) var composerTextHeight = AIConversationPopoverMetrics.composerTextMinimumHeight
     @Published private(set) var preferredHeight = AIConversationPopoverMetrics.minimumHeight
+    @Published private(set) var transcriptScrollToBottomGeneration = 0
     private var measuredMessageContentHeight: CGFloat?
     let historyID: UUID
     let context: AIExplanationContext
@@ -140,6 +141,10 @@ final class AIConversationPopoverModel: ObservableObject {
     @discardableResult
     func refreshPreferredHeight() -> Bool {
         recalculatePreferredHeight()
+    }
+
+    func requestTranscriptScrollToBottom() {
+        transcriptScrollToBottomGeneration += 1
     }
 
     @discardableResult
@@ -287,6 +292,7 @@ struct AIConversationPopoverView: View {
             errorMessage: model.errorMessage,
             isSending: model.isSending,
             thinkingText: language.text(.aiChatThinking),
+            scrollToBottomGeneration: model.transcriptScrollToBottomGeneration,
             onDismiss: onDismiss,
             onContentHeightChange: applyMeasuredContentHeight
         )
@@ -365,6 +371,7 @@ struct AIConversationPopoverView: View {
         guard !model.isSending else { return }
         let prompt = model.draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !prompt.isEmpty else { return }
+        model.requestTranscriptScrollToBottom()
         model.draft = ""
         refocusInput()
         onSend(prompt)
@@ -602,21 +609,52 @@ private struct AIConversationTranscriptWebView: NSViewRepresentable {
     let errorMessage: String?
     let isSending: Bool
     let thinkingText: String
+    let scrollToBottomGeneration: Int
     let onDismiss: () -> Void
     let onContentHeightChange: (CGFloat) -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(scrollToBottomGeneration: scrollToBottomGeneration)
+    }
 
     func makeNSView(context: Context) -> AIConversationTranscriptWKWebView {
         let webView = AIConversationTranscriptWKWebView()
         webView.onDismiss = onDismiss
         webView.onContentHeightChange = onContentHeightChange
-        webView.render(messages: messages, errorMessage: errorMessage, isSending: isSending, thinkingText: thinkingText)
+        webView.render(
+            messages: messages,
+            errorMessage: errorMessage,
+            isSending: isSending,
+            thinkingText: thinkingText,
+            followBottom: true
+        )
         return webView
     }
 
     func updateNSView(_ webView: AIConversationTranscriptWKWebView, context: Context) {
         webView.onDismiss = onDismiss
         webView.onContentHeightChange = onContentHeightChange
-        webView.render(messages: messages, errorMessage: errorMessage, isSending: isSending, thinkingText: thinkingText)
+        webView.render(
+            messages: messages,
+            errorMessage: errorMessage,
+            isSending: isSending,
+            thinkingText: thinkingText,
+            followBottom: context.coordinator.consumeScrollToBottomRequest(scrollToBottomGeneration)
+        )
+    }
+
+    final class Coordinator {
+        private var lastScrollToBottomGeneration: Int
+
+        init(scrollToBottomGeneration: Int) {
+            lastScrollToBottomGeneration = scrollToBottomGeneration
+        }
+
+        func consumeScrollToBottomRequest(_ generation: Int) -> Bool {
+            guard generation != lastScrollToBottomGeneration else { return false }
+            lastScrollToBottomGeneration = generation
+            return true
+        }
     }
 }
 
@@ -654,7 +692,13 @@ private final class AIConversationTranscriptWKWebView: WKWebView, WKNavigationDe
         onDismiss?()
     }
 
-    func render(messages: [AIConversationMessage], errorMessage: String?, isSending: Bool, thinkingText: String) {
+    func render(
+        messages: [AIConversationMessage],
+        errorMessage: String?,
+        isSending: Bool,
+        thinkingText: String,
+        followBottom: Bool
+    ) {
         pendingPayload = Self.javascriptLiteral(
             messages.map { message in
                 [
@@ -667,14 +711,14 @@ private final class AIConversationTranscriptWKWebView: WKWebView, WKNavigationDe
             isSending: isSending,
             thinkingText: thinkingText
         )
-        pendingFollowBottom = true
+        pendingFollowBottom = followBottom
         guard didLoadDocument else { return }
         evaluateJavaScript("window.vellumSetConversation(\(pendingPayload), \(pendingFollowBottom ? "true" : "false"));")
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         didLoadDocument = true
-        evaluateJavaScript("window.vellumSetConversation(\(pendingPayload), true);")
+        evaluateJavaScript("window.vellumSetConversation(\(pendingPayload), \(pendingFollowBottom ? "true" : "false"));")
     }
 
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {

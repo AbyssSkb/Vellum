@@ -803,7 +803,7 @@ final class VellumPDFView: PDFView {
         }
 
         let pointOnPage = convert(pointInView, to: page)
-        guard let selection = page.selectionForWord(at: pointOnPage),
+        guard let selection = smartWordSelection(at: pointOnPage, on: page),
               selection.string?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
             return false
         }

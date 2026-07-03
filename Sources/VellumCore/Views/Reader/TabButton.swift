@@ -1,3 +1,4 @@
+@preconcurrency import AppKit
 import SwiftUI
 
 struct TabButton: View {
@@ -49,6 +50,11 @@ struct TabButton: View {
                 appState.selectTab(tab.id)
             }
         }
+        .background(
+            TabMiddleClickMonitor {
+                appState.closeTab(tab.id)
+            }
+        )
         .help(tab.title)
         .accessibilityLabel(tab.title)
         .accessibilityAddTraits(.isButton)
@@ -83,5 +89,61 @@ struct TabButton: View {
         .onHover { isHovered = $0 }
         .animation(.easeInOut(duration: 0.12), value: isHovered)
         .animation(.easeInOut(duration: 0.1), value: isCloseHovered)
+    }
+}
+
+private struct TabMiddleClickMonitor: NSViewRepresentable {
+    let onMiddleClick: () -> Void
+
+    func makeNSView(context: Context) -> TabMiddleClickMonitorView {
+        let view = TabMiddleClickMonitorView()
+        view.onMiddleClick = onMiddleClick
+        return view
+    }
+
+    func updateNSView(_ view: TabMiddleClickMonitorView, context: Context) {
+        view.onMiddleClick = onMiddleClick
+    }
+
+    static func dismantleNSView(_ view: TabMiddleClickMonitorView, coordinator: ()) {
+        view.stopMonitoring()
+    }
+}
+
+private final class TabMiddleClickMonitorView: NSView {
+    var onMiddleClick: (() -> Void)?
+    private var eventMonitor: Any?
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        startMonitoring()
+    }
+
+    func startMonitoring() {
+        guard eventMonitor == nil else { return }
+        eventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.otherMouseDown]) { [weak self] event in
+            self?.handle(event) ?? event
+        }
+    }
+
+    func stopMonitoring() {
+        if let eventMonitor {
+            NSEvent.removeMonitor(eventMonitor)
+        }
+        eventMonitor = nil
+    }
+
+    private func handle(_ event: NSEvent) -> NSEvent? {
+        guard event.buttonNumber == 2,
+              let window,
+              event.window === window else {
+            return event
+        }
+
+        let point = convert(event.locationInWindow, from: nil)
+        guard bounds.contains(point) else { return event }
+
+        onMiddleClick?()
+        return nil
     }
 }
