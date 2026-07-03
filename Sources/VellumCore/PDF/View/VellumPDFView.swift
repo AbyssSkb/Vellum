@@ -17,9 +17,7 @@ enum PendingRestoreAction {
 }
 
 private struct MouseTextSelectionEndpoint {
-    let page: PDFPage
-    let pageIndex: Int
-    let characterIndex: Int
+    let offset: Int
 }
 
 final class VellumPDFView: PDFView {
@@ -380,6 +378,11 @@ final class VellumPDFView: PDFView {
     }
 
     private func trackMouseTextSelection(from mouseDownEvent: NSEvent) -> Bool {
+        guard let document else { return false }
+
+        let pageStarts = textPageStarts(in: document)
+        guard pageStarts.last ?? 0 > 0 else { return false }
+
         guard mouseDownEvent.clickCount == 1,
               mouseDownEvent.modifierFlags.intersection([.command, .control, .option]).isEmpty,
               let window,
@@ -387,7 +390,8 @@ final class VellumPDFView: PDFView {
               let anchor = mouseTextSelectionEndpoint(
                 atWindowPoint: mouseDownEvent.locationInWindow,
                 nearestPage: false,
-                requiresCharacterHit: true
+                requiresCharacterHit: true,
+                pageStarts: pageStarts
               ) else {
             return false
         }
@@ -419,7 +423,8 @@ final class VellumPDFView: PDFView {
                 prepareMouseTextSelectionDrag()
                 didApplySelection = updateMouseTextSelection(
                     anchor: anchor,
-                    windowPoint: latestMouseLocation
+                    windowPoint: latestMouseLocation,
+                    pageStarts: pageStarts
                 ) || didApplySelection
 
             case .scrollWheel:
@@ -429,7 +434,8 @@ final class VellumPDFView: PDFView {
                 scrollPDFViewDuringMouseTextSelection(with: event)
                 didApplySelection = updateMouseTextSelection(
                     anchor: anchor,
-                    windowPoint: latestMouseLocation
+                    windowPoint: latestMouseLocation,
+                    pageStarts: pageStarts
                 ) || didApplySelection
 
             case .leftMouseUp:
@@ -460,52 +466,35 @@ final class VellumPDFView: PDFView {
     @discardableResult
     private func updateMouseTextSelection(
         anchor: MouseTextSelectionEndpoint,
-        windowPoint: NSPoint
+        windowPoint: NSPoint,
+        pageStarts: [Int]
     ) -> Bool {
         guard let extent = mouseTextSelectionEndpoint(
             atWindowPoint: windowPoint,
             nearestPage: true,
-            requiresCharacterHit: false
-        ),
-              let document else {
+            requiresCharacterHit: false,
+            pageStarts: pageStarts
+        ) else {
             return false
         }
 
-        let start: MouseTextSelectionEndpoint
-        let end: MouseTextSelectionEndpoint
-        if compareMouseTextSelectionEndpoint(anchor, extent) <= 0 {
-            start = anchor
-            end = extent
-        } else {
-            start = extent
-            end = anchor
-        }
-
-        guard start.pageIndex != end.pageIndex || start.characterIndex != end.characterIndex else {
-            return false
-        }
-
-        guard let selection = document.selection(
-            from: start.page,
-            atCharacterIndex: start.characterIndex,
-            to: end.page,
-            atCharacterIndex: end.characterIndex
-        ),
-        !selection.pages.isEmpty else {
-            return false
-        }
-
-        setCurrentSelection(selection, animate: false)
-        needsDisplay = true
-        return true
+        return applyTextSelection(
+            anchorOffset: anchor.offset,
+            extentOffset: extent.offset,
+            pageStarts: pageStarts,
+            scrollToEndpoint: false
+        )
     }
 
     private func mouseTextSelectionEndpoint(
         atWindowPoint windowPoint: NSPoint,
         nearestPage: Bool,
-        requiresCharacterHit: Bool
+        requiresCharacterHit: Bool,
+        pageStarts: [Int]
     ) -> MouseTextSelectionEndpoint? {
-        guard let document else { return nil }
+        guard let document,
+              let totalLength = pageStarts.last,
+              totalLength > 0 else { return nil }
 
         let pointInView = convert(windowPoint, from: nil)
         guard nearestPage || bounds.insetBy(dx: -4, dy: -4).contains(pointInView),
@@ -515,38 +504,80 @@ final class VellumPDFView: PDFView {
 
         let pageIndex = document.index(for: page)
         guard pageIndex != NSNotFound,
+              pageIndex + 1 < pageStarts.count,
               page.numberOfCharacters > 0 else {
             return nil
         }
 
         let pointOnPage = convert(pointInView, to: page)
+        let lines = textLines(onPageAt: pageIndex, pageStarts: pageStarts)
+        if let line = mouseTextSelectionLine(at: pointOnPage, in: lines) {
+            if requiresCharacterHit {
+                guard mouseTextSelectionLine(line, contains: pointOnPage) else { return nil }
+            }
+
+            let caret = targetCaret(in: line, preferredX: pointOnPage.x)
+            if let caret {
+                return MouseTextSelectionEndpoint(offset: min(max(caret.offset, 0), totalLength))
+            }
+        }
+
         let rawCharacterIndex = page.characterIndex(at: pointOnPage)
         guard rawCharacterIndex != NSNotFound else { return nil }
 
         let characterIndex = min(max(rawCharacterIndex, 0), page.numberOfCharacters - 1)
+        let characterBounds = page.characterBounds(at: characterIndex)
         if requiresCharacterHit {
-            let characterBounds = page.characterBounds(at: characterIndex).insetBy(dx: -8, dy: -8)
-            guard characterBounds.contains(pointOnPage) else { return nil }
+            guard characterBounds.insetBy(dx: -8, dy: -8).contains(pointOnPage) else { return nil }
         }
 
-        return MouseTextSelectionEndpoint(
-            page: page,
-            pageIndex: pageIndex,
-            characterIndex: characterIndex
-        )
+        let insertionOffset = pageStarts[pageIndex] + characterIndex + (pointOnPage.x >= characterBounds.midX ? 1 : 0)
+        return MouseTextSelectionEndpoint(offset: min(max(insertionOffset, 0), totalLength))
     }
 
-    private func compareMouseTextSelectionEndpoint(
-        _ lhs: MouseTextSelectionEndpoint,
-        _ rhs: MouseTextSelectionEndpoint
-    ) -> Int {
-        if lhs.pageIndex != rhs.pageIndex {
-            return lhs.pageIndex < rhs.pageIndex ? -1 : 1
+    private func mouseTextSelectionLine(
+        at point: NSPoint,
+        in lines: [VimTextLine]
+    ) -> VimTextLine? {
+        lines.min { lhs, rhs in
+            let lhsVerticalDistance = abs(lhs.midY - point.y)
+            let rhsVerticalDistance = abs(rhs.midY - point.y)
+            let verticalTolerance = max(2, max(averageCharacterHeight(in: lhs), averageCharacterHeight(in: rhs)) * 0.35)
+
+            if abs(lhsVerticalDistance - rhsVerticalDistance) > verticalTolerance {
+                return lhsVerticalDistance < rhsVerticalDistance
+            }
+
+            let lhsHorizontalDistance = lineDistanceToX(point.x, lhs)
+            let rhsHorizontalDistance = lineDistanceToX(point.x, rhs)
+            if abs(lhsHorizontalDistance - rhsHorizontalDistance) > 0.5 {
+                return lhsHorizontalDistance < rhsHorizontalDistance
+            }
+
+            return lhs.startOffset < rhs.startOffset
         }
-        if lhs.characterIndex == rhs.characterIndex {
-            return 0
+    }
+
+    private func mouseTextSelectionLine(
+        _ line: VimTextLine,
+        contains point: NSPoint
+    ) -> Bool {
+        guard let first = line.characters.first,
+              let last = line.characters.last else {
+            return false
         }
-        return lhs.characterIndex < rhs.characterIndex ? -1 : 1
+
+        let minY = line.characters.map { $0.centerY - $0.height / 2 }.min() ?? line.midY
+        let maxY = line.characters.map { $0.centerY + $0.height / 2 }.max() ?? line.midY
+        let verticalSlop = max(8, averageCharacterHeight(in: line) * 0.35)
+        let lineBounds = NSRect(
+            x: first.minX,
+            y: minY,
+            width: max(1, last.maxX - first.minX),
+            height: max(1, maxY - minY)
+        ).insetBy(dx: -8, dy: -verticalSlop)
+
+        return lineBounds.contains(point)
     }
 
     private func scrollPDFViewDuringMouseTextSelection(with event: NSEvent) {
