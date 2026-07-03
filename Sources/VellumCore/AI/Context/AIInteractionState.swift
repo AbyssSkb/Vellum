@@ -27,7 +27,7 @@ final class AIInteractionState {
     weak var toastView: NSView?
     var toastHideWorkItem: DispatchWorkItem?
     var floatingOverlayDismissMonitor: Any?
-    var floatingOverlayActivationObserver: NSObjectProtocol?
+    var floatingOverlayPresentationObservers: [NSObjectProtocol] = []
 
     var isActive: Bool {
         explanationPopover?.isShown == true
@@ -57,10 +57,10 @@ final class AIInteractionState {
             NSEvent.removeMonitor(floatingOverlayDismissMonitor)
         }
         floatingOverlayDismissMonitor = nil
-        if let floatingOverlayActivationObserver {
-            NotificationCenter.default.removeObserver(floatingOverlayActivationObserver)
+        for observer in floatingOverlayPresentationObservers {
+            NotificationCenter.default.removeObserver(observer)
         }
-        floatingOverlayActivationObserver = nil
+        floatingOverlayPresentationObservers.removeAll()
         explanationOverlay?.removeFromSuperview()
         explanationOverlay = nil
         activeExplanationModel = nil

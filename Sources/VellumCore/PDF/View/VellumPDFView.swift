@@ -64,6 +64,7 @@ final class VellumPDFView: PDFView {
     private var mouseTextSelectionLineCache: [MouseTextSelectionLineCacheKey: [VimTextLine]] = [:]
     var pageOverviewController: PageOverviewController?
     var searchController: PDFSearchController?
+    weak var aiFloatingOverlayHostView: NSView?
 
     override var acceptsFirstResponder: Bool { true }
 
@@ -168,6 +169,7 @@ final class VellumPDFView: PDFView {
         }
         DispatchQueue.main.async { [weak self] in
             self?.configurePDFScrollers()
+            self?.restoreAIFloatingOverlayPresentationSoon()
         }
     }
 

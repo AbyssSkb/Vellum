@@ -36,6 +36,26 @@ struct AIFloatingOverlayPresentationTests {
         #expect(view.subviews.last === overlay)
     }
 
+    @Test
+    func updateFramesPlacesConversationOverlayInConfiguredHostAbovePDFView() {
+        let container = NSView(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
+        let view = VellumPDFView(frame: container.bounds)
+        let overlayHost = NSView(frame: container.bounds)
+        let overlay = NSView(frame: NSRect(x: 10, y: 10, width: 120, height: 80))
+
+        container.addSubview(view)
+        container.addSubview(overlayHost, positioned: .above, relativeTo: view)
+        view.aiFloatingOverlayHostView = overlayHost
+        view.aiInteraction.conversationOverlay = overlay
+        view.aiInteraction.activeConversationModel = AIConversationPopoverModel(context: Self.context())
+
+        view.updateAIFloatingOverlayFrames()
+
+        #expect(overlay.superview === overlayHost)
+        #expect(overlayHost.subviews.last === overlay)
+        #expect(container.subviews.last === overlayHost)
+    }
+
     private static func context() -> AIExplanationContext {
         AIExplanationContext(
             selectedText: "selected",
