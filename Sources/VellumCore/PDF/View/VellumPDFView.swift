@@ -29,6 +29,7 @@ final class VellumPDFView: PDFView {
     var explanationTrackingArea: NSTrackingArea?
     let aiInteraction = AIInteractionState()
     var isMouseSelectingText = false
+    nonisolated(unsafe) private var mouseSelectionScrollWheelMonitor: Any?
     var scrollBoundsObserver: NSObjectProtocol?
     weak var observedScrollClipView: NSClipView?
     var readerStateSaveWorkItem: DispatchWorkItem?
@@ -45,6 +46,9 @@ final class VellumPDFView: PDFView {
     override var acceptsFirstResponder: Bool { true }
 
     deinit {
+        if let mouseSelectionScrollWheelMonitor {
+            NSEvent.removeMonitor(mouseSelectionScrollWheelMonitor)
+        }
         if let scrollBoundsObserver {
             NotificationCenter.default.removeObserver(scrollBoundsObserver)
         }
@@ -133,6 +137,7 @@ final class VellumPDFView: PDFView {
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         window?.acceptsMouseMovedEvents = true
+        configureMouseSelectionScrollWheelMonitor()
         configurePDFScrollers()
         updateExplanationTrackingArea()
         didDragDuringCurrentMouseSequence = false
@@ -145,6 +150,13 @@ final class VellumPDFView: PDFView {
         }
         DispatchQueue.main.async { [weak self] in
             self?.configurePDFScrollers()
+        }
+    }
+
+    override func viewWillMove(toWindow newWindow: NSWindow?) {
+        super.viewWillMove(toWindow: newWindow)
+        if newWindow == nil {
+            removeMouseSelectionScrollWheelMonitor()
         }
     }
 
@@ -213,15 +225,7 @@ final class VellumPDFView: PDFView {
         if handleDoubleClickTextSelectionMouseDown(with: event) {
             return
         }
-        if let window {
-            PDFMouseSelectionScrollBridge.beginTracking(self, in: window)
-            defer {
-                PDFMouseSelectionScrollBridge.endTracking(self, in: window)
-            }
-            super.mouseDown(with: event)
-        } else {
-            super.mouseDown(with: event)
-        }
+        super.mouseDown(with: event)
         restoreHorizontalOrigin(pendingClickHorizontalOrigin)
     }
 
@@ -276,7 +280,7 @@ final class VellumPDFView: PDFView {
     }
 
     override func scrollWheel(with event: NSEvent) {
-        if let replacement = replacementMouseDraggedEventAfterConsumingSelectionScrollWheel(event) {
+        if let replacement = consumeMouseSelectionScrollWheel(event) {
             super.mouseDragged(with: replacement)
             return
         }
@@ -356,6 +360,80 @@ final class VellumPDFView: PDFView {
         scrollView.drawsBackground = false
         scrollView.backgroundColor = .clear
         configureReaderStatePersistence(for: scrollView)
+    }
+
+    private func configureMouseSelectionScrollWheelMonitor() {
+        guard window != nil else {
+            removeMouseSelectionScrollWheelMonitor()
+            return
+        }
+        guard mouseSelectionScrollWheelMonitor == nil else { return }
+
+        mouseSelectionScrollWheelMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
+            guard let self else { return event }
+            guard let replacement = self.consumeMouseSelectionScrollWheel(event) else { return event }
+            self.mouseDragged(with: replacement)
+            return nil
+        }
+    }
+
+    private func removeMouseSelectionScrollWheelMonitor() {
+        if let mouseSelectionScrollWheelMonitor {
+            NSEvent.removeMonitor(mouseSelectionScrollWheelMonitor)
+            self.mouseSelectionScrollWheelMonitor = nil
+        }
+    }
+
+    private func consumeMouseSelectionScrollWheel(_ event: NSEvent) -> NSEvent? {
+        guard event.window === window,
+              isMouseSelectingText,
+              (NSEvent.pressedMouseButtons & 1) == 1,
+              let scrollView = pdfScrollView,
+              let replacement = mouseDraggedReplacementEvent(for: event) else {
+            return nil
+        }
+
+        let pointInView = convert(event.locationInWindow, from: nil)
+        guard bounds.insetBy(dx: -8, dy: -8).contains(pointInView) else { return nil }
+
+        completePendingRestoreBeforeUserInteraction()
+        cancelPendingRestore()
+        searchController?.markReaderNavigated()
+        didDragDuringCurrentMouseSequence = true
+        pendingClickHorizontalOrigin = nil
+        pendingDoubleClickTextSelectionPoint = nil
+        didHandleDoubleClickTextSelectionMouseDown = false
+        hideAIExplanationPopover()
+
+        let clipView = scrollView.contentView
+        let originBeforeScroll = clipView.bounds.origin
+        scrollView.scrollWheel(with: event)
+        if clipView.bounds.origin != originBeforeScroll {
+            scheduleReaderStateSave()
+        }
+
+        return replacement
+    }
+
+    private func mouseDraggedReplacementEvent(for event: NSEvent) -> NSEvent? {
+        guard event.scrollingDeltaX != 0
+            || event.scrollingDeltaY != 0
+            || event.deltaX != 0
+            || event.deltaY != 0 else {
+            return nil
+        }
+
+        return NSEvent.mouseEvent(
+            with: .leftMouseDragged,
+            location: event.locationInWindow,
+            modifierFlags: event.modifierFlags,
+            timestamp: event.timestamp,
+            windowNumber: event.windowNumber,
+            context: nil,
+            eventNumber: event.eventNumber,
+            clickCount: 1,
+            pressure: 0
+        )
     }
 
     private func configureReaderStatePersistence(for scrollView: NSScrollView) {
