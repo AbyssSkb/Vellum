@@ -8,6 +8,8 @@ enum AIExplanationContextBuilder {
         document: PDFDocument?
     ) -> AIExplanationContext? {
         guard let document else { return nil }
+        let normalizedSelectedText = AISelectedTextNormalizer.normalized(selectedText)
+        guard !normalizedSelectedText.isEmpty else { return nil }
 
         let pages = selection.pages
         let pageNumbers = pages.compactMap { page -> Int? in
@@ -18,18 +20,18 @@ enum AIExplanationContextBuilder {
             .compactMap { $0.string?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty }
             .joined(separator: "\n\n")
         let paragraphContext = paragraphContext(
-            selectedText: selectedText,
+            selectedText: normalizedSelectedText,
             in: pageText
         )
         let anchoredContext = anchoredContext(
             for: selection,
-            selectedText: selectedText,
+            selectedText: normalizedSelectedText,
             document: document
         )
         let url = document.documentURL
 
         return AIExplanationContext(
-            selectedText: selectedText,
+            selectedText: normalizedSelectedText,
             previousParagraph: paragraphContext.previous,
             currentParagraph: paragraphContext.current,
             nextParagraph: paragraphContext.next,
@@ -118,19 +120,35 @@ enum AIExplanationContextBuilder {
         page: PDFPage,
         pageBounds: NSRect
     ) -> String? {
+        let selectedLineTexts = selectedLines.compactMap { lineSelection in
+            lineSelection.string?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .nilIfEmpty
+        }
+
+        if selectedLineTexts.count > 1 {
+            let normalizedSelection = AISelectedTextNormalizer
+                .normalized(selectedLineTexts.joined(separator: "\n"))
+                .nilIfEmpty
+            if let normalizedSelection {
+                return "<selected>\(normalizedSelection)</selected>"
+            }
+        }
+
         let lineBlocks = selectedLines.compactMap { lineSelection -> String? in
             guard let selectedLineText = lineSelection.string?
                 .trimmingCharacters(in: .whitespacesAndNewlines)
                 .nilIfEmpty else { return nil }
+            let normalizedSelectedLineText = AISelectedTextNormalizer.normalized(selectedLineText)
 
             let lineBounds = lineSelection.bounds(for: page)
             let lineContext = contextText(
                 on: page,
                 in: expandedLineRect(for: lineBounds, pageBounds: pageBounds)
-            ) ?? selectedLineText
+            ) ?? normalizedSelectedLineText
 
             return markSelectedText(
-                selectedLineText,
+                normalizedSelectedLineText,
                 in: lineContext,
                 selectedBounds: lineBounds,
                 pageBounds: pageBounds
@@ -214,10 +232,8 @@ enum AIExplanationContextBuilder {
 
     private static func contextText(on page: PDFPage, in rect: NSRect?) -> String? {
         guard let rect, !rect.isEmpty else { return nil }
-        return page.selection(for: rect)?
-            .string?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .nilIfEmpty
+        guard let text = page.selection(for: rect)?.string else { return nil }
+        return AISelectedTextNormalizer.normalized(text).nilIfEmpty
     }
 
     private static func expandedLineRect(for lineBounds: NSRect, pageBounds: NSRect) -> NSRect {

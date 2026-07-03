@@ -122,8 +122,8 @@ extension VellumPDFView {
         aiInteraction.activeSelection = selection.copy() as? PDFSelection ?? selection
         aiInteraction.existingAnnotations = targetAnnotations
         let popoverModel = showStreamingAIExplanationPopover(
-            title: selectedText.aiPopoverTitle,
-            pronunciationSpeechText: selectedText,
+            title: context.selectedText.aiPopoverTitle,
+            pronunciationSpeechText: context.selectedText,
             at: nil
         )
 
