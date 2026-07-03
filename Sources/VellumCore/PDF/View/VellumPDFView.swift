@@ -213,7 +213,15 @@ final class VellumPDFView: PDFView {
         if handleDoubleClickTextSelectionMouseDown(with: event) {
             return
         }
-        super.mouseDown(with: event)
+        if let window {
+            PDFMouseSelectionScrollBridge.beginTracking(self, in: window)
+            defer {
+                PDFMouseSelectionScrollBridge.endTracking(self, in: window)
+            }
+            super.mouseDown(with: event)
+        } else {
+            super.mouseDown(with: event)
+        }
         restoreHorizontalOrigin(pendingClickHorizontalOrigin)
     }
 
@@ -268,6 +276,11 @@ final class VellumPDFView: PDFView {
     }
 
     override func scrollWheel(with event: NSEvent) {
+        if let replacement = replacementMouseDraggedEventAfterConsumingSelectionScrollWheel(event) {
+            super.mouseDragged(with: replacement)
+            return
+        }
+
         completePendingRestoreBeforeUserInteraction()
         cancelPendingRestore()
         searchController?.markReaderNavigated()
