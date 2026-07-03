@@ -237,7 +237,7 @@ extension VellumPDFView {
         aiInteraction.explanationOverlay = overlay
         aiInteraction.activeExplanationModel = model
         installAIFloatingOverlayDismissMonitor()
-        installAIFloatingOverlayPresentationObservers()
+        installAIFloatingOverlayActivationObserver()
     }
 
     func showAIConversationPopover(
@@ -276,7 +276,7 @@ extension VellumPDFView {
         aiInteraction.conversationOverlay = createdOverlay
         aiInteraction.activeConversationModel = model
         installAIFloatingOverlayDismissMonitor()
-        installAIFloatingOverlayPresentationObservers()
+        installAIFloatingOverlayActivationObserver()
     }
 
     private func installAIFloatingOverlayDismissMonitor() {
@@ -302,62 +302,36 @@ extension VellumPDFView {
         }
     }
 
-    private func installAIFloatingOverlayPresentationObservers() {
-        guard aiInteraction.floatingOverlayPresentationObservers.isEmpty else { return }
+    private func installAIFloatingOverlayActivationObserver() {
+        guard aiInteraction.floatingOverlayActivationObserver == nil else { return }
 
-        let center = NotificationCenter.default
-        var observers: [NSObjectProtocol] = [
-            center.addObserver(
-                forName: NSApplication.didBecomeActiveNotification,
-                object: nil,
-                queue: .main
-            ) { [weak self] _ in
-                MainActor.assumeIsolated {
-                    self?.restoreAIFloatingOverlayPresentationSoon()
-                }
-            }
-        ]
-
-        if let window {
-            for notificationName in [NSWindow.didBecomeKeyNotification, NSWindow.didBecomeMainNotification] {
-                observers.append(
-                    center.addObserver(
-                        forName: notificationName,
-                        object: window,
-                        queue: .main
-                    ) { [weak self] _ in
-                        MainActor.assumeIsolated {
-                            self?.restoreAIFloatingOverlayPresentationSoon()
-                        }
-                    }
-                )
+        aiInteraction.floatingOverlayActivationObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.restoreAIFloatingOverlayPresentation()
             }
         }
-
-        aiInteraction.floatingOverlayPresentationObservers = observers
     }
 
     private func eventIsInsideActiveAIFloatingOverlay(_ event: NSEvent) -> Bool {
         guard event.window === window else { return false }
+        let pointInView = convert(event.locationInWindow, from: nil)
         if let explanationOverlay = aiInteraction.explanationOverlay,
            explanationOverlay.superview != nil,
-           eventIsInside(event, overlay: explanationOverlay) {
+           explanationOverlay.frame.insetBy(dx: -3, dy: -3).contains(pointInView) {
             return true
         }
 
         if let conversationOverlay = aiInteraction.conversationOverlay,
            conversationOverlay.superview != nil,
-           eventIsInside(event, overlay: conversationOverlay) {
+           conversationOverlay.frame.insetBy(dx: -3, dy: -3).contains(pointInView) {
             return true
         }
 
         return false
-    }
-
-    private func eventIsInside(_ event: NSEvent, overlay: NSView) -> Bool {
-        guard let superview = overlay.superview else { return false }
-        let point = superview.convert(event.locationInWindow, from: nil)
-        return overlay.frame.insetBy(dx: -3, dy: -3).contains(point)
     }
 
     private func showAIFloatingOverlay<Content: View>(
@@ -370,7 +344,7 @@ extension VellumPDFView {
 
         let overlay = AIFloatingOverlayContainerView(contentView: hostingView)
         overlay.frame = floatingOverlayFrame(for: size)
-        placeAIFloatingOverlayOnTop(overlay)
+        addSubview(overlay)
 
         if focusWhenReady {
             DispatchQueue.main.async { [weak self, weak overlay] in
@@ -386,7 +360,6 @@ extension VellumPDFView {
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0
             context.allowsImplicitAnimation = false
-            placeAIFloatingOverlayOnTop(overlay)
             overlay.frame = floatingOverlayFrame(for: size)
         }
     }
@@ -394,26 +367,20 @@ extension VellumPDFView {
     func updateAIFloatingOverlayFrames() {
         if let explanationOverlay = aiInteraction.explanationOverlay,
            let activeExplanationModel = aiInteraction.activeExplanationModel {
-            placeAIFloatingOverlayOnTop(explanationOverlay)
-            explanationOverlay.frame = floatingOverlayFrame(for: activeExplanationModel.preferredSize)
+            explanationOverlay.frame = AIFloatingOverlayLayout.frame(
+                in: visibleRect,
+                size: activeExplanationModel.preferredSize,
+                backingScale: backingScale
+            )
         }
 
         if let conversationOverlay = aiInteraction.conversationOverlay,
            let activeConversationModel = aiInteraction.activeConversationModel {
-            placeAIFloatingOverlayOnTop(conversationOverlay)
-            conversationOverlay.frame = floatingOverlayFrame(for: activeConversationModel.preferredSize)
-        }
-    }
-
-    func restoreAIFloatingOverlayPresentationSoon() {
-        restoreAIFloatingOverlayPresentation()
-
-        DispatchQueue.main.async { [weak self] in
-            self?.restoreAIFloatingOverlayPresentation()
-        }
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) { [weak self] in
-            self?.restoreAIFloatingOverlayPresentation()
+            conversationOverlay.frame = AIFloatingOverlayLayout.frame(
+                in: visibleRect,
+                size: activeConversationModel.preferredSize,
+                backingScale: backingScale
+            )
         }
     }
 
@@ -425,7 +392,6 @@ extension VellumPDFView {
 
         if let explanationOverlay = aiInteraction.explanationOverlay,
            let activeExplanationModel = aiInteraction.activeExplanationModel {
-            placeAIFloatingOverlayOnTop(explanationOverlay)
             resizeAIFloatingOverlay(explanationOverlay, size: activeExplanationModel.preferredSize)
             if aiInteraction.activeConversationModel == nil {
                 focusAIFloatingOverlay(explanationOverlay)
@@ -434,16 +400,9 @@ extension VellumPDFView {
 
         if let conversationOverlay = aiInteraction.conversationOverlay,
            let activeConversationModel = aiInteraction.activeConversationModel {
-            placeAIFloatingOverlayOnTop(conversationOverlay)
             resizeAIFloatingOverlay(conversationOverlay, size: activeConversationModel.preferredSize)
             focusAIFloatingOverlay(conversationOverlay)
         }
-    }
-
-    func placeAIFloatingOverlayOnTop(_ overlay: NSView) {
-        let overlaySuperview = aiFloatingOverlaySuperview
-        guard overlay.superview !== overlaySuperview || overlaySuperview.subviews.last !== overlay else { return }
-        overlaySuperview.addSubview(overlay, positioned: .above, relativeTo: nil)
     }
 
     private func focusAIFloatingOverlay(_ overlay: NSView) {
@@ -508,7 +467,6 @@ extension VellumPDFView {
                 context.duration = 0
                 context.allowsImplicitAnimation = false
                 if let explanationOverlay = aiInteraction.explanationOverlay {
-                    placeAIFloatingOverlayOnTop(explanationOverlay)
                     explanationOverlay.frame = floatingOverlayFrame(for: model.preferredSize)
                 }
             }
@@ -647,8 +605,8 @@ extension VellumPDFView {
     func mouseIsInsideExplanationPopover() -> Bool {
         if let explanationOverlay = aiInteraction.explanationOverlay,
            explanationOverlay.superview != nil,
-           screenMouseIsInside(explanationOverlay) {
-            return true
+           let point = currentMousePointInView() {
+            return explanationOverlay.frame.insetBy(dx: -3, dy: -3).contains(point)
         }
 
         guard let popoverWindow = aiInteraction.explanationPopover?.contentViewController?.view.window else {
@@ -656,17 +614,6 @@ extension VellumPDFView {
         }
 
         return popoverWindow.frame.insetBy(dx: -3, dy: -3).contains(NSEvent.mouseLocation)
-    }
-
-    private func screenMouseIsInside(_ overlay: NSView) -> Bool {
-        guard let superview = overlay.superview,
-              let overlayWindow = superview.window else {
-            return false
-        }
-
-        let pointInWindow = overlayWindow.convertPoint(fromScreen: NSEvent.mouseLocation)
-        let point = superview.convert(pointInWindow, from: nil)
-        return overlay.frame.insetBy(dx: -3, dy: -3).contains(point)
     }
 
     func mouseIsHoveringExplanationGroup(_ hoverKey: String) -> Bool {
@@ -888,14 +835,7 @@ extension VellumPDFView {
     }
 
     private func floatingOverlayFrame(for size: NSSize) -> NSRect {
-        let frameInPDFView = AIFloatingOverlayLayout.frame(in: visibleRect, size: size, backingScale: backingScale)
-        let overlaySuperview = aiFloatingOverlaySuperview
-        guard overlaySuperview !== self else { return frameInPDFView }
-        return convert(frameInPDFView, to: overlaySuperview)
-    }
-
-    private var aiFloatingOverlaySuperview: NSView {
-        aiFloatingOverlayHostView ?? self
+        AIFloatingOverlayLayout.frame(in: visibleRect, size: size, backingScale: backingScale)
     }
 
     func viewRect(for pageRect: NSRect, on page: PDFPage) -> NSRect? {
