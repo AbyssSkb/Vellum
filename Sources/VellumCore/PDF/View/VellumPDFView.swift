@@ -16,8 +16,25 @@ enum PendingRestoreAction {
     }
 }
 
-private struct MouseTextSelectionEndpoint {
-    let offset: Int
+struct MouseTextSelectionEndpoint {
+    let lowerOffset: Int
+    let upperOffset: Int
+
+    static func selectionRange(
+        anchor: MouseTextSelectionEndpoint,
+        extent: MouseTextSelectionEndpoint
+    ) -> (start: Int, end: Int)? {
+        let start = min(anchor.lowerOffset, extent.lowerOffset)
+        let end = max(anchor.upperOffset, extent.upperOffset)
+        guard end > start else { return nil }
+        return (start, end)
+    }
+}
+
+private struct MouseTextSelectionLineCacheKey: Hashable {
+    let pageID: ObjectIdentifier
+    let pageStart: Int
+    let characterCount: Int
 }
 
 final class VellumPDFView: PDFView {
@@ -43,6 +60,8 @@ final class VellumPDFView: PDFView {
     var didCompleteInitialPointerInteraction = false
     var pendingRestoreAction: PendingRestoreAction?
     var textSelectionNavigationState: VimTextSelectionNavigationState?
+    private var mouseTextSelectionCacheDocumentID: ObjectIdentifier?
+    private var mouseTextSelectionLineCache: [MouseTextSelectionLineCacheKey: [VimTextLine]] = [:]
     var pageOverviewController: PageOverviewController?
     var searchController: PDFSearchController?
 
@@ -380,6 +399,12 @@ final class VellumPDFView: PDFView {
     private func trackMouseTextSelection(from mouseDownEvent: NSEvent) -> Bool {
         guard let document else { return false }
 
+        let documentID = ObjectIdentifier(document)
+        if mouseTextSelectionCacheDocumentID != documentID {
+            mouseTextSelectionCacheDocumentID = documentID
+            mouseTextSelectionLineCache.removeAll()
+        }
+
         let pageStarts = textPageStarts(in: document)
         guard pageStarts.last ?? 0 > 0 else { return false }
 
@@ -474,13 +499,14 @@ final class VellumPDFView: PDFView {
             nearestPage: true,
             requiresCharacterHit: false,
             pageStarts: pageStarts
-        ) else {
+        ),
+              let range = MouseTextSelectionEndpoint.selectionRange(anchor: anchor, extent: extent) else {
             return false
         }
 
         return applyTextSelection(
-            anchorOffset: anchor.offset,
-            extentOffset: extent.offset,
+            anchorOffset: range.start,
+            extentOffset: range.end,
             pageStarts: pageStarts,
             scrollToEndpoint: false
         )
@@ -492,9 +518,7 @@ final class VellumPDFView: PDFView {
         requiresCharacterHit: Bool,
         pageStarts: [Int]
     ) -> MouseTextSelectionEndpoint? {
-        guard let document,
-              let totalLength = pageStarts.last,
-              totalLength > 0 else { return nil }
+        guard let document else { return nil }
 
         let pointInView = convert(windowPoint, from: nil)
         guard nearestPage || bounds.insetBy(dx: -4, dy: -4).contains(pointInView),
@@ -503,36 +527,180 @@ final class VellumPDFView: PDFView {
         }
 
         let pageIndex = document.index(for: page)
-        guard pageIndex != NSNotFound,
+        guard pageIndex != NSNotFound else { return nil }
+
+        let pointOnPage = convert(pointInView, to: page)
+        return mouseTextSelectionEndpoint(
+            on: page,
+            pageIndex: pageIndex,
+            pointOnPage: pointOnPage,
+            requiresCharacterHit: requiresCharacterHit,
+            pageStarts: pageStarts
+        )
+    }
+
+    func mouseTextSelectionEndpoint(
+        on page: PDFPage,
+        pageIndex: Int,
+        pointOnPage: NSPoint,
+        requiresCharacterHit: Bool,
+        pageStarts: [Int]
+    ) -> MouseTextSelectionEndpoint? {
+        guard let totalLength = pageStarts.last,
+              totalLength > 0,
+              pageIndex >= 0,
               pageIndex + 1 < pageStarts.count,
               page.numberOfCharacters > 0 else {
             return nil
         }
 
-        let pointOnPage = convert(pointInView, to: page)
-        let lines = textLines(onPageAt: pageIndex, pageStarts: pageStarts)
+        let lines = mouseTextSelectionLines(on: page, pageIndex: pageIndex, pageStarts: pageStarts)
+        if let characterEndpoint = mouseTextSelectionCharacterEndpoint(
+            pointOnPage: pointOnPage,
+            requiresCharacterHit: requiresCharacterHit,
+            lines: lines,
+            totalLength: totalLength
+        ) {
+            return characterEndpoint
+        }
+
         if let line = mouseTextSelectionLine(at: pointOnPage, in: lines) {
             if requiresCharacterHit {
                 guard mouseTextSelectionLine(line, contains: pointOnPage) else { return nil }
             }
 
-            let caret = targetCaret(in: line, preferredX: pointOnPage.x)
-            if let caret {
-                return MouseTextSelectionEndpoint(offset: min(max(caret.offset, 0), totalLength))
+            if let caret = targetCaret(in: line, preferredX: pointOnPage.x) {
+                let offset = min(max(caret.offset, 0), totalLength)
+                return MouseTextSelectionEndpoint(lowerOffset: offset, upperOffset: offset)
             }
         }
 
-        let rawCharacterIndex = page.characterIndex(at: pointOnPage)
-        guard rawCharacterIndex != NSNotFound else { return nil }
+        return nil
+    }
 
-        let characterIndex = min(max(rawCharacterIndex, 0), page.numberOfCharacters - 1)
-        let characterBounds = page.characterBounds(at: characterIndex)
+    private func mouseTextSelectionCharacterEndpoint(
+        pointOnPage: NSPoint,
+        requiresCharacterHit: Bool,
+        lines: [VimTextLine],
+        totalLength: Int
+    ) -> MouseTextSelectionEndpoint? {
+        guard let line = mouseTextSelectionLine(at: pointOnPage, in: lines) else { return nil }
         if requiresCharacterHit {
-            guard characterBounds.insetBy(dx: -8, dy: -8).contains(pointOnPage) else { return nil }
+            guard mouseTextSelectionLine(line, contains: pointOnPage) else { return nil }
         }
 
-        let insertionOffset = pageStarts[pageIndex] + characterIndex + (pointOnPage.x >= characterBounds.midX ? 1 : 0)
-        return MouseTextSelectionEndpoint(offset: min(max(insertionOffset, 0), totalLength))
+        guard let character = mouseTextSelectionCharacter(at: pointOnPage, in: line) else {
+            return nil
+        }
+
+        let lowerOffset = min(max(character.globalOffset, 0), totalLength)
+        let upperOffset = min(max(lowerOffset + 1, 0), totalLength)
+        return MouseTextSelectionEndpoint(lowerOffset: lowerOffset, upperOffset: upperOffset)
+    }
+
+    private func mouseTextSelectionLines(
+        on page: PDFPage,
+        pageIndex: Int,
+        pageStarts: [Int]
+    ) -> [VimTextLine] {
+        guard pageIndex + 1 < pageStarts.count else { return [] }
+
+        let pageStart = pageStarts[pageIndex]
+        let cacheKey = MouseTextSelectionLineCacheKey(
+            pageID: ObjectIdentifier(page),
+            pageStart: pageStart,
+            characterCount: page.numberOfCharacters
+        )
+        if let cachedLines = mouseTextSelectionLineCache[cacheKey] {
+            return cachedLines
+        }
+
+        let pageText = page.string as NSString?
+        var characters: [VimTextLineCharacter] = []
+        for characterIndex in 0..<page.numberOfCharacters {
+            guard !isNewlineCharacter(at: characterIndex, in: pageText),
+                  let characterSelection = page.selection(for: NSRange(location: characterIndex, length: 1)),
+                  characterSelection.string?.isEmpty == false else {
+                continue
+            }
+
+            let bounds = characterSelection.bounds(for: page)
+            guard bounds.width > 0, bounds.height > 0 else { continue }
+
+            characters.append(
+                VimTextLineCharacter(
+                    globalOffset: pageStart + characterIndex,
+                    minX: bounds.minX,
+                    centerX: bounds.midX,
+                    maxX: bounds.maxX,
+                    centerY: bounds.midY,
+                    height: bounds.height
+                )
+            )
+        }
+
+        let sortedCharacters = characters.sorted {
+            if abs($0.centerY - $1.centerY) > 2 {
+                return $0.centerY > $1.centerY
+            }
+            return $0.centerX < $1.centerX
+        }
+
+        var grouped: [[VimTextLineCharacter]] = []
+        for character in sortedCharacters {
+            if let last = grouped.indices.last,
+               let reference = grouped[last].first {
+                let threshold = max(2.0, max(reference.height, character.height) * 0.65)
+                if abs(reference.centerY - character.centerY) <= threshold {
+                    grouped[last].append(character)
+                    continue
+                }
+            }
+            grouped.append([character])
+        }
+
+        let lines = grouped.flatMap { group in
+            splitVisualLineSegments(group.sorted { $0.centerX < $1.centerX }).map { lineCharacters in
+                let start = lineCharacters.map(\.globalOffset).min() ?? 0
+                let end = lineCharacters.map(\.globalOffset).max().map { $0 + 1 } ?? start
+
+                let midY = lineCharacters.reduce(CGFloat(0)) { $0 + $1.centerY } / CGFloat(lineCharacters.count)
+                return VimTextLine(
+                    pageIndex: pageIndex,
+                    startOffset: start,
+                    endOffset: end,
+                    midY: midY,
+                    characters: lineCharacters
+                )
+            }
+        }
+        mouseTextSelectionLineCache[cacheKey] = lines
+        return lines
+    }
+
+    private func mouseTextSelectionCharacter(
+        at point: NSPoint,
+        in line: VimTextLine
+    ) -> VimTextLineCharacter? {
+        let candidates = line.characters.filter { character in
+            let rect = NSRect(
+                x: character.minX,
+                y: character.centerY - character.height / 2,
+                width: max(1, character.maxX - character.minX),
+                height: max(1, character.height)
+            ).insetBy(dx: -1.5, dy: -4)
+            return rect.contains(point)
+        }
+
+        return candidates.min { lhs, rhs in
+            let lhsDistance = abs(lhs.centerX - point.x)
+            let rhsDistance = abs(rhs.centerX - point.x)
+            if abs(lhsDistance - rhsDistance) > 0.5 {
+                return lhsDistance < rhsDistance
+            }
+
+            return lhs.globalOffset < rhs.globalOffset
+        }
     }
 
     private func mouseTextSelectionLine(
