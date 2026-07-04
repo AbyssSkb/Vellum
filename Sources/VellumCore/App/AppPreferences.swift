@@ -49,7 +49,7 @@ public enum DefaultOpenModePreference: String, CaseIterable, Identifiable {
         return mode
     }
 
-    public var documentOpenMode: DocumentOpenMode {
+    public var pdfOpenMode: PDFOpenMode {
         switch self {
         case .currentTab:
             return .currentTab

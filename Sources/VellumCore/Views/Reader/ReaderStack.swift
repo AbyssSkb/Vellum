@@ -21,16 +21,6 @@ struct ReaderStack: View {
                         .opacity(isSelected ? 1 : 0)
                         .allowsHitTesting(isSelected)
                         .accessibilityHidden(!isSelected)
-                    } else if let document = tab.markdownDocument {
-                        MarkdownReader(
-                            tabID: tab.id,
-                            document: document,
-                            snapshot: tab.snapshot,
-                            isActive: isSelected
-                        )
-                        .opacity(isSelected ? 1 : 0)
-                        .allowsHitTesting(isSelected)
-                        .accessibilityHidden(!isSelected)
                     }
                 }
             }
@@ -50,12 +40,12 @@ struct EmptyReader: View {
                 .foregroundStyle(TokyoNight.mutedColor)
                 .accessibilityHidden(true)
 
-            Text(language.text(.openDocument))
+            Text(language.text(.openPDF))
                 .font(.title2.weight(.semibold))
                 .foregroundStyle(TokyoNight.foregroundColor)
 
             Button {
-                appState.openPanel(mode: DefaultOpenModePreference.saved().documentOpenMode)
+                appState.openPanel(mode: DefaultOpenModePreference.saved().pdfOpenMode)
             } label: {
                 Label(language.text(.chooseFile), systemImage: "folder")
             }

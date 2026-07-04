@@ -1,19 +1,14 @@
 @preconcurrency import AppKit
 import UniformTypeIdentifiers
 
-enum DocumentOpenPanelPresenter {
+enum PDFOpenPanelPresenter {
     @MainActor
     static func present(
-        mode: DocumentOpenMode,
+        mode: PDFOpenMode,
         completion: @escaping @MainActor ([URL]) -> Void
     ) {
         let panel = NSOpenPanel()
-        let markdownTypes = [
-            UTType(filenameExtension: "md"),
-            UTType(filenameExtension: "markdown"),
-            UTType(filenameExtension: "mdown")
-        ].compactMap { $0 }
-        panel.allowedContentTypes = [.pdf] + markdownTypes
+        panel.allowedContentTypes = [.pdf]
         panel.allowsMultipleSelection = mode == .newTabs
         panel.canChooseDirectories = false
         panel.canChooseFiles = true

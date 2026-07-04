@@ -4,7 +4,7 @@ import SwiftUI
 struct TabButton: View {
     @Environment(\.appUILanguage) private var language
     @EnvironmentObject private var appState: AppState
-    let tab: DocumentTab
+    let tab: PDFTab
     let isSelected: Bool
     let width: CGFloat
     @State private var isHovered = false

@@ -1,11 +1,11 @@
 @preconcurrency import AppKit
 
 extension AppState: VimCommandTarget {
-    func openDocumentInCurrentTab() {
-        openPanel(mode: DefaultOpenModePreference.saved().documentOpenMode)
+    func openPDFInCurrentTab() {
+        openPanel(mode: DefaultOpenModePreference.saved().pdfOpenMode)
     }
 
-    func openDocumentInNewTabs() {
+    func openPDFInNewTabs() {
         openPanel(mode: .newTabs)
     }
 
@@ -26,11 +26,7 @@ extension AppState: VimCommandTarget {
     }
 
     func goToPage(_ pageNumber: Int) {
-        if selectedTab?.markdownDocument != nil {
-            activeReaderController?.vimGoToMarkdownLine(pageNumber)
-        } else {
-            activeReaderController?.vimGoToPage(pageNumber)
-        }
+        activeReaderController?.vimGoToPage(pageNumber)
     }
 
     func jumpBack() {

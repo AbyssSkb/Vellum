@@ -1,7 +1,7 @@
 import Foundation
 
 extension AppState {
-    func selectTab(_ id: DocumentTab.ID) {
+    func selectTab(_ id: PDFTab.ID) {
         guard selectedTabID != id else { return }
         saveActiveReaderState()
         guard tabStore.selectTab(id) else { return }
@@ -9,14 +9,14 @@ extension AppState {
         prepareForSelectedReaderChange()
     }
 
-    func selectTabFromSwitcher(_ id: DocumentTab.ID) {
+    func selectTabFromSwitcher(_ id: PDFTab.ID) {
         isTabSwitcherPresented = false
         selectTab(id)
         focusActiveReaderSoon()
     }
 
-    public func openPanel(mode: DocumentOpenMode = .currentTab) {
-        DocumentOpenPanelPresenter.present(mode: mode) { [weak self] urls in
+    public func openPanel(mode: PDFOpenMode = .currentTab) {
+        PDFOpenPanelPresenter.present(mode: mode) { [weak self] urls in
             switch mode {
             case .currentTab:
                 guard let url = urls.first else { return }
@@ -57,7 +57,7 @@ extension AppState {
         closeTab(selectedTabID)
     }
 
-    func closeTab(_ id: DocumentTab.ID) {
+    func closeTab(_ id: PDFTab.ID) {
         let previousSelectedTabID = selectedTabID
         saveActiveReaderState()
         guard tabStore.closeTab(id) else { return }
@@ -72,10 +72,10 @@ extension AppState {
         }
     }
 
-    func restoreClosedDocumentTab() {
+    func restoreClosedPDFTab() {
         saveActiveReaderState()
 
-        guard tabStore.restoreClosedDocumentTab() else { return }
+        guard tabStore.restoreClosedPDFTab() else { return }
         saveCurrentSession()
         prepareForSelectedReaderChange()
     }
@@ -104,7 +104,7 @@ extension AppState {
         }
 
         didRestorePreviousTabs = true
-        let tabs = session.tabs.compactMap { persistedTab -> DocumentTab? in
+        let tabs = session.tabs.compactMap { persistedTab -> PDFTab? in
             let url = URL(fileURLWithPath: persistedTab.path)
             guard var tab = documentCoordinator.openTab(for: url) else { return nil }
             tab.snapshot = persistedTab.snapshot ?? .initial

@@ -14,10 +14,7 @@ let package = Package(
     targets: [
         .target(
             name: "VellumCore",
-            path: "Sources/VellumCore",
-            resources: [
-                .process("Resources")
-            ]
+            path: "Sources/VellumCore"
         ),
         .executableTarget(
             name: "Vellum",

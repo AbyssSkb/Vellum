@@ -111,7 +111,7 @@ final class KeyboardController {
         guard let window = event.window, window.isVisible, !(window is NSPanel) else { return false }
 
         if let responder = window.firstResponder,
-           responder is NSTextView || responder is NSTextField || responder is DocumentOutlineKeyView || responderIsInsideAIExplanation(responder) {
+           responder is NSTextView || responder is NSTextField || responder is PDFOutlineKeyView || responderIsInsideAIExplanation(responder) {
             return false
         }
 

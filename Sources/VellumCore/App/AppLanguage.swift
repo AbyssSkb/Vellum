@@ -133,7 +133,6 @@ public enum AppText {
     case later
     case loading
     case loadingModels
-    case markdownHighlightUnavailable
     case model
     case modelOverride
     case modelsLoaded(Int)
@@ -157,7 +156,7 @@ public enum AppText {
     case openDiskImage
     case openLog
     case openMenu
-    case openDocument
+    case openPDF
     case openReleases
     case pageOverview
     case preparingDownload
@@ -294,7 +293,7 @@ public extension AppText {
         case .defaultHighlight: return "Default Highlight"
         case .defaultHighlightSubtitle: return "Pick the highlight color used by new markings."
         case .defaultOpenMode: return "Default Open Mode"
-        case .defaultOpenModeSubtitle: return "Choose where the Open command places documents."
+        case .defaultOpenModeSubtitle: return "Choose where the Open command places PDFs."
         case .defaultStatus: return "Default"
         case .diagnostics: return "Diagnostics"
         case .diagnosticsModels: return "Models"
@@ -323,7 +322,6 @@ public extension AppText {
         case .later: return "Later"
         case .loading: return "Loading"
         case .loadingModels: return "Loading models"
-        case .markdownHighlightUnavailable: return "Markdown highlights are not available yet."
         case .model: return "Model"
         case .modelOverride: return "Model Override"
         case .modelsLoaded(let count): return "\(count) models loaded."
@@ -347,7 +345,7 @@ public extension AppText {
         case .openDiskImage: return "Open Disk Image"
         case .openLog: return "Open Log"
         case .openMenu: return "Open..."
-        case .openDocument: return "Open a PDF or Markdown file"
+        case .openPDF: return "Open a PDF"
         case .openReleases: return "Open Releases"
         case .pageOverview: return "Page Overview"
         case .preparingDownload: return "Preparing download..."
@@ -365,7 +363,7 @@ public extension AppText {
         case .reading: return "Reading"
         case .releaseNotesFallback: return "Release notes are still syncing. Open GitHub to view the full changelog."
         case .restorePreviousTabs: return "Restore Previous Tabs"
-        case .restorePreviousTabsSubtitle: return "Reopen documents and reading positions from the last session."
+        case .restorePreviousTabsSubtitle: return "Reopen PDFs and reading positions from the last session."
         case .search: return "Search"
         case .searchAIConversations: return "Search AI conversations"
         case .searchAIExplanations: return "Search AI explanations"
@@ -475,7 +473,7 @@ public extension AppText {
         case .defaultHighlight: return "默认高亮"
         case .defaultHighlightSubtitle: return "选择新标注默认使用的高亮颜色。"
         case .defaultOpenMode: return "默认打开方式"
-        case .defaultOpenModeSubtitle: return "选择打开命令把文档放到哪里。"
+        case .defaultOpenModeSubtitle: return "选择打开命令把 PDF 放到哪里。"
         case .defaultStatus: return "默认"
         case .diagnostics: return "诊断"
         case .diagnosticsModels: return "模型"
@@ -504,7 +502,6 @@ public extension AppText {
         case .later: return "稍后"
         case .loading: return "加载中"
         case .loadingModels: return "正在加载模型"
-        case .markdownHighlightUnavailable: return "暂不支持 Markdown 高亮。"
         case .model: return "模型"
         case .modelOverride: return "模型覆盖"
         case .modelsLoaded(let count): return "已加载 \(count) 个模型。"
@@ -528,7 +525,7 @@ public extension AppText {
         case .openDiskImage: return "打开磁盘镜像"
         case .openLog: return "打开日志"
         case .openMenu: return "打开..."
-        case .openDocument: return "打开 PDF 或 Markdown"
+        case .openPDF: return "打开 PDF"
         case .openReleases: return "打开发布页面"
         case .pageOverview: return "页面概览"
         case .preparingDownload: return "正在准备下载..."
@@ -546,7 +543,7 @@ public extension AppText {
         case .reading: return "阅读"
         case .releaseNotesFallback: return "更新日志仍在同步。打开 GitHub 查看完整变更。"
         case .restorePreviousTabs: return "恢复上次标签页"
-        case .restorePreviousTabsSubtitle: return "重新打开上次会话的文档和阅读位置。"
+        case .restorePreviousTabsSubtitle: return "重新打开上次会话的 PDF 和阅读位置。"
         case .search: return "搜索"
         case .searchAIConversations: return "搜索 AI 对话"
         case .searchAIExplanations: return "搜索 AI 解释"

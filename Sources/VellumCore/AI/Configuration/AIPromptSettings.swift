@@ -64,9 +64,9 @@ enum AIPromptSettings {
     static let variableDescriptions: [AIPromptVariableDescription] = [
         AIPromptVariableDescription(name: "targetLanguage", description: "Target output language from Settings."),
         AIPromptVariableDescription(name: "selectedText", description: "The exact highlighted text."),
-        AIPromptVariableDescription(name: "fileName", description: "Current document file name."),
+        AIPromptVariableDescription(name: "fileName", description: "Current PDF file name."),
         AIPromptVariableDescription(name: "directoryName", description: "Parent folder name when available."),
-        AIPromptVariableDescription(name: "outlineTitle", description: "Nearest document outline title when available."),
+        AIPromptVariableDescription(name: "outlineTitle", description: "Nearest PDF outline title when available."),
         AIPromptVariableDescription(name: "pageNumbers", description: "Pages covered by the selection."),
         AIPromptVariableDescription(name: "previousParagraph", description: "Paragraph before the selected text."),
         AIPromptVariableDescription(name: "currentParagraph", description: "Paragraph containing the selected text."),
@@ -78,7 +78,7 @@ enum AIPromptSettings {
     ]
 
     static let defaultTemplate = """
-You are Vellum's document reading assistant.
+You are Vellum's PDF reading assistant.
 
 Answer in {{targetLanguage}}. Use concise Markdown. Do not add a preface.
 
@@ -137,7 +137,7 @@ Nearby extracted text:
 """
 
     static let defaultConversationTemplate = """
-You are Vellum's document reading assistant in a continuing chat.
+You are Vellum's PDF reading assistant in a continuing chat.
 
 Answer in {{targetLanguage}}. Use Markdown. Be direct and focused.
 
@@ -225,7 +225,7 @@ struct AIRenderedPrompt: Equatable, Sendable {
 
 enum AIPromptRenderer {
     static let systemPrompt = """
-You are Vellum's precise document reading assistant. Follow the user's prompt template exactly, answer from the provided selected text and context only, preserve math notation, and keep the format stable. When an anchored context marks <selected>...</selected>, use that marked occurrence as the local reference.
+You are Vellum's precise PDF reading assistant. Follow the user's prompt template exactly, answer from the provided selected text and context only, preserve math notation, and keep the format stable. When an anchored context marks <selected>...</selected>, use that marked occurrence as the local reference.
 """
 
     static func render(
@@ -260,11 +260,11 @@ You are Vellum's precise document reading assistant. Follow the user's prompt te
             "directoryName": context.directoryName?.nilIfEmpty ?? "Unknown",
             "outlineTitle": context.outlineTitle?.nilIfEmpty ?? "Unknown",
             "pageNumbers": context.pageNumbers.map(String.init).joined(separator: ", "),
-            "previousParagraph": context.previousParagraph?.nilIfEmpty ?? "Could not be reliably extracted from the document.",
-            "currentParagraph": context.currentParagraph?.nilIfEmpty ?? "Could not be reliably extracted from the document.",
-            "nextParagraph": context.nextParagraph?.nilIfEmpty ?? "Could not be reliably extracted from the document.",
-            "nearbyText": context.nearbyText.nilIfEmpty ?? "Could not be reliably extracted from the document.",
-            "anchoredContext": context.anchoredContext?.nilIfEmpty ?? "No anchored occurrence could be reliably extracted from the document.",
+            "previousParagraph": context.previousParagraph?.nilIfEmpty ?? "Could not be reliably extracted from the PDF.",
+            "currentParagraph": context.currentParagraph?.nilIfEmpty ?? "Could not be reliably extracted from the PDF.",
+            "nextParagraph": context.nextParagraph?.nilIfEmpty ?? "Could not be reliably extracted from the PDF.",
+            "nearbyText": context.nearbyText.nilIfEmpty ?? "Could not be reliably extracted from the PDF.",
+            "anchoredContext": context.anchoredContext?.nilIfEmpty ?? "No anchored occurrence could be reliably extracted from the PDF.",
             "selectionKind": selectionKindDescription(for: context.selectedText),
             "pronunciationGuidance": pronunciationGuidance(for: context.selectedText)
         ]

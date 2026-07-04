@@ -1,24 +1,22 @@
 import Foundation
 
 struct PersistedAppSession: Codable, Equatable {
-    var tabs: [PersistedDocumentTab]
+    var tabs: [PersistedPDFTab]
     var selectedURLPath: String?
 }
 
-struct PersistedDocumentTab: Codable, Equatable {
+struct PersistedPDFTab: Codable, Equatable {
     var path: String
     var snapshot: ReaderSnapshot?
-    var kind: String?
 }
 
 enum AppSessionPersistence {
     private static let sessionKey = "VellumPreviousSession"
 
-    static func save(tabs: [DocumentTab], selectedTabID: DocumentTab.ID?, defaults: UserDefaults = .standard) {
-        let persistedTabs = tabs.compactMap { tab -> PersistedDocumentTab? in
+    static func save(tabs: [PDFTab], selectedTabID: PDFTab.ID?, defaults: UserDefaults = .standard) {
+        let persistedTabs = tabs.compactMap { tab -> PersistedPDFTab? in
             guard let url = tab.url?.standardizedFileURL else { return nil }
-            let kind = DocumentCoordinator.isMarkdownURL(url) ? "markdown" : "pdf"
-            return PersistedDocumentTab(path: url.path, snapshot: tab.snapshot, kind: kind)
+            return PersistedPDFTab(path: url.path, snapshot: tab.snapshot)
         }
 
         guard !persistedTabs.isEmpty else {

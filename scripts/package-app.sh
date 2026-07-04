@@ -31,8 +31,6 @@ mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
 
 cp "$EXECUTABLE" "$MACOS_DIR/$APP_NAME"
 
-find "$PRODUCT_DIR" -maxdepth 1 -type d -name "*.bundle" -exec cp -R {} "$RESOURCES_DIR" \;
-
 if command -v strip >/dev/null 2>&1; then
     strip -S -x "$MACOS_DIR/$APP_NAME"
 fi
@@ -96,25 +94,6 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
             <key>LSItemContentTypes</key>
             <array>
                 <string>com.adobe.pdf</string>
-            </array>
-        </dict>
-        <dict>
-            <key>CFBundleTypeName</key>
-            <string>Markdown Document</string>
-            <key>CFBundleTypeRole</key>
-            <string>Viewer</string>
-            <key>LSHandlerRank</key>
-            <string>Alternate</string>
-            <key>LSItemContentTypes</key>
-            <array>
-                <string>net.daringfireball.markdown</string>
-                <string>public.markdown</string>
-            </array>
-            <key>CFBundleTypeExtensions</key>
-            <array>
-                <string>md</string>
-                <string>markdown</string>
-                <string>mdown</string>
             </array>
         </dict>
     </array>

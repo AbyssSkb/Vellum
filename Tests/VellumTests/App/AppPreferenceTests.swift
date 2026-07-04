@@ -86,13 +86,13 @@ struct AppPreferenceTests {
             scaleFactor: 1.25,
             autoScales: false
         )
-        let selectedTab = DocumentTab(
+        let selectedTab = PDFTab(
             id: selectedID,
             url: URL(fileURLWithPath: "/tmp/selected.pdf"),
             document: nil,
             snapshot: snapshot
         )
-        let otherTab = DocumentTab(
+        let otherTab = PDFTab(
             url: URL(fileURLWithPath: "/tmp/other.pdf"),
             document: nil
         )

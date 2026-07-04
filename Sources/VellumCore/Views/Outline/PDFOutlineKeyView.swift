@@ -1,6 +1,6 @@
 @preconcurrency import AppKit
 
-class DocumentOutlineKeyView: NSOutlineView {
+final class PDFOutlineKeyView: NSOutlineView {
     weak var appState: AppState?
 
     override var acceptsFirstResponder: Bool { true }
@@ -54,7 +54,7 @@ class DocumentOutlineKeyView: NSOutlineView {
         }
 
         if event.keyCode == 36 || event.keyCode == 76 {
-            activateSelectedItemForKeyboard()
+            activateSelectedItem()
             return true
         }
 
@@ -71,9 +71,9 @@ class DocumentOutlineKeyView: NSOutlineView {
         case "k" where !isShifted:
             moveSelection(by: -1)
         case "h" where !isShifted:
-            collapseSelectionForKeyboard()
+            collapseSelectedItem()
         case "l" where !isShifted:
-            expandSelectionForKeyboard()
+            expandSelectedItem()
         default:
             return false
         }
@@ -92,24 +92,8 @@ class DocumentOutlineKeyView: NSOutlineView {
         scrollRowToVisible(nextRow)
     }
 
-    func collapseSelectionForKeyboard() {
-    }
-
-    func expandSelectionForKeyboard() {
-    }
-
-    func activateSelectedItemForKeyboard() {
-    }
-
-    private func outlineLevel(forRow row: Int) -> Int {
-        guard row >= 0, let item = item(atRow: row) else { return 0 }
-        return level(forItem: item)
-    }
-}
-
-final class PDFOutlineKeyView: DocumentOutlineKeyView {
-    override func collapseSelectionForKeyboard() {
-        guard let item = selectedPDFOutlineItem else { return }
+    private func collapseSelectedItem() {
+        guard let item = selectedOutlineItem else { return }
 
         if isItemExpanded(item) {
             collapseItem(item)
@@ -123,13 +107,13 @@ final class PDFOutlineKeyView: DocumentOutlineKeyView {
         scrollRowToVisible(parentRow)
     }
 
-    override func expandSelectionForKeyboard() {
-        guard let item = selectedPDFOutlineItem, !item.children.isEmpty else { return }
+    private func expandSelectedItem() {
+        guard let item = selectedOutlineItem, !item.children.isEmpty else { return }
         expandItem(item)
     }
 
-    override func activateSelectedItemForKeyboard() {
-        guard let item = selectedPDFOutlineItem else { return }
+    private func activateSelectedItem() {
+        guard let item = selectedOutlineItem else { return }
 
         if let destination = item.destination {
             appState?.jumpToOutlineDestination(destination)
@@ -138,8 +122,13 @@ final class PDFOutlineKeyView: DocumentOutlineKeyView {
         }
     }
 
-    private var selectedPDFOutlineItem: PDFOutlineItem? {
+    private var selectedOutlineItem: PDFOutlineItem? {
         guard selectedRow >= 0 else { return nil }
         return item(atRow: selectedRow) as? PDFOutlineItem
+    }
+
+    private func outlineLevel(forRow row: Int) -> Int {
+        guard row >= 0, let item = item(atRow: row) else { return 0 }
+        return level(forItem: item)
     }
 }

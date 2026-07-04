@@ -7,7 +7,7 @@ struct TabSwitcherOverlay: View {
     @State private var query = ""
     @State private var selectedIndex = 0
 
-    private var matches: [DocumentTab] {
+    private var matches: [PDFTab] {
         let term = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !term.isEmpty else { return appState.tabs }
 
@@ -168,7 +168,7 @@ struct TabSwitcherOverlay: View {
         .frame(height: 58)
     }
 
-    private var selectedTabIDForScroll: DocumentTab.ID? {
+    private var selectedTabIDForScroll: PDFTab.ID? {
         guard matches.indices.contains(selectedIndex) else { return nil }
         return matches[selectedIndex].id
     }
@@ -199,7 +199,7 @@ struct TabSwitcherOverlay: View {
         open(matches[selectedIndex])
     }
 
-    private func open(_ tab: DocumentTab) {
+    private func open(_ tab: PDFTab) {
         appState.selectTabFromSwitcher(tab.id)
     }
 }
@@ -397,7 +397,7 @@ private final class TabSwitcherTextFieldCell: NSTextFieldCell {
 private struct TabSwitcherRow: View {
     @Environment(\.appUILanguage) private var language
     static let metricsHeight: CGFloat = 58
-    let tab: DocumentTab
+    let tab: PDFTab
     let isSelected: Bool
     let isCurrent: Bool
 

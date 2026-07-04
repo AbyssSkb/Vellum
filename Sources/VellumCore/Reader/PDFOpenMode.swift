@@ -1,4 +1,4 @@
-public enum DocumentOpenMode {
+public enum PDFOpenMode {
     case currentTab
     case newTabs
 }

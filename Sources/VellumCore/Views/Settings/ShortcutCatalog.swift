@@ -13,14 +13,14 @@ enum ShortcutCatalog {
             title: "Files and Tabs",
             systemImage: "doc.on.doc",
             items: [
-                ShortcutItem(keys: ["o"], action: "Open PDF or Markdown in current tab"),
-                ShortcutItem(keys: ["O"], action: "Open PDFs or Markdown files in new tabs"),
+                ShortcutItem(keys: ["o"], action: "Open PDF in current tab"),
+                ShortcutItem(keys: ["O"], action: "Open PDFs in new tabs"),
                 ShortcutItem(keys: ["x"], action: "Close current tab"),
-                ShortcutItem(keys: ["X"], action: "Restore closed document"),
+                ShortcutItem(keys: ["X"], action: "Restore closed PDF"),
                 ShortcutItem(keys: ["[", "]"], action: "Switch tabs"),
                 ShortcutItem(keys: ["H", "L"], action: "Switch tabs"),
                 ShortcutItem(keys: ["gt", "gT"], action: "Switch tabs"),
-                ShortcutItem(keys: ["Cmd O", "Cmd W"], action: "Open document or close tab"),
+                ShortcutItem(keys: ["Cmd O", "Cmd W"], action: "Open PDF or close tab"),
                 ShortcutItem(keys: ["Cmd [", "Cmd ]"], action: "Switch tabs")
             ]
         ),
@@ -131,14 +131,14 @@ enum ShortcutCatalog {
             title: "文件与标签页",
             systemImage: "doc.on.doc",
             items: [
-                ShortcutItem(keys: ["o"], action: "在当前标签页打开 PDF 或 Markdown"),
-                ShortcutItem(keys: ["O"], action: "在新标签页打开 PDF 或 Markdown"),
+                ShortcutItem(keys: ["o"], action: "在当前标签页打开 PDF"),
+                ShortcutItem(keys: ["O"], action: "在新标签页打开 PDF"),
                 ShortcutItem(keys: ["x"], action: "关闭当前标签页"),
-                ShortcutItem(keys: ["X"], action: "恢复已关闭的文档"),
+                ShortcutItem(keys: ["X"], action: "恢复已关闭的 PDF"),
                 ShortcutItem(keys: ["[", "]"], action: "切换标签页"),
                 ShortcutItem(keys: ["H", "L"], action: "切换标签页"),
                 ShortcutItem(keys: ["gt", "gT"], action: "切换标签页"),
-                ShortcutItem(keys: ["Cmd O", "Cmd W"], action: "打开文档或关闭标签页"),
+                ShortcutItem(keys: ["Cmd O", "Cmd W"], action: "打开 PDF 或关闭标签页"),
                 ShortcutItem(keys: ["Cmd [", "Cmd ]"], action: "切换标签页")
             ]
         ),

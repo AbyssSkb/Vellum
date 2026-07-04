@@ -117,11 +117,11 @@ struct VimCommandDispatcherTests {
 private final class RecordingVimCommandTarget: VimCommandTarget {
     private(set) var actions: [Action] = []
 
-    func openDocumentInCurrentTab() {
+    func openPDFInCurrentTab() {
         actions.append(.openCurrent)
     }
 
-    func openDocumentInNewTabs() {
+    func openPDFInNewTabs() {
         actions.append(.openNewTabs)
     }
 
@@ -129,7 +129,7 @@ private final class RecordingVimCommandTarget: VimCommandTarget {
         actions.append(.closeTab)
     }
 
-    func restoreClosedDocumentTab() {
+    func restoreClosedPDFTab() {
         actions.append(.restoreClosedTab)
     }
 
