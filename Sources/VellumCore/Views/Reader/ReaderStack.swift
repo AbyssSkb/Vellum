@@ -45,7 +45,7 @@ struct EmptyReader: View {
                 .foregroundStyle(TokyoNight.foregroundColor)
 
             Button {
-                appState.openPanel(mode: DefaultOpenModePreference.saved().pdfOpenMode)
+                appState.openPanel(mode: AppPreferences.defaultPDFOpenMode())
             } label: {
                 Label(language.text(.chooseFile), systemImage: "folder")
             }

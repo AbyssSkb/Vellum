@@ -16,7 +16,7 @@ public final class AppState: ObservableObject {
 
     private var allAIConversationHistory: [AIConversationHistoryItem] = []
     private var allAIExplanationHistory: [AIExplanationHistoryItem] = []
-    let documentCoordinator = DocumentCoordinator()
+    let pdfCoordinator = PDFCoordinator()
     let keyboardController = KeyboardController()
     private var highlightColorPreferenceObserver: NSObjectProtocol?
     private var appWillTerminateObserver: NSObjectProtocol?
@@ -67,8 +67,8 @@ public final class AppState: ObservableObject {
         tabStore.selectedTabID
     }
 
-    var hasOpenDocuments: Bool {
-        tabStore.hasOpenDocuments
+    var hasOpenTabs: Bool {
+        tabStore.hasOpenTabs
     }
 
     var selectedTab: PDFTab? {
@@ -76,7 +76,7 @@ public final class AppState: ObservableObject {
     }
 
     func toggleOutlineSidebar() {
-        guard hasOpenDocuments else {
+        guard hasOpenTabs else {
             isOutlineVisible = false
             return
         }
@@ -117,7 +117,7 @@ public final class AppState: ObservableObject {
     }
 
     func showTabSwitcher() {
-        guard hasOpenDocuments else { return }
+        guard hasOpenTabs else { return }
         isTabSwitcherPresented = true
     }
 

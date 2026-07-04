@@ -34,7 +34,7 @@ extension AppState {
     func openInCurrentTab(url: URL) {
         saveActiveReaderState()
 
-        guard let tab = documentCoordinator.openTab(for: url) else { return }
+        guard let tab = pdfCoordinator.openTab(for: url) else { return }
 
         tabStore.openInCurrentTab(tab)
         saveCurrentSession()
@@ -44,7 +44,7 @@ extension AppState {
     func openInNewTabs(urls: [URL]) {
         saveActiveReaderState()
 
-        let newTabs = documentCoordinator.openTabs(for: urls)
+        let newTabs = pdfCoordinator.openTabs(for: urls)
 
         if tabStore.openInNewTabs(newTabs) {
             saveCurrentSession()
@@ -63,7 +63,7 @@ extension AppState {
         guard tabStore.closeTab(id) else { return }
         saveCurrentSession()
 
-        if !tabStore.hasOpenDocuments {
+        if !tabStore.hasOpenTabs {
             isOutlineVisible = false
         }
 
@@ -96,7 +96,7 @@ extension AppState {
 
     func restorePreviousTabsIfNeeded() {
         guard !didRestorePreviousTabs,
-              !hasOpenDocuments,
+              !hasOpenTabs,
               AppPreferences.restoresPreviousTabs(),
               let session = AppSessionPersistence.load() else {
             didRestorePreviousTabs = true
@@ -106,7 +106,7 @@ extension AppState {
         didRestorePreviousTabs = true
         let tabs = session.tabs.compactMap { persistedTab -> PDFTab? in
             let url = URL(fileURLWithPath: persistedTab.path)
-            guard var tab = documentCoordinator.openTab(for: url) else { return nil }
+            guard var tab = pdfCoordinator.openTab(for: url) else { return nil }
             tab.snapshot = persistedTab.snapshot ?? .initial
             return tab
         }

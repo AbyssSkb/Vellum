@@ -10,13 +10,13 @@ public struct ContentView: View {
     public var body: some View {
         ZStack {
             VStack(spacing: 0) {
-                if appState.hasOpenDocuments {
+                if appState.hasOpenTabs {
                     TabStrip()
                     TokyoNightDivider(axis: .horizontal)
                 }
 
                 HStack(spacing: 0) {
-                    if appState.isOutlineVisible, appState.hasOpenDocuments {
+                    if appState.isOutlineVisible, appState.hasOpenTabs {
                         OutlineSidebar(tab: appState.selectedTab)
                             .frame(width: 280)
                         TokyoNightDivider(axis: .vertical)
@@ -40,7 +40,7 @@ public struct ContentView: View {
             }
         }
         .overlay(alignment: .top) {
-            TitlebarDragRegion(hasOpenDocuments: appState.hasOpenDocuments)
+            TitlebarDragRegion(hasOpenTabs: appState.hasOpenTabs)
                 .frame(height: 46)
         }
         .foregroundStyle(TokyoNight.foregroundColor)

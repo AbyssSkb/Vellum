@@ -3,7 +3,7 @@ import Foundation
 public enum AppPreferenceKeys {
     public static let appLanguage = "VellumAppLanguage"
     public static let automaticallyCheckForUpdates = "VellumAutomaticallyCheckForUpdates"
-    public static let defaultOpenMode = "VellumDefaultOpenMode"
+    public static let defaultPDFOpenMode = "VellumDefaultOpenMode"
     public static let defaultHighlightColor = "VellumDefaultHighlightColor"
     public static let doubleClickTranslatesSelection = "VellumDoubleClickTranslatesSelection"
     public static let aiExplanationAutoPronunciationEnabled = "VellumAIExplanationAutoPronunciationEnabled"
@@ -17,7 +17,7 @@ public enum VellumAppNotification {
     public static let highlightColorPreferenceChanged = Notification.Name("VellumHighlightColorPreferenceChanged")
 }
 
-public enum DefaultOpenModePreference: String, CaseIterable, Identifiable {
+public enum DefaultPDFOpenModePreference: String, CaseIterable, Identifiable {
     case currentTab
     case newTabs
 
@@ -42,14 +42,14 @@ public enum DefaultOpenModePreference: String, CaseIterable, Identifiable {
     }
 
     public static func saved(in defaults: UserDefaults = .standard) -> Self {
-        guard let rawValue = defaults.string(forKey: AppPreferenceKeys.defaultOpenMode),
+        guard let rawValue = defaults.string(forKey: AppPreferenceKeys.defaultPDFOpenMode),
               let mode = Self(rawValue: rawValue) else {
             return .currentTab
         }
         return mode
     }
 
-    public var pdfOpenMode: PDFOpenMode {
+    public var openMode: PDFOpenMode {
         switch self {
         case .currentTab:
             return .currentTab
@@ -157,6 +157,10 @@ public enum AppPreferences {
 
     public static func restoresPreviousTabs(in defaults: UserDefaults = .standard) -> Bool {
         defaults.object(forKey: AppPreferenceKeys.restorePreviousTabs) as? Bool ?? false
+    }
+
+    public static func defaultPDFOpenMode(in defaults: UserDefaults = .standard) -> PDFOpenMode {
+        DefaultPDFOpenModePreference.saved(in: defaults).openMode
     }
 
     public static func openFileZoomBehavior(in defaults: UserDefaults = .standard) -> OpenFileZoomPreference {

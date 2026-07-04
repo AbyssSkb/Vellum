@@ -4,7 +4,7 @@ struct GeneralSettingsView: View {
     @Environment(\.appUILanguage) private var language
     @AppStorage(AppPreferenceKeys.appLanguage) private var appLanguage = AppUILanguage.systemDefault().rawValue
     @AppStorage(AppPreferenceKeys.automaticallyCheckForUpdates) private var automaticallyCheckForUpdates = true
-    @AppStorage(AppPreferenceKeys.defaultOpenMode) private var defaultOpenMode = DefaultOpenModePreference.currentTab.rawValue
+    @AppStorage(AppPreferenceKeys.defaultPDFOpenMode) private var defaultPDFOpenMode = DefaultPDFOpenModePreference.currentTab.rawValue
     @AppStorage(AppPreferenceKeys.defaultHighlightColor) private var defaultHighlightColor = HighlightColor.yellow.rawValue
     @AppStorage(AppPreferenceKeys.doubleClickTranslatesSelection) private var doubleClickTranslatesSelection = true
     @AppStorage(AppPreferenceKeys.restorePreviousTabs) private var restorePreviousTabs = false
@@ -74,8 +74,8 @@ struct GeneralSettingsView: View {
 
                 GeneralOptionRow(title: language.text(.defaultOpenMode), subtitle: language.text(.defaultOpenModeSubtitle)) {
                     GeneralSegmentedControl(
-                        selection: $defaultOpenMode,
-                        options: DefaultOpenModePreference.allCases,
+                        selection: $defaultPDFOpenMode,
+                        options: DefaultPDFOpenModePreference.allCases,
                         language: language
                     )
                 }
@@ -337,7 +337,7 @@ private struct GeneralOptionRow<Content: View>: View {
 
 private struct GeneralSegmentedControl: View {
     @Binding var selection: String
-    let options: [DefaultOpenModePreference]
+    let options: [DefaultPDFOpenModePreference]
     let language: AppUILanguage
 
     var body: some View {

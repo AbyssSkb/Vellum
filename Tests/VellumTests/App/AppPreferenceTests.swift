@@ -5,13 +5,15 @@ import Testing
 @Suite("App preferences")
 struct AppPreferenceTests {
     @Test
-    func defaultOpenModeFallsBackToCurrentTab() {
+    func defaultPDFOpenModeFallsBackToCurrentTab() {
         let defaults = isolatedDefaults()
 
-        #expect(DefaultOpenModePreference.saved(in: defaults) == .currentTab)
+        #expect(DefaultPDFOpenModePreference.saved(in: defaults) == .currentTab)
+        #expect(AppPreferences.defaultPDFOpenMode(in: defaults) == .currentTab)
 
-        defaults.set(DefaultOpenModePreference.newTabs.rawValue, forKey: AppPreferenceKeys.defaultOpenMode)
-        #expect(DefaultOpenModePreference.saved(in: defaults) == .newTabs)
+        defaults.set(DefaultPDFOpenModePreference.newTabs.rawValue, forKey: AppPreferenceKeys.defaultPDFOpenMode)
+        #expect(DefaultPDFOpenModePreference.saved(in: defaults) == .newTabs)
+        #expect(AppPreferences.defaultPDFOpenMode(in: defaults) == .newTabs)
     }
 
     @Test
@@ -70,7 +72,7 @@ struct AppPreferenceTests {
     func appLanguageLocalizesCommonInterfaceText() {
         #expect(AppUILanguage.english.text(.settings) == "Settings")
         #expect(AppUILanguage.chinese.text(.settings) == "设置")
-        #expect(DefaultOpenModePreference.newTabs.title(language: .chinese) == "新标签页")
+        #expect(DefaultPDFOpenModePreference.newTabs.title(language: .chinese) == "新标签页")
         #expect(OpenFileZoomPreference.fitWidth.title(language: .chinese) == "适合宽度")
         #expect(AIPronunciationAccentPreference.british.title(language: .chinese) == "英式")
     }

@@ -6,7 +6,7 @@ struct TabStore {
 
     private var closedPDFTabHistory = ClosedPDFTabHistory()
 
-    var hasOpenDocuments: Bool {
+    var hasOpenTabs: Bool {
         !tabs.isEmpty
     }
 

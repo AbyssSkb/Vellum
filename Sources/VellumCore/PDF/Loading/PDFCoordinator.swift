@@ -1,6 +1,6 @@
 import Foundation
 
-struct DocumentCoordinator {
+struct PDFCoordinator {
     private let loader: any PDFTabLoading
 
     init(loader: any PDFTabLoading = PDFDocumentLoader()) {

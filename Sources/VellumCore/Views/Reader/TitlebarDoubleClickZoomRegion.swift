@@ -2,19 +2,19 @@
 import SwiftUI
 
 struct TitlebarDragRegion: NSViewRepresentable {
-    let hasOpenDocuments: Bool
+    let hasOpenTabs: Bool
 
     func makeNSView(context: Context) -> TitlebarDragView {
         TitlebarDragView()
     }
 
     func updateNSView(_ nsView: TitlebarDragView, context: Context) {
-        nsView.hasOpenDocuments = hasOpenDocuments
+        nsView.hasOpenTabs = hasOpenTabs
     }
 }
 
 final class TitlebarDragView: NSView {
-    var hasOpenDocuments = false
+    var hasOpenTabs = false
     private var eventMonitor: Any?
     private var pendingDragEvent: NSEvent?
 
@@ -97,7 +97,7 @@ final class TitlebarDragView: NSView {
         let pointInWindow = convert(point, to: nil)
         guard !isPointInStandardWindowButton(pointInWindow, window: window) else { return false }
 
-        guard hasOpenDocuments else { return true }
+        guard hasOpenTabs else { return true }
         return !isPointInInteractiveTitlebarControl(point)
     }
 

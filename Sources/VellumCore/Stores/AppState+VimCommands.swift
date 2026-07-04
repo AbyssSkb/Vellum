@@ -2,7 +2,7 @@
 
 extension AppState: VimCommandTarget {
     func openPDFInCurrentTab() {
-        openPanel(mode: DefaultOpenModePreference.saved().pdfOpenMode)
+        openPanel(mode: AppPreferences.defaultPDFOpenMode())
     }
 
     func openPDFInNewTabs() {

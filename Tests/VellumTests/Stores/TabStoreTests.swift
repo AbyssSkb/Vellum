@@ -32,7 +32,7 @@ struct TabStoreTests {
         #expect(openedTabs)
         #expect(store.tabs.map(\.id) == [first.id, second.id])
         #expect(store.selectedTabID == second.id)
-        #expect(store.hasOpenDocuments)
+        #expect(store.hasOpenTabs)
     }
 
     @Test

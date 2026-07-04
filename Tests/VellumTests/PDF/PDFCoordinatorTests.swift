@@ -2,14 +2,14 @@ import Foundation
 import Testing
 @testable import VellumCore
 
-@Suite("Document coordinator")
-struct DocumentCoordinatorTests {
+@Suite("PDF coordinator")
+struct PDFCoordinatorTests {
     @Test
     func openingTabsKeepsLoadableURLsInOrder() {
         let first = URL(fileURLWithPath: "/tmp/first.pdf")
         let missing = URL(fileURLWithPath: "/tmp/missing.pdf")
         let second = URL(fileURLWithPath: "/tmp/second.pdf")
-        let coordinator = DocumentCoordinator(
+        let coordinator = PDFCoordinator(
             loader: StubPDFTabLoader(loadableURLs: [first, second])
         )
 
