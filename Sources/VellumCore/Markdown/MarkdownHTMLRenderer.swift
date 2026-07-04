@@ -1,5 +1,35 @@
 import Foundation
 
+private final class MarkdownRendererBundleToken: NSObject {}
+
+enum MarkdownRendererResources {
+    private static let bundleName = "Vellum_VellumCore.bundle"
+
+    static var bundleURL: URL? {
+        candidateBundleURLs().first { url in
+            FileManager.default.fileExists(atPath: url.path)
+        }
+    }
+
+    static func url(forResource fileName: String) -> URL? {
+        bundleURL?.appendingPathComponent(fileName)
+    }
+
+    private static func candidateBundleURLs() -> [URL] {
+        let tokenBundle = Bundle(for: MarkdownRendererBundleToken.self)
+        return [
+            Bundle.main.bundleURL.appendingPathComponent(bundleName, isDirectory: true),
+            Bundle.main.resourceURL?.appendingPathComponent(bundleName, isDirectory: true),
+            Bundle.main.bundleURL
+                .appendingPathComponent("Contents", isDirectory: true)
+                .appendingPathComponent("Resources", isDirectory: true)
+                .appendingPathComponent(bundleName, isDirectory: true),
+            tokenBundle.bundleURL.appendingPathComponent(bundleName, isDirectory: true),
+            tokenBundle.resourceURL?.appendingPathComponent(bundleName, isDirectory: true)
+        ].compactMap { $0 }
+    }
+}
+
 enum MarkdownHTMLRenderer {
     static func html(for document: MarkdownDocument) -> String {
         """
@@ -42,9 +72,7 @@ enum MarkdownHTMLRenderer {
     }
 
     private static func resourceURL(_ fileName: String) -> String {
-        Bundle.module
-            .url(forResource: fileName, withExtension: nil, subdirectory: "MarkdownRenderer")?
-            .absoluteString ?? ""
+        MarkdownRendererResources.url(forResource: fileName)?.absoluteString ?? ""
     }
 
     private static func htmlAttribute(_ string: String) -> String {

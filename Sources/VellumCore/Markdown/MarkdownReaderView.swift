@@ -719,8 +719,8 @@ final class VellumMarkdownWebView: WKWebView, ReaderController {
         let candidates = [
             documentURL.deletingLastPathComponent(),
             htmlURL.deletingLastPathComponent(),
-            Bundle.module.bundleURL
-        ]
+            MarkdownRendererResources.bundleURL
+        ].compactMap { $0 }
         let components = candidates.map { $0.standardizedFileURL.pathComponents }
         guard var common = components.first else {
             return URL(fileURLWithPath: "/")
