@@ -9,7 +9,7 @@ struct AppStateReaderControllerTests {
     @Test
     func selectedTabActivatesReaderControllerAndRoutesCommands() {
         let appState = AppState()
-        let tab = PDFTab(url: URL(fileURLWithPath: "/tmp/sample.pdf"), document: nil)
+        let tab = DocumentTab(url: URL(fileURLWithPath: "/tmp/sample.pdf"), document: nil)
         let reader = RecordingReaderController()
 
         _ = appState.tabStore.openInNewTabs([tab])
@@ -59,8 +59,8 @@ struct AppStateReaderControllerTests {
     @Test
     func mismatchedTabDoesNotReplaceActiveReaderController() {
         let appState = AppState()
-        let selectedTab = PDFTab(url: URL(fileURLWithPath: "/tmp/selected.pdf"), document: nil)
-        let otherTab = PDFTab(url: URL(fileURLWithPath: "/tmp/other.pdf"), document: nil)
+        let selectedTab = DocumentTab(url: URL(fileURLWithPath: "/tmp/selected.pdf"), document: nil)
+        let otherTab = DocumentTab(url: URL(fileURLWithPath: "/tmp/other.pdf"), document: nil)
         let selectedReader = RecordingReaderController()
         let otherReader = RecordingReaderController()
 
@@ -77,8 +77,8 @@ struct AppStateReaderControllerTests {
     @Test
     func changingSelectedTabClearsActiveReaderController() {
         let appState = AppState()
-        let firstTab = PDFTab(url: URL(fileURLWithPath: "/tmp/first.pdf"), document: nil)
-        let secondTab = PDFTab(url: URL(fileURLWithPath: "/tmp/second.pdf"), document: nil)
+        let firstTab = DocumentTab(url: URL(fileURLWithPath: "/tmp/first.pdf"), document: nil)
+        let secondTab = DocumentTab(url: URL(fileURLWithPath: "/tmp/second.pdf"), document: nil)
         let reader = RecordingReaderController()
 
         _ = appState.tabStore.openInNewTabs([firstTab, secondTab])
@@ -100,7 +100,7 @@ struct AppStateReaderControllerTests {
             scaleFactor: 1.5,
             autoScales: false
         )
-        let tab = PDFTab(url: URL(fileURLWithPath: "/tmp/sample.pdf"), document: nil)
+        let tab = DocumentTab(url: URL(fileURLWithPath: "/tmp/sample.pdf"), document: nil)
         let reader = RecordingReaderController(snapshot: snapshot)
 
         _ = appState.tabStore.openInNewTabs([tab])
@@ -120,8 +120,8 @@ struct AppStateReaderControllerTests {
             scaleFactor: 1.75,
             autoScales: false
         )
-        let firstTab = PDFTab(url: URL(fileURLWithPath: "/tmp/first.pdf"), document: nil)
-        let secondTab = PDFTab(url: URL(fileURLWithPath: "/tmp/second.pdf"), document: nil)
+        let firstTab = DocumentTab(url: URL(fileURLWithPath: "/tmp/first.pdf"), document: nil)
+        let secondTab = DocumentTab(url: URL(fileURLWithPath: "/tmp/second.pdf"), document: nil)
         let firstReader = RecordingReaderController(snapshot: firstSnapshot)
 
         _ = appState.tabStore.openInNewTabs([firstTab])
@@ -138,7 +138,7 @@ struct AppStateReaderControllerTests {
     @Test
     func conversationHistoryIsScopedToActiveDocument() {
         let appState = AppState()
-        let tab = PDFTab(url: URL(fileURLWithPath: "/tmp/current.pdf"), document: nil)
+        let tab = DocumentTab(url: URL(fileURLWithPath: "/tmp/current.pdf"), document: nil)
         let reader = RecordingReaderController(documentKey: "/tmp/current.pdf")
 
         _ = appState.tabStore.openInNewTabs([tab])
@@ -161,7 +161,7 @@ struct AppStateReaderControllerTests {
     @Test
     func explanationHistoryIncludesCurrentDocumentTransientAndAnnotationItems() {
         let appState = AppState()
-        let tab = PDFTab(url: URL(fileURLWithPath: "/tmp/current.pdf"), document: nil)
+        let tab = DocumentTab(url: URL(fileURLWithPath: "/tmp/current.pdf"), document: nil)
         let reader = RecordingReaderController(
             documentKey: "/tmp/current.pdf",
             aiExplanationHistory: [
@@ -207,7 +207,7 @@ struct AppStateReaderControllerTests {
     @Test
     func emptyAIHistoryShowsReaderNotification() {
         let appState = AppState()
-        let tab = PDFTab(url: URL(fileURLWithPath: "/tmp/current.pdf"), document: nil)
+        let tab = DocumentTab(url: URL(fileURLWithPath: "/tmp/current.pdf"), document: nil)
         let reader = RecordingReaderController(documentKey: "/tmp/current.pdf")
 
         _ = appState.tabStore.openInNewTabs([tab])

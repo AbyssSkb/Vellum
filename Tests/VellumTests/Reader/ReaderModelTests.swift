@@ -6,15 +6,24 @@ import Testing
 @Suite("Reader models")
 struct ReaderModelTests {
     @Test
-    func pdfTabTitleUsesFileNameWithoutExtension() {
-        let tab = PDFTab(url: URL(fileURLWithPath: "/tmp/Research Paper.pdf"), document: nil)
+    func documentTabTitleUsesFileNameWithoutExtension() {
+        let tab = DocumentTab(url: URL(fileURLWithPath: "/tmp/Research Paper.pdf"), document: nil)
 
         #expect(tab.title == "Research Paper")
     }
 
     @Test
-    func untitledPDFTabHasFallbackTitle() {
-        let tab = PDFTab(url: nil, document: nil)
+    func markdownDocumentTabUsesMarkdownFileTitle() {
+        let document = MarkdownDocument(url: URL(fileURLWithPath: "/tmp/Notes.md"), source: "# Notes")
+        let tab = DocumentTab(url: document.url, markdownDocument: document)
+
+        #expect(tab.title == "Notes")
+        #expect(tab.markdownDocument == document)
+    }
+
+    @Test
+    func untitledDocumentTabHasFallbackTitle() {
+        let tab = DocumentTab(url: nil, document: nil)
 
         #expect(tab.title == "Untitled")
     }

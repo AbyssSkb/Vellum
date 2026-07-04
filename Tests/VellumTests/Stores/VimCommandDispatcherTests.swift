@@ -129,7 +129,7 @@ private final class RecordingVimCommandTarget: VimCommandTarget {
         actions.append(.closeTab)
     }
 
-    func restoreClosedPDFTab() {
+    func restoreClosedDocumentTab() {
         actions.append(.restoreClosedTab)
     }
 

@@ -123,7 +123,7 @@ struct TabStoreTests {
 
         _ = store.openInNewTabs([first, second])
         let closedTab = store.closeSelectedTab()
-        let restoredTab = store.restoreClosedPDFTab()
+        let restoredTab = store.restoreClosedDocumentTab()
 
         #expect(closedTab)
         #expect(restoredTab)
@@ -134,7 +134,7 @@ struct TabStoreTests {
     @Test
     func tabsWithoutDocumentsAreNotRememberedForRestore() {
         var store = TabStore()
-        let tabWithoutDocument = PDFTab(
+        let tabWithoutDocument = DocumentTab(
             id: UUID(),
             url: URL(fileURLWithPath: "/tmp/empty.pdf"),
             document: nil
@@ -142,7 +142,7 @@ struct TabStoreTests {
 
         store.openInCurrentTab(tabWithoutDocument)
         let closedTab = store.closeSelectedTab()
-        let restoredTab = store.restoreClosedPDFTab()
+        let restoredTab = store.restoreClosedDocumentTab()
 
         #expect(closedTab)
         #expect(!restoredTab)
@@ -183,8 +183,8 @@ struct TabStoreTests {
         #expect(store.selectedTabID == second.id)
     }
 
-    private func tab(named name: String) -> PDFTab {
-        PDFTab(
+    private func tab(named name: String) -> DocumentTab {
+        DocumentTab(
             id: UUID(),
             url: URL(fileURLWithPath: "/tmp/\(name).pdf"),
             document: PDFDocument()

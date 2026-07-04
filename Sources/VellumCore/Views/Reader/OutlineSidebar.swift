@@ -3,7 +3,7 @@ import SwiftUI
 struct OutlineSidebar: View {
     @Environment(\.appUILanguage) private var language
     @EnvironmentObject private var appState: AppState
-    let tab: PDFTab?
+    let tab: DocumentTab?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -16,6 +16,20 @@ struct OutlineSidebar: View {
                     OutlinePlaceholder(text: language.text(.noContents))
                 } else {
                     PDFOutlineView(
+                        items: items,
+                        focusGeneration: appState.outlineFocusGeneration,
+                        appState: appState
+                    )
+                }
+            } else if let document = tab?.markdownDocument {
+                let items = document.outlineItems
+                OutlineSidebarHeader()
+                TokyoNightDivider(axis: .horizontal)
+
+                if items.isEmpty {
+                    OutlinePlaceholder(text: language.text(.noContents))
+                } else {
+                    MarkdownOutlineView(
                         items: items,
                         focusGeneration: appState.outlineFocusGeneration,
                         appState: appState

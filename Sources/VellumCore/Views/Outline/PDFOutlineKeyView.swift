@@ -1,6 +1,6 @@
 @preconcurrency import AppKit
 
-final class PDFOutlineKeyView: NSOutlineView {
+class PDFOutlineKeyView: NSOutlineView {
     weak var appState: AppState?
 
     override var acceptsFirstResponder: Bool { true }
@@ -54,7 +54,7 @@ final class PDFOutlineKeyView: NSOutlineView {
         }
 
         if event.keyCode == 36 || event.keyCode == 76 {
-            activateSelectedItem()
+            activateSelectedItemForKeyboard()
             return true
         }
 
@@ -112,7 +112,7 @@ final class PDFOutlineKeyView: NSOutlineView {
         expandItem(item)
     }
 
-    private func activateSelectedItem() {
+    func activateSelectedItemForKeyboard() {
         guard let item = selectedOutlineItem else { return }
 
         if let destination = item.destination {

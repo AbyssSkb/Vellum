@@ -1,16 +1,16 @@
 import Foundation
 
 struct TabStore {
-    private(set) var tabs: [PDFTab] = []
-    private(set) var selectedTabID: PDFTab.ID?
+    private(set) var tabs: [DocumentTab] = []
+    private(set) var selectedTabID: DocumentTab.ID?
 
-    private var closedPDFTabHistory = ClosedPDFTabHistory()
+    private var closedDocumentTabHistory = ClosedDocumentTabHistory()
 
     var hasOpenDocuments: Bool {
         !tabs.isEmpty
     }
 
-    var selectedTab: PDFTab? {
+    var selectedTab: DocumentTab? {
         guard let selectedTabID else { return nil }
         return tabs.first { $0.id == selectedTabID }
     }
@@ -20,13 +20,13 @@ struct TabStore {
         return tabs.firstIndex { $0.id == selectedTabID }
     }
 
-    mutating func selectTab(_ id: PDFTab.ID) -> Bool {
+    mutating func selectTab(_ id: DocumentTab.ID) -> Bool {
         guard selectedTabID != id, tabs.contains(where: { $0.id == id }) else { return false }
         selectedTabID = id
         return true
     }
 
-    mutating func openInCurrentTab(_ tab: PDFTab) {
+    mutating func openInCurrentTab(_ tab: DocumentTab) {
         if let index = selectedIndex {
             tabs[index] = tab
         } else {
@@ -35,14 +35,14 @@ struct TabStore {
         selectedTabID = tab.id
     }
 
-    mutating func openInNewTabs(_ newTabs: [PDFTab]) -> Bool {
+    mutating func openInNewTabs(_ newTabs: [DocumentTab]) -> Bool {
         guard !newTabs.isEmpty else { return false }
         tabs.append(contentsOf: newTabs)
         selectedTabID = newTabs.last?.id
         return true
     }
 
-    mutating func restoreSessionTabs(_ restoredTabs: [PDFTab], selectedURLPath: String?) -> Bool {
+    mutating func restoreSessionTabs(_ restoredTabs: [DocumentTab], selectedURLPath: String?) -> Bool {
         guard !restoredTabs.isEmpty else { return false }
         tabs = restoredTabs
 
@@ -61,11 +61,11 @@ struct TabStore {
         return closeTab(selectedTabID)
     }
 
-    mutating func closeTab(_ id: PDFTab.ID) -> Bool {
+    mutating func closeTab(_ id: DocumentTab.ID) -> Bool {
         guard let index = tabs.firstIndex(where: { $0.id == id }) else { return false }
 
         let closedSelectedTab = tabs[index].id == selectedTabID
-        closedPDFTabHistory.remember(tabs[index])
+        closedDocumentTabHistory.remember(tabs[index])
         tabs.remove(at: index)
 
         if tabs.isEmpty {
@@ -77,8 +77,8 @@ struct TabStore {
         return true
     }
 
-    mutating func restoreClosedPDFTab() -> Bool {
-        guard let tab = closedPDFTabHistory.restore() else { return false }
+    mutating func restoreClosedDocumentTab() -> Bool {
+        guard let tab = closedDocumentTabHistory.restore() else { return false }
         tabs.append(tab)
         selectedTabID = tab.id
         return true
@@ -96,7 +96,7 @@ struct TabStore {
         return true
     }
 
-    mutating func saveSnapshot(_ snapshot: ReaderSnapshot, for tabID: PDFTab.ID) {
+    mutating func saveSnapshot(_ snapshot: ReaderSnapshot, for tabID: DocumentTab.ID) {
         guard let index = tabs.firstIndex(where: { $0.id == tabID }) else { return }
         tabs[index].snapshot = snapshot
     }

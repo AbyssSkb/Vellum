@@ -21,6 +21,16 @@ struct ReaderStack: View {
                         .opacity(isSelected ? 1 : 0)
                         .allowsHitTesting(isSelected)
                         .accessibilityHidden(!isSelected)
+                    } else if let document = tab.markdownDocument {
+                        MarkdownReader(
+                            tabID: tab.id,
+                            document: document,
+                            snapshot: tab.snapshot,
+                            isActive: isSelected
+                        )
+                        .opacity(isSelected ? 1 : 0)
+                        .allowsHitTesting(isSelected)
+                        .accessibilityHidden(!isSelected)
                     }
                 }
             }

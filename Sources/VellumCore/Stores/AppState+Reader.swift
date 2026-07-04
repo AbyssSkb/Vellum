@@ -1,7 +1,7 @@
 import Foundation
 
 extension AppState {
-    func setActiveReaderController(_ controller: ReaderController?, for tabID: PDFTab.ID) {
+    func setActiveReaderController(_ controller: ReaderController?, for tabID: DocumentTab.ID) {
         guard tabID == selectedTabID else { return }
         activeReaderController = controller
     }
@@ -10,7 +10,7 @@ extension AppState {
         tabStore.snapshotForSelectedTab()
     }
 
-    func saveSnapshot(_ snapshot: ReaderSnapshot, for tabID: PDFTab.ID) {
+    func saveSnapshot(_ snapshot: ReaderSnapshot, for tabID: DocumentTab.ID) {
         tabStore.saveSnapshot(snapshot, for: tabID)
         AppSessionPersistence.save(tabs: tabs, selectedTabID: selectedTabID)
     }

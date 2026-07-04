@@ -8,7 +8,12 @@ enum PDFOpenPanelPresenter {
         completion: @escaping @MainActor ([URL]) -> Void
     ) {
         let panel = NSOpenPanel()
-        panel.allowedContentTypes = [.pdf]
+        let markdownTypes = [
+            UTType(filenameExtension: "md"),
+            UTType(filenameExtension: "markdown"),
+            UTType(filenameExtension: "mdown")
+        ].compactMap { $0 }
+        panel.allowedContentTypes = [.pdf] + markdownTypes
         panel.allowsMultipleSelection = mode == .newTabs
         panel.canChooseDirectories = false
         panel.canChooseFiles = true

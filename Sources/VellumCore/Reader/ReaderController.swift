@@ -41,6 +41,7 @@ protocol ReaderController: AnyObject {
     func vimZoom(by factor: CGFloat)
     func vimZoomToPageFit()
     func vimZoomToFit()
+    func vimGoToMarkdownLine(_ lineNumber: Int)
 }
 
 extension ReaderController {
@@ -57,4 +58,8 @@ extension ReaderController {
     func restoreAIExplanation(_ item: AIExplanationHistoryItem) {}
 
     func restoreAIConversation(_ item: AIConversationHistoryItem) {}
+
+    func vimGoToMarkdownLine(_ lineNumber: Int) {
+        vimGoToPage(lineNumber)
+    }
 }

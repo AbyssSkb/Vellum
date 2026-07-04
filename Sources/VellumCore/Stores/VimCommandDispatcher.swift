@@ -11,7 +11,7 @@ struct VimCommandDispatcher {
         case .closeTab:
             target.closeSelectedTab()
         case .restoreClosedTab:
-            target.restoreClosedPDFTab()
+            target.restoreClosedDocumentTab()
         case .nextTab:
             target.selectNextTab()
         case .previousTab:
@@ -89,7 +89,7 @@ protocol VimCommandTarget {
     func openPDFInCurrentTab()
     func openPDFInNewTabs()
     func closeSelectedTab()
-    func restoreClosedPDFTab()
+    func restoreClosedDocumentTab()
     func selectNextTab()
     func selectPreviousTab()
     func showTabSwitcher()

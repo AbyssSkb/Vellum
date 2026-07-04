@@ -1,7 +1,7 @@
 import Foundation
 
 extension AppState {
-    func selectTab(_ id: PDFTab.ID) {
+    func selectTab(_ id: DocumentTab.ID) {
         guard selectedTabID != id else { return }
         saveActiveReaderState()
         guard tabStore.selectTab(id) else { return }
@@ -9,7 +9,7 @@ extension AppState {
         prepareForSelectedReaderChange()
     }
 
-    func selectTabFromSwitcher(_ id: PDFTab.ID) {
+    func selectTabFromSwitcher(_ id: DocumentTab.ID) {
         isTabSwitcherPresented = false
         selectTab(id)
         focusActiveReaderSoon()
@@ -57,7 +57,7 @@ extension AppState {
         closeTab(selectedTabID)
     }
 
-    func closeTab(_ id: PDFTab.ID) {
+    func closeTab(_ id: DocumentTab.ID) {
         let previousSelectedTabID = selectedTabID
         saveActiveReaderState()
         guard tabStore.closeTab(id) else { return }
@@ -72,10 +72,10 @@ extension AppState {
         }
     }
 
-    func restoreClosedPDFTab() {
+    func restoreClosedDocumentTab() {
         saveActiveReaderState()
 
-        guard tabStore.restoreClosedPDFTab() else { return }
+        guard tabStore.restoreClosedDocumentTab() else { return }
         saveCurrentSession()
         prepareForSelectedReaderChange()
     }
@@ -104,7 +104,7 @@ extension AppState {
         }
 
         didRestorePreviousTabs = true
-        let tabs = session.tabs.compactMap { persistedTab -> PDFTab? in
+        let tabs = session.tabs.compactMap { persistedTab -> DocumentTab? in
             let url = URL(fileURLWithPath: persistedTab.path)
             guard var tab = documentCoordinator.openTab(for: url) else { return nil }
             tab.snapshot = persistedTab.snapshot ?? .initial

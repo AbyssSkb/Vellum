@@ -133,6 +133,7 @@ public enum AppText {
     case later
     case loading
     case loadingModels
+    case markdownHighlightUnavailable
     case model
     case modelOverride
     case modelsLoaded(Int)
@@ -322,6 +323,7 @@ public extension AppText {
         case .later: return "Later"
         case .loading: return "Loading"
         case .loadingModels: return "Loading models"
+        case .markdownHighlightUnavailable: return "Markdown highlights are not available yet."
         case .model: return "Model"
         case .modelOverride: return "Model Override"
         case .modelsLoaded(let count): return "\(count) models loaded."
@@ -345,7 +347,7 @@ public extension AppText {
         case .openDiskImage: return "Open Disk Image"
         case .openLog: return "Open Log"
         case .openMenu: return "Open..."
-        case .openPDF: return "Open a PDF"
+        case .openPDF: return "Open a PDF or Markdown file"
         case .openReleases: return "Open Releases"
         case .pageOverview: return "Page Overview"
         case .preparingDownload: return "Preparing download..."
@@ -502,6 +504,7 @@ public extension AppText {
         case .later: return "稍后"
         case .loading: return "加载中"
         case .loadingModels: return "正在加载模型"
+        case .markdownHighlightUnavailable: return "暂不支持 Markdown 高亮。"
         case .model: return "模型"
         case .modelOverride: return "模型覆盖"
         case .modelsLoaded(let count): return "已加载 \(count) 个模型。"
@@ -525,7 +528,7 @@ public extension AppText {
         case .openDiskImage: return "打开磁盘镜像"
         case .openLog: return "打开日志"
         case .openMenu: return "打开..."
-        case .openPDF: return "打开 PDF"
+        case .openPDF: return "打开 PDF 或 Markdown"
         case .openReleases: return "打开发布页面"
         case .pageOverview: return "页面概览"
         case .preparingDownload: return "正在准备下载..."

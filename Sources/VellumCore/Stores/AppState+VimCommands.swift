@@ -26,7 +26,11 @@ extension AppState: VimCommandTarget {
     }
 
     func goToPage(_ pageNumber: Int) {
-        activeReaderController?.vimGoToPage(pageNumber)
+        if selectedTab?.markdownDocument != nil {
+            activeReaderController?.vimGoToMarkdownLine(pageNumber)
+        } else {
+            activeReaderController?.vimGoToPage(pageNumber)
+        }
     }
 
     func jumpBack() {

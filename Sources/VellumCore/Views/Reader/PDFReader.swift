@@ -4,7 +4,7 @@ import SwiftUI
 
 struct PDFReader: NSViewRepresentable {
     @EnvironmentObject private var appState: AppState
-    let tabID: PDFTab.ID
+    let tabID: DocumentTab.ID
     let document: PDFDocument
     let snapshot: ReaderSnapshot?
     let isActive: Bool

@@ -1,12 +1,12 @@
 import PDFKit
 
-protocol PDFTabLoading {
-    func tab(for url: URL) -> PDFTab?
+protocol DocumentTabLoading {
+    func tab(for url: URL) -> DocumentTab?
 }
 
-struct PDFDocumentLoader: PDFTabLoading {
-    func tab(for url: URL) -> PDFTab? {
+struct PDFDocumentLoader: DocumentTabLoading {
+    func tab(for url: URL) -> DocumentTab? {
         guard let document = PDFDocument(url: url) else { return nil }
-        return PDFTab(url: url, document: document, snapshot: .initial)
+        return DocumentTab(url: url, document: document, snapshot: .initial)
     }
 }

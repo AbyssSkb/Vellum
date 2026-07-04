@@ -59,11 +59,11 @@ public final class AppState: ObservableObject {
         }
     }
 
-    var tabs: [PDFTab] {
+    var tabs: [DocumentTab] {
         tabStore.tabs
     }
 
-    var selectedTabID: PDFTab.ID? {
+    var selectedTabID: DocumentTab.ID? {
         tabStore.selectedTabID
     }
 
@@ -71,7 +71,7 @@ public final class AppState: ObservableObject {
         tabStore.hasOpenDocuments
     }
 
-    var selectedTab: PDFTab? {
+    var selectedTab: DocumentTab? {
         tabStore.selectedTab
     }
 
@@ -96,6 +96,11 @@ public final class AppState: ObservableObject {
 
     func jumpToOutlineDestination(_ destination: PDFDestination) {
         activeReaderController?.vimGoToDestination(destination)
+    }
+
+    func jumpToMarkdownOutlineItem(_ item: MarkdownOutlineItem) {
+        activeReaderController?.vimGoToMarkdownLine(item.sourceLineIndex + 1)
+        focusReaderSoon()
     }
 
     func selectHighlightColor(_ color: HighlightColor) {
