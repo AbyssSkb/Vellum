@@ -184,7 +184,19 @@ enum MarkdownHTMLRenderer {
       background: rgba(224,175,104,0.68);
       color: #11131b;
     }
-    ::selection { background: rgba(122,162,247,0.42); color: var(--fg); }
+    ::selection { background: transparent; color: var(--fg); }
+    .vellum-selection-overlay {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 2147483647;
+    }
+    .vellum-selection-rect {
+      position: absolute;
+      background: rgba(122,162,247,0.38);
+      border-radius: 3px;
+      box-shadow: 0 0 0 1px rgba(122,162,247,0.08);
+    }
     """
 
     private static let javascript = """
@@ -294,8 +306,132 @@ enum MarkdownHTMLRenderer {
       window.vellumZoomBy = function (factor) {
         window.vellumSetFontScale((Number(document.documentElement.dataset.fontScale || "1")) * (Number(factor) || 1));
       };
+      function currentSelectionText() {
+        return String(window.getSelection ? window.getSelection() : "").trim();
+      }
+
+      function selectedTextRects() {
+        const selection = window.getSelection && window.getSelection();
+        if (!selection || selection.rangeCount === 0 || !currentSelectionText()) return [];
+
+        const rects = [];
+        for (let rangeIndex = 0; rangeIndex < selection.rangeCount; rangeIndex++) {
+          const range = selection.getRangeAt(rangeIndex);
+          const root = range.commonAncestorContainer.nodeType === Node.TEXT_NODE
+            ? range.commonAncestorContainer.parentElement
+            : range.commonAncestorContainer;
+          if (!root) continue;
+
+          const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+            acceptNode: function (node) {
+              if (!node.nodeValue || !node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+              if (node.parentElement && node.parentElement.closest("script,style")) return NodeFilter.FILTER_REJECT;
+              return rangeIntersectsTextNode(range, node) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+            }
+          });
+
+          while (walker.nextNode()) {
+            const node = walker.currentNode;
+            const nodeRange = document.createRange();
+            const start = range.startContainer === node ? range.startOffset : 0;
+            const end = range.endContainer === node ? range.endOffset : node.nodeValue.length;
+            if (end <= start) continue;
+            nodeRange.setStart(node, start);
+            nodeRange.setEnd(node, end);
+            Array.from(nodeRange.getClientRects()).forEach(function (rect) {
+              const tightened = tightenedSelectionRect(rect);
+              if (tightened.width >= 1 && tightened.height >= 1) rects.push(tightened);
+            });
+            nodeRange.detach && nodeRange.detach();
+          }
+        }
+        return mergeSelectionRects(rects);
+      }
+
+      function rangeIntersectsTextNode(range, node) {
+        try {
+          return range.intersectsNode(node);
+        } catch (_) {
+          return false;
+        }
+      }
+
+      function tightenedSelectionRect(rect) {
+        const verticalInset = Math.min(4, Math.max(1.5, rect.height * 0.16));
+        return {
+          x: rect.left,
+          y: rect.top + verticalInset,
+          width: rect.width,
+          height: Math.max(2, rect.height - verticalInset * 2)
+        };
+      }
+
+      function mergeSelectionRects(rects) {
+        const merged = [];
+        rects.forEach(function (rect) {
+          const previous = merged[merged.length - 1];
+          if (previous && Math.abs(previous.y - rect.y) < 1.5 && Math.abs(previous.height - rect.height) < 2 && rect.x <= previous.x + previous.width + 2) {
+            const maxX = Math.max(previous.x + previous.width, rect.x + rect.width);
+            previous.x = Math.min(previous.x, rect.x);
+            previous.width = maxX - previous.x;
+            return;
+          }
+          merged.push(Object.assign({}, rect));
+        });
+        return merged;
+      }
+
+      function selectionContainsPoint(x, y) {
+        return selectedTextRects().some(function (rect) {
+          return x >= rect.x - 2 && x <= rect.x + rect.width + 2 && y >= rect.y - 2 && y <= rect.y + rect.height + 2;
+        });
+      }
+
+      window.vellumSelectionContainsPoint = selectionContainsPoint;
+
+      window.vellumMoveSelection = function (key) {
+        const selection = window.getSelection && window.getSelection();
+        if (!selection || !currentSelectionText() || typeof selection.modify !== "function") return false;
+        const movement = {
+          h: ["backward", "character"],
+          l: ["forward", "character"],
+          k: ["backward", "line"],
+          j: ["forward", "line"],
+          b: ["backward", "word"],
+          w: ["forward", "word"],
+          e: ["forward", "word"]
+        }[key];
+        if (!movement) return false;
+        selection.modify("extend", movement[0], movement[1]);
+        notifySelection();
+        return true;
+      };
+
+      function renderSelectionOverlay(rects) {
+        let overlay = document.querySelector(".vellum-selection-overlay");
+        if (!rects.length) {
+          overlay && overlay.remove();
+          return;
+        }
+        if (!overlay) {
+          overlay = document.createElement("div");
+          overlay.className = "vellum-selection-overlay";
+          document.body.appendChild(overlay);
+        }
+        overlay.innerHTML = "";
+        rects.forEach(function (rect) {
+          const div = document.createElement("div");
+          div.className = "vellum-selection-rect";
+          div.style.left = (rect.x + window.scrollX) + "px";
+          div.style.top = (rect.y + window.scrollY) + "px";
+          div.style.width = rect.width + "px";
+          div.style.height = rect.height + "px";
+          overlay.appendChild(div);
+        });
+      }
+
       window.vellumSelectedText = function () {
-        const selection = String(window.getSelection ? window.getSelection() : "").trim();
+        const selection = currentSelectionText();
         if (selection) return selection;
         if (matches[activeMatch]) return matches[activeMatch].textContent.trim();
         return "";
@@ -313,6 +449,7 @@ enum MarkdownHTMLRenderer {
       };
       window.vellumClearSelection = function () {
         if (window.getSelection) window.getSelection().removeAllRanges();
+        notifySelection();
       };
 
       function clearSearch() {
@@ -390,6 +527,7 @@ enum MarkdownHTMLRenderer {
         const selection = window.getSelection();
         selection.removeAllRanges();
         selection.addRange(range);
+        notifySelection();
         return selection.toString();
       };
 
@@ -398,6 +536,14 @@ enum MarkdownHTMLRenderer {
       let notifySnapshot = function () {
         if (!window.webkit || !window.webkit.messageHandlers || !window.webkit.messageHandlers.vellumSnapshotChanged) return;
         window.webkit.messageHandlers.vellumSnapshotChanged.postMessage(window.vellumSnapshot());
+      };
+      let notifySelection = function () {
+        if (!window.webkit || !window.webkit.messageHandlers || !window.webkit.messageHandlers.vellumSelectionChanged) return;
+        const rects = selectedTextRects();
+        renderSelectionOverlay(rects);
+        window.webkit.messageHandlers.vellumSelectionChanged.postMessage({
+          hasSelection: currentSelectionText().length > 0
+        });
       };
       let throttledSnapshot = (function () {
         let pending = false;
@@ -411,6 +557,23 @@ enum MarkdownHTMLRenderer {
         };
       })();
       window.addEventListener("scroll", throttledSnapshot, { passive: true });
+      window.addEventListener("scroll", function () { renderSelectionOverlay(selectedTextRects()); }, { passive: true });
+      document.addEventListener("mousedown", function (event) {
+        if (event.button !== 1 || !selectionContainsPoint(event.clientX, event.clientY)) return;
+        if (!window.webkit || !window.webkit.messageHandlers || !window.webkit.messageHandlers.vellumMiddleMouseSelection) return;
+        event.preventDefault();
+        event.stopPropagation();
+        window.webkit.messageHandlers.vellumMiddleMouseSelection.postMessage({});
+      }, true);
+      document.addEventListener("dblclick", function (event) {
+        if (event.metaKey || event.ctrlKey || event.altKey) return;
+        window.setTimeout(function () {
+          if (!currentSelectionText() || !selectionContainsPoint(event.clientX, event.clientY)) return;
+          if (!window.webkit || !window.webkit.messageHandlers || !window.webkit.messageHandlers.vellumDoubleClickSelection) return;
+          window.webkit.messageHandlers.vellumDoubleClickSelection.postMessage({});
+        }, 0);
+      }, true);
+      document.addEventListener("selectionchange", notifySelection);
       window.addEventListener("load", notifySnapshot);
     })();
     """

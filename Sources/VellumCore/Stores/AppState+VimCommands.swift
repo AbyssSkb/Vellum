@@ -1,11 +1,11 @@
 @preconcurrency import AppKit
 
 extension AppState: VimCommandTarget {
-    func openPDFInCurrentTab() {
-        openPanel(mode: DefaultOpenModePreference.saved().pdfOpenMode)
+    func openDocumentInCurrentTab() {
+        openPanel(mode: DefaultOpenModePreference.saved().documentOpenMode)
     }
 
-    func openPDFInNewTabs() {
+    func openDocumentInNewTabs() {
         openPanel(mode: .newTabs)
     }
 

@@ -210,7 +210,27 @@ struct MarkdownOutlineView: NSViewRepresentable {
     }
 }
 
-final class MarkdownOutlineKeyView: PDFOutlineKeyView {
+class MarkdownOutlineKeyView: DocumentOutlineKeyView {
+    override func collapseSelectionForKeyboard() {
+        guard let item = selectedMarkdownOutlineItem else { return }
+
+        if isItemExpanded(item) {
+            collapseItem(item)
+            return
+        }
+
+        guard let parent = item.parent else { return }
+        let parentRow = row(forItem: parent)
+        guard parentRow >= 0 else { return }
+        selectRowIndexes(IndexSet(integer: parentRow), byExtendingSelection: false)
+        scrollRowToVisible(parentRow)
+    }
+
+    override func expandSelectionForKeyboard() {
+        guard let item = selectedMarkdownOutlineItem, !item.children.isEmpty else { return }
+        expandItem(item)
+    }
+
     override func activateSelectedItemForKeyboard() {
         guard let item = selectedMarkdownOutlineItem else { return }
         if !item.children.isEmpty, isItemExpanded(item) {

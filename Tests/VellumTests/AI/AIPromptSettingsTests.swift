@@ -70,7 +70,7 @@ struct AIPromptSettingsTests {
         #expect(prompt.contains("- Selection kind: single token or compact term"))
         #expect(prompt.contains("Policy: Expected: if this is a natural-language word, name, or term in any source language"))
         #expect(prompt.contains("<selected_text>\nsalient\n</selected_text>"))
-        #expect(prompt.contains("<anchored_context>\nNo anchored occurrence could be reliably extracted from the PDF.\n</anchored_context>"))
+        #expect(prompt.contains("<anchored_context>\nNo anchored occurrence could be reliably extracted from the document.\n</anchored_context>"))
         #expect(prompt.contains("Include only for a single word, name, short term, or short phrase where pronunciation helps."))
     }
 

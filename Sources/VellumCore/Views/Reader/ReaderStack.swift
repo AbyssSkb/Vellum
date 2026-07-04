@@ -50,12 +50,12 @@ struct EmptyReader: View {
                 .foregroundStyle(TokyoNight.mutedColor)
                 .accessibilityHidden(true)
 
-            Text(language.text(.openPDF))
+            Text(language.text(.openDocument))
                 .font(.title2.weight(.semibold))
                 .foregroundStyle(TokyoNight.foregroundColor)
 
             Button {
-                appState.openPanel(mode: DefaultOpenModePreference.saved().pdfOpenMode)
+                appState.openPanel(mode: DefaultOpenModePreference.saved().documentOpenMode)
             } label: {
                 Label(language.text(.chooseFile), systemImage: "folder")
             }

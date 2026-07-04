@@ -1,10 +1,10 @@
 @preconcurrency import AppKit
 import UniformTypeIdentifiers
 
-enum PDFOpenPanelPresenter {
+enum DocumentOpenPanelPresenter {
     @MainActor
     static func present(
-        mode: PDFOpenMode,
+        mode: DocumentOpenMode,
         completion: @escaping @MainActor ([URL]) -> Void
     ) {
         let panel = NSOpenPanel()

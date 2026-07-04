@@ -15,8 +15,8 @@ extension AppState {
         focusActiveReaderSoon()
     }
 
-    public func openPanel(mode: PDFOpenMode = .currentTab) {
-        PDFOpenPanelPresenter.present(mode: mode) { [weak self] urls in
+    public func openPanel(mode: DocumentOpenMode = .currentTab) {
+        DocumentOpenPanelPresenter.present(mode: mode) { [weak self] urls in
             switch mode {
             case .currentTab:
                 guard let url = urls.first else { return }

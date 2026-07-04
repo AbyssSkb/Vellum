@@ -52,6 +52,8 @@ struct MarkdownReader: NSViewRepresentable {
 
 @MainActor
 final class VellumMarkdownWebView: WKWebView, ReaderController {
+    private static let textSelectionNavigationKeys: Set<String> = ["h", "j", "k", "l", "w", "b", "e"]
+
     weak var appState: AppState?
     var markdownDocument: MarkdownDocument?
     var saveBeforeDismantle: (() -> Void)?
@@ -61,6 +63,7 @@ final class VellumMarkdownWebView: WKWebView, ReaderController {
     private var searchQuery = ""
     private var searchCount = 0
     private var searchIndex = 0
+    private var selectionHasText = false
     private var pendingRestoreSnapshot: ReaderSnapshot?
     private var currentSnapshot = ReaderSnapshot(
         pageIndex: 0,
@@ -83,6 +86,9 @@ final class VellumMarkdownWebView: WKWebView, ReaderController {
         }
         super.init(frame: .zero, configuration: configuration)
         controller.add(self, name: "vellumSnapshotChanged")
+        controller.add(self, name: "vellumSelectionChanged")
+        controller.add(self, name: "vellumMiddleMouseSelection")
+        controller.add(self, name: "vellumDoubleClickSelection")
         navigationDelegate = self
         allowsBackForwardNavigationGestures = false
         setValue(false, forKey: "drawsBackground")
@@ -101,7 +107,7 @@ final class VellumMarkdownWebView: WKWebView, ReaderController {
     }
 
     var hasNavigableTextSelection: Bool {
-        false
+        selectionHasText
     }
 
     var hasSearchTextTarget: Bool {
@@ -118,6 +124,7 @@ final class VellumMarkdownWebView: WKWebView, ReaderController {
 
     func load(document: MarkdownDocument, restoring snapshot: ReaderSnapshot?) {
         pendingRestoreSnapshot = snapshot
+        selectionHasText = false
         let html = MarkdownHTMLRenderer.html(for: document)
         do {
             let htmlURL = try writeRenderHTML(html)
@@ -132,6 +139,9 @@ final class VellumMarkdownWebView: WKWebView, ReaderController {
         aiInteraction.clearActiveRequest()
         aiInteraction.clearPopoverState()
         configuration.userContentController.removeScriptMessageHandler(forName: "vellumSnapshotChanged")
+        configuration.userContentController.removeScriptMessageHandler(forName: "vellumSelectionChanged")
+        configuration.userContentController.removeScriptMessageHandler(forName: "vellumMiddleMouseSelection")
+        configuration.userContentController.removeScriptMessageHandler(forName: "vellumDoubleClickSelection")
         removeRenderDirectory()
     }
 
@@ -192,12 +202,23 @@ final class VellumMarkdownWebView: WKWebView, ReaderController {
     }
 
     func handleTextSelectionKey(_ rawKey: String, eventType: NSEvent.EventType) -> Bool {
-        guard rawKey == "\u{1b}", eventType == .keyDown else { return false }
-        if dismissSearchOverlay(clear: true) {
-            return true
+        let key = rawKey.lowercased()
+
+        if key == "\u{1b}" {
+            guard eventType == .keyDown else { return true }
+            if dismissSearchOverlay(clear: true) {
+                return true
+            }
+            evaluate("window.vellumClearSelection && window.vellumClearSelection();")
+            return selectionHasText
         }
-        evaluate("window.vellumClearSelection && window.vellumClearSelection();")
-        return false
+
+        guard Self.textSelectionNavigationKeys.contains(key), selectionHasText else { return false }
+
+        if eventType == .keyDown {
+            evaluate("window.vellumMoveSelection && window.vellumMoveSelection(\(jsonString(key)));")
+        }
+        return eventType == .keyDown || eventType == .keyUp
     }
 
     func vimDeleteHighlightsForSelection() -> Bool { false }
@@ -362,6 +383,34 @@ final class VellumMarkdownWebView: WKWebView, ReaderController {
         super.keyUp(with: event)
     }
 
+    override func otherMouseDown(with event: NSEvent) {
+        guard AIExplanationMouseTrigger.shouldExplainSelection(
+            eventType: event.type,
+            buttonNumber: event.buttonNumber,
+            clickCount: event.clickCount,
+            modifierFlags: event.modifierFlags,
+            isAIInteractionActive: aiInteraction.isActive || aiInteraction.explanationTask != nil,
+            hasSelectedText: selectionHasText,
+            pointIsInsideSelection: true
+        ) else {
+            super.otherMouseDown(with: event)
+            return
+        }
+
+        let point = convert(event.locationInWindow, from: nil)
+        let domPoint = domPoint(fromViewPoint: point)
+        evaluate("window.vellumSelectionContainsPoint && window.vellumSelectionContainsPoint(\(Double(domPoint.x)), \(Double(domPoint.y)));") { [weak self] result in
+            guard result as? Bool == true else { return }
+            self?.explainSelectionFromUserGesture()
+        }
+    }
+
+    override func layout() {
+        super.layout()
+        searchOverlay?.frame = bounds
+        updateAIFloatingOverlayFrames()
+    }
+
     private func evaluate(_ script: String, completion: ((Any?) -> Void)? = nil) {
         evaluateJavaScript(script) { result, _ in
             Task { @MainActor in completion?(result) }
@@ -519,6 +568,24 @@ final class VellumMarkdownWebView: WKWebView, ReaderController {
         aiInteraction.explanationTask = task
     }
 
+    private func explainSelectionFromUserGesture() {
+        guard !aiInteraction.isActive, aiInteraction.explanationTask == nil else { return }
+        aiContextForSelection { [weak self] context in
+            guard let self else { return }
+            guard let context else {
+                self.showAINotification(AIExplanationError.noSelection.localizedDescription)
+                NSSound.beep()
+                return
+            }
+            self.streamExplanation(context: context)
+        }
+    }
+
+    private func explainDoubleClickedSelectionFromUserGesture() {
+        guard AppPreferences.doubleClickTranslatesSelection() else { return }
+        explainSelectionFromUserGesture()
+    }
+
     private func showAIConversationPopover(model: AIConversationPopoverModel) {
         hideAIExplanationPopover()
         let overlay = showAIFloatingOverlay(
@@ -626,7 +693,6 @@ final class VellumMarkdownWebView: WKWebView, ReaderController {
         let hostingView = NSHostingView(rootView: rootView)
         let overlay = MarkdownAIFloatingOverlayContainerView(contentView: hostingView)
         overlay.frame = floatingOverlayFrame(size: size)
-        overlay.autoresizingMask = [.minXMargin, .maxXMargin, .minYMargin, .maxYMargin]
         addSubview(overlay)
         return overlay
     }
@@ -637,13 +703,40 @@ final class VellumMarkdownWebView: WKWebView, ReaderController {
     }
 
     private func floatingOverlayFrame(size: NSSize) -> NSRect {
-        NSRect(
-            x: max(18, bounds.midX - size.width / 2),
-            y: max(18, bounds.maxY - size.height - 76),
-            width: min(size.width, bounds.width - 36),
-            height: min(size.height, bounds.height - 36)
+        MarkdownFloatingOverlayLayout.frame(
+            in: visibleRect,
+            size: size,
+            isFlipped: isFlipped,
+            backingScale: backingScale
         )
     }
+
+    private func updateAIFloatingOverlayFrames() {
+        if let explanationOverlay = aiInteraction.explanationOverlay,
+           let activeExplanationModel = aiInteraction.activeExplanationModel {
+            explanationOverlay.frame = floatingOverlayFrame(size: activeExplanationModel.preferredSize)
+        }
+
+        if let conversationOverlay = aiInteraction.conversationOverlay,
+           let activeConversationModel = aiInteraction.activeConversationModel {
+            conversationOverlay.frame = floatingOverlayFrame(size: activeConversationModel.preferredSize)
+        }
+    }
+
+    private var backingScale: CGFloat {
+        window?.backingScaleFactor
+            ?? window?.screen?.backingScaleFactor
+            ?? NSScreen.main?.backingScaleFactor
+            ?? 2
+    }
+
+    private func domPoint(fromViewPoint point: NSPoint) -> NSPoint {
+        NSPoint(
+            x: point.x,
+            y: isFlipped ? point.y : bounds.height - point.y
+        )
+    }
+
 
     private func showAIToast(_ message: String) {
         aiInteraction.toastHideWorkItem?.cancel()
@@ -744,6 +837,22 @@ extension VellumMarkdownWebView: WKNavigationDelegate {
 
 extension VellumMarkdownWebView: WKScriptMessageHandler {
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        if message.name == "vellumMiddleMouseSelection" {
+            explainSelectionFromUserGesture()
+            return
+        }
+
+        if message.name == "vellumDoubleClickSelection" {
+            explainDoubleClickedSelectionFromUserGesture()
+            return
+        }
+
+        if message.name == "vellumSelectionChanged" {
+            guard let dictionary = message.body as? [String: Any] else { return }
+            selectionHasText = dictionary["hasSelection"] as? Bool ?? false
+            return
+        }
+
         guard message.name == "vellumSnapshotChanged" else { return }
         let body = message.body
         guard let dictionary = body as? [String: Any] else { return }
@@ -759,6 +868,52 @@ extension VellumMarkdownWebView: WKScriptMessageHandler {
         )
         guard let selectedTabID = appState?.selectedTabID else { return }
         appState?.saveSnapshot(currentSnapshot, for: selectedTabID)
+    }
+}
+
+enum MarkdownFloatingOverlayLayout {
+    static func frame(
+        in visibleRect: NSRect,
+        size: NSSize,
+        isFlipped: Bool,
+        backingScale: CGFloat
+    ) -> NSRect {
+        let topInset: CGFloat = 76
+        let minimumInset: CGFloat = 18
+        let width = min(size.width, max(1, visibleRect.width - minimumInset * 2))
+        let height = min(size.height, max(1, visibleRect.height - minimumInset * 2))
+        let x = min(
+            max(visibleRect.minX + minimumInset, visibleRect.midX - width / 2),
+            visibleRect.maxX - minimumInset - width
+        )
+        let y: CGFloat
+        if isFlipped {
+            y = min(
+                max(visibleRect.minY + topInset, visibleRect.minY + minimumInset),
+                visibleRect.maxY - minimumInset - height
+            )
+        } else {
+            y = max(
+                visibleRect.minY + minimumInset,
+                visibleRect.maxY - topInset - height
+            )
+        }
+        return pixelAligned(NSRect(x: x, y: y, width: width, height: height), backingScale: backingScale)
+    }
+
+    private static func pixelAligned(_ rect: NSRect, backingScale: CGFloat) -> NSRect {
+        guard backingScale > 0 else { return rect.integral }
+
+        func align(_ value: CGFloat) -> CGFloat {
+            (value * backingScale).rounded() / backingScale
+        }
+
+        return NSRect(
+            x: align(rect.origin.x),
+            y: align(rect.origin.y),
+            width: max(1 / backingScale, align(rect.size.width)),
+            height: max(1 / backingScale, align(rect.size.height))
+        )
     }
 }
 
