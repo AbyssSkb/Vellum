@@ -52,6 +52,7 @@ final class VellumPDFView: PDFView {
     var isMouseSelectingText = false
     var scrollBoundsObserver: NSObjectProtocol?
     weak var observedScrollClipView: NSClipView?
+    weak var configuredPDFScrollView: NSScrollView?
     var readerStateSaveWorkItem: DispatchWorkItem?
     var pendingDoubleClickTextSelectionPoint: NSPoint?
     var pendingClickHorizontalOrigin: CGFloat?
@@ -173,7 +174,7 @@ final class VellumPDFView: PDFView {
 
     override func layout() {
         super.layout()
-        configurePDFScrollers()
+        configurePDFScrollersIfNeeded()
         updateAIFloatingOverlayFrames()
     }
 
@@ -365,14 +366,38 @@ final class VellumPDFView: PDFView {
     func configurePDFScrollers() {
         guard let scrollView = pdfScrollView else { return }
         PDFOverlayScrollerStyleLock.install(on: scrollView)
-        scrollView.scrollerStyle = .overlay
-        scrollView.scrollerKnobStyle = .default
-        scrollView.autohidesScrollers = true
-        scrollView.hasVerticalScroller = true
-        scrollView.hasHorizontalScroller = true
-        scrollView.drawsBackground = false
-        scrollView.backgroundColor = .clear
+        if scrollView.scrollerStyle != .overlay {
+            scrollView.scrollerStyle = .overlay
+        }
+        if scrollView.scrollerKnobStyle != .default {
+            scrollView.scrollerKnobStyle = .default
+        }
+        if !scrollView.autohidesScrollers {
+            scrollView.autohidesScrollers = true
+        }
+        if !scrollView.hasVerticalScroller {
+            scrollView.hasVerticalScroller = true
+        }
+        if !scrollView.hasHorizontalScroller {
+            scrollView.hasHorizontalScroller = true
+        }
+        if scrollView.drawsBackground {
+            scrollView.drawsBackground = false
+        }
+        if scrollView.backgroundColor != .clear {
+            scrollView.backgroundColor = .clear
+        }
+        configuredPDFScrollView = scrollView
         configureReaderStatePersistence(for: scrollView)
+    }
+
+    func configurePDFScrollersIfNeeded() {
+        guard let scrollView = pdfScrollView else { return }
+        guard configuredPDFScrollView !== scrollView else {
+            configureReaderStatePersistence(for: scrollView)
+            return
+        }
+        configurePDFScrollers()
     }
 
     private func configureReaderStatePersistence(for scrollView: NSScrollView) {
