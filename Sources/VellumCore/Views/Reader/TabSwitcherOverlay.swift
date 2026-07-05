@@ -139,7 +139,7 @@ struct TabSwitcherOverlay: View {
                     }
                 }
             }
-            .scrollIndicators(.visible)
+            .scrollIndicators(.hidden)
             .frame(height: listHeight)
             .background(TokyoNight.panelElevatedColor.opacity(0.82))
             .onChange(of: selectedTabIDForScroll) { _, id in

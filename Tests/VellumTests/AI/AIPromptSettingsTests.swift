@@ -52,7 +52,7 @@ struct AIPromptSettingsTests {
     }
 
     @Test
-    func rendererAddsPronunciationGuidanceForSingleToken() {
+    func defaultPromptKeepsPronunciationInstructionNonDynamic() {
         let context = AIExplanationContext(
             selectedText: "salient",
             previousParagraph: nil,
@@ -67,37 +67,17 @@ struct AIPromptSettingsTests {
 
         let prompt = AIPromptRenderer.renderUserPrompt(context: context, configuration: .default)
 
-        #expect(prompt.contains("- Selection kind: single token or compact term"))
-        #expect(prompt.contains("Policy: Expected: if this is a natural-language word, name, or term in any source language"))
+        #expect(prompt.contains("Use reliable IPA when available"))
+        #expect(prompt.contains("For English, include both American and British IPA when available."))
+        #expect(prompt.contains("Examples:"))
+        #expect(prompt.contains("Example 1 input:"))
+        #expect(prompt.contains("美式：/ˈseɪliənt/"))
+        #expect(prompt.contains("英式：/ˈseɪliənt/"))
+        #expect(prompt.contains("Example 2 output:\n### 上下文解释"))
+        #expect(prompt.contains("这里不需要音标，因为它是复杂度记号。"))
         #expect(prompt.contains("<selected_text>\nsalient\n</selected_text>"))
         #expect(prompt.contains("<anchored_context>\nNo anchored occurrence could be reliably extracted from the PDF.\n</anchored_context>"))
-        #expect(prompt.contains("Include only for a single word, name, short term, or short phrase where pronunciation helps."))
-    }
-
-    @Test
-    func rendererUsesSameSingleTokenGuidanceAcrossLanguages() {
-        let englishGuidance = AIPromptRenderer.pronunciationGuidance(for: "salient")
-        let chineseGuidance = AIPromptRenderer.pronunciationGuidance(for: "路径依赖")
-        let japaneseGuidance = AIPromptRenderer.pronunciationGuidance(for: "改善")
-
-        #expect(englishGuidance == chineseGuidance)
-        #expect(chineseGuidance == japaneseGuidance)
-        #expect(englishGuidance.contains("any source language"))
-    }
-
-    @Test
-    func rendererDoesNotRequirePronunciationForSentence() {
-        let guidance = AIPromptRenderer.pronunciationGuidance(for: "The estimator is asymptotically unbiased.")
-
-        #expect(guidance == "Not required: omit pronunciation unless it is clearly useful and reliable.")
-    }
-
-    @Test
-    func rendererEncouragesPronunciationForShortPhrase() {
-        let guidance = AIPromptRenderer.pronunciationGuidance(for: "laissez faire")
-
-        #expect(guidance.contains("Optional but encouraged"))
-        #expect(guidance.contains("romanization, or transliteration"))
+        #expect(prompt.contains("Include only for a single word, name, or short term where pronunciation helps."))
     }
 
     @Test
@@ -116,6 +96,8 @@ struct AIPromptSettingsTests {
         #expect(configuration.template.contains("### 音标"))
         #expect(configuration.template.contains("### 翻译"))
         #expect(configuration.template.contains("### 上下文解释"))
+        #expect(configuration.template.contains("Examples:"))
+        #expect(configuration.template.contains("Example 3 output:"))
         #expect(configuration.template.contains("<selected_text>"))
         #expect(configuration.template.contains("<anchored_context>"))
         #expect(configuration.template.contains("Use `$...$` for inline math and `$$...$$` for display math."))

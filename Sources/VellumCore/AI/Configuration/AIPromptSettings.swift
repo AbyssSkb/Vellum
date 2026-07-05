@@ -72,9 +72,7 @@ enum AIPromptSettings {
         AIPromptVariableDescription(name: "currentParagraph", description: "Paragraph containing the selected text."),
         AIPromptVariableDescription(name: "nextParagraph", description: "Paragraph after the selected text."),
         AIPromptVariableDescription(name: "nearbyText", description: "Extracted nearby text for disambiguation."),
-        AIPromptVariableDescription(name: "anchoredContext", description: "Context window with the actual selected occurrence marked as <selected>...</selected> when available."),
-        AIPromptVariableDescription(name: "selectionKind", description: "Automatic structural classification of the selected text."),
-        AIPromptVariableDescription(name: "pronunciationGuidance", description: "Generic pronunciation policy for this selection.")
+        AIPromptVariableDescription(name: "anchoredContext", description: "Context window with the actual selected occurrence marked as <selected>...</selected> when available.")
     ]
 
     static let defaultTemplate = """
@@ -96,8 +94,8 @@ Output format:
 Use only the sections that apply. Write section headings in {{targetLanguage}}. For Chinese output, use "### 音标", "### 翻译", and "### 上下文解释".
 
 ### 音标
-Include only for a single word, name, short term, or short phrase where pronunciation helps.
-Policy: {{pronunciationGuidance}}
+Include only for a single word, name, or short term where pronunciation helps.
+Use reliable IPA when available. For English, include both American and British IPA when available. Otherwise use the source language's standard reading, romanization, or transliteration. Omit pronunciation for formulas, code, citation markers, or symbol sequences unless the context clearly treats them as spoken.
 
 ### 翻译
 Include only when translation helps. Translate the selected text itself, not the whole context.
@@ -107,12 +105,55 @@ For continuous prose, give one fluent translation. For clearly separate fragment
 Explain the selected text's meaning in this local context: referent, role, nuance, implication, or why it matters.
 Preserve math notation. Use `$...$` for inline math and `$$...$$` for display math.
 
+Examples:
+Example 1 input:
+<selected_text>
+salient
+</selected_text>
+<anchored_context>
+The model focuses on the <selected>salient</selected> features rather than every minor variation.
+</anchored_context>
+Example 1 output:
+### 音标
+美式：/ˈseɪliənt/
+英式：/ˈseɪliənt/
+
+### 翻译
+显著的；突出的
+
+### 上下文解释
+在这里，"salient" 指最能影响模型判断、最值得关注的特征，而不是所有细小变化。
+
+Example 2 input:
+<selected_text>
+O(n log n)
+</selected_text>
+<anchored_context>
+The sorting step runs in <selected>O(n log n)</selected> time.
+</anchored_context>
+Example 2 output:
+### 上下文解释
+`O(n log n)` 表示排序步骤的时间复杂度随输入规模 $n$ 增长，大约按 $n \\log n$ 的量级增加。这里不需要音标，因为它是复杂度记号。
+
+Example 3 input:
+<selected_text>
+The estimator is asymptotically unbiased.
+</selected_text>
+<anchored_context>
+Under regularity conditions, <selected>The estimator is asymptotically unbiased.</selected>
+</anchored_context>
+Example 3 output:
+### 翻译
+该估计量在渐近意义下是无偏的。
+
+### 上下文解释
+这句话的意思是，当样本量趋近于无穷大时，估计量的期望会趋近于真实参数值。重点是“大样本极限下”无偏，而不一定表示有限样本中完全无偏。
+
 Metadata:
 - File: {{fileName}}
 - Folder: {{directoryName}}
 - Outline: {{outlineTitle}}
 - Pages: {{pageNumbers}}
-- Selection kind: {{selectionKind}}
 
 <selected_text>
 {{selectedText}}
@@ -264,76 +305,7 @@ You are Vellum's precise PDF reading assistant. Follow the user's prompt templat
             "currentParagraph": context.currentParagraph?.nilIfEmpty ?? "Could not be reliably extracted from the PDF.",
             "nextParagraph": context.nextParagraph?.nilIfEmpty ?? "Could not be reliably extracted from the PDF.",
             "nearbyText": context.nearbyText.nilIfEmpty ?? "Could not be reliably extracted from the PDF.",
-            "anchoredContext": context.anchoredContext?.nilIfEmpty ?? "No anchored occurrence could be reliably extracted from the PDF.",
-            "selectionKind": selectionKindDescription(for: context.selectedText),
-            "pronunciationGuidance": pronunciationGuidance(for: context.selectedText)
+            "anchoredContext": context.anchoredContext?.nilIfEmpty ?? "No anchored occurrence could be reliably extracted from the PDF."
         ]
     }
-
-    static func selectionKindDescription(for selectedText: String) -> String {
-        let kind = selectionKind(for: selectedText)
-        switch kind {
-        case .singleToken:
-            return "single token or compact term"
-        case .shortPhrase:
-            return "short phrase"
-        case .other:
-            return "sentence, long phrase, formula, paragraph, or unknown"
-        }
-    }
-
-    static func pronunciationGuidance(for selectedText: String) -> String {
-        let kind = selectionKind(for: selectedText)
-        switch kind {
-        case .singleToken:
-            return "Expected: if this is a natural-language word, name, or term in any source language, include a pronunciation section. Use reliable IPA when available; otherwise use the source language's standard reading, romanization, or transliteration. If it is an acronym, formula, code, citation marker, or symbol sequence, omit pronunciation unless the context clearly treats it as spoken."
-        case .shortPhrase:
-            return "Optional but encouraged: include pronunciation, reading, romanization, or transliteration when it helps read or disambiguate this short phrase. Omit it for formulas, citations, code, or phrases where pronunciation is not useful."
-        case .other:
-            return "Not required: omit pronunciation unless it is clearly useful and reliable."
-        }
-    }
-
-    private static func selectionKind(for selectedText: String) -> SelectionKind {
-        let whitespaceTrimmed = selectedText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let hasWhitespace = whitespaceTrimmed.contains { $0.isWhitespace || $0.isNewline }
-        guard !whitespaceTrimmed.isEmpty,
-              !(hasWhitespace && containsHardSentenceBoundary(whitespaceTrimmed)) else {
-            return .other
-        }
-
-        let trimmed = whitespaceTrimmed
-            .trimmingCharacters(in: .punctuationCharacters)
-        guard !trimmed.isEmpty else {
-            return .other
-        }
-
-        if !trimmed.contains(where: { $0.isWhitespace || $0.isNewline }) {
-            return .singleToken
-        }
-
-        let tokens = trimmed
-            .split(whereSeparator: { $0.isWhitespace || $0.isNewline })
-        if (2...5).contains(tokens.count), trimmed.count <= 48 {
-            return .shortPhrase
-        }
-        return .other
-    }
-
-    private static func containsHardSentenceBoundary(_ text: String) -> Bool {
-        text.unicodeScalars.contains { scalar in
-            switch scalar.value {
-            case 0x000A, 0x000D, 0x002E, 0x003F, 0x0021, 0x003B, 0x3002, 0xFF1F, 0xFF01, 0xFF1B:
-                return true
-            default:
-                return false
-            }
-        }
-    }
-}
-
-private enum SelectionKind {
-    case singleToken
-    case shortPhrase
-    case other
 }
