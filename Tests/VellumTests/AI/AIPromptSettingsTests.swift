@@ -68,11 +68,10 @@ struct AIPromptSettingsTests {
         let prompt = AIPromptRenderer.renderUserPrompt(context: context, configuration: .default)
 
         #expect(prompt.contains("Use reliable IPA when available"))
-        #expect(prompt.contains("For English, include both American and British IPA when available."))
+        #expect(prompt.contains("For English, include both American and British IPA on the same line when available."))
         #expect(prompt.contains("Examples:"))
         #expect(prompt.contains("Example 1 input:"))
-        #expect(prompt.contains("美式：/ˈseɪliənt/"))
-        #expect(prompt.contains("英式：/ˈseɪliənt/"))
+        #expect(prompt.contains("美式：/ˈseɪliənt/；英式：/ˈseɪliənt/"))
         #expect(prompt.contains("Example 2 output:\n### 上下文解释"))
         #expect(prompt.contains("这里不需要音标，因为它是复杂度记号。"))
         #expect(prompt.contains("<selected_text>\nsalient\n</selected_text>"))

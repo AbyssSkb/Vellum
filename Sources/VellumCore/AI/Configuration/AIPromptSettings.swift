@@ -95,7 +95,7 @@ Use only the sections that apply. Write section headings in {{targetLanguage}}. 
 
 ### 音标
 Include only for a single word, name, or short term where pronunciation helps.
-Use reliable IPA when available. For English, include both American and British IPA when available. Otherwise use the source language's standard reading, romanization, or transliteration. Omit pronunciation for formulas, code, citation markers, or symbol sequences unless the context clearly treats them as spoken.
+Use reliable IPA when available. For English, include both American and British IPA on the same line when available. Otherwise use the source language's standard reading, romanization, or transliteration. Omit pronunciation for formulas, code, citation markers, or symbol sequences unless the context clearly treats them as spoken.
 
 ### 翻译
 Include only when translation helps. Translate the selected text itself, not the whole context.
@@ -115,8 +115,7 @@ The model focuses on the <selected>salient</selected> features rather than every
 </anchored_context>
 Example 1 output:
 ### 音标
-美式：/ˈseɪliənt/
-英式：/ˈseɪliənt/
+美式：/ˈseɪliənt/；英式：/ˈseɪliənt/
 
 ### 翻译
 显著的；突出的
