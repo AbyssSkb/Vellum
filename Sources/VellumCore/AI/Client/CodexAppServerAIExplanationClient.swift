@@ -339,8 +339,13 @@ final class CodexAppServerSession: @unchecked Sendable {
         process.standardError = stderrPipe
 
         stderrTask = Task.detached { [stderrPipe] in
-            let data = (try? stderrPipe.fileHandleForReading.readToEnd()) ?? Data()
-            return String(data: data, encoding: .utf8) ?? ""
+            await withCheckedContinuation { continuation in
+                // A silent child must not occupy a Swift cooperative worker until it exits.
+                DispatchQueue.global(qos: .utility).async {
+                    let data = (try? stderrPipe.fileHandleForReading.readToEnd()) ?? Data()
+                    continuation.resume(returning: String(data: data, encoding: .utf8) ?? "")
+                }
+            }
         }
 
         do {
