@@ -149,7 +149,10 @@ extension PDFOutlineView {
 
         private static func signature(for items: [PDFOutlineItem]) -> String {
             items.flattened()
-                .map { "\($0.id)|\($0.title)|\($0.pageIndex ?? -1)" }
+                .map { item in
+                    let documentID = (item.destination?.page?.document).map(ObjectIdentifier.init)
+                    return "\(String(describing: documentID))|\(item.id)|\(item.title)|\(item.pageIndex ?? -1)"
+                }
                 .joined(separator: "\n")
         }
     }
