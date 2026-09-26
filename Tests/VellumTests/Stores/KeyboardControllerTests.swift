@@ -161,6 +161,102 @@ struct KeyboardControllerTests {
         #expect(delegate.reader.actions == [])
     }
 
+    @Test
+    func modifiedKeyReleaseStopsContinuousScrolling() {
+        for modifier: NSEvent.ModifierFlags in [.command, .control, .option] {
+            let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false)
+            let delegate = RecordingKeyboardDelegate()
+            controller.delegate = delegate
+
+            #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "j", keyCode: 38)))
+            #expect(!controller.handleKeyEvent(keyEvent(.keyUp, key: "j", keyCode: 38, modifierFlags: modifier)))
+            RunLoop.main.run(until: Date().addingTimeInterval(0.10))
+            #expect(delegate.commands == [.scrollDown])
+
+            #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "j", keyCode: 38)))
+            #expect(delegate.commands == [.scrollDown, .scrollDown])
+            #expect(controller.handleKeyEvent(keyEvent(.keyUp, key: "j", keyCode: 38)))
+        }
+    }
+
+    @Test
+    func modifierShortcutStopsContinuousScrollingWithoutBeingConsumed() {
+        let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false)
+        let delegate = RecordingKeyboardDelegate()
+        controller.delegate = delegate
+
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "j", keyCode: 38)))
+        #expect(!controller.handleKeyEvent(keyEvent(.keyDown, key: "o", keyCode: 31, modifierFlags: [.command])))
+        RunLoop.main.run(until: Date().addingTimeInterval(0.10))
+        #expect(delegate.commands == [.scrollDown])
+    }
+
+    @Test
+    func deactivationClearsScrollingAndPendingTabPress() {
+        for name in [NSApplication.willResignActiveNotification, NSWindow.didResignKeyNotification] {
+            let controller = KeyboardController(
+                tabPageOverviewDelay: 0.001,
+                installsKeyMonitor: false,
+                installsOpenURLObserver: false
+            )
+            let delegate = RecordingKeyboardDelegate()
+            controller.delegate = delegate
+
+            #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "j", keyCode: 38)))
+            NotificationCenter.default.post(name: name, object: nil)
+            RunLoop.main.run(until: Date().addingTimeInterval(0.10))
+            #expect(delegate.commands == [.scrollDown])
+
+            #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "\t", keyCode: 48)))
+            NotificationCenter.default.post(name: name, object: nil)
+            RunLoop.main.run(until: Date().addingTimeInterval(0.02))
+            #expect(!controller.handleKeyEvent(keyEvent(.keyUp, key: "\t", keyCode: 48)))
+            #expect(delegate.commands == [.scrollDown])
+            #expect(delegate.reader.actions.isEmpty)
+        }
+    }
+
+    @Test
+    func deactivationDismissesActivePageOverview() {
+        let controller = KeyboardController(
+            tabPageOverviewDelay: 0.001,
+            installsKeyMonitor: false,
+            installsOpenURLObserver: false
+        )
+        let delegate = RecordingKeyboardDelegate()
+        controller.delegate = delegate
+
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "\t", keyCode: 48)))
+        RunLoop.main.run(until: Date().addingTimeInterval(0.02))
+        NotificationCenter.default.post(name: NSApplication.willResignActiveNotification, object: nil)
+        #expect(delegate.reader.actions == [.beginPageOverview, .finishPageOverview])
+        #expect(!controller.handleKeyEvent(keyEvent(.keyUp, key: "\t", keyCode: 48)))
+    }
+
+    @Test
+    func changingFirstResponderStopsContinuousScrolling() {
+        _ = NSApplication.shared
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 100, height: 100), styleMask: [], backing: .buffered, defer: false)
+        let first = NSTextView()
+        let second = NSTextView()
+        window.contentView?.addSubview(first)
+        window.contentView?.addSubview(second)
+        #expect(window.makeFirstResponder(first))
+        let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false)
+        let delegate = RecordingKeyboardDelegate()
+        controller.delegate = delegate
+
+        let event = WindowKeyboardEvent()
+        event.targetWindow = window
+        #expect(controller.handleKeyEvent(event))
+        RunLoop.main.run(until: Date().addingTimeInterval(0.10))
+        let commandsBeforeFocusChange = delegate.commands
+        #expect(window.makeFirstResponder(second))
+        RunLoop.main.run(until: Date().addingTimeInterval(0.10))
+        #expect(delegate.commands == commandsBeforeFocusChange)
+        #expect(!controller.handleKeyEvent(keyEvent(.keyUp, key: "j", keyCode: 38)))
+    }
+
     private func keyEvent(
         _ type: NSEvent.EventType,
         key: String,
@@ -181,6 +277,15 @@ struct KeyboardControllerTests {
             keyCode: keyCode
         )!
     }
+}
+
+private final class WindowKeyboardEvent: NSEvent {
+    var targetWindow: NSWindow?
+    override var window: NSWindow? { targetWindow }
+    override var type: NSEvent.EventType { .keyDown }
+    override var modifierFlags: NSEvent.ModifierFlags { [] }
+    override var charactersIgnoringModifiers: String? { "j" }
+    override var isARepeat: Bool { false }
 }
 
 @MainActor

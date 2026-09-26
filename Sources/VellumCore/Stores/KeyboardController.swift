@@ -19,6 +19,9 @@ final class KeyboardController {
     private var vimInput = VimInputController()
     nonisolated(unsafe) private var heldKeyTimer: Timer?
     nonisolated(unsafe) private var tabPageOverviewTimer: Timer?
+    nonisolated(unsafe) private var lifecycleObservers: [NSObjectProtocol] = []
+    private weak var inputWindow: NSWindow?
+    private weak var inputResponder: NSResponder?
     private var tabPageOverviewArmed = false
     private var tabPageOverviewActive = false
 
@@ -30,6 +33,7 @@ final class KeyboardController {
         self.tabPageOverviewDelay = tabPageOverviewDelay
         self.installsKeyMonitor = installsKeyMonitor
         self.installsOpenURLObserver = installsOpenURLObserver
+        installLifecycleObservers()
         if installsKeyMonitor {
             installKeyMonitor()
         }
@@ -44,6 +48,7 @@ final class KeyboardController {
         }
         heldKeyTimer?.invalidate()
         tabPageOverviewTimer?.invalidate()
+        lifecycleObservers.forEach(NotificationCenter.default.removeObserver)
     }
 
     func handleKeyEvent(_ event: NSEvent) -> Bool {
@@ -52,10 +57,15 @@ final class KeyboardController {
         }
 
         guard event.modifierFlags.intersection([.command, .control, .option]).isEmpty else {
+            cancelInput()
             return false
         }
 
         guard let key = event.charactersIgnoringModifiers, !key.isEmpty else { return false }
+        if event.type == .keyDown, vimInput.heldKey == nil, !tabPageOverviewArmed, !tabPageOverviewActive {
+            inputWindow = event.window
+            inputResponder = event.window?.firstResponder
+        }
 
         if handleTabPageOverviewKey(key, event: event) {
             return true
@@ -86,15 +96,33 @@ final class KeyboardController {
     private func installKeyMonitor() {
         guard installsKeyMonitor else { return }
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .keyUp]) { [weak self] event in
-            guard let self, NSApp.modalWindow == nil else { return event }
+            guard let self else { return event }
+            guard NSApp.modalWindow == nil else {
+                self.cancelInput()
+                return event
+            }
 
             if self.delegate?.activeReaderController?.handleAIKeyEvent(event) == true {
+                self.cancelInput()
                 return nil
             }
 
-            guard self.shouldRoute(event) else { return event }
+            guard self.shouldRoute(event) else {
+                self.cancelInput()
+                return event
+            }
 
             return self.handleKeyEvent(event) ? nil : event
+        }
+    }
+
+    private func installLifecycleObservers() {
+        lifecycleObservers = [NSApplication.willResignActiveNotification, NSWindow.didResignKeyNotification].map { name in
+            NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    self?.cancelInput()
+                }
+            }
         }
     }
 
@@ -140,15 +168,13 @@ final class KeyboardController {
 
         let key = event.charactersIgnoringModifiers?.lowercased()
         if key == "o" || event.keyCode == 31 {
-            stopHeldKeyTimer()
-            vimInput.clearPendingInput()
+            cancelInput()
             delegate?.handleVimCommand(.jumpBack)
             return true
         }
 
         if key == "i" || event.keyCode == 34 {
-            stopHeldKeyTimer()
-            vimInput.clearPendingInput()
+            cancelInput()
             delegate?.handleVimCommand(.jumpForward)
             return true
         }
@@ -256,6 +282,10 @@ final class KeyboardController {
     private func activateTabPageOverview() {
         tabPageOverviewTimer = nil
         guard tabPageOverviewArmed else { return }
+        guard inputContextIsValid else {
+            cancelInput()
+            return
+        }
         guard delegate?.activeReaderController?.beginPageOverview() == true else {
             tabPageOverviewArmed = false
             return
@@ -290,8 +320,8 @@ final class KeyboardController {
             }
 
             MainActor.assumeIsolated {
-                guard self.vimInput.heldKey != nil else {
-                    self.stopHeldKeyTimer()
+                guard self.vimInput.heldKey != nil, self.inputContextIsValid else {
+                    self.cancelInput()
                     return
                 }
                 self.performContinuousKey(self.vimInput.heldKey)
@@ -305,6 +335,24 @@ final class KeyboardController {
         heldKeyTimer?.invalidate()
         heldKeyTimer = nil
         vimInput.clearHeldKey()
+    }
+
+    private var inputContextIsValid: Bool {
+        NSApp?.modalWindow == nil
+            && delegate?.activeReaderController?.isAIInteractionActive != true
+            && (inputWindow == nil || inputWindow?.firstResponder === inputResponder)
+    }
+
+    private func cancelInput() {
+        stopHeldKeyTimer()
+        vimInput.clearPendingInput()
+        tabPageOverviewTimer?.invalidate()
+        tabPageOverviewTimer = nil
+        tabPageOverviewArmed = false
+        if tabPageOverviewActive {
+            tabPageOverviewActive = false
+            delegate?.activeReaderController?.finishPageOverview()
+        }
     }
 
     // MARK: - Vim Input Dispatch
