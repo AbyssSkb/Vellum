@@ -1,9 +1,73 @@
 @preconcurrency import AppKit
+@preconcurrency import PDFKit
 import Testing
 @testable import VellumCore
 
 @Suite("Search command")
 struct SearchCommandTests {
+    @Test
+    @MainActor
+    func escapeKeepsProgressiveResultsHiddenUntilNextSearchMove() async throws {
+        _ = NSApplication.shared
+        let data = NSMutableData()
+        var mediaBox = CGRect(x: 0, y: 0, width: 612, height: 792)
+        let consumer = try #require(CGDataConsumer(data: data as CFMutableData))
+        let context = try #require(CGContext(consumer: consumer, mediaBox: &mediaBox, nil))
+        for _ in 0..<2 {
+            context.beginPDFPage(nil)
+            NSGraphicsContext.saveGraphicsState()
+            NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: false)
+            ("alpha" as NSString).draw(
+                at: NSPoint(x: 72, y: 720),
+                withAttributes: [.font: NSFont.systemFont(ofSize: 18)]
+            )
+            NSGraphicsContext.restoreGraphicsState()
+            context.endPDFPage()
+        }
+        context.closePDF()
+
+        let document = try #require(PDFDocument(data: data as Data))
+        let view = VellumPDFView(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
+        view.document = document
+        view.beginSearchCommand()
+        let controller = try #require(view.searchController)
+        defer { controller.clear() }
+
+        var escaped = false
+        // Escape at the first partial publication, before the next page can be scanned.
+        let observation = view.observe(\.highlightedSelections, options: [.new]) { _, change in
+            let highlightedCount = change.newValue.flatMap { $0 }?.count
+            MainActor.assumeIsolated {
+                guard !escaped, controller.hasVisibleHighlights else { return }
+                escaped = true
+                #expect(highlightedCount == 1)
+                #expect(controller.handleEscape())
+                #expect(!controller.hasVisibleHighlights)
+            }
+        }
+        defer { observation.invalidate() }
+
+        func textFields(in view: NSView) -> [NSTextField] {
+            (view as? NSTextField).map { [$0] } ?? view.subviews.flatMap { textFields(in: $0) }
+        }
+        let field = try #require(textFields(in: view).first { $0.isEditable })
+        field.stringValue = "alpha"
+        field.delegate?.controlTextDidChange?(Notification(name: NSControl.textDidChangeNotification, object: field))
+
+        let deadline = ContinuousClock.now.advanced(by: .seconds(5))
+        while !escaped && ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        try #require(escaped)
+        for _ in 0..<10 { await Task.yield() }
+        #expect(!controller.hasVisibleHighlights)
+        #expect(view.highlightedSelections?.isEmpty == true)
+
+        view.vimSearchNext()
+        #expect(controller.hasVisibleHighlights)
+        #expect(controller.activeSearchSelection?.pages.first === document.page(at: 1))
+    }
+
     @Test
     func resultNavigatorChoosesLaterResultOnSamePage() {
         let locations = [

@@ -473,6 +473,8 @@ final class PDFSearchController {
     }
 
     private func hideMatches() {
+        cancelScheduledSearch()
+        searchGeneration += 1
         areMatchesVisible = false
         pdfView?.highlightedSelections = []
         dismissOverlay(returnFocus: false)
@@ -506,8 +508,10 @@ final class PDFSearchController {
         pdfView.stopZoomState()
         pdfView.go(to: selection)
 
+        let generation = searchGeneration
         DispatchQueue.main.async { [weak self, weak pdfView, weak selection] in
-            guard let self, let pdfView, let selection else { return }
+            guard let self, let pdfView, let selection,
+                  self.searchGeneration == generation else { return }
             pdfView.go(to: selection)
             self.shouldAnchorNextMove = false
         }
