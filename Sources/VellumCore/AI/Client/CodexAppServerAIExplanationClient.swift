@@ -208,7 +208,7 @@ struct CodexAppServerAIExplanationClient: AIExplaining {
                         return false
                     }
 
-                    if CodexAppServerMessageParser.isTurnCompleted(message, threadID: threadID, turnID: turnID) {
+                    if try CodexAppServerMessageParser.isTurnCompleted(message, threadID: threadID, turnID: turnID) {
                         return true
                     }
 
@@ -280,50 +280,50 @@ struct CodexAppServerAIExplanationClient: AIExplaining {
         AIPromptRenderer.render(context: context).combined
     }
 
-    private func withAppServerSession<T: Sendable>(
+    func withAppServerSession<T: Sendable>(
         configuration: AIConfiguration,
         timeout: TimeInterval,
         operation: @escaping @Sendable (CodexAppServerSession) async throws -> T
     ) async throws -> T {
         let session = try CodexAppServerSession(configuration: configuration)
-        defer {
+        defer { session.stop() }
+
+        return try await withTaskCancellationHandler {
+            try await withThrowingTaskGroup(of: T.self) { group in
+                defer {
+                    group.cancelAll()
+                    // Close the process before the group waits for its pipe-reading child.
+                    session.stop()
+                }
+                group.addTask {
+                    try Task.checkCancellation()
+                    return try await operation(session)
+                }
+                group.addTask {
+                    try await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+                    throw AIExplanationError.transport("Codex App Server 请求超时。")
+                }
+
+                guard let result = try await group.next() else {
+                    throw AIExplanationError.transport("Codex App Server 请求未完成。")
+                }
+                try Task.checkCancellation()
+                return result
+            }
+        } onCancel: {
             session.stop()
-        }
-
-        return try await withTimeout(timeout) {
-            try await operation(session)
-        }
-    }
-
-    private func withTimeout<T: Sendable>(
-        _ timeout: TimeInterval,
-        operation: @escaping @Sendable () async throws -> T
-    ) async throws -> T {
-        try await withThrowingTaskGroup(of: T.self) { group in
-            group.addTask {
-                try await operation()
-            }
-            group.addTask {
-                try await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
-                throw AIExplanationError.transport("Codex App Server 请求超时。")
-            }
-
-            guard let result = try await group.next() else {
-                throw AIExplanationError.transport("Codex App Server 请求未完成。")
-            }
-            group.cancelAll()
-            return result
         }
     }
 }
 
-private final class CodexAppServerSession: @unchecked Sendable {
+final class CodexAppServerSession: @unchecked Sendable {
     private let process: Process
     private let stdinPipe = Pipe()
     private let stdoutPipe = Pipe()
     private let stderrPipe = Pipe()
     private let stderrTask: Task<String, Never>
-    private let stdinLock = NSLock()
+    private let stopLock = NSLock()
+    private var isStopped = false
 
     init(configuration: AIConfiguration) throws {
         let executablePath = configuration.codexExecutablePath
@@ -346,6 +346,7 @@ private final class CodexAppServerSession: @unchecked Sendable {
         do {
             try process.run()
         } catch {
+            try? stderrPipe.fileHandleForWriting.close()
             throw AIExplanationError.transport("Codex App Server 启动失败：\(error.localizedDescription)")
         }
     }
@@ -353,20 +354,20 @@ private final class CodexAppServerSession: @unchecked Sendable {
     func send(_ object: [String: Any]) throws {
         let data = try JSONSerialization.data(withJSONObject: object)
 
-        stdinLock.lock()
-        defer { stdinLock.unlock() }
-        stdinPipe.fileHandleForWriting.write(data)
-        stdinPipe.fileHandleForWriting.write(Data("\n".utf8))
+        try Task.checkCancellation()
+        try stdinPipe.fileHandleForWriting.write(contentsOf: data + Data("\n".utf8))
     }
 
     func readMessages(until shouldStop: ([String: Any]) async throws -> Bool) async throws {
         for try await line in stdoutPipe.fileHandleForReading.bytes.lines {
+            try Task.checkCancellation()
             guard let message = CodexAppServerMessageParser.message(from: line) else { continue }
             if try await shouldStop(message) {
                 return
             }
         }
 
+        try Task.checkCancellation()
         let stderr = await stderrTask.value
         throw AIExplanationError.transport(
             stderr.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -375,12 +376,16 @@ private final class CodexAppServerSession: @unchecked Sendable {
     }
 
     func stop() {
-        try? stdinPipe.fileHandleForWriting.close()
+        stopLock.lock()
+        defer { stopLock.unlock() }
+        guard !isStopped else { return }
+        isStopped = true
 
         if process.isRunning {
-            process.terminate()
-            process.waitUntilExit()
+            // This process serves only this request; a stalled server must not ignore cancellation.
+            kill(process.processIdentifier, SIGKILL)
         }
+        try? stdinPipe.fileHandleForWriting.close()
     }
 
     private static func arguments(configuration: AIConfiguration) -> [String] {
@@ -404,7 +409,13 @@ enum CodexAppServerMessageParser {
     }
 
     static func errorMessage(from message: [String: Any]) -> String? {
-        guard let error = message["error"] as? [String: Any] else { return nil }
+        if let error = message["error"] as? [String: Any] {
+            return error["message"] as? String
+        }
+        guard message["method"] as? String == "error",
+              let params = message["params"] as? [String: Any],
+              params["willRetry"] as? Bool != true,
+              let error = params["error"] as? [String: Any] else { return nil }
         return error["message"] as? String
     }
 
@@ -455,19 +466,26 @@ enum CodexAppServerMessageParser {
         return (item["text"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
     }
 
-    static func isTurnCompleted(_ message: [String: Any], threadID: String?, turnID: String?) -> Bool {
+    static func isTurnCompleted(_ message: [String: Any], threadID: String?, turnID: String?) throws -> Bool {
         guard message["method"] as? String == "turn/completed",
               let params = message["params"] as? [String: Any],
-              matches(params: params, threadID: threadID, turnID: nil) else {
+              matches(params: params, threadID: threadID, turnID: nil),
+              let turn = params["turn"] as? [String: Any],
+              turnID == nil || turn["id"] as? String == turnID else {
             return false
         }
 
-        guard let turnID,
-              let turn = params["turn"] as? [String: Any] else {
+        switch turn["status"] as? String {
+        case "completed":
             return true
+        case "failed", "interrupted":
+            let error = turn["error"] as? [String: Any]
+            throw AIExplanationError.server(
+                (error?["message"] as? String)?.nilIfEmpty ?? "Codex App Server 请求未完成。"
+            )
+        default:
+            throw AIExplanationError.transport("Codex App Server 返回了无效的完成状态。")
         }
-
-        return turn["id"] as? String == turnID
     }
 
     private static func matches(params: [String: Any], threadID: String?, turnID: String?) -> Bool {

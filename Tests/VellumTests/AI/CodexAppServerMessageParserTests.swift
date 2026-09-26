@@ -51,4 +51,57 @@ struct CodexAppServerMessageParserTests {
 
         #expect(CodexAppServerMessageParser.completedAgentMessage(from: message, threadID: "thread", turnID: "turn") == "done")
     }
+
+    @Test(arguments: [false, true])
+    func distinguishesTerminalAndRetryingErrors(willRetry: Bool) {
+        let message: [String: Any] = [
+            "method": "error",
+            "params": [
+                "threadId": "thread",
+                "turnId": "turn",
+                "willRetry": willRetry,
+                "error": ["message": "Rate limit exceeded"]
+            ]
+        ]
+
+        #expect(CodexAppServerMessageParser.errorMessage(from: message) == (willRetry ? nil : "Rate limit exceeded"))
+    }
+
+    @Test(arguments: ["failed", "interrupted"])
+    func rejectsUnsuccessfulTurnsAndPreservesTheirError(status: String) throws {
+        let message: [String: Any] = [
+            "method": "turn/completed",
+            "params": [
+                "threadId": "thread",
+                "turn": [
+                    "id": "turn",
+                    "status": status,
+                    "items": [],
+                    "error": ["message": "Generation stopped"]
+                ]
+            ]
+        ]
+
+        #expect(try !CodexAppServerMessageParser.isTurnCompleted(message, threadID: "other", turnID: "turn"))
+        #expect(try !CodexAppServerMessageParser.isTurnCompleted(message, threadID: "thread", turnID: "other"))
+        do {
+            _ = try CodexAppServerMessageParser.isTurnCompleted(message, threadID: "thread", turnID: "turn")
+            Issue.record("Expected the unsuccessful turn to throw")
+        } catch AIExplanationError.server(let message) {
+            #expect(message == "Generation stopped")
+        }
+    }
+
+    @Test
+    func recognizesSuccessfulTurn() throws {
+        let message: [String: Any] = [
+            "method": "turn/completed",
+            "params": [
+                "threadId": "thread",
+                "turn": ["id": "turn", "status": "completed", "items": []]
+            ]
+        ]
+
+        #expect(try CodexAppServerMessageParser.isTurnCompleted(message, threadID: "thread", turnID: "turn"))
+    }
 }
