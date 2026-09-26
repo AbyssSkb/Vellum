@@ -17,23 +17,28 @@ enum PendingRestoreAction {
 }
 
 struct MouseTextSelectionEndpoint {
+    let pageIndex: Int
     let lowerOffset: Int
     let upperOffset: Int
 
     static func selectionRange(
         anchor: MouseTextSelectionEndpoint,
         extent: MouseTextSelectionEndpoint
-    ) -> (start: Int, end: Int)? {
-        let start = min(anchor.lowerOffset, extent.lowerOffset)
-        let end = max(anchor.upperOffset, extent.upperOffset)
+    ) -> (startPageIndex: Int, start: Int, endPageIndex: Int, end: Int)? {
+        let anchorStart = (anchor.pageIndex, anchor.lowerOffset)
+        let extentStart = (extent.pageIndex, extent.lowerOffset)
+        let anchorEnd = (anchor.pageIndex, anchor.upperOffset)
+        let extentEnd = (extent.pageIndex, extent.upperOffset)
+        let start = anchorStart < extentStart ? anchorStart : extentStart
+        let end = anchorEnd > extentEnd ? anchorEnd : extentEnd
         guard end > start else { return nil }
-        return (start, end)
+        return (start.0, start.1, end.0, end.1)
     }
 }
 
 private struct MouseTextSelectionLineCacheKey: Hashable {
     let pageID: ObjectIdentifier
-    let pageStart: Int
+    let pageIndex: Int
     let characterCount: Int
 }
 
@@ -430,9 +435,6 @@ final class VellumPDFView: PDFView {
             mouseTextSelectionLineCache.removeAll()
         }
 
-        let pageStarts = textPageStarts(in: document)
-        guard pageStarts.last ?? 0 > 0 else { return false }
-
         guard mouseDownEvent.clickCount == 1,
               mouseDownEvent.modifierFlags.intersection([.command, .control, .option]).isEmpty,
               let window,
@@ -440,8 +442,7 @@ final class VellumPDFView: PDFView {
               let anchor = mouseTextSelectionEndpoint(
                 atWindowPoint: mouseDownEvent.locationInWindow,
                 nearestPage: false,
-                requiresCharacterHit: true,
-                pageStarts: pageStarts
+                requiresCharacterHit: true
               ) else {
             return false
         }
@@ -473,8 +474,7 @@ final class VellumPDFView: PDFView {
                 prepareMouseTextSelectionDrag()
                 didApplySelection = updateMouseTextSelection(
                     anchor: anchor,
-                    windowPoint: latestMouseLocation,
-                    pageStarts: pageStarts
+                    windowPoint: latestMouseLocation
                 ) || didApplySelection
 
             case .scrollWheel:
@@ -484,8 +484,7 @@ final class VellumPDFView: PDFView {
                 scrollPDFViewDuringMouseTextSelection(with: event)
                 didApplySelection = updateMouseTextSelection(
                     anchor: anchor,
-                    windowPoint: latestMouseLocation,
-                    pageStarts: pageStarts
+                    windowPoint: latestMouseLocation
                 ) || didApplySelection
 
             case .leftMouseUp:
@@ -516,32 +515,44 @@ final class VellumPDFView: PDFView {
     @discardableResult
     private func updateMouseTextSelection(
         anchor: MouseTextSelectionEndpoint,
-        windowPoint: NSPoint,
-        pageStarts: [Int]
+        windowPoint: NSPoint
     ) -> Bool {
         guard let extent = mouseTextSelectionEndpoint(
             atWindowPoint: windowPoint,
             nearestPage: true,
-            requiresCharacterHit: false,
-            pageStarts: pageStarts
-        ),
+            requiresCharacterHit: false
+        ) else {
+            return false
+        }
+
+        return applyMouseTextSelection(anchor: anchor, extent: extent)
+    }
+
+    @discardableResult
+    func applyMouseTextSelection(anchor: MouseTextSelectionEndpoint, extent: MouseTextSelectionEndpoint) -> Bool {
+        guard let document,
               let range = MouseTextSelectionEndpoint.selectionRange(anchor: anchor, extent: extent) else {
             return false
         }
 
-        return applyTextSelection(
-            anchorOffset: range.start,
-            extentOffset: range.end,
-            pageStarts: pageStarts,
-            scrollToEndpoint: false
-        )
+        let selection = PDFSelection(document: document)
+        for pageIndex in range.startPageIndex...range.endPageIndex {
+            guard let page = document.page(at: pageIndex) else { continue }
+            let start = pageIndex == range.startPageIndex ? range.start : 0
+            let end = pageIndex == range.endPageIndex ? range.end : page.numberOfCharacters
+            addPageSelection(page: page, start: start, end: end, to: selection)
+        }
+
+        guard !selection.pages.isEmpty else { return false }
+        setCurrentSelection(selection, animate: false)
+        needsDisplay = true
+        return true
     }
 
     private func mouseTextSelectionEndpoint(
         atWindowPoint windowPoint: NSPoint,
         nearestPage: Bool,
-        requiresCharacterHit: Bool,
-        pageStarts: [Int]
+        requiresCharacterHit: Bool
     ) -> MouseTextSelectionEndpoint? {
         guard let document else { return nil }
 
@@ -559,8 +570,7 @@ final class VellumPDFView: PDFView {
             on: page,
             pageIndex: pageIndex,
             pointOnPage: pointOnPage,
-            requiresCharacterHit: requiresCharacterHit,
-            pageStarts: pageStarts
+            requiresCharacterHit: requiresCharacterHit
         )
     }
 
@@ -568,23 +578,17 @@ final class VellumPDFView: PDFView {
         on page: PDFPage,
         pageIndex: Int,
         pointOnPage: NSPoint,
-        requiresCharacterHit: Bool,
-        pageStarts: [Int]
+        requiresCharacterHit: Bool
     ) -> MouseTextSelectionEndpoint? {
-        guard let totalLength = pageStarts.last,
-              totalLength > 0,
-              pageIndex >= 0,
-              pageIndex + 1 < pageStarts.count,
-              page.numberOfCharacters > 0 else {
-            return nil
-        }
+        let characterCount = page.numberOfCharacters
+        guard characterCount > 0 else { return nil }
 
-        let lines = mouseTextSelectionLines(on: page, pageIndex: pageIndex, pageStarts: pageStarts)
+        let lines = mouseTextSelectionLines(on: page, pageIndex: pageIndex)
         if let characterEndpoint = mouseTextSelectionCharacterEndpoint(
             pointOnPage: pointOnPage,
             requiresCharacterHit: requiresCharacterHit,
             lines: lines,
-            totalLength: totalLength
+            characterCount: characterCount
         ) {
             return characterEndpoint
         }
@@ -595,8 +599,8 @@ final class VellumPDFView: PDFView {
             }
 
             if let caret = targetCaret(in: line, preferredX: pointOnPage.x) {
-                let offset = min(max(caret.offset, 0), totalLength)
-                return MouseTextSelectionEndpoint(lowerOffset: offset, upperOffset: offset)
+                let offset = min(max(caret.offset, 0), characterCount)
+                return MouseTextSelectionEndpoint(pageIndex: pageIndex, lowerOffset: offset, upperOffset: offset)
             }
         }
 
@@ -607,7 +611,7 @@ final class VellumPDFView: PDFView {
         pointOnPage: NSPoint,
         requiresCharacterHit: Bool,
         lines: [VimTextLine],
-        totalLength: Int
+        characterCount: Int
     ) -> MouseTextSelectionEndpoint? {
         guard let line = mouseTextSelectionLine(at: pointOnPage, in: lines) else { return nil }
         if requiresCharacterHit {
@@ -618,22 +622,18 @@ final class VellumPDFView: PDFView {
             return nil
         }
 
-        let lowerOffset = min(max(character.globalOffset, 0), totalLength)
-        let upperOffset = min(max(lowerOffset + 1, 0), totalLength)
-        return MouseTextSelectionEndpoint(lowerOffset: lowerOffset, upperOffset: upperOffset)
+        let lowerOffset = min(max(character.globalOffset, 0), characterCount)
+        let upperOffset = min(max(lowerOffset + 1, 0), characterCount)
+        return MouseTextSelectionEndpoint(pageIndex: line.pageIndex, lowerOffset: lowerOffset, upperOffset: upperOffset)
     }
 
     private func mouseTextSelectionLines(
         on page: PDFPage,
-        pageIndex: Int,
-        pageStarts: [Int]
+        pageIndex: Int
     ) -> [VimTextLine] {
-        guard pageIndex + 1 < pageStarts.count else { return [] }
-
-        let pageStart = pageStarts[pageIndex]
         let cacheKey = MouseTextSelectionLineCacheKey(
             pageID: ObjectIdentifier(page),
-            pageStart: pageStart,
+            pageIndex: pageIndex,
             characterCount: page.numberOfCharacters
         )
         if let cachedLines = mouseTextSelectionLineCache[cacheKey] {
@@ -654,7 +654,7 @@ final class VellumPDFView: PDFView {
 
             characters.append(
                 VimTextLineCharacter(
-                    globalOffset: pageStart + characterIndex,
+                    globalOffset: characterIndex,
                     minX: bounds.minX,
                     centerX: bounds.midX,
                     maxX: bounds.maxX,
