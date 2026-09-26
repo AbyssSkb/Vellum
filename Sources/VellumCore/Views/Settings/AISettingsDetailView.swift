@@ -57,10 +57,7 @@ struct AIProviderSettingsDetailView: View {
     @State var providerID = "openai"
     @State var baseURL = ""
     @State var apiKey = ""
-    @State var availableModels: [String] = []
-    @State var status: AIConnectionStatus = .idle
-    @State var isTestingConnection = false
-    @State var isFetchingModels = false
+    @StateObject var validation = AISettingsValidation()
     @State private var didLoadProviderSettings = false
 
     var body: some View {
@@ -84,24 +81,26 @@ struct AIProviderSettingsDetailView: View {
         .onAppear {
             loadProviderSelection()
         }
+        .onDisappear {
+            validation.invalidate()
+        }
         .onChange(of: providerID) { _, newValue in
             loadProviderSettings(for: newValue)
         }
         .onChange(of: apiKey) { _, _ in
             guard didLoadProviderSettings else { return }
             saveProviderSettings()
-            status = .idle
+            validation.invalidate()
         }
         .onChange(of: baseURL) { _, _ in
             guard didLoadProviderSettings else { return }
             saveProviderSettings()
-            availableModels.removeAll()
-            status = .idle
+            validation.invalidate()
         }
     }
 
     var isBusy: Bool {
-        isTestingConnection || isFetchingModels
+        validation.isTesting || validation.isFetchingModels
     }
 
     var selectedPreset: AIProviderPreset {
@@ -203,7 +202,7 @@ struct AIProviderSettingsDetailView: View {
                     Button {
                         testConnection()
                     } label: {
-                        Label(isTestingConnection ? language.text(.testing) : connectionTestTitle, systemImage: connectionTestIcon)
+                        Label(validation.isTesting ? language.text(.testing) : connectionTestTitle, systemImage: connectionTestIcon)
                     }
                     .buttonStyle(SettingsActionButtonStyle())
                     .disabled(isBusy)
@@ -211,7 +210,7 @@ struct AIProviderSettingsDetailView: View {
                     Button {
                         fetchModels()
                     } label: {
-                        Label(isFetchingModels ? language.text(.fetching) : language.text(.fetchModels), systemImage: "arrow.clockwise")
+                        Label(validation.isFetchingModels ? language.text(.fetching) : language.text(.fetchModels), systemImage: "arrow.clockwise")
                     }
                     .buttonStyle(SettingsActionButtonStyle())
                     .disabled(isBusy)
@@ -224,10 +223,10 @@ struct AIProviderSettingsDetailView: View {
                     Spacer()
                 }
 
-                AIConnectionStatusRow(status: status, isBusy: isBusy)
+                AIConnectionStatusRow(status: validation.status, isBusy: isBusy)
 
-                if !availableModels.isEmpty {
-                    ModelPreviewGrid(models: availableModels)
+                if !validation.availableModels.isEmpty {
+                    ModelPreviewGrid(models: validation.availableModels)
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
@@ -241,17 +240,17 @@ struct AIProviderSettingsDetailView: View {
     }
 
     var modelsSummary: String {
-        if isFetchingModels {
+        if validation.isFetchingModels {
             return language.text(.fetchingModelsFrom(selectedPreset.name))
         }
 
-        if availableModels.isEmpty {
+        if validation.availableModels.isEmpty {
             return selectedPreset.format.usesCodexExecutable
                 ? language.text(.providerModelsHint)
                 : language.text(.providerModelsHint)
         }
 
-        return language.text(.modelsLoaded(availableModels.count))
+        return language.text(.modelsLoaded(validation.availableModels.count))
     }
 
     var connectionTestTitle: String {
@@ -334,8 +333,7 @@ struct AIProviderSettingsDetailView: View {
             defaultValue: "",
             defaults: defaults
         )
-        availableModels.removeAll()
-        status = .idle
+        validation.invalidate()
         didLoadProviderSettings = true
         saveProviderSettings()
     }
@@ -377,10 +375,7 @@ struct AISettingsDetailView: View {
     let page: AISettingsConfigurationPage
     @State var providerID = "openai"
     @State var model = ""
-    @State var availableModels: [String] = []
-    @State var status: AIConnectionStatus = .idle
-    @State var isTestingFunction = false
-    @State var isFetchingModels = false
+    @StateObject var validation = AISettingsValidation()
     @State var targetLanguage = AIPromptSettings.defaultTargetLanguage
     @State var promptTemplate = AIPromptSettings.defaultTemplate
     @State private var didLoadProviderSettings = false
@@ -408,13 +403,20 @@ struct AISettingsDetailView: View {
             loadSettingsForCurrentPage()
             loadPromptSettings()
         }
+        .onChange(of: page) { _, _ in
+            loadSettingsForCurrentPage()
+            loadPromptSettings()
+        }
+        .onDisappear {
+            validation.invalidate()
+        }
         .onChange(of: providerID) { _, newValue in
             loadProviderSelection(for: newValue)
         }
         .onChange(of: model) { _, _ in
             guard didLoadProviderSettings else { return }
             saveUsageSettings()
-            status = .idle
+            validation.invalidate(clearModels: false)
         }
         .onChange(of: targetLanguage) { _, _ in
             guard didLoadPromptSettings else { return }
@@ -427,7 +429,7 @@ struct AISettingsDetailView: View {
     }
 
     var isBusy: Bool {
-        isTestingFunction || isFetchingModels
+        validation.isTesting || validation.isFetchingModels
     }
 
     var selectedPreset: AIProviderPreset {
@@ -510,7 +512,7 @@ struct AISettingsDetailView: View {
                     Button {
                         fetchModels()
                     } label: {
-                        Label(isFetchingModels ? language.text(.fetching) : language.text(.fetchModels), systemImage: "arrow.clockwise")
+                        Label(validation.isFetchingModels ? language.text(.fetching) : language.text(.fetchModels), systemImage: "arrow.clockwise")
                     }
                     .buttonStyle(SettingsActionButtonStyle())
                     .disabled(isBusy)
@@ -523,8 +525,8 @@ struct AISettingsDetailView: View {
                     Spacer()
                 }
 
-                if !availableModels.isEmpty {
-                    ModelChoiceGrid(models: availableModels, selection: $model)
+                if !validation.availableModels.isEmpty {
+                    ModelChoiceGrid(models: validation.availableModels, selection: $model)
                 }
             }
         }
@@ -613,7 +615,7 @@ struct AISettingsDetailView: View {
                     Button {
                         testFunction()
                     } label: {
-                        Label(isTestingFunction ? language.text(.testing) : language.text(.testModel), systemImage: "sparkles")
+                        Label(validation.isTesting ? language.text(.testing) : language.text(.testModel), systemImage: "sparkles")
                     }
                     .buttonStyle(SettingsPrimaryButtonStyle())
                     .disabled(isBusy)
@@ -621,7 +623,7 @@ struct AISettingsDetailView: View {
                     Spacer()
                 }
 
-                AIConnectionStatusRow(status: status, isBusy: isBusy)
+                AIConnectionStatusRow(status: validation.status, isBusy: isBusy)
 
                 VStack(alignment: .leading, spacing: 8) {
                     ForEach(diagnosticRows, id: \.title) { row in
@@ -635,17 +637,17 @@ struct AISettingsDetailView: View {
     }
 
     var modelsSummary: String {
-        if isFetchingModels {
+        if validation.isFetchingModels {
             return language.text(.fetchingModelsFrom(selectedPreset.name))
         }
 
-        if availableModels.isEmpty {
+        if validation.availableModels.isEmpty {
             return selectedPreset.format.usesCodexExecutable
                 ? language.text(.modelOverrideHint)
                 : language.text(.modelChoicesHint)
         }
 
-        return language.text(.modelsLoaded(availableModels.count))
+        return language.text(.modelsLoaded(validation.availableModels.count))
     }
 
     var diagnosticRows: [(title: String, value: String)] {
@@ -720,8 +722,7 @@ struct AISettingsDetailView: View {
             defaultValue: preset.defaultModel,
             defaults: defaults
         )
-        availableModels.removeAll()
-        status = .idle
+        validation.invalidate()
         didLoadProviderSettings = true
         saveUsageSettings()
     }
