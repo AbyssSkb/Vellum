@@ -76,6 +76,46 @@ struct AIKeyEventRouterTests {
         ) == .consume)
     }
 
+    @Test(arguments: [NSEvent.ModifierFlags.command, .control, .option], [UInt16(38), 5])
+    @MainActor
+    func modifiedKeyUpStopsActiveScroll(modifiers: NSEvent.ModifierFlags, keyCode: UInt16) throws {
+        let view = VellumPDFView()
+        view.aiInteraction.activeExplanationModel = AIExplanationPopoverModel(title: "test")
+        let keyDown = try #require(NSEvent.keyEvent(
+            with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0,
+            windowNumber: 0, context: nil, characters: "j", charactersIgnoringModifiers: "j",
+            isARepeat: false, keyCode: keyCode
+        ))
+        #expect(view.handleAIKeyEvent(keyDown))
+        let event = try #require(NSEvent.keyEvent(
+            with: .keyUp, location: .zero, modifierFlags: modifiers, timestamp: 0,
+            windowNumber: 0, context: nil, characters: "j", charactersIgnoringModifiers: "j",
+            isARepeat: false, keyCode: keyCode
+        ))
+        #expect(view.handleAIKeyEvent(event))
+        #expect(view.aiInteraction.continuousScrollKey == nil)
+        #expect(view.aiInteraction.continuousScrollKeyCode == nil)
+    }
+
+    @Test
+    @MainActor
+    func deactivationStopsActiveScrollAndAllowsRestart() {
+        _ = NSApplication.shared
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 800, height: 600), styleMask: .borderless, backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        defer { window.close() }
+        let view = VellumPDFView(frame: window.contentView!.bounds)
+        window.contentView = view
+        view.showPopover(model: AIExplanationPopoverModel(title: "test"), at: nil, kind: .hover)
+        view.startAIContinuousScroll("j", keyCode: 38)
+        NotificationCenter.default.post(name: NSApplication.willResignActiveNotification, object: nil)
+        #expect(view.aiInteraction.continuousScrollKey == nil)
+        view.startAIContinuousScroll("j", keyCode: 38)
+        #expect(view.aiInteraction.continuousScrollKey == "j")
+        view.hideAIExplanationPopover()
+        #expect(view.aiInteraction.continuousScrollKey == nil)
+    }
+
     @Test
     func unrelatedKeysAreIgnored() {
         #expect(AIKeyEventRouter.action(

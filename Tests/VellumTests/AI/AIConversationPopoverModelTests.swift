@@ -47,6 +47,24 @@ struct AIConversationPopoverModelTests {
         #expect(model.transcriptScrollToBottomGeneration == initialGeneration + 1)
     }
 
+    @Test
+    func dismissingConversationReleasesItsOverlay() {
+        _ = NSApplication.shared
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 800, height: 600), styleMask: .borderless, backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        defer { window.close() }
+        let view = VellumPDFView(frame: window.contentView!.bounds)
+        window.contentView = view
+        weak var overlay: NSView?
+        autoreleasepool {
+            view.showAIConversationPopover(model: AIConversationPopoverModel(context: Self.context()), at: nil)
+            overlay = view.aiInteraction.conversationOverlay
+            #expect(overlay != nil)
+            view.dismissActiveAIInteraction(clearSelection: true)
+        }
+        #expect(overlay == nil)
+    }
+
     private static func context() -> AIExplanationContext {
         AIExplanationContext(
             selectedText: "selected",

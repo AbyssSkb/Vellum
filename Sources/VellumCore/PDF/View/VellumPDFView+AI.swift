@@ -252,7 +252,7 @@ extension VellumPDFView {
     }
 
     private func showAIConversationOverlay(model: AIConversationPopoverModel) {
-        var overlay: NSView?
+        weak var overlay: NSView?
 
         let createdOverlay = showAIFloatingOverlay(
             rootView: AIConversationPopoverView(
@@ -303,15 +303,21 @@ extension VellumPDFView {
     }
 
     private func installAIFloatingOverlayActivationObserver() {
-        guard aiInteraction.floatingOverlayActivationObserver == nil else { return }
+        guard aiInteraction.floatingOverlayLifecycleObservers.isEmpty else { return }
 
-        aiInteraction.floatingOverlayActivationObserver = NotificationCenter.default.addObserver(
-            forName: NSApplication.didBecomeActiveNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            MainActor.assumeIsolated {
-                self?.restoreAIFloatingOverlayPresentation()
+        aiInteraction.floatingOverlayLifecycleObservers = [
+            NSApplication.didBecomeActiveNotification,
+            NSApplication.willResignActiveNotification,
+            NSWindow.didResignKeyNotification
+        ].map { name in
+            NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    if name == NSApplication.didBecomeActiveNotification {
+                        self?.restoreAIFloatingOverlayPresentation()
+                    } else {
+                        self?.stopAIContinuousScroll()
+                    }
+                }
             }
         }
     }
@@ -657,6 +663,11 @@ extension VellumPDFView {
 
     func handleAIKeyEvent(_ event: NSEvent) -> Bool {
         guard isAIInteractionActive else { return false }
+        if event.type == .keyUp,
+           event.keyCode == aiInteraction.continuousScrollKeyCode {
+            stopAIContinuousScroll()
+            return true
+        }
         guard event.modifierFlags.intersection([.command, .control, .option]).isEmpty else { return false }
         guard let key = event.charactersIgnoringModifiers?.lowercased(), !key.isEmpty else { return false }
 
@@ -680,7 +691,7 @@ extension VellumPDFView {
             dismissHoverAIExplanation(suppressCurrent: true)
             return true
         case .startContinuousScroll(let directionKey):
-            startAIContinuousScroll(directionKey)
+            startAIContinuousScroll(directionKey, keyCode: event.keyCode)
             return true
         case .stopContinuousScroll:
             stopAIContinuousScroll()
@@ -695,7 +706,8 @@ extension VellumPDFView {
         }
     }
 
-    func startAIContinuousScroll(_ key: String) {
+    func startAIContinuousScroll(_ key: String, keyCode: UInt16) {
+        aiInteraction.continuousScrollKeyCode = keyCode
         guard aiInteraction.continuousScrollKey != key else { return }
 
         aiInteraction.continuousScrollKey = key
@@ -704,6 +716,7 @@ extension VellumPDFView {
 
     func stopAIContinuousScroll() {
         aiInteraction.continuousScrollKey = nil
+        aiInteraction.continuousScrollKeyCode = nil
         aiInteraction.activeWebView?.stopContinuousScroll()
     }
 

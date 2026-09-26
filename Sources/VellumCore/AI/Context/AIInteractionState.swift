@@ -15,6 +15,7 @@ final class AIInteractionState {
     var conversationTask: Task<Void, Never>?
     weak var activeWebView: AIExplanationWebView?
     var continuousScrollKey: String?
+    var continuousScrollKeyCode: UInt16?
     var pendingPopoverContentHeight: CGFloat?
     var popoverHeightUpdateWorkItem: DispatchWorkItem?
     weak var hoveredAnnotation: PDFAnnotation?
@@ -27,7 +28,7 @@ final class AIInteractionState {
     weak var toastView: NSView?
     var toastHideWorkItem: DispatchWorkItem?
     var floatingOverlayDismissMonitor: Any?
-    var floatingOverlayActivationObserver: NSObjectProtocol?
+    var floatingOverlayLifecycleObservers: [NSObjectProtocol] = []
 
     var isActive: Bool {
         explanationPopover?.isShown == true
@@ -57,10 +58,8 @@ final class AIInteractionState {
             NSEvent.removeMonitor(floatingOverlayDismissMonitor)
         }
         floatingOverlayDismissMonitor = nil
-        if let floatingOverlayActivationObserver {
-            NotificationCenter.default.removeObserver(floatingOverlayActivationObserver)
-        }
-        floatingOverlayActivationObserver = nil
+        floatingOverlayLifecycleObservers.forEach(NotificationCenter.default.removeObserver)
+        floatingOverlayLifecycleObservers = []
         explanationOverlay?.removeFromSuperview()
         explanationOverlay = nil
         activeExplanationModel = nil
