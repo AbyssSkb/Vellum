@@ -99,7 +99,10 @@ jobs:
           echo "archive_name=${ARCHIVE_NAME}" >> "$GITHUB_OUTPUT"
 
       - name: Run tests
-        run: swift test
+        run: |
+          swift test
+          swiftc Sources/Vellum/App/AppUpdateInstaller.swift Tests/InstallerTests/main.swift -o "$RUNNER_TEMP/vellum-installer-tests"
+          "$RUNNER_TEMP/vellum-installer-tests"
 
       - name: Build release notes
         id: release_notes

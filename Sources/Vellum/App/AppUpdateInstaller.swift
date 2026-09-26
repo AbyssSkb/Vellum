@@ -23,7 +23,7 @@ enum AppUpdateInstaller {
         NSApp.terminate(nil)
     }
 
-    private static func installScript(
+    static func installScript(
         diskImageURL: URL,
         destinationURL: URL,
         currentProcessID: Int32
@@ -37,6 +37,7 @@ enum AppUpdateInstaller {
         PID=\(currentProcessID)
         LOG="${TMPDIR:-/tmp}/vellum-update.log"
         INSTALL_SUCCEEDED=0
+        STAGING_DIR=""
 
         fail() {
           /usr/bin/osascript -e 'display alert "Unable to install Vellum" message "The update was downloaded, but Vellum could not copy it to Applications. Open the disk image and install it manually."'
@@ -50,6 +51,18 @@ enum AppUpdateInstaller {
 
         MOUNT_DIR="$(/usr/bin/mktemp -d /tmp/vellum-update.XXXXXX)" || fail
         cleanup() {
+          if [[ -n "$STAGING_DIR" ]]; then
+            if [[ "$INSTALL_SUCCEEDED" != "1" && -d "$STAGING_DIR/previous.app" ]]; then
+              if ! { /bin/rm -rf "$DEST" && /bin/mv "$STAGING_DIR/previous.app" "$DEST"; } >> "$LOG" 2>&1; then
+                # Preserve the backup for manual recovery if rollback fails.
+                /usr/bin/open "$STAGING_DIR" >> "$LOG" 2>&1 || true
+                STAGING_DIR=""
+              fi
+            fi
+            if [[ -n "$STAGING_DIR" ]]; then
+              /bin/rm -rf "$STAGING_DIR"
+            fi
+          fi
           /usr/bin/hdiutil detach "$MOUNT_DIR" >> "$LOG" 2>&1 || true
           /bin/rm -rf "$MOUNT_DIR"
           if [[ "$INSTALL_SUCCEEDED" == "1" ]]; then
@@ -57,6 +70,7 @@ enum AppUpdateInstaller {
           fi
         }
         trap cleanup EXIT
+        trap 'exit 1' HUP INT TERM
 
         /usr/bin/hdiutil attach "$DMG" -nobrowse -readonly -mountpoint "$MOUNT_DIR" >> "$LOG" 2>&1 || fail
 
@@ -64,8 +78,12 @@ enum AppUpdateInstaller {
           fail
         fi
 
-        /bin/rm -rf "$DEST" >> "$LOG" 2>&1 || fail
-        /usr/bin/ditto "$MOUNT_DIR/Vellum.app" "$DEST" >> "$LOG" 2>&1 || fail
+        STAGING_DIR="$(/usr/bin/mktemp -d "${DEST:h}/.vellum-update.XXXXXX")" || fail
+        /usr/bin/ditto "$MOUNT_DIR/Vellum.app" "$STAGING_DIR/Vellum.app" >> "$LOG" 2>&1 || fail
+        if [[ -e "$DEST" ]]; then
+          /bin/mv "$DEST" "$STAGING_DIR/previous.app" >> "$LOG" 2>&1 || fail
+        fi
+        /bin/mv "$STAGING_DIR/Vellum.app" "$DEST" >> "$LOG" 2>&1 || fail
         /usr/bin/open "$DEST" >> "$LOG" 2>&1 || fail
         INSTALL_SUCCEEDED=1
         """
