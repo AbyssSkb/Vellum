@@ -18,7 +18,7 @@ enum AIExplanationHTML {
           margin: 0;
           padding: 0;
           background: transparent;
-          color: #C0CAF5;
+          color: \(TokyoNight.cssHex(TokyoNight.foreground));
           font: 13px -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
           line-height: 1.55;
           overflow-y: auto;
@@ -38,7 +38,7 @@ enum AIExplanationHTML {
         }
         #content > :first-child { margin-top: 0; }
         #content > :last-child { margin-bottom: 0; }
-        h1, h2, h3 { color: #E0E7FF; margin: 0.8em 0 0.35em; line-height: 1.25; }
+        h1, h2, h3 { color: \(TokyoNight.cssHex(TokyoNight.foreground)); margin: 0.8em 0 0.35em; line-height: 1.25; }
         h1 { font-size: 18px; } h2 { font-size: 16px; } h3 { font-size: 14px; }
         p { margin: 0 0 0.75em; }
         .loading-row {
@@ -46,15 +46,15 @@ enum AIExplanationHTML {
           display: flex;
           align-items: center;
           gap: 9px;
-          color: #A9B1D6;
+          color: \(TokyoNight.cssHex(TokyoNight.muted));
           font-size: 12.5px;
           line-height: 1;
         }
         .loading-spinner {
           width: 13px;
           height: 13px;
-          border: 1.5px solid #3B4261;
-          border-top-color: #7DCFFF;
+          border: 1.5px solid \(TokyoNight.cssHex(TokyoNight.border));
+          border-top-color: \(TokyoNight.cssHex(TokyoNight.cyan));
           border-radius: 50%;
           animation: vellum-spin 0.8s linear infinite;
           flex: none;
@@ -63,7 +63,7 @@ enum AIExplanationHTML {
           display: inline-flex;
           align-items: center;
           min-height: 16px;
-          color: #C0CAF5;
+          color: \(TokyoNight.cssHex(TokyoNight.foreground));
           font-weight: 600;
           line-height: 1;
         }
@@ -82,35 +82,35 @@ enum AIExplanationHTML {
         blockquote {
           margin: 0.7em 0;
           padding: 0.2em 0 0.2em 0.8em;
-          border-left: 3px solid #7AA2F7;
-          color: #A9B1D6;
+          border-left: 3px solid \(TokyoNight.cssHex(TokyoNight.blue));
+          color: \(TokyoNight.cssHex(TokyoNight.muted));
         }
         code {
-          background: #1A1B26;
-          color: #7DCFFF;
+          background: \(TokyoNight.cssHex(TokyoNight.background));
+          color: \(TokyoNight.cssHex(TokyoNight.cyan));
           padding: 1px 4px;
           border-radius: 4px;
           font-family: "SF Mono", Menlo, monospace;
           font-size: 12px;
         }
         pre {
-          background: #1A1B26;
-          border: 1px solid #3B4261;
+          background: \(TokyoNight.cssHex(TokyoNight.background));
+          border: 1px solid \(TokyoNight.cssHex(TokyoNight.border));
           border-radius: 7px;
           padding: 10px;
           overflow-x: auto;
           scrollbar-width: none;
         }
         pre code { background: transparent; padding: 0; }
-        strong { color: #E0E7FF; }
-        a { color: #7AA2F7; }
+        strong { color: \(TokyoNight.cssHex(TokyoNight.foreground)); }
+        a { color: \(TokyoNight.cssHex(TokyoNight.blue)); }
         .math-display {
           margin: 0.85em 0;
           overflow-x: auto;
           scrollbar-width: none;
         }
-        mjx-container { color: #C0CAF5; }
-        .empty { color: #565F89; }
+        mjx-container { color: \(TokyoNight.cssHex(TokyoNight.foreground)); }
+        .empty { color: \(TokyoNight.cssHex(TokyoNight.muted)); }
         .heading-row {
           display: inline-flex;
           align-items: center;
@@ -125,19 +125,19 @@ enum AIExplanationHTML {
           justify-content: center;
           margin: 0;
           padding: 0 6px;
-          border: 1px solid #3B4261;
+          border: 1px solid \(TokyoNight.cssHex(TokyoNight.border));
           border-radius: 5px;
-          background: #1A1B26;
-          color: #7DCFFF;
+          background: \(TokyoNight.cssHex(TokyoNight.background));
+          color: \(TokyoNight.cssHex(TokyoNight.cyan));
           font: 11px -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
           font-weight: 650;
           line-height: 1;
           cursor: default;
         }
         .speak-button:hover {
-          border-color: #7AA2F7;
-          color: #C0CAF5;
-          background: #33467C;
+          border-color: \(TokyoNight.cssHex(TokyoNight.blue));
+          color: \(TokyoNight.cssHex(TokyoNight.foreground));
+          background: \(TokyoNight.cssHex(TokyoNight.selection));
         }
         .speak-button:active {
           transform: translateY(1px);

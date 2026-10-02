@@ -15,28 +15,21 @@ struct HighlightToolbar: View {
                     appState.selectHighlightColor(color)
                 } label: {
                     ZStack {
-                        if isSelected || isHovered {
+                        if isHovered {
                             Circle()
-                                .fill(TokyoNight.foregroundColor.opacity(isSelected ? 0.14 : 0.08))
-                                .frame(width: 31, height: 31)
+                                .fill(TokyoNight.panelElevatedColor)
+                                .frame(width: 30, height: 30)
                         }
 
                         if isSelected {
                             Circle()
-                                .stroke(TokyoNight.foregroundColor, lineWidth: 2.5)
-                                .frame(width: 27, height: 27)
+                                .stroke(TokyoNight.foregroundColor.opacity(0.8), lineWidth: 1)
+                                .frame(width: 24, height: 24)
                         }
 
                         Circle()
                             .fill(color.swatchColor)
-                            .frame(width: isSelected ? 20 : (isHovered ? 17 : 14), height: isSelected ? 20 : (isHovered ? 17 : 14))
-                            .overlay(
-                                Circle()
-                                    .stroke(
-                                        isSelected ? TokyoNight.backgroundDeepColor.opacity(0.9) : TokyoNight.borderColor.opacity(0.55),
-                                        lineWidth: isSelected ? 1.5 : 1
-                                    )
-                            )
+                            .frame(width: 16, height: 16)
                     }
                     .frame(width: 34, height: 34)
                     .contentShape(Rectangle())
@@ -53,10 +46,10 @@ struct HighlightToolbar: View {
         }
         .padding(.horizontal, 7)
         .frame(height: 38)
-        .background(TokyoNight.panelElevatedColor.opacity(hoveredColor == nil ? 0.7 : 0.86))
+        .background(TokyoNight.panelColor.opacity(0.9))
         .overlay(
             RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .stroke(TokyoNight.borderColor.opacity(hoveredColor == nil ? 0.55 : 0.74), lineWidth: 1)
+                .stroke(TokyoNight.borderColor.opacity(0.55), lineWidth: 1)
         )
         .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
         .animation(.easeInOut(duration: 0.12), value: hoveredColor)

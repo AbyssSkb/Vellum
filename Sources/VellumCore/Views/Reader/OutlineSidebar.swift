@@ -33,13 +33,8 @@ struct OutlineSidebar: View {
         .background {
             ZStack {
                 SidebarVisualEffectBackground()
-                TokyoNight.backgroundDeepColor.opacity(0.46)
+                TokyoNight.backgroundDeepColor.opacity(0.9)
             }
-        }
-        .overlay(alignment: .trailing) {
-            Rectangle()
-                .fill(TokyoNight.borderColor.opacity(0.28))
-                .frame(width: 1)
         }
     }
 }

@@ -76,7 +76,7 @@ struct TabSwitcherOverlay: View {
         HStack(spacing: 12) {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(TokyoNight.cyanColor.opacity(0.95))
+                .foregroundStyle(TokyoNight.mutedColor)
                 .frame(width: 24, height: 24)
 
             TabSwitcherSearchField(
@@ -101,7 +101,7 @@ struct TabSwitcherOverlay: View {
     private var matchCount: some View {
         Text("\(matches.count)")
             .font(.system(size: 12, weight: .semibold, design: .monospaced))
-            .foregroundStyle(matches.isEmpty ? TokyoNight.redColor : TokyoNight.cyanColor)
+            .foregroundStyle(matches.isEmpty ? TokyoNight.redColor : TokyoNight.mutedColor)
             .frame(minWidth: 34, minHeight: 24)
             .padding(.horizontal, 8)
             .background(TokyoNight.backgroundDeepColor)
@@ -111,7 +111,7 @@ struct TabSwitcherOverlay: View {
                     .stroke(
                         matches.isEmpty
                             ? TokyoNight.redColor.opacity(0.42)
-                            : TokyoNight.cyanColor.opacity(0.28),
+                            : TokyoNight.borderColor,
                         lineWidth: 1
                     )
             }
@@ -426,7 +426,7 @@ private struct TabSwitcherRow: View {
             if isCurrent {
                 Image(systemName: "checkmark")
                     .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(TokyoNight.cyanColor)
+                    .foregroundStyle(TokyoNight.blueColor)
                     .frame(width: 18)
             }
         }
@@ -436,7 +436,7 @@ private struct TabSwitcherRow: View {
         .overlay(alignment: .leading) {
             if isSelected {
                 Rectangle()
-                    .fill(TokyoNight.cyanColor)
+                    .fill(TokyoNight.blueColor)
                     .frame(width: 3)
             }
         }
@@ -444,7 +444,7 @@ private struct TabSwitcherRow: View {
 
     private var iconColor: Color {
         if isSelected {
-            return TokyoNight.cyanColor
+            return TokyoNight.blueColor
         }
         return isCurrent ? TokyoNight.blueColor : TokyoNight.mutedColor
     }

@@ -65,14 +65,14 @@ struct TabButton: View {
         .background(
             isSelected
                 ? TokyoNight.panelElevatedColor
-                : TokyoNight.panelColor.opacity(isHovered ? 0.76 : 0.58)
+                : TokyoNight.panelColor.opacity(isHovered ? 0.72 : 0)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(
                     isSelected
-                        ? TokyoNight.blueColor.opacity(isHovered ? 0.52 : 0.38)
-                        : TokyoNight.borderColor.opacity(isHovered ? 0.46 : 0.32),
+                        ? TokyoNight.borderColor.opacity(isHovered ? 0.8 : 0.65)
+                        : TokyoNight.borderColor.opacity(isHovered ? 0.4 : 0),
                     lineWidth: 1
                 )
         )

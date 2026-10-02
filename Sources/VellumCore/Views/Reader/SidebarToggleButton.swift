@@ -10,7 +10,11 @@ struct SidebarToggleButton: View {
             appState.toggleOutlineSidebar()
         } label: {
             SidebarToggleGlyph(isOpen: appState.isOutlineVisible)
-                .foregroundStyle(TokyoNight.foregroundColor.opacity(isHovered ? 0.92 : 0.68))
+                .foregroundStyle(
+                    appState.isOutlineVisible
+                        ? TokyoNight.blueColor.opacity(isHovered ? 1 : 0.9)
+                        : TokyoNight.foregroundColor.opacity(isHovered ? 0.92 : 0.68)
+                )
                 .frame(width: 30, height: 30)
                 .contentShape(Rectangle())
         }

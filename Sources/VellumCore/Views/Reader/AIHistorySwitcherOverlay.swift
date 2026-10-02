@@ -138,7 +138,7 @@ private struct AIHistorySwitcherOverlay: View {
         HStack(spacing: 12) {
             Image(systemName: mode.systemImage)
                 .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(TokyoNight.cyanColor.opacity(0.95))
+                .foregroundStyle(TokyoNight.mutedColor)
                 .frame(width: 24, height: 24)
 
             AIHistorySearchField(
@@ -161,7 +161,7 @@ private struct AIHistorySwitcherOverlay: View {
     private var matchCount: some View {
         Text("\(matches.count)")
             .font(.system(size: 12, weight: .semibold, design: .monospaced))
-            .foregroundStyle(matches.isEmpty ? TokyoNight.redColor : TokyoNight.cyanColor)
+            .foregroundStyle(matches.isEmpty ? TokyoNight.redColor : TokyoNight.mutedColor)
             .frame(minWidth: 34, minHeight: 24)
             .padding(.horizontal, 8)
             .background(TokyoNight.backgroundDeepColor)
@@ -171,7 +171,7 @@ private struct AIHistorySwitcherOverlay: View {
                     .stroke(
                         matches.isEmpty
                             ? TokyoNight.redColor.opacity(0.42)
-                            : TokyoNight.cyanColor.opacity(0.28),
+                            : TokyoNight.borderColor,
                         lineWidth: 1
                     )
             }
@@ -297,7 +297,7 @@ private struct AIHistorySwitcherRow: View {
 
                 Text(item.preview)
                     .font(.system(size: 11.5))
-                    .foregroundStyle(TokyoNight.foregroundColor.opacity(0.72))
+                    .foregroundStyle(TokyoNight.mutedColor)
                     .lineLimit(1)
                     .truncationMode(.tail)
             }
@@ -310,7 +310,7 @@ private struct AIHistorySwitcherRow: View {
         .overlay(alignment: .leading) {
             if isSelected {
                 Rectangle()
-                    .fill(TokyoNight.cyanColor)
+                    .fill(TokyoNight.blueColor)
                     .frame(width: 3)
             }
         }

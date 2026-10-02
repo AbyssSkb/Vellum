@@ -351,11 +351,10 @@ struct AIConversationPopoverView: View {
         .overlay {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(
-                    inputIsFocused ? TokyoNight.cyanColor.opacity(0.94) : TokyoNight.borderColor.opacity(0.62),
-                    lineWidth: inputIsFocused ? 1.5 : 1
+                    inputIsFocused ? TokyoNight.blueColor.opacity(0.65) : TokyoNight.borderColor.opacity(0.62),
+                    lineWidth: 1
                 )
         }
-        .shadow(color: inputIsFocused ? TokyoNight.cyanColor.opacity(0.16) : .clear, radius: 7, y: 0)
         .contentShape(Rectangle())
         .onTapGesture {
             refocusInput()
@@ -741,13 +740,13 @@ private struct AIConversationSendButtonStyle: ButtonStyle {
             .foregroundStyle(isEnabled ? TokyoNight.backgroundDeepColor : TokyoNight.mutedColor)
             .background(
                 isEnabled
-                    ? TokyoNight.cyanColor.opacity(configuration.isPressed ? 0.72 : 0.92)
+                    ? TokyoNight.blueColor.opacity(configuration.isPressed ? 0.72 : 0.92)
                     : TokyoNight.panelColor.opacity(0.72),
                 in: RoundedRectangle(cornerRadius: 7, style: .continuous)
             )
             .overlay {
                 RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .stroke(isEnabled ? TokyoNight.cyanColor.opacity(0.58) : TokyoNight.borderColor.opacity(0.48), lineWidth: 1)
+                    .stroke(isEnabled ? TokyoNight.blueColor.opacity(0.58) : TokyoNight.borderColor.opacity(0.48), lineWidth: 1)
             }
     }
 }

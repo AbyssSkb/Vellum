@@ -36,7 +36,7 @@ public struct AISettingsView: View {
                 .stroke(TokyoNight.borderColor.opacity(0.95), lineWidth: 1)
         }
         .foregroundStyle(TokyoNight.foregroundColor)
-        .tint(TokyoNight.cyanColor)
+        .tint(TokyoNight.blueColor)
         .preferredColorScheme(.dark)
         .environment(\.appUILanguage, language)
         .ignoresSafeArea()
@@ -135,7 +135,7 @@ private struct SettingsSidebarRow: View {
                 Image(systemName: section.systemImage)
                     .font(.system(size: 13, weight: .semibold))
                     .frame(width: 17)
-                    .foregroundStyle(isSelected ? TokyoNight.cyanColor : TokyoNight.mutedColor)
+                    .foregroundStyle(isSelected ? TokyoNight.blueColor : TokyoNight.mutedColor)
 
                 Text(section.title(language: language))
                     .font(.system(size: 13, weight: .medium))

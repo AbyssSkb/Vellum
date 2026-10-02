@@ -2,14 +2,14 @@
 import SwiftUI
 
 public enum TokyoNight {
-    public static var background: NSColor { color(0x1A1B26) }
-    public static var backgroundDeep: NSColor { color(0x16161E) }
-    public static var panel: NSColor { color(0x24283B) }
-    public static var panelElevated: NSColor { color(0x292E42) }
-    public static var selection: NSColor { color(0x33467C) }
-    public static var border: NSColor { color(0x3B4261) }
-    public static var foreground: NSColor { color(0xC0CAF5) }
-    public static var muted: NSColor { color(0x565F89) }
+    public static var background: NSColor { color(0x191B25) }
+    public static var backgroundDeep: NSColor { color(0x13141C) }
+    public static var panel: NSColor { color(0x20222E) }
+    public static var panelElevated: NSColor { color(0x292C38) }
+    public static var selection: NSColor { color(0x30374F) }
+    public static var border: NSColor { color(0x363A48) }
+    public static var foreground: NSColor { color(0xDADEEE) }
+    public static var muted: NSColor { color(0xA1ABC2) }
     public static var blue: NSColor { color(0x7AA2F7) }
     public static var cyan: NSColor { color(0x7DCFFF) }
     public static var purple: NSColor { color(0xBB9AF7) }
@@ -26,6 +26,14 @@ public enum TokyoNight {
     public static var blueColor: Color { Color(nsColor: blue) }
     public static var cyanColor: Color { Color(nsColor: cyan) }
     public static var redColor: Color { Color(nsColor: red) }
+
+    static func cssHex(_ color: NSColor) -> String {
+        let rgb = color.usingColorSpace(.sRGB)!
+        return String(format: "#%02X%02X%02X",
+                      Int((rgb.redComponent * 255).rounded()),
+                      Int((rgb.greenComponent * 255).rounded()),
+                      Int((rgb.blueComponent * 255).rounded()))
+    }
 
     private static func color(_ hex: Int) -> NSColor {
         NSColor(
@@ -47,7 +55,7 @@ struct TokyoNightDivider: View {
 
     var body: some View {
         Rectangle()
-            .fill(TokyoNight.borderColor.opacity(0.75))
+            .fill(TokyoNight.borderColor.opacity(0.6))
             .frame(
                 width: axis == .vertical ? 1 : nil,
                 height: axis == .horizontal ? 1 : nil

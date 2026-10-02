@@ -9,7 +9,7 @@ struct ShortcutSettingsView: View {
                 HStack(alignment: .center, spacing: 12) {
                     Image(systemName: "keyboard")
                         .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(TokyoNight.cyanColor)
+                        .foregroundStyle(TokyoNight.blueColor)
                         .frame(width: 36, height: 36)
                         .background(TokyoNight.panelElevatedColor, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                         .overlay {

@@ -37,7 +37,7 @@ final class UpdateAvailableWindowController: NSWindowController {
         window.styleMask.insert(.fullSizeContentView)
         window.isReleasedWhenClosed = false
         window.isMovableByWindowBackground = true
-        window.backgroundColor = NSColor(calibratedRed: 0.102, green: 0.106, blue: 0.149, alpha: 1)
+        window.backgroundColor = TokyoNight.backgroundDeep
 
         super.init(window: window)
         window.delegate = self
@@ -336,10 +336,10 @@ final class UpdateAvailableWindowController: NSWindowController {
         button.font = .systemFont(ofSize: 13, weight: .semibold)
         button.contentTintColor = isPrimary ? TokyoNight.backgroundDeep : TokyoNight.foreground
         button.wantsLayer = true
-        button.layer?.backgroundColor = (isPrimary ? TokyoNight.cyan : TokyoNight.panelElevated).cgColor
+        button.layer?.backgroundColor = (isPrimary ? TokyoNight.blue : TokyoNight.panelElevated).cgColor
         button.layer?.cornerRadius = 7
         button.layer?.borderWidth = 1
-        button.layer?.borderColor = (isPrimary ? TokyoNight.cyan : TokyoNight.border).withAlphaComponent(0.75).cgColor
+        button.layer?.borderColor = (isPrimary ? TokyoNight.blue : TokyoNight.border).withAlphaComponent(0.75).cgColor
         button.translatesAutoresizingMaskIntoConstraints = false
         button.heightAnchor.constraint(equalToConstant: 32).isActive = true
         return button

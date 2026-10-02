@@ -970,18 +970,18 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
             case .error:
                 return TokyoNight.red
             case .count:
-                return TokyoNight.cyan
+                return TokyoNight.muted
             }
         }
 
         var accentColor: NSColor {
             switch self {
             case .hint:
-                return TokyoNight.blue.withAlphaComponent(0.18)
+                return TokyoNight.border
             case .error:
                 return TokyoNight.red.withAlphaComponent(0.24)
             case .count:
-                return TokyoNight.cyan.withAlphaComponent(0.24)
+                return TokyoNight.border
             }
         }
     }
@@ -1148,8 +1148,8 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
         container.blendingMode = .withinWindow
         container.state = .active
         container.wantsLayer = true
-        container.layer?.backgroundColor = TokyoNight.panelElevated.withAlphaComponent(0.10).cgColor
-        container.layer?.borderColor = NSColor.white.withAlphaComponent(0.24).cgColor
+        container.layer?.backgroundColor = TokyoNight.panelElevated.withAlphaComponent(0.92).cgColor
+        container.layer?.borderColor = TokyoNight.border.cgColor
         container.layer?.borderWidth = 1
         container.layer?.cornerRadius = 14
         container.layer?.shadowColor = NSColor.black.cgColor
@@ -1161,8 +1161,8 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
         miniContainer.blendingMode = .withinWindow
         miniContainer.state = .active
         miniContainer.wantsLayer = true
-        miniContainer.layer?.backgroundColor = TokyoNight.panelElevated.withAlphaComponent(0.12).cgColor
-        miniContainer.layer?.borderColor = NSColor.white.withAlphaComponent(0.24).cgColor
+        miniContainer.layer?.backgroundColor = TokyoNight.panelElevated.withAlphaComponent(0.94).cgColor
+        miniContainer.layer?.borderColor = TokyoNight.border.cgColor
         miniContainer.layer?.borderWidth = 1
         miniContainer.layer?.cornerRadius = 17
         miniContainer.layer?.shadowColor = NSColor.black.cgColor
@@ -1174,7 +1174,7 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
     private func configureLabels() {
         iconView.image = NSImage(systemSymbolName: "magnifyingglass", accessibilityDescription: nil)
         iconView.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 13, weight: .medium)
-        iconView.contentTintColor = TokyoNight.cyan.withAlphaComponent(0.78)
+        iconView.contentTintColor = TokyoNight.muted
 
         statusLabel.font = .monospacedDigitSystemFont(ofSize: 12, weight: .semibold)
         statusLabel.textColor = TokyoNight.muted.withAlphaComponent(0.95)
@@ -1186,8 +1186,8 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
         statusPill.blendingMode = .withinWindow
         statusPill.state = .active
         statusPill.wantsLayer = true
-        statusPill.layer?.backgroundColor = TokyoNight.backgroundDeep.withAlphaComponent(0.22).cgColor
-        statusPill.layer?.borderColor = NSColor.white.withAlphaComponent(0.16).cgColor
+        statusPill.layer?.backgroundColor = TokyoNight.backgroundDeep.withAlphaComponent(0.94).cgColor
+        statusPill.layer?.borderColor = TokyoNight.border.cgColor
         statusPill.layer?.borderWidth = 1
         statusPill.layer?.cornerRadius = 13
     }
