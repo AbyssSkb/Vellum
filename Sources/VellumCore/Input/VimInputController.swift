@@ -24,6 +24,7 @@ struct VimInputController {
         hasTextActionTarget: Bool
     ) -> VimInputAction {
         if let action = handleUppercaseCommand(key) {
+            state.clearPendingInput()
             return action
         }
 
@@ -46,6 +47,7 @@ struct VimInputController {
             )
         }
 
+        state.clearPendingInput()
         let normalizedKey = VimKeyMap.normalizedContinuousKey(key)
         if state.heldKey == normalizedKey {
             return .handled

@@ -48,6 +48,46 @@ public enum AppUILanguage: String, CaseIterable, Identifiable, Sendable {
 }
 
 public enum AppText {
+    case aiInvalidBaseURL
+    case aiMissingModel
+    case aiMissingAPIKey
+    case aiMissingCodexExecutable
+    case aiNoSelection
+    case aiNoHighlightedText
+    case aiEmptyResponse
+    case aiResponseTruncated
+    case aiStreamEndedPrematurely
+    case aiExplanationFailed
+    case aiConversationFailed
+    case aiSavedExplanation
+    case aiConnectionFailed(String)
+    case aiRequestFailed(status: Int?, message: String?, details: String?)
+    case aiEndpointNoModels
+    case aiEndpointModels(Int)
+    case aiModelResponded(String)
+    case aiModelEmptyResponse
+    case aiCodexNoHTTPRequest
+    case codexAvailableNoModels
+    case codexAvailableModels(Int)
+    case codexResponded(String)
+    case codexMissingThreadID
+    case codexRequestTimedOut
+    case codexRequestIncomplete
+    case codexNotExecutable(String)
+    case codexStartFailed(String)
+    case codexConnectionClosed
+    case codexInvalidCompletionStatus
+    case outlinePage(Int)
+    case sidebarOpen
+    case sidebarClosed
+    case manualUpdateInstallDetail
+    case annotationSaveFailed(String)
+    case annotationSaveConflict
+    case annotationSaveUnreadable
+    case annotationSaveWriteFailed
+    case annotationSaveRetry
+    case annotationSaveCopy
+    case annotationSaveCopyFailed
     case ai
     case aiChatAssistant
     case aiChatContext
@@ -237,6 +277,49 @@ public extension AppText {
 
     private var english: String {
         switch self {
+        case .aiInvalidBaseURL: return "The AI base URL is invalid. Enter a complete HTTP or HTTPS URL in Settings."
+        case .aiMissingModel: return "Enter an AI model name in Settings."
+        case .aiMissingAPIKey: return "Enter an AI API key in Settings."
+        case .aiMissingCodexExecutable: return "Enter the Codex executable path in Settings."
+        case .aiNoSelection: return "Select some text first."
+        case .aiNoHighlightedText: return "The selection does not contain any highlights."
+        case .aiEmptyResponse: return "AI returned no usable explanation."
+        case .aiResponseTruncated: return "The server truncated the AI response. The content may be incomplete."
+        case .aiStreamEndedPrematurely: return "The AI response stream ended early. The content may be incomplete; please retry."
+        case .aiExplanationFailed: return "Explanation failed"
+        case .aiConversationFailed: return "Conversation failed"
+        case .aiSavedExplanation: return "Saved explanation"
+        case .aiConnectionFailed(let message): return "AI connection failed: \(message)"
+        case .aiRequestFailed(let status, let message, let details):
+            let prefix = status.map { "AI request failed, HTTP \($0)" } ?? "AI request failed"
+            guard let message else { return "\(prefix)." }
+            return "\(prefix): \(message)" + (details.map { " (\($0))" } ?? "")
+        case .aiEndpointNoModels: return "Endpoint responded. No models returned."
+        case .aiEndpointModels(let count): return "Endpoint responded. \(count) models available."
+        case .aiModelResponded(let text): return "Model responded: \(text)"
+        case .aiModelEmptyResponse: return "Model responded, but returned empty text."
+        case .aiCodexNoHTTPRequest: return "The local Codex provider does not use HTTP requests."
+        case .codexAvailableNoModels: return "Codex App Server is available. No models returned."
+        case .codexAvailableModels(let count): return "Codex App Server available. \(count) models available."
+        case .codexResponded(let text): return text.isEmpty ? "Codex App Server responded." : "Codex App Server responded: \(text)"
+        case .codexMissingThreadID: return "Codex App Server did not return a thread ID."
+        case .codexRequestTimedOut: return "Codex App Server request timed out."
+        case .codexRequestIncomplete: return "Codex App Server request did not complete."
+        case .codexNotExecutable(let path): return "Codex App Server is not executable: \(path)"
+        case .codexStartFailed(let message): return "Codex App Server failed to start: \(message)"
+        case .codexConnectionClosed: return "Codex App Server connection closed."
+        case .codexInvalidCompletionStatus: return "Codex App Server returned an invalid completion status."
+        case .outlinePage(let number): return "Page \(number)"
+        case .sidebarOpen: return "Open"
+        case .sidebarClosed: return "Closed"
+        case .manualUpdateInstallDetail: return "The update was downloaded, but Vellum could not replace the installed app. Open the disk image and install it manually."
+        case .annotationSaveFailed(let name): return "Unable to save annotations in \(name)"
+        case .annotationSaveConflict: return "The PDF changed on disk. Save a copy to preserve your annotations without overwriting the changed file."
+        case .annotationSaveUnreadable: return "The original PDF is unavailable. Your annotations remain open; retry or save a copy."
+        case .annotationSaveWriteFailed: return "Your annotations remain open. Retry saving or save a copy before closing."
+        case .annotationSaveRetry: return "Retry"
+        case .annotationSaveCopy: return "Save a Copy…"
+        case .annotationSaveCopyFailed: return "Unable to save the copy"
         case .ai: return "AI"
         case .aiChatAssistant: return "Assistant"
         case .aiChatContext: return "Context"
@@ -417,6 +500,49 @@ public extension AppText {
 
     private var chinese: String {
         switch self {
+        case .aiInvalidBaseURL: return "AI base_url 无效，请在设置里填写完整的 http/https 地址。"
+        case .aiMissingModel: return "AI 模型名称为空，请先在设置里填写模型名称。"
+        case .aiMissingAPIKey: return "AI API Key 为空，请先在设置里填写 API Key。"
+        case .aiMissingCodexExecutable: return "Codex 路径为空，请先在设置里填写 codex 可执行文件路径。"
+        case .aiNoSelection: return "请先选中一段文字。"
+        case .aiNoHighlightedText: return "当前选区没有命中任何高亮。"
+        case .aiEmptyResponse: return "AI 没有返回可用解释。"
+        case .aiResponseTruncated: return "AI 输出被服务端截断，内容可能不完整。"
+        case .aiStreamEndedPrematurely: return "AI 流式响应提前结束，内容可能不完整，请重试。"
+        case .aiExplanationFailed: return "解释失败"
+        case .aiConversationFailed: return "对话失败"
+        case .aiSavedExplanation: return "已保存的解释"
+        case .aiConnectionFailed(let message): return "AI 连接失败：\(message)"
+        case .aiRequestFailed(let status, let message, let details):
+            let prefix = status.map { "AI 请求失败，HTTP \($0)" } ?? "AI 请求失败"
+            guard let message else { return "\(prefix)。" }
+            return "\(prefix)：\(message)" + (details.map { "（\($0)）" } ?? "")
+        case .aiEndpointNoModels: return "端点已响应，未返回模型。"
+        case .aiEndpointModels(let count): return "端点已响应，\(count) 个模型可用。"
+        case .aiModelResponded(let text): return "模型已响应：\(text)"
+        case .aiModelEmptyResponse: return "模型已响应，但返回了空文本。"
+        case .aiCodexNoHTTPRequest: return "Codex 本地 provider 不使用 HTTP 请求。"
+        case .codexAvailableNoModels: return "Codex App Server 可用，未返回模型。"
+        case .codexAvailableModels(let count): return "Codex App Server 可用，\(count) 个模型可用。"
+        case .codexResponded(let text): return text.isEmpty ? "Codex App Server 已响应。" : "Codex App Server 已响应：\(text)"
+        case .codexMissingThreadID: return "Codex App Server 没有返回 thread id。"
+        case .codexRequestTimedOut: return "Codex App Server 请求超时。"
+        case .codexRequestIncomplete: return "Codex App Server 请求未完成。"
+        case .codexNotExecutable(let path): return "Codex App Server 不可执行：\(path)"
+        case .codexStartFailed(let message): return "Codex App Server 启动失败：\(message)"
+        case .codexConnectionClosed: return "Codex App Server 连接已关闭。"
+        case .codexInvalidCompletionStatus: return "Codex App Server 返回了无效的完成状态。"
+        case .outlinePage(let number): return "第 \(number) 页"
+        case .sidebarOpen: return "已展开"
+        case .sidebarClosed: return "已收起"
+        case .manualUpdateInstallDetail: return "更新已下载，但 Vellum 无法替换已安装的应用。请打开磁盘映像手动安装。"
+        case .annotationSaveFailed(let name): return "无法保存 \(name) 中的批注"
+        case .annotationSaveConflict: return "磁盘上的 PDF 已被修改。请另存副本，以保留批注并避免覆盖已更改的文件。"
+        case .annotationSaveUnreadable: return "原始 PDF 暂时无法读取。批注仍保留在当前标签中，请重试或另存副本。"
+        case .annotationSaveWriteFailed: return "批注仍保留在当前标签中。请重试保存或另存副本后再关闭。"
+        case .annotationSaveRetry: return "重试"
+        case .annotationSaveCopy: return "另存副本…"
+        case .annotationSaveCopyFailed: return "无法保存副本"
         case .ai: return "AI"
         case .aiChatAssistant: return "助手"
         case .aiChatContext: return "上下文"

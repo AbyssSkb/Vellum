@@ -22,6 +22,9 @@ struct PDFReader: NSViewRepresentable {
         view.displayDirection = .vertical
         view.displaysPageBreaks = true
         view.document = document
+        PDFAnnotationPersistence.state(for: document)?.onPrepareToClose = { [weak view] in
+            view?.hideAIExplanationPopover()
+        }
         if isActive {
             view.restore(snapshot)
         } else {
@@ -47,6 +50,7 @@ struct PDFReader: NSViewRepresentable {
         }
 
         if nsView.document !== document {
+            nsView.hideAIExplanationPopover()
             nsView.cancelPendingRestore()
             nsView.stopScrollAnimation()
             nsView.stopZoomState()
@@ -69,9 +73,20 @@ struct PDFReader: NSViewRepresentable {
             nsView.readerStateSaveWorkItem?.cancel()
         }
 
+        PDFAnnotationPersistence.state(for: document)?.onPrepareToClose = { [weak nsView] in
+            nsView?.hideAIExplanationPopover()
+        }
+
+        let becameActive = isActive && appState.activeReaderController !== nsView
         appState.setActiveReaderController(nsView, for: tabID)
-        if isActive, !appState.isOutlineVisible {
-            DispatchQueue.main.async {
+        if becameActive, !appState.isOutlineVisible {
+            DispatchQueue.main.async { [weak appState, weak nsView] in
+                guard let appState, let nsView,
+                      appState.activeReaderController === nsView,
+                      !appState.isOutlineVisible,
+                      !appState.isTabSwitcherPresented,
+                      !appState.isAIConversationHistoryPresented,
+                      !appState.isAIExplanationHistoryPresented else { return }
                 if nsView.isAIInteractionActive {
                     nsView.restoreAIFloatingOverlayPresentation()
                 } else {
@@ -83,6 +98,8 @@ struct PDFReader: NSViewRepresentable {
 
     static func dismantleNSView(_ nsView: VellumPDFView, coordinator: ()) {
         nsView.saveBeforeDismantle?()
+        nsView.hideAIExplanationPopover()
+        nsView.cancelPageOverview()
         nsView.cancelPendingRestore()
         nsView.stopScrollAnimation()
         nsView.stopZoomState()

@@ -15,9 +15,6 @@ struct KeyboardCapture: NSViewRepresentable {
 
     func updateNSView(_ nsView: KeyCaptureView, context: Context) {
         nsView.appState = appState
-        DispatchQueue.main.async {
-            nsView.focus()
-        }
     }
 }
 

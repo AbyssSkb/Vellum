@@ -21,6 +21,12 @@ enum AppUpdateInstaller {
         try process.run()
 
         NSApp.terminate(nil)
+        // A canceled termination leaves the helper waiting for an unrelated later quit.
+        if process.isRunning {
+            process.terminate()
+            process.waitUntilExit()
+        }
+        try? FileManager.default.removeItem(at: scriptURL)
     }
 
     static func installScript(

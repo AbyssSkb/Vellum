@@ -3,6 +3,7 @@ import VellumCore
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    weak var appState: AppState?
     private let updateChecker = GitHubUpdateChecker()
     private var settingsWindowController: SettingsWindowController?
     private var checkForUpdatesObserver: NSObjectProtocol?
@@ -40,6 +41,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
         false
+    }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        appState?.prepareToTerminate() == false ? .terminateCancel : .terminateNow
     }
 
     func application(_ application: NSApplication, open urls: [URL]) {

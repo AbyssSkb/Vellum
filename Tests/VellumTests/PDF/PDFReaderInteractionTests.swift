@@ -1,10 +1,93 @@
 import AppKit
 import PDFKit
+import SwiftUI
 import Testing
 @testable import VellumCore
 
 @Suite("PDF reader interactions")
 struct PDFReaderInteractionTests {
+    @Test
+    @MainActor
+    func snapshotUpdatePreservesTextInputFocus() throws {
+        let (window, reader) = try makeReader()
+        defer { window.close() }
+        let appState = AppState()
+        let document = try #require(reader.document)
+        let tab = PDFTab(url: URL(fileURLWithPath: "/tmp/focus-test.pdf"), document: document)
+        _ = appState.tabStore.openInNewTabs([tab])
+        let hostingView = NSHostingView(rootView: PDFReader(
+            tabID: tab.id, document: document, snapshot: nil, isActive: true
+        ).environmentObject(appState))
+        hostingView.frame = window.contentView!.bounds
+        window.contentView = hostingView
+        hostingView.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        let mountedReader = try #require(appState.activeReaderController as? VellumPDFView)
+        let editor = NSTextView(frame: NSRect(x: 0, y: 0, width: 100, height: 24))
+        hostingView.addSubview(editor)
+        #expect(window.makeFirstResponder(editor))
+        let snapshot = try #require(mountedReader.snapshot())
+
+        hostingView.rootView = PDFReader(
+            tabID: tab.id, document: document, snapshot: snapshot, isActive: true
+        ).environmentObject(appState)
+        hostingView.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+
+        #expect(appState.activeReaderController === mountedReader)
+        #expect(window.firstResponder === editor)
+    }
+
+    @Test
+    @MainActor
+    func inactiveReaderAttachmentAndOverviewDismissalPreserveResponder() throws {
+        let (window, reader) = try makeReader()
+        defer { window.close() }
+        let editor = NSTextView()
+        reader.addSubview(editor)
+        #expect(reader.beginPageOverview())
+        #expect(window.makeFirstResponder(editor))
+        reader.finishPageOverview()
+        #expect(window.firstResponder === editor)
+
+        let appState = AppState()
+        reader.appState = appState
+        let inactiveReader = VellumPDFView(frame: reader.bounds)
+        inactiveReader.appState = reader.appState
+        reader.addSubview(inactiveReader)
+        #expect(inactiveReader.appState === appState)
+        #expect(window.firstResponder === editor)
+    }
+
+    @Test
+    @MainActor
+    func cancellingPageOverviewDiscardsSelectionWithoutNavigationOrFocusChange() throws {
+        let (window, reader) = try makeReader()
+        defer { window.close() }
+        let document = try #require(reader.document)
+        let firstPage = try #require(document.page(at: 0))
+        let secondPage = PDFPage()
+        secondPage.setBounds(firstPage.bounds(for: .mediaBox), for: .mediaBox)
+        document.insert(secondPage, at: 1)
+        reader.layoutDocumentView()
+        reader.centerBothAxes(on: reader.pageCenterDestination(for: firstPage))
+        let originalSnapshot = try #require(reader.snapshot())
+        let originalBackStack = reader.jumpBackStack
+        let editor = NSTextView()
+        reader.addSubview(editor)
+        #expect(reader.beginPageOverview())
+        #expect(reader.movePageOverview(.next))
+        #expect(reader.pageOverviewController?.selectedIndex == 1)
+        #expect(window.makeFirstResponder(editor))
+
+        reader.cancelPageOverview()
+
+        #expect(!reader.isPageOverviewActive)
+        #expect(reader.snapshot() == originalSnapshot)
+        #expect(reader.jumpBackStack == originalBackStack)
+        #expect(window.firstResponder === editor)
+    }
+
     @Test(arguments: [CGFloat(60), CGFloat(-60)])
     @MainActor
     func vimScrollInterruptsZoomAndKeepsRepeatedMovement(delta: CGFloat) throws {

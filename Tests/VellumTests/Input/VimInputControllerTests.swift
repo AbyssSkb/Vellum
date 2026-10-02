@@ -37,6 +37,45 @@ struct VimInputControllerTests {
     }
 
     @Test
+    func continuousCommandCancelsPendingGCommand() {
+        var input = VimInputController()
+
+        #expect(input.handleKeyDown("g", isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .handled)
+        #expect(input.handleKeyDown("j", isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .continuousKey("j"))
+        #expect(input.handleKeyUp("j") == .stopContinuousKey)
+        #expect(input.handleKeyDown("g", isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .handled)
+        #expect(input.handleKeyDown("g", isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .command(.firstPage))
+    }
+
+    @Test
+    func continuousCommandCancelsNumericPrefix() {
+        var input = VimInputController()
+
+        #expect(input.handleKeyDown("1", isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .handled)
+        #expect(input.handleKeyDown("2", isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .handled)
+        #expect(input.handleKeyDown("j", isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .continuousKey("j"))
+        #expect(input.handleKeyUp("j") == .stopContinuousKey)
+        #expect(input.handleKeyDown("G", isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .command(.lastPage))
+    }
+
+    @Test(arguments: [
+        ("G", VimCommand.lastPage),
+        ("H", .previousTab),
+        ("L", .nextTab),
+        ("X", .restoreClosedTab),
+        ("O", .openInNewTab),
+        ("N", .searchPrevious)
+    ])
+    func uppercaseCommandCancelsPendingGCommand(key: String, command: VimCommand) {
+        var input = VimInputController()
+
+        #expect(input.handleKeyDown("g", isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .handled)
+        #expect(input.handleKeyDown(key, isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .command(command))
+        #expect(input.handleKeyDown("g", isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .handled)
+        #expect(input.handleKeyDown("g", isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .command(.firstPage))
+    }
+
+    @Test
     func continuousKeyStartsRepeatsAndStops() {
         var input = VimInputController()
 

@@ -12,6 +12,7 @@ struct VellumApp: App {
             ContentView()
                 .environmentObject(appState)
                 .frame(minWidth: 900, minHeight: 620)
+                .onAppear { appDelegate.appState = appState }
         }
         .windowStyle(.hiddenTitleBar)
         .commands {
@@ -23,8 +24,6 @@ struct VellumApp: App {
 
             CommandGroup(replacing: .appTermination) {
                 Button(language.text(.quitVellum)) {
-                    appState.saveActiveReaderState()
-                    appState.saveCurrentSession()
                     NSApp.terminate(nil)
                 }
                 .keyboardShortcut("q", modifiers: [.command])
@@ -46,7 +45,7 @@ struct VellumApp: App {
 
             CommandGroup(after: .newItem) {
                 Button(language.text(.closeTab)) {
-                    appState.closeSelectedTab()
+                    appState.closeCurrentWindow()
                 }
                 .keyboardShortcut("w", modifiers: [.command])
             }

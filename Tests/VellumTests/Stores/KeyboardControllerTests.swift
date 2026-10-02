@@ -242,7 +242,7 @@ struct KeyboardControllerTests {
         #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "\t", keyCode: 48)))
         try waitForPageOverview(delegate.reader)
         notificationCenter.post(name: NSApplication.willResignActiveNotification, object: nil)
-        #expect(delegate.reader.actions == [.beginPageOverview, .finishPageOverview])
+        #expect(delegate.reader.actions == [.beginPageOverview, .cancelPageOverview])
         #expect(!controller.handleKeyEvent(keyEvent(.keyUp, key: "\t", keyCode: 48)))
     }
 
@@ -268,6 +268,115 @@ struct KeyboardControllerTests {
         RunLoop.main.run(until: Date().addingTimeInterval(0.10))
         #expect(delegate.commands == commandsBeforeFocusChange)
         #expect(!controller.handleKeyEvent(keyEvent(.keyUp, key: "j", keyCode: 38)))
+    }
+
+    @Test(arguments: [false, true])
+    func changingReaderCancelsTabOverviewOnItsStartingReader(active: Bool) throws {
+        let controller = KeyboardController(
+            tabPageOverviewDelay: active ? 0.001 : 10,
+            installsKeyMonitor: false,
+            installsOpenURLObserver: false,
+            notificationCenter: notificationCenter
+        )
+        let delegate = RecordingKeyboardDelegate()
+        controller.delegate = delegate
+        let startingReader = delegate.reader
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "\t", keyCode: 48)))
+        if active {
+            try waitForPageOverview(startingReader)
+        }
+
+        delegate.reader = RecordingKeyboardReaderController()
+        #expect(!controller.handleKeyEvent(keyEvent(.keyUp, key: "\t", keyCode: 48)))
+
+        #expect(startingReader.actions == (active ? [.beginPageOverview, .cancelPageOverview] : []))
+        #expect(delegate.reader.actions.isEmpty)
+        #expect(delegate.commands.isEmpty)
+    }
+
+    @Test
+    func readerWindowAndTextInputOwnershipAreCheckedBeforeAI() {
+        let readerWindow = makeWindow()
+        let settingsWindow = makeWindow()
+        defer { readerWindow.close(); settingsWindow.close() }
+        let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
+        let delegate = RecordingKeyboardDelegate()
+        controller.delegate = delegate
+        delegate.readerWindow = readerWindow
+        delegate.reader.isAIInteractionActive = true
+        delegate.reader.aiKeyResult = true
+        let event = WindowKeyboardEvent()
+        event.targetWindow = settingsWindow
+
+        #expect(!controller.routeKeyEvent(event))
+        #expect(delegate.reader.actions.isEmpty)
+        let editor = NSTextView()
+        readerWindow.contentView?.addSubview(editor)
+        #expect(readerWindow.makeFirstResponder(editor))
+        event.targetWindow = readerWindow
+        #expect(!controller.routeKeyEvent(event))
+        #expect(delegate.reader.actions.isEmpty)
+
+        #expect(readerWindow.makeFirstResponder(nil))
+        #expect(controller.routeKeyEvent(event))
+        #expect(delegate.reader.actions == [.aiKey])
+        #expect(delegate.commands.isEmpty)
+    }
+
+    @Test
+    func emptyReaderStillRoutesOpenKey() {
+        let window = makeWindow()
+        defer { window.close() }
+        let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
+        let delegate = RecordingKeyboardDelegate()
+        controller.delegate = delegate
+        delegate.readerWindow = window
+        delegate.hasActiveReader = false
+        let event = WindowKeyboardEvent()
+        event.targetWindow = window
+        event.key = "o"
+
+        #expect(controller.routeKeyEvent(event))
+        #expect(delegate.commands == [.open])
+    }
+
+    @Test
+    func conversationInputKeepsTypingAndEscapeDismissal() {
+        let window = makeWindow()
+        defer { window.close() }
+        let reader = VellumPDFView(frame: window.contentView!.bounds)
+        window.contentView = reader
+        let overlay = NSView(frame: reader.bounds)
+        let editor = NSTextView(frame: overlay.bounds)
+        overlay.addSubview(editor)
+        reader.addSubview(overlay)
+        reader.aiInteraction.conversationOverlay = overlay
+        reader.aiInteraction.activeConversationModel = AIConversationPopoverModel(context: AIExplanationContext(
+            selectedText: "test", currentParagraph: nil, nearbyText: "test", fileName: "test.pdf", pageNumbers: [1]
+        ))
+        #expect(window.makeFirstResponder(editor))
+        let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
+        let delegate = RecordingKeyboardDelegate()
+        controller.delegate = delegate
+        delegate.readerWindow = window
+        delegate.overrideReader = reader
+        let event = WindowKeyboardEvent()
+        event.targetWindow = window
+
+        #expect(!controller.routeKeyEvent(event))
+        #expect(window.firstResponder === editor)
+        #expect(delegate.commands.isEmpty)
+        event.key = "\u{1b}"
+        #expect(controller.routeKeyEvent(event))
+        #expect(!reader.isAIInteractionActive)
+    }
+
+    private func makeWindow() -> NSWindow {
+        _ = NSApplication.shared
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 100, height: 100), styleMask: .borderless, backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.orderFront(nil)
+        return window
     }
 
     private func waitForPageOverview(_ reader: RecordingKeyboardReaderController) throws {
@@ -302,21 +411,25 @@ struct KeyboardControllerTests {
 
 private final class WindowKeyboardEvent: NSEvent {
     var targetWindow: NSWindow?
+    var key = "j"
     override var window: NSWindow? { targetWindow }
     override var type: NSEvent.EventType { .keyDown }
     override var modifierFlags: NSEvent.ModifierFlags { [] }
-    override var charactersIgnoringModifiers: String? { "j" }
+    override var charactersIgnoringModifiers: String? { key }
     override var isARepeat: Bool { false }
 }
 
 @MainActor
 private final class RecordingKeyboardDelegate: KeyboardControllerDelegate {
-    let reader = RecordingKeyboardReaderController()
+    var reader = RecordingKeyboardReaderController()
+    var overrideReader: ReaderController?
+    var hasActiveReader = true
+    var readerWindow: NSWindow?
     private(set) var commands: [VimCommand] = []
     private(set) var openedURLs: [URL] = []
 
     var activeReaderController: ReaderController? {
-        reader
+        hasActiveReader ? overrideReader ?? reader : nil
     }
 
     func handleVimCommand(_ command: VimCommand) {
@@ -335,6 +448,7 @@ private final class RecordingKeyboardReaderController: ReaderController {
     var hasSearchTextTarget = false
     var isPageOverviewActive = false
     var deleteHighlightsResult = false
+    var aiKeyResult = false
     private(set) var actions: [Action] = []
 
     func snapshot() -> ReaderSnapshot? { nil }
@@ -357,11 +471,19 @@ private final class RecordingKeyboardReaderController: ReaderController {
         isPageOverviewActive = false
     }
 
+    func cancelPageOverview() {
+        actions.append(.cancelPageOverview)
+        isPageOverviewActive = false
+    }
+
     func beginSearchCommand() {
         actions.append(.beginSearch)
     }
 
-    func handleAIKeyEvent(_ event: NSEvent) -> Bool { false }
+    func handleAIKeyEvent(_ event: NSEvent) -> Bool {
+        actions.append(.aiKey)
+        return aiKeyResult
+    }
 
     func handleTextSelectionKeyEvent(_ event: NSEvent) -> Bool { false }
 
@@ -412,7 +534,9 @@ private final class RecordingKeyboardReaderController: ReaderController {
         case beginPageOverview
         case movePageOverview(PageOverviewNavigation)
         case finishPageOverview
+        case cancelPageOverview
         case beginSearch
         case deleteHighlights
+        case aiKey
     }
 }

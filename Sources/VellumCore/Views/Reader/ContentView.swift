@@ -48,7 +48,7 @@ public struct ContentView: View {
         .background(TokyoNight.backgroundColor)
         .preferredColorScheme(.dark)
         .environment(\.appUILanguage, AppUILanguage.saved(rawValue: appLanguage))
-        .background(WindowChromeConfigurator())
+        .background(WindowChromeConfigurator(appState: appState))
         .ignoresSafeArea(.container, edges: .top)
         .onOpenURL { url in
             guard url.isFileURL else { return }
@@ -61,15 +61,22 @@ public struct ContentView: View {
 }
 
 struct WindowChromeConfigurator: NSViewRepresentable {
+    weak var appState: AppState?
+
     func makeNSView(context: Context) -> ChromeView {
-        ChromeView()
+        let view = ChromeView()
+        view.appState = appState
+        return view
     }
 
     func updateNSView(_ nsView: ChromeView, context: Context) {
+        nsView.appState = appState
         nsView.configureWindow()
     }
 
     class ChromeView: NSView {
+        weak var appState: AppState?
+
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
             configureWindow()
@@ -83,6 +90,7 @@ struct WindowChromeConfigurator: NSViewRepresentable {
 
         func configureWindow() {
             guard let window else { return }
+            appState?.readerWindow = window
 
             window.titleVisibility = .hidden
             window.titlebarAppearsTransparent = true

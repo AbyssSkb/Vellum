@@ -4,18 +4,25 @@ import PDFKit
 @MainActor
 protocol KeyboardControllerDelegate: AnyObject {
     var activeReaderController: ReaderController? { get }
+    var readerWindow: NSWindow? { get }
     func handleVimCommand(_ command: VimCommand)
     func open(urls: [URL])
 }
 
 @MainActor
 final class KeyboardController {
-    weak var delegate: KeyboardControllerDelegate?
+    weak var delegate: KeyboardControllerDelegate? {
+        didSet {
+            guard delegate != nil, installsOpenURLObserver else { return }
+            installOpenURLObserver()
+        }
+    }
 
     private let tabPageOverviewDelay: TimeInterval
     private let installsKeyMonitor: Bool
     private let installsOpenURLObserver: Bool
     private let notificationCenter: NotificationCenter
+    private let openURLRelay: OpenURLRelay
     nonisolated(unsafe) private var keyMonitor: Any?
     private var vimInput = VimInputController()
     nonisolated(unsafe) private var heldKeyTimer: Timer?
@@ -23,6 +30,7 @@ final class KeyboardController {
     nonisolated(unsafe) private var lifecycleObservers: [NSObjectProtocol] = []
     private weak var inputWindow: NSWindow?
     private weak var inputResponder: NSResponder?
+    private weak var inputReader: ReaderController?
     private var tabPageOverviewArmed = false
     private var tabPageOverviewActive = false
 
@@ -30,18 +38,17 @@ final class KeyboardController {
         tabPageOverviewDelay: TimeInterval = 0.35,
         installsKeyMonitor: Bool = true,
         installsOpenURLObserver: Bool = true,
-        notificationCenter: NotificationCenter = .default
+        notificationCenter: NotificationCenter = .default,
+        openURLRelay: OpenURLRelay = .shared
     ) {
         self.tabPageOverviewDelay = tabPageOverviewDelay
         self.installsKeyMonitor = installsKeyMonitor
         self.installsOpenURLObserver = installsOpenURLObserver
         self.notificationCenter = notificationCenter
+        self.openURLRelay = openURLRelay
         installLifecycleObservers()
         if installsKeyMonitor {
             installKeyMonitor()
-        }
-        if installsOpenURLObserver {
-            installOpenURLObserver()
         }
     }
 
@@ -55,6 +62,9 @@ final class KeyboardController {
     }
 
     func handleKeyEvent(_ event: NSEvent) -> Bool {
+        if (vimInput.heldKey != nil || tabPageOverviewArmed || tabPageOverviewActive), !inputContextIsValid {
+            cancelInput()
+        }
         if event.type == .keyDown, handleControlJump(event) {
             return true
         }
@@ -68,6 +78,7 @@ final class KeyboardController {
         if event.type == .keyDown, vimInput.heldKey == nil, !tabPageOverviewArmed, !tabPageOverviewActive {
             inputWindow = event.window
             inputResponder = event.window?.firstResponder
+            inputReader = delegate?.activeReaderController
         }
 
         if handleTabPageOverviewKey(key, event: event) {
@@ -100,22 +111,7 @@ final class KeyboardController {
         guard installsKeyMonitor else { return }
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .keyUp]) { [weak self] event in
             guard let self else { return event }
-            guard NSApp.modalWindow == nil else {
-                self.cancelInput()
-                return event
-            }
-
-            if self.delegate?.activeReaderController?.handleAIKeyEvent(event) == true {
-                self.cancelInput()
-                return nil
-            }
-
-            guard self.shouldRoute(event) else {
-                self.cancelInput()
-                return event
-            }
-
-            return self.handleKeyEvent(event) ? nil : event
+            return self.routeKeyEvent(event) ? nil : event
         }
     }
 
@@ -130,23 +126,50 @@ final class KeyboardController {
     }
 
     private func installOpenURLObserver() {
-        OpenURLRelay.shared.activate { [weak self] urls in
+        openURLRelay.activate { [weak self] urls in
             self?.delegate?.open(urls: urls)
         }
     }
 
     // MARK: - Routing
 
-    private func shouldRoute(_ event: NSEvent) -> Bool {
-        guard delegate?.activeReaderController?.isAIInteractionActive != true else { return false }
-        guard let window = event.window, window.isVisible, !(window is NSPanel) else { return false }
-
-        if let responder = window.firstResponder,
-           responder is NSTextView || responder is NSTextField || responder is PDFOutlineKeyView || responderIsInsideAIExplanation(responder) {
+    func routeKeyEvent(_ event: NSEvent) -> Bool {
+        guard NSApp?.modalWindow == nil,
+              let window = event.window,
+              window === delegate?.readerWindow,
+              window.isVisible,
+              !(window is NSPanel) else {
+            cancelInput()
             return false
         }
 
-        return true
+        if let responder = window.firstResponder,
+           responder is PDFOutlineKeyView
+            || ((responder is NSTextView || responder is NSTextField) && !responderIsInsideAIOverlay(responder)) {
+            cancelInput()
+            return false
+        }
+
+        if delegate?.activeReaderController?.handleAIKeyEvent(event) == true {
+            cancelInput()
+            return true
+        }
+
+        guard delegate?.activeReaderController?.isAIInteractionActive != true,
+              !responderIsInsideAIExplanation(window.firstResponder) else {
+            cancelInput()
+            return false
+        }
+
+        return handleKeyEvent(event)
+    }
+
+    private func responderIsInsideAIOverlay(_ responder: NSResponder) -> Bool {
+        guard let reader = delegate?.activeReaderController as? VellumPDFView,
+              let view = responder as? NSView else { return false }
+        return [reader.aiInteraction.conversationOverlay, reader.aiInteraction.explanationOverlay]
+            .compactMap { $0 }
+            .contains { view === $0 || view.isDescendant(of: $0) }
     }
 
     private func responderIsInsideAIExplanation(_ responder: NSResponder?) -> Bool {
@@ -238,7 +261,7 @@ final class KeyboardController {
         guard let navigation = tabPageOverviewNavigation(for: key) else { return true }
 
         if event.type == .keyDown {
-            _ = delegate?.activeReaderController?.movePageOverview(navigation)
+            _ = inputReader?.movePageOverview(navigation)
         }
         return event.type == .keyDown || event.type == .keyUp
     }
@@ -269,7 +292,7 @@ final class KeyboardController {
         if tabPageOverviewActive {
             tabPageOverviewActive = false
             tabPageOverviewArmed = false
-            delegate?.activeReaderController?.finishPageOverview()
+            inputReader?.finishPageOverview()
             return true
         }
 
@@ -289,7 +312,7 @@ final class KeyboardController {
             cancelInput()
             return
         }
-        guard delegate?.activeReaderController?.beginPageOverview() == true else {
+        guard inputReader?.beginPageOverview() == true else {
             tabPageOverviewArmed = false
             return
         }
@@ -343,10 +366,11 @@ final class KeyboardController {
     private var inputContextIsValid: Bool {
         NSApp?.modalWindow == nil
             && delegate?.activeReaderController?.isAIInteractionActive != true
+            && delegate?.activeReaderController === inputReader
             && (inputWindow == nil || inputWindow?.firstResponder === inputResponder)
     }
 
-    private func cancelInput() {
+    func cancelInput() {
         stopHeldKeyTimer()
         vimInput.clearPendingInput()
         tabPageOverviewTimer?.invalidate()
@@ -354,8 +378,11 @@ final class KeyboardController {
         tabPageOverviewArmed = false
         if tabPageOverviewActive {
             tabPageOverviewActive = false
-            delegate?.activeReaderController?.finishPageOverview()
+            inputReader?.cancelPageOverview()
         }
+        inputWindow = nil
+        inputResponder = nil
+        inputReader = nil
     }
 
     // MARK: - Vim Input Dispatch

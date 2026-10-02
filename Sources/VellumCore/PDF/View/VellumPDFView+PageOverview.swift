@@ -46,12 +46,14 @@ extension VellumPDFView {
         pageOverviewController.dismiss()
         self.pageOverviewController = nil
 
-        guard selectedIndex != originalIndex else {
-            focus()
-            return
-        }
+        guard selectedIndex != originalIndex else { return }
 
         vimGoToPage(selectedIndex + 1)
+    }
+
+    func cancelPageOverview() {
+        pageOverviewController?.dismiss()
+        pageOverviewController = nil
     }
 
     private func currentVisiblePageIndex(in document: PDFDocument) -> Int {

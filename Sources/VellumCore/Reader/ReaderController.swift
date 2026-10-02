@@ -14,6 +14,7 @@ protocol ReaderController: AnyObject {
     func beginPageOverview() -> Bool
     func movePageOverview(_ navigation: PageOverviewNavigation) -> Bool
     func finishPageOverview()
+    func cancelPageOverview()
     func beginSearchCommand()
     func handleAIKeyEvent(_ event: NSEvent) -> Bool
     func handleTextSelectionKeyEvent(_ event: NSEvent) -> Bool
@@ -25,6 +26,7 @@ protocol ReaderController: AnyObject {
     func vimGoToLastPage()
     func vimGoToPage(_ pageNumber: Int)
     func vimGoToDestination(_ destination: PDFDestination)
+    func vimPerformPDFAction(_ action: PDFAction)
     func vimJumpBack()
     func vimJumpForward()
     func vimSearchNext()
@@ -44,6 +46,16 @@ protocol ReaderController: AnyObject {
 }
 
 extension ReaderController {
+    func cancelPageOverview() {
+        finishPageOverview()
+    }
+
+    func vimPerformPDFAction(_ action: PDFAction) {
+        if let action = action as? PDFActionGoTo {
+            vimGoToDestination(action.destination)
+        }
+    }
+
     var documentKey: String? {
         nil
     }

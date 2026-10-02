@@ -192,8 +192,8 @@ extension VellumPDFView {
         }
     }
 
-    func recordJumpSource() {
-        guard let current = snapshot() else { return }
+    func recordJumpSource(_ source: ReaderSnapshot? = nil) {
+        guard let current = source ?? snapshot() else { return }
 
         if let last = jumpBackStack.last, isSameJumpLocation(last, current) {
             jumpForwardStack.removeAll()
@@ -249,9 +249,9 @@ extension VellumPDFView {
     }
 
     func persistAnnotationsIfPossible() {
-        guard let document, let url = document.documentURL else { return }
-        if !document.write(to: url) {
-            NSSound.beep()
+        guard let document, let persistence = PDFAnnotationPersistence.state(for: document) else { return }
+        persistence.save(document) { [weak appState] in
+            appState?.resolveAnnotationFailure(for: document)
         }
     }
 

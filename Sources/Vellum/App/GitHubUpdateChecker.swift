@@ -437,6 +437,8 @@ final class GitHubUpdateChecker {
                     self.markPromptedIfNeeded(update: update, mode: mode)
                     do {
                         try AppUpdateInstaller.installAndRelaunch(from: fileURL)
+                        window.finish()
+                        self.downloadWindow = nil
                     } catch {
                         window.finish()
                         self.downloadWindow = nil

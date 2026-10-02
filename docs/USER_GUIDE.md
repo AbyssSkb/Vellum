@@ -12,6 +12,8 @@ Open Vellum and choose a PDF from the empty reader screen, or press `o` to open 
 
 You can also open multiple PDFs at once with `O`. Each selected file opens in its own tab.
 
+Each file has one tab. Opening it again selects that tab and keeps its reading position. Restoring a closed tab reloads the latest file from disk.
+
 Common file and tab keys:
 
 | Key | Action |
@@ -130,6 +132,8 @@ The highlight toolbar in the tab bar lets you choose the current highlight color
 | `d` | Delete the selected highlight when a text selection intersects it |
 
 Available highlight colors are yellow, green, cyan, purple, and pink.
+
+Annotations save automatically in the background. If saving fails or the PDF changes on disk, Vellum keeps the annotations open and offers Retry or Save a Copy. Closing the tab or quitting waits until the changes are saved or copied.
 
 ## 9. AI Explanations
 

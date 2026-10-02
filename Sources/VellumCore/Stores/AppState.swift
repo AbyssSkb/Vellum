@@ -16,15 +16,29 @@ public final class AppState: ObservableObject {
 
     private var allAIConversationHistory: [AIConversationHistoryItem] = []
     private var allAIExplanationHistory: [AIExplanationHistoryItem] = []
-    let pdfCoordinator = PDFCoordinator()
-    let keyboardController = KeyboardController()
+    let pdfCoordinator: PDFCoordinator
+    let keyboardController: KeyboardController
+    let sessionDefaults: UserDefaults
     private var highlightColorPreferenceObserver: NSObjectProtocol?
     private var appWillTerminateObserver: NSObjectProtocol?
     var didRestorePreviousTabs = false
+    var unresolvedSession: PersistedAppSession?
 
     weak var activeReaderController: ReaderController?
+    weak var readerWindow: NSWindow?
 
-    public init() {
+    public convenience init() {
+        self.init(sessionDefaults: .standard)
+    }
+
+    init(
+        sessionDefaults: UserDefaults,
+        pdfCoordinator: PDFCoordinator = PDFCoordinator(),
+        keyboardController: KeyboardController = KeyboardController()
+    ) {
+        self.sessionDefaults = sessionDefaults
+        self.pdfCoordinator = pdfCoordinator
+        self.keyboardController = keyboardController
         let rawHighlightColor = UserDefaults.standard.string(forKey: AppPreferenceKeys.defaultHighlightColor)
         selectedHighlightColor = rawHighlightColor.flatMap(HighlightColor.init(rawValue:)) ?? .yellow
         keyboardController.delegate = self

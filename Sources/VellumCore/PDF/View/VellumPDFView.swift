@@ -192,6 +192,7 @@ final class VellumPDFView: PDFView {
     }
 
     func focus() {
+        guard appState == nil || appState?.activeReaderController === self else { return }
         window?.makeFirstResponder(self)
     }
 

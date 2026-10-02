@@ -32,9 +32,14 @@ extension AppState {
     }
 
     func openInCurrentTab(url: URL) {
+        if let existingTab = tabStore.tab(for: url) {
+            selectTab(existingTab.id)
+            return
+        }
         saveActiveReaderState()
 
         guard let tab = pdfCoordinator.openTab(for: url) else { return }
+        if let selectedTabID, !canCloseTab(selectedTabID) { return }
 
         tabStore.openInCurrentTab(tab)
         saveCurrentSession()
@@ -42,12 +47,23 @@ extension AppState {
     }
 
     func openInNewTabs(urls: [URL]) {
+        let previousSelectedTabID = selectedTabID
         saveActiveReaderState()
 
-        let newTabs = pdfCoordinator.openTabs(for: urls)
+        var didOpenTab = false
+        for url in urls {
+            if let existingTab = tabStore.tab(for: url) {
+                _ = tabStore.selectTab(existingTab.id)
+                didOpenTab = true
+            } else if let tab = pdfCoordinator.openTab(for: url) {
+                _ = tabStore.openInNewTabs([tab])
+                didOpenTab = true
+            }
+        }
 
-        if tabStore.openInNewTabs(newTabs) {
-            saveCurrentSession()
+        guard didOpenTab else { return }
+        saveCurrentSession()
+        if selectedTabID != previousSelectedTabID {
             prepareForSelectedReaderChange()
         }
     }
@@ -58,6 +74,7 @@ extension AppState {
     }
 
     func closeTab(_ id: PDFTab.ID) {
+        guard canCloseTab(id) else { return }
         let previousSelectedTabID = selectedTabID
         saveActiveReaderState()
         guard tabStore.closeTab(id) else { return }
@@ -73,11 +90,14 @@ extension AppState {
     }
 
     func restoreClosedPDFTab() {
+        let previousSelectedTabID = selectedTabID
         saveActiveReaderState()
 
-        guard tabStore.restoreClosedPDFTab() else { return }
+        guard tabStore.restoreClosedPDFTab(loader: pdfCoordinator.openTab(for:)) else { return }
         saveCurrentSession()
-        prepareForSelectedReaderChange()
+        if selectedTabID != previousSelectedTabID {
+            prepareForSelectedReaderChange()
+        }
     }
 
     public func selectNextTab() {
@@ -97,25 +117,41 @@ extension AppState {
     func restorePreviousTabsIfNeeded() {
         guard !didRestorePreviousTabs,
               !hasOpenTabs,
-              AppPreferences.restoresPreviousTabs(),
-              let session = AppSessionPersistence.load() else {
+              AppPreferences.restoresPreviousTabs(in: sessionDefaults),
+              let session = AppSessionPersistence.load(defaults: sessionDefaults) else {
             didRestorePreviousTabs = true
             return
         }
 
         didRestorePreviousTabs = true
+        var openedURLs = Set<URL>()
+        var unreadableTabs: [PersistedPDFTab] = []
         let tabs = session.tabs.compactMap { persistedTab -> PDFTab? in
             let url = URL(fileURLWithPath: persistedTab.path)
-            guard var tab = pdfCoordinator.openTab(for: url) else { return nil }
+            guard openedURLs.insert(url.standardizedFileURL.resolvingSymlinksInPath()).inserted else { return nil }
+            guard var tab = pdfCoordinator.openTab(for: url) else {
+                unreadableTabs.append(persistedTab)
+                return nil
+            }
             tab.snapshot = persistedTab.snapshot ?? .initial
             return tab
         }
+        unresolvedSession = PersistedAppSession(tabs: unreadableTabs, selectedURLPath: session.selectedURLPath)
 
         guard tabStore.restoreSessionTabs(tabs, selectedURLPath: session.selectedURLPath) else { return }
         prepareForSelectedReaderChange()
     }
 
     public func saveCurrentSession() {
-        AppSessionPersistence.save(tabs: tabs, selectedTabID: selectedTabID)
+        let openURLs = Set(tabs.compactMap { $0.url?.standardizedFileURL.resolvingSymlinksInPath() })
+        unresolvedSession?.tabs.removeAll {
+            openURLs.contains(URL(fileURLWithPath: $0.path).standardizedFileURL.resolvingSymlinksInPath())
+        }
+        AppSessionPersistence.save(
+            tabs: tabs,
+            selectedTabID: selectedTabID,
+            unresolvedSession: unresolvedSession,
+            defaults: sessionDefaults
+        )
     }
 }

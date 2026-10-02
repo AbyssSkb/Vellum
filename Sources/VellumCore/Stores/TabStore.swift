@@ -20,6 +20,11 @@ struct TabStore {
         return tabs.firstIndex { $0.id == selectedTabID }
     }
 
+    func tab(for url: URL) -> PDFTab? {
+        let canonicalURL = url.standardizedFileURL.resolvingSymlinksInPath()
+        return tabs.first { $0.url?.standardizedFileURL.resolvingSymlinksInPath() == canonicalURL }
+    }
+
     mutating func selectTab(_ id: PDFTab.ID) -> Bool {
         guard selectedTabID != id, tabs.contains(where: { $0.id == id }) else { return false }
         selectedTabID = id
@@ -27,6 +32,11 @@ struct TabStore {
     }
 
     mutating func openInCurrentTab(_ tab: PDFTab) {
+        if let url = tab.url, let existingTab = self.tab(for: url) {
+            selectedTabID = existingTab.id
+            return
+        }
+
         if let index = selectedIndex {
             tabs[index] = tab
         } else {
@@ -37,20 +47,27 @@ struct TabStore {
 
     mutating func openInNewTabs(_ newTabs: [PDFTab]) -> Bool {
         guard !newTabs.isEmpty else { return false }
-        tabs.append(contentsOf: newTabs)
-        selectedTabID = newTabs.last?.id
+        for tab in newTabs {
+            if let url = tab.url, let existingTab = self.tab(for: url) {
+                selectedTabID = existingTab.id
+            } else {
+                tabs.append(tab)
+                selectedTabID = tab.id
+            }
+        }
         return true
     }
 
     mutating func restoreSessionTabs(_ restoredTabs: [PDFTab], selectedURLPath: String?) -> Bool {
         guard !restoredTabs.isEmpty else { return false }
-        tabs = restoredTabs
+        tabs = []
+        _ = openInNewTabs(restoredTabs)
 
         if let selectedURLPath,
-           let selectedTab = restoredTabs.first(where: { $0.url?.standardizedFileURL.path == selectedURLPath }) {
+           let selectedTab = tab(for: URL(fileURLWithPath: selectedURLPath)) {
             selectedTabID = selectedTab.id
         } else {
-            selectedTabID = restoredTabs.first?.id
+            selectedTabID = tabs.first?.id
         }
 
         return true
@@ -77,8 +94,14 @@ struct TabStore {
         return true
     }
 
-    mutating func restoreClosedPDFTab() -> Bool {
-        guard let tab = closedPDFTabHistory.restore() else { return false }
+    mutating func restoreClosedPDFTab(loader: (URL) -> PDFTab?) -> Bool {
+        guard let closedTab = closedPDFTabHistory.restore() else { return false }
+        if let existingTab = tab(for: closedTab.url) {
+            selectedTabID = existingTab.id
+            return true
+        }
+        guard var tab = loader(closedTab.url) else { return false }
+        tab.snapshot = closedTab.snapshot ?? .initial
         tabs.append(tab)
         selectedTabID = tab.id
         return true
