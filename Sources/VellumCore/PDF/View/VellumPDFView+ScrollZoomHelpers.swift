@@ -134,16 +134,14 @@ extension VellumPDFView {
 
     func applyZoomScale(_ scale: CGFloat) {
         autoScales = false
-        scaleFactor = min(max(scale, minimumZoomScale), maximumZoomScale)
-        layoutDocumentView()
+        let nextScale = clampedScale(scale)
+        if scaleFactor != nextScale {
+            // PDFKit updates magnification and page tiling when scaleFactor changes.
+            scaleFactor = nextScale
+        }
 
         if let zoomAnchor = animationState.zoomAnchor {
-            switch animationState.zoomAnchorMode {
-            case .centerBothAxes:
-                centerBothAxes(on: zoomAnchor)
-            case .centerVertically:
-                centerVertically(on: zoomAnchor)
-            }
+            centerBothAxes(on: zoomAnchor)
         }
     }
 

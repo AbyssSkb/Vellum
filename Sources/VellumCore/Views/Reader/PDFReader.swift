@@ -47,6 +47,9 @@ struct PDFReader: NSViewRepresentable {
         }
 
         if nsView.document !== document {
+            nsView.cancelPendingRestore()
+            nsView.stopScrollAnimation()
+            nsView.stopZoomState()
             nsView.document = document
             if isActive {
                 nsView.restore(snapshot)
@@ -57,6 +60,13 @@ struct PDFReader: NSViewRepresentable {
         } else if isActive, let pendingSnapshot = nsView.pendingActivationSnapshot {
             nsView.restore(pendingSnapshot)
             nsView.pendingActivationSnapshot = nil
+        }
+
+        if !isActive {
+            nsView.cancelPendingRestore()
+            nsView.stopScrollAnimation()
+            nsView.stopZoomState()
+            nsView.readerStateSaveWorkItem?.cancel()
         }
 
         appState.setActiveReaderController(nsView, for: tabID)
@@ -73,5 +83,9 @@ struct PDFReader: NSViewRepresentable {
 
     static func dismantleNSView(_ nsView: VellumPDFView, coordinator: ()) {
         nsView.saveBeforeDismantle?()
+        nsView.cancelPendingRestore()
+        nsView.stopScrollAnimation()
+        nsView.stopZoomState()
+        nsView.readerStateSaveWorkItem?.cancel()
     }
 }

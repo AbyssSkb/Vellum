@@ -141,7 +141,10 @@ final class VellumPDFView: PDFView {
 
         switch eventType {
         case .keyDown:
+            completePendingRestoreBeforeUserInteraction()
+            cancelPendingRestore()
             stopScrollAnimation()
+            stopZoomState()
             _ = vimNavigateTextSelection(key)
             return true
         case .keyUp:
@@ -228,6 +231,9 @@ final class VellumPDFView: PDFView {
 
     override func mouseDown(with event: NSEvent) {
         completePendingRestoreBeforeUserInteraction()
+        cancelPendingRestore()
+        stopScrollAnimation()
+        stopZoomState()
         isMouseSelectingText = true
         pendingDoubleClickTextSelectionPoint = doubleClickTextSelectionPoint(for: event)
         pendingClickHorizontalOrigin = clickHorizontalOriginToPreserve(for: event)
@@ -264,6 +270,8 @@ final class VellumPDFView: PDFView {
     override func otherMouseDown(with event: NSEvent) {
         completePendingRestoreBeforeUserInteraction()
         cancelPendingRestore()
+        stopScrollAnimation()
+        stopZoomState()
 
         if explainSelectedTextIfNeededForMiddleClick(with: event) {
             return
@@ -302,8 +310,28 @@ final class VellumPDFView: PDFView {
     override func scrollWheel(with event: NSEvent) {
         completePendingRestoreBeforeUserInteraction()
         cancelPendingRestore()
+        stopScrollAnimation()
+        stopZoomState()
         searchController?.markReaderNavigated()
         super.scrollWheel(with: event)
+    }
+
+    override func magnify(with event: NSEvent) {
+        completePendingRestoreBeforeUserInteraction()
+        cancelPendingRestore()
+        stopScrollAnimation()
+        stopZoomState()
+        searchController?.markReaderNavigated()
+        super.magnify(with: event)
+    }
+
+    override func smartMagnify(with event: NSEvent) {
+        completePendingRestoreBeforeUserInteraction()
+        cancelPendingRestore()
+        stopScrollAnimation()
+        stopZoomState()
+        searchController?.markReaderNavigated()
+        super.smartMagnify(with: event)
     }
 
     override func mouseUp(with event: NSEvent) {

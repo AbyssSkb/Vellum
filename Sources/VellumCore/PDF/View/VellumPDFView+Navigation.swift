@@ -5,24 +5,28 @@ extension VellumPDFView {
     func vimGoToFirstPage() {
         searchController?.markReaderNavigated()
         cancelPendingRestore()
+        let generation = restoreGeneration
         recordJumpSource()
         stopScrollAnimation()
         stopZoomState()
         goToFirstPage(nil)
         DispatchQueue.main.async { [weak self] in
-            self?.scrollToDocumentEdge(.top)
+            guard let self, self.restoreGeneration == generation else { return }
+            self.scrollToDocumentEdge(.top)
         }
     }
 
     func vimGoToLastPage() {
         searchController?.markReaderNavigated()
         cancelPendingRestore()
+        let generation = restoreGeneration
         recordJumpSource()
         stopScrollAnimation()
         stopZoomState()
         goToLastPage(nil)
         DispatchQueue.main.async { [weak self] in
-            self?.scrollToDocumentEdge(.bottom)
+            guard let self, self.restoreGeneration == generation else { return }
+            self.scrollToDocumentEdge(.bottom)
         }
     }
 
@@ -34,6 +38,7 @@ extension VellumPDFView {
 
         searchController?.markReaderNavigated()
         cancelPendingRestore()
+        let generation = restoreGeneration
         recordJumpSource()
         stopScrollAnimation()
         stopZoomState()
@@ -41,7 +46,8 @@ extension VellumPDFView {
         let destination = topDestination(for: page)
         go(to: destination)
         DispatchQueue.main.async { [weak self] in
-            self?.go(to: destination)
+            guard let self, self.restoreGeneration == generation else { return }
+            self.go(to: destination)
         }
     }
 
@@ -50,18 +56,20 @@ extension VellumPDFView {
 
         searchController?.markReaderNavigated()
         cancelPendingRestore()
+        let generation = restoreGeneration
         recordJumpSource()
         stopScrollAnimation()
         stopZoomState()
 
         go(to: destination)
         DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
+            guard let self, self.restoreGeneration == generation else { return }
             self.go(to: destination)
             self.restoreHorizontalOrigin(horizontalOrigin)
 
             DispatchQueue.main.async { [weak self] in
-                self?.restoreHorizontalOrigin(horizontalOrigin)
+                guard let self, self.restoreGeneration == generation else { return }
+                self.restoreHorizontalOrigin(horizontalOrigin)
             }
         }
     }

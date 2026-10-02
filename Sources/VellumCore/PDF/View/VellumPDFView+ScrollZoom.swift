@@ -2,6 +2,8 @@
 import PDFKit
 extension VellumPDFView {
     func vimScroll(x: CGFloat, y: CGFloat) {
+        completePendingRestoreBeforeUserInteraction()
+        stopZoomState()
         guard let scrollView = pdfScrollView else { return }
         searchController?.markReaderNavigated()
         cancelPendingRestore()
@@ -48,8 +50,10 @@ extension VellumPDFView {
         let targetPoint = NSPoint(x: targetBounds.midX, y: targetY)
 
         go(to: PDFDestination(page: targetPage, at: targetPoint))
+        let generation = restoreGeneration
         DispatchQueue.main.async { [weak self] in
-            self?.centerVertically(on: PDFDestination(page: targetPage, at: targetPoint))
+            guard let self, self.restoreGeneration == generation else { return }
+            self.centerVertically(on: PDFDestination(page: targetPage, at: targetPoint))
         }
     }
 }

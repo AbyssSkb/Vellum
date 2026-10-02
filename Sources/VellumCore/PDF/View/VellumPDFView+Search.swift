@@ -278,6 +278,7 @@ final class PDFSearchController {
         guard let pdfView, pdfView.document != nil else { return }
 
         pdfView.stopScrollAnimation()
+        pdfView.stopZoomState()
         pdfView.hideAIExplanationPopover()
 
         if !hasVisibleHighlights {
@@ -509,9 +510,11 @@ final class PDFSearchController {
         pdfView.go(to: selection)
 
         let generation = searchGeneration
+        let restoreGeneration = pdfView.restoreGeneration
         DispatchQueue.main.async { [weak self, weak pdfView, weak selection] in
             guard let self, let pdfView, let selection,
-                  self.searchGeneration == generation else { return }
+                  self.searchGeneration == generation,
+                  pdfView.restoreGeneration == restoreGeneration else { return }
             pdfView.go(to: selection)
             self.shouldAnchorNextMove = false
         }
