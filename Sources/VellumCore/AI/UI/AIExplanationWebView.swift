@@ -16,6 +16,23 @@ final class WeakScriptMessageHandler: NSObject, WKScriptMessageHandler {
     }
 }
 
+enum AIWebLinkNavigationPolicy {
+    @MainActor
+    static func decide(for action: WKNavigationAction, decisionHandler: @MainActor @Sendable (WKNavigationActionPolicy) -> Void) {
+        guard action.navigationType == .linkActivated else {
+            decisionHandler(.allow)
+            return
+        }
+
+        if let url = action.request.url,
+           let scheme = url.scheme?.lowercased(),
+           ["http", "https", "mailto"].contains(scheme) {
+            NSWorkspace.shared.open(url)
+        }
+        decisionHandler(.cancel)
+    }
+}
+
 final class AIExplanationWebView: WKWebView, WKNavigationDelegate, WKScriptMessageHandler {
     var onDismiss: (() -> Void)?
     var onHighlight: (() -> Void)?
@@ -72,6 +89,10 @@ final class AIExplanationWebView: WKWebView, WKNavigationDelegate, WKScriptMessa
         if shouldFocusWhenReady {
             window?.makeFirstResponder(self)
         }
+    }
+
+    func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping @MainActor @Sendable (WKNavigationActionPolicy) -> Void) {
+        AIWebLinkNavigationPolicy.decide(for: navigationAction, decisionHandler: decisionHandler)
     }
 
     func handleKey(_ key: String) -> Bool {

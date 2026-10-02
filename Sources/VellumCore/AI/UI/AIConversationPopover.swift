@@ -148,6 +148,16 @@ final class AIConversationPopoverModel: ObservableObject {
     }
 
     @discardableResult
+    func submitDraft(using send: (String) -> Bool) -> Bool {
+        guard !isSending else { return false }
+        let prompt = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !prompt.isEmpty, send(prompt) else { return false }
+        draft = ""
+        requestTranscriptScrollToBottom()
+        return true
+    }
+
+    @discardableResult
     private func recalculatePreferredHeight() -> Bool {
         let messageContentHeight = currentMessageContentHeight()
         let totalHeight = messageContentHeight > 0
@@ -225,7 +235,7 @@ struct AIConversationPopoverView: View {
     @Environment(\.appUILanguage) private var language
     @ObservedObject var model: AIConversationPopoverModel
     let onDismiss: () -> Void
-    let onSend: (String) -> Void
+    let onSend: (String) -> Bool
     let onPreferredSizeChange: (NSSize) -> Void
     @State private var inputIsFocused = true
     @State private var inputFocusGeneration = 0
@@ -247,9 +257,6 @@ struct AIConversationPopoverView: View {
         }
         .onChange(of: model.errorMessage) { _, _ in
             applyFallbackHeightIfNeeded()
-        }
-        .onChange(of: model.isSending) { _, _ in
-            refocusInput()
         }
         .onAppear {
             DispatchQueue.main.async {
@@ -298,15 +305,6 @@ struct AIConversationPopoverView: View {
         )
         .frame(height: messageViewportHeight)
         .background(TokyoNight.panelColor.opacity(0.22))
-        .onChange(of: model.messages) { _, _ in
-            refocusInput()
-        }
-        .onChange(of: model.preferredHeight) { _, _ in
-            refocusInput()
-        }
-        .onChange(of: model.isSending) { _, _ in
-            refocusInput()
-        }
     }
 
     private var composer: some View {
@@ -368,19 +366,8 @@ struct AIConversationPopoverView: View {
     }
 
     private func sendDraft() {
-        guard !model.isSending else { return }
-        let prompt = model.draft.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !prompt.isEmpty else { return }
-        model.requestTranscriptScrollToBottom()
-        model.draft = ""
+        guard model.submitDraft(using: onSend) else { return }
         refocusInput()
-        onSend(prompt)
-        DispatchQueue.main.async {
-            refocusInput()
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-            refocusInput()
-        }
     }
 
     private func refocusInput() {
@@ -412,7 +399,7 @@ struct AIConversationPopoverView: View {
 
 }
 
-private struct AIConversationInputTextView: NSViewRepresentable {
+struct AIConversationInputTextView: NSViewRepresentable {
     @Binding var text: String
     @Binding var isFocused: Bool
     let focusGeneration: Int
@@ -480,7 +467,7 @@ private struct AIConversationInputTextView: NSViewRepresentable {
         }
 
         let shouldRefocus = isFocused
-            && (context.coordinator.focusGeneration != focusGeneration || textView.window?.firstResponder !== textView)
+            && context.coordinator.focusGeneration != focusGeneration
         context.coordinator.focusGeneration = focusGeneration
 
         if shouldRefocus {
@@ -518,16 +505,7 @@ private struct AIConversationInputTextView: NSViewRepresentable {
         }
 
         func textDidEndEditing(_ notification: Notification) {
-            guard let textView = notification.object as? AIConversationNSTextView else { return }
-            guard textView.window != nil else {
-                isFocused = false
-                return
-            }
-
-            isFocused = true
-            DispatchQueue.main.async { [weak textView] in
-                textView?.focusAndShowInsertionPoint()
-            }
+            isFocused = false
         }
 
         func reportTextHeight(in scrollView: NSScrollView?) {
@@ -553,7 +531,7 @@ private struct AIConversationInputTextView: NSViewRepresentable {
             let usedHeight = layoutManager.usedRect(for: textContainer).height
             let measuredHeight = ceil(usedHeight + textView.textContainerInset.height * 2 + 1)
             let normalizedHeight = AIConversationPopoverMetrics.normalizedComposerTextHeight(measuredHeight)
-            let documentHeight = max(normalizedHeight, scrollView.contentSize.height)
+            let documentHeight = max(measuredHeight, scrollView.contentSize.height)
             if abs(textView.frame.height - documentHeight) > 0.5 {
                 textView.frame.size.height = documentHeight
             }
@@ -565,7 +543,7 @@ private struct AIConversationInputTextView: NSViewRepresentable {
     }
 }
 
-private final class AIConversationNSTextView: NSTextView {
+final class AIConversationNSTextView: NSTextView {
     var onCommandReturn: (() -> Void)?
     var shouldFocusWhenAttached = true
 
@@ -580,7 +558,6 @@ private final class AIConversationNSTextView: NSTextView {
 
     func focusAndShowInsertionPoint() {
         window?.makeFirstResponder(self)
-        setSelectedRange(NSRange(location: string.utf16.count, length: 0))
         scrollRangeToVisible(selectedRange())
         needsDisplay = true
     }
@@ -589,6 +566,7 @@ private final class AIConversationNSTextView: NSTextView {
         let isReturn = event.keyCode == 36 || event.keyCode == 76
         let commandModifiers: NSEvent.ModifierFlags = [.command, .control, .option]
         let shouldSend = isReturn
+            && !hasMarkedText()
             && event.modifierFlags.intersection(commandModifiers).isEmpty
             && !event.modifierFlags.contains(.shift)
 
@@ -598,9 +576,6 @@ private final class AIConversationNSTextView: NSTextView {
         }
 
         onCommandReturn?()
-        DispatchQueue.main.async { [weak self] in
-            self?.focusAndShowInsertionPoint()
-        }
     }
 }
 
@@ -719,6 +694,10 @@ private final class AIConversationTranscriptWKWebView: WKWebView, WKNavigationDe
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         didLoadDocument = true
         evaluateJavaScript("window.vellumSetConversation(\(pendingPayload), \(pendingFollowBottom ? "true" : "false"));")
+    }
+
+    func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping @MainActor @Sendable (WKNavigationActionPolicy) -> Void) {
+        AIWebLinkNavigationPolicy.decide(for: navigationAction, decisionHandler: decisionHandler)
     }
 
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {

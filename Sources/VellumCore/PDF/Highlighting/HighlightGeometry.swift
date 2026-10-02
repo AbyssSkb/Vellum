@@ -123,6 +123,21 @@ enum HighlightGeometry {
             && abs(lhs.alphaComponent - rhs.alphaComponent) < 0.03
     }
 
+    static func uncoveredRegions(in bounds: NSRect, coveredBy regions: [NSRect]) -> [NSRect] {
+        regions.reduce([bounds]) { uncovered, covered in
+            uncovered.flatMap { region -> [NSRect] in
+                let overlap = region.intersection(covered)
+                guard !overlap.isNull, overlap.width > 0, overlap.height > 0 else { return [region] }
+                return [
+                    NSRect(x: region.minX, y: region.minY, width: region.width, height: overlap.minY - region.minY),
+                    NSRect(x: region.minX, y: overlap.maxY, width: region.width, height: region.maxY - overlap.maxY),
+                    NSRect(x: region.minX, y: overlap.minY, width: overlap.minX - region.minX, height: overlap.height),
+                    NSRect(x: overlap.maxX, y: overlap.minY, width: region.maxX - overlap.maxX, height: overlap.height)
+                ].filter { $0.width > 0.1 && $0.height > 0.1 }
+            }
+        }
+    }
+
     private static func quadBounds(_ values: [NSValue], relativeTo annotationBounds: NSRect) -> NSRect? {
         let points = values.map(\.pointValue)
         guard points.count == 4 else { return nil }

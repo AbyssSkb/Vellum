@@ -75,7 +75,7 @@ extension VellumPDFView {
         hoverKey: String
     ) {
         let model = AIExplanationPopoverModel(
-            title: "Saved explanation",
+            title: AppUILanguage.saved().text(.aiSavedExplanation),
             text: explanation,
             initialHeight: AIExplanationPopoverMetrics.estimatedHoverHeight(for: explanation),
             pronunciationSpeechText: pronunciationSpeechText(for: annotation, explanation: explanation)
@@ -261,7 +261,7 @@ extension VellumPDFView {
                     self?.dismissActiveAIInteraction(clearSelection: true)
                 },
                 onSend: { [weak self, weak model] prompt in
-                    self?.sendAIConversationMessage(prompt, model: model)
+                    self?.sendAIConversationMessage(prompt, model: model) ?? false
                 },
                 onPreferredSizeChange: { [weak self] size in
                     guard let self, let overlay else { return }
@@ -345,7 +345,7 @@ extension VellumPDFView {
         size: NSSize,
         focusWhenReady: Bool
     ) -> NSView {
-        let hostingView = NSHostingView(rootView: rootView)
+        let hostingView = NSHostingView(rootView: AppLanguageObservedView(content: rootView))
         hostingView.translatesAutoresizingMaskIntoConstraints = true
 
         let overlay = AIFloatingOverlayContainerView(contentView: hostingView)
@@ -499,6 +499,7 @@ extension VellumPDFView {
         cancelPendingHoverPopoverHide()
         stopAIContinuousScroll()
         aiInteraction.activeWebView?.stopPronunciation()
+        aiInteraction.clearActiveRequest()
         aiInteraction.clearPopoverState()
     }
 
@@ -736,13 +737,13 @@ extension VellumPDFView {
             return
         }
 
-        aiInteraction.explanationTask?.cancel()
-        aiInteraction.explanationTask = nil
+        aiInteraction.cancelExplanationRequest()
 
         let color = appState?.selectedHighlightColor.annotationColor ?? HighlightColor.yellow.annotationColor
         let annotations = addHighlightAnnotations(for: selection, color: color)
-        let explanation = aiInteraction.activeExplanationModel?.text
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let model = aiInteraction.activeExplanationModel
+        let successfulText = model?.requestStatus == .failed ? nil : model?.text
+        let explanation = successfulText?.trimmingCharacters(in: .whitespacesAndNewlines)
             .nilIfEmpty
 
         if let explanation {
@@ -784,7 +785,7 @@ extension VellumPDFView {
                         id: UUID(),
                         selectedText: selectedText,
                         explanation: explanation,
-                        fileName: document.documentURL?.lastPathComponent ?? "Untitled",
+                        fileName: document.documentURL?.lastPathComponent ?? AppUILanguage.saved().text(.untitled),
                         documentKey: document.documentURL?.standardizedFileURL.path,
                         pageNumbers: [pageIndex + 1],
                         updatedAt: annotation.modificationDate ?? Date.distantPast
@@ -797,10 +798,6 @@ extension VellumPDFView {
     }
 
     func restoreAIExplanation(_ item: AIExplanationHistoryItem) {
-        aiInteraction.explanationTask?.cancel()
-        aiInteraction.activeSelection = nil
-        aiInteraction.existingAnnotations = []
-
         let model = AIExplanationPopoverModel(
             title: item.selectedText.aiPopoverTitle,
             text: item.explanation,
@@ -811,8 +808,6 @@ extension VellumPDFView {
     }
 
     func restoreAIConversation(_ item: AIConversationHistoryItem) {
-        aiInteraction.conversationTask?.cancel()
-
         let model = AIConversationPopoverModel(context: item.context, historyID: item.id)
         model.messages = item.messages
         model.refreshPreferredHeight()

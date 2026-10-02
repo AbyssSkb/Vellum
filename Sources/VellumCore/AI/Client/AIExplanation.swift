@@ -383,7 +383,7 @@ enum AIExplanationClient {
         )
     }
 
-    private static func client(for configuration: AIConfiguration) -> any AIExplaining {
+    static func client(for configuration: AIConfiguration) -> any AIExplaining {
         switch configuration.providerFormat {
         case .openAICompatible, .anthropicMessages:
             return httpClient

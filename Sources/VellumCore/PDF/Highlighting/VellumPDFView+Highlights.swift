@@ -30,27 +30,36 @@ extension VellumPDFView {
         let lineSelections = selection.selectionsByLine()
         let selections = lineSelections.isEmpty ? [selection] : lineSelections
         var annotations: [PDFAnnotation] = []
+        var seen = Set<ObjectIdentifier>()
         let groupID = UUID().uuidString
 
         for lineSelection in selections {
             for page in lineSelection.pages {
                 guard let bounds = HighlightGeometry.tightBounds(for: lineSelection, on: page) else { continue }
 
-                let preservedExplanation = existingAIExplanation(on: page, intersecting: [bounds])
-                removeHighlightAnnotations(on: page, intersecting: bounds)
-
-                let annotation = PDFAnnotation(bounds: bounds, forType: .highlight, withProperties: nil)
-                annotation.color = color
-                annotation.quadrilateralPoints = HighlightGeometry.quadrilateralPoints(for: bounds)
-                HighlightAnnotationMetadata.setGroupID(groupID, for: annotation)
-                if let preservedExplanation {
-                    annotation.contents = AIExplanationAnnotation.encode(preservedExplanation)
-                    annotation.userName = "Vellum AI"
+                let existing = highlightAnnotations(on: page, intersecting: [bounds])
+                for annotation in existing {
+                    annotation.color = color
+                    if seen.insert(ObjectIdentifier(annotation)).inserted {
+                        annotations.append(annotation)
+                    }
                 }
-                annotation.shouldDisplay = true
-                annotation.shouldPrint = true
-                page.addAnnotation(annotation)
-                annotations.append(annotation)
+
+                // Keep existing annotation objects and their notes, authors, and custom metadata.
+                let uncovered = HighlightGeometry.uncoveredRegions(
+                    in: bounds,
+                    coveredBy: existing.flatMap(HighlightGeometry.regions)
+                )
+                for region in uncovered {
+                    let annotation = PDFAnnotation(bounds: region, forType: .highlight, withProperties: nil)
+                    annotation.color = color
+                    annotation.quadrilateralPoints = HighlightGeometry.quadrilateralPoints(for: region)
+                    HighlightAnnotationMetadata.setGroupID(groupID, for: annotation)
+                    annotation.shouldDisplay = true
+                    annotation.shouldPrint = true
+                    page.addAnnotation(annotation)
+                    annotations.append(annotation)
+                }
             }
         }
 
@@ -118,33 +127,61 @@ extension VellumPDFView {
             return
         }
 
-        aiInteraction.explanationTask?.cancel()
-        aiInteraction.activeSelection = selection.copy() as? PDFSelection ?? selection
-        aiInteraction.existingAnnotations = targetAnnotations
+        startAIExplanation(
+            for: selection,
+            context: context,
+            configuration: configuration,
+            annotations: targetAnnotations,
+            using: AIExplanationClient.client(for: configuration)
+        )
+    }
+
+    func startAIExplanation(
+        for selection: PDFSelection,
+        context: AIExplanationContext,
+        configuration: AIConfiguration,
+        annotations targetAnnotations: [PDFAnnotation],
+        using client: any AIExplaining
+    ) {
+        aiInteraction.clearActiveRequest()
         let popoverModel = showStreamingAIExplanationPopover(
             title: context.selectedText.aiPopoverTitle,
             pronunciationSpeechText: context.selectedText,
             at: nil
         )
+        aiInteraction.activeSelection = selection.copy() as? PDFSelection ?? selection
+        let requestID = UUID()
+        aiInteraction.explanationRequestID = requestID
+        let requestDocument = document
 
         let task = Task { @MainActor [weak self] in
             do {
-                let explanation = try await AIExplanationClient.streamExplanation(
+                let explanation = try await client.streamExplanation(
                     context: context,
                     configuration: configuration,
-                    onChunk: { chunk in
+                    onChunk: { [weak self] chunk in
+                        guard let self,
+                              self.aiInteraction.explanationRequestID == requestID,
+                              self.document === requestDocument else { return }
                         popoverModel?.append(chunk)
                     }
                 )
-                guard let self else { return }
+                guard let self,
+                      !Task.isCancelled,
+                      self.aiInteraction.explanationRequestID == requestID,
+                      self.document === requestDocument else { return }
 
-                for annotation in self.aiInteraction.existingAnnotations {
+                let attachedAnnotations = targetAnnotations.filter { annotation in
+                    annotation.page?.document === requestDocument
+                        && annotation.page?.annotations.contains(where: { $0 === annotation }) == true
+                }
+                for annotation in attachedAnnotations {
                     annotation.contents = AIExplanationAnnotation.encode(explanation)
                     annotation.userName = "Vellum AI"
                     annotation.modificationDate = Date()
                 }
 
-                if !self.aiInteraction.existingAnnotations.isEmpty {
+                if !attachedAnnotations.isEmpty {
                     self.needsDisplay = true
                     self.persistAnnotationsIfPossible()
                 }
@@ -161,13 +198,18 @@ extension VellumPDFView {
                 )
                 popoverModel?.isStreaming = false
                 popoverModel?.requestStatus = .completed
+                self.aiInteraction.explanationRequestID = nil
                 self.aiInteraction.explanationTask = nil
             } catch {
-                guard !Task.isCancelled else { return }
-                self?.aiInteraction.explanationTask = nil
+                guard let self,
+                      !Task.isCancelled,
+                      self.aiInteraction.explanationRequestID == requestID,
+                      self.document === requestDocument else { return }
+                self.aiInteraction.explanationRequestID = nil
+                self.aiInteraction.explanationTask = nil
                 popoverModel?.isStreaming = false
                 popoverModel?.requestStatus = .failed
-                popoverModel?.title = "AI request failed"
+                popoverModel?.title = AppUILanguage.saved().text(.aiExplanationFailed)
                 popoverModel?.text = error.localizedDescription
                 NSSound.beep()
             }
@@ -195,19 +237,19 @@ extension VellumPDFView {
             return
         }
 
-        aiInteraction.conversationTask?.cancel()
-        aiInteraction.activeSelection = selection.copy() as? PDFSelection ?? selection
         let model = AIConversationPopoverModel(context: context)
         showAIConversationPopover(model: model, at: nil)
+        aiInteraction.activeSelection = selection.copy() as? PDFSelection ?? selection
     }
 
-    func sendAIConversationMessage(_ prompt: String, model: AIConversationPopoverModel?) {
+    @discardableResult
+    func sendAIConversationMessage(_ prompt: String, model: AIConversationPopoverModel?) -> Bool {
         guard let model,
               aiInteraction.activeConversationModel === model,
-              !model.isSending else { return }
+              !model.isSending else { return false }
 
         let question = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !question.isEmpty else { return }
+        guard !question.isEmpty else { return false }
 
         let configuration: AIConfiguration
         do {
@@ -216,53 +258,81 @@ extension VellumPDFView {
             model.errorMessage = error.localizedDescription
             model.requestStatus = .failed
             NSSound.beep()
-            return
+            return false
         }
 
+        startAIConversationMessage(
+            question,
+            model: model,
+            configuration: configuration,
+            using: AIExplanationClient.client(for: configuration)
+        )
+        return true
+    }
+
+    func startAIConversationMessage(
+        _ question: String,
+        model: AIConversationPopoverModel,
+        configuration: AIConfiguration,
+        using client: any AIExplaining
+    ) {
+        aiInteraction.cancelConversationRequest()
+        let requestID = UUID()
+        aiInteraction.conversationRequestID = requestID
         model.errorMessage = nil
         model.isSending = true
         model.requestStatus = .streaming
         let context = model.context
         model.messages.append(AIConversationMessage(role: .user, content: question))
-        model.messages.append(AIConversationMessage(role: .assistant, content: ""))
+        let assistantMessage = AIConversationMessage(role: .assistant, content: "")
+        model.messages.append(assistantMessage)
         model.refreshPreferredHeight()
         appState?.upsertAIConversationHistory(model.historyItem)
         let messagesForRequest = Array(model.messages.dropLast())
+        let assistantMessageID = assistantMessage.id
 
-        aiInteraction.conversationTask?.cancel()
         let task = Task { @MainActor [weak self, weak model] in
             do {
-                let answer = try await AIExplanationClient.streamConversation(
+                let answer = try await client.streamConversation(
                     context: context,
                     messages: messagesForRequest,
                     configuration: configuration,
                     onChunk: { chunk in
-                        model?.appendToLatestAssistant(chunk)
-                        if let model {
-                            self?.appState?.upsertAIConversationHistory(model.historyItem)
-                        }
+                        guard let self, let model,
+                              self.aiInteraction.conversationRequestID == requestID,
+                              self.aiInteraction.activeConversationModel === model,
+                              let index = model.messages.firstIndex(where: { $0.id == assistantMessageID }) else { return }
+                        model.messages[index].content += chunk
+                        self.appState?.upsertAIConversationHistory(model.historyItem)
                     }
                 )
-                guard let model else { return }
-                model.replaceLatestAssistant(with: answer)
+                guard let self, let model,
+                      !Task.isCancelled,
+                      self.aiInteraction.conversationRequestID == requestID,
+                      self.aiInteraction.activeConversationModel === model,
+                      let index = model.messages.firstIndex(where: { $0.id == assistantMessageID }) else { return }
+                model.messages[index].content = answer
                 model.isSending = false
                 model.requestStatus = .completed
-                self?.appState?.upsertAIConversationHistory(model.historyItem)
-                self?.aiInteraction.conversationTask = nil
+                self.appState?.upsertAIConversationHistory(model.historyItem)
+                self.aiInteraction.conversationRequestID = nil
+                self.aiInteraction.conversationTask = nil
             } catch {
-                guard !Task.isCancelled else { return }
-                guard let model else { return }
-                if let lastIndex = model.messages.indices.last,
-                   model.messages[lastIndex].role == .assistant,
-                   model.messages[lastIndex].content.isEmpty {
-                    model.messages.remove(at: lastIndex)
+                guard let self, let model,
+                      !Task.isCancelled,
+                      self.aiInteraction.conversationRequestID == requestID,
+                      self.aiInteraction.activeConversationModel === model else { return }
+                if let index = model.messages.firstIndex(where: { $0.id == assistantMessageID }),
+                   model.messages[index].content.isEmpty {
+                    model.messages.remove(at: index)
                 }
                 model.errorMessage = error.localizedDescription
                 model.isSending = false
                 model.requestStatus = .failed
                 model.refreshPreferredHeight()
-                self?.appState?.upsertAIConversationHistory(model.historyItem)
-                self?.aiInteraction.conversationTask = nil
+                self.appState?.upsertAIConversationHistory(model.historyItem)
+                self.aiInteraction.conversationRequestID = nil
+                self.aiInteraction.conversationTask = nil
                 NSSound.beep()
             }
         }

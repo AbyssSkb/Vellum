@@ -47,7 +47,7 @@ enum AIRequestLogger {
             provider: configuration.providerFormat.title,
             model: configuration.model,
             method: request.httpMethod,
-            url: request.url?.absoluteString,
+            url: sanitizedURL(request.url),
             statusCode: (response as? HTTPURLResponse)?.statusCode,
             durationMs: durationMs(since: startedAt),
             requestHeaders: sanitizedHeaders(request.allHTTPHeaderFields),
@@ -120,6 +120,19 @@ enum AIRequestLogger {
                 result[pair.key] = pair.value
             }
         }
+    }
+
+    static func sanitizedURL(_ url: URL?) -> String? {
+        guard let url else { return nil }
+        guard var components = URLComponents(url: url, resolvingAgainstBaseURL: true) else {
+            return "<redacted>"
+        }
+        components.user = nil
+        components.password = nil
+        components.queryItems = components.queryItems?.map {
+            URLQueryItem(name: $0.name, value: $0.value == nil ? nil : "<redacted>")
+        }
+        return components.string ?? "<redacted>"
     }
 
     static func textPreview(from data: Data?, maxCharacters: Int) -> String? {

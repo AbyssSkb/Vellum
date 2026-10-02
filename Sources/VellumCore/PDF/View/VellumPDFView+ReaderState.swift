@@ -328,12 +328,6 @@ extension VellumPDFView {
         return result
     }
 
-    func existingAIExplanation(on page: PDFPage, intersecting selectionBounds: [NSRect]) -> String? {
-        highlightAnnotations(on: page, intersecting: selectionBounds)
-            .compactMap { AIExplanationAnnotation.decode($0.contents) }
-            .first
-    }
-
     func highlightedAnnotations(intersecting selection: PDFSelection) -> [PDFAnnotation] {
         let selectionsByPage = highlightSelectionBoundsByPage(for: selection)
         var seen = Set<ObjectIdentifier>()

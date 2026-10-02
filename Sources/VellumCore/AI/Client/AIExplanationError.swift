@@ -14,25 +14,29 @@ enum AIExplanationError: LocalizedError {
     case transport(String)
 
     var errorDescription: String? {
+        message(language: .saved())
+    }
+
+    func message(language: AppUILanguage) -> String {
         switch self {
         case .invalidBaseURL:
-            return "AI base_url 无效，请在设置里填写完整的 http/https 地址。"
+            return language.text(.aiInvalidBaseURL)
         case .missingModel:
-            return "AI 模型名称为空，请先在设置里填写模型名称。"
+            return language.text(.aiMissingModel)
         case .missingAPIKey:
-            return "AI API Key 为空，请先在设置里填写 API Key。"
+            return language.text(.aiMissingAPIKey)
         case .missingCodexExecutable:
-            return "Codex 路径为空，请先在设置里填写 codex 可执行文件路径。"
+            return language.text(.aiMissingCodexExecutable)
         case .noSelection:
-            return "请先选中一段文字。"
+            return language.text(.aiNoSelection)
         case .noHighlightedText:
-            return "当前选区没有命中任何高亮。"
+            return language.text(.aiNoHighlightedText)
         case .emptyResponse:
-            return "AI 没有返回可用解释。"
+            return language.text(.aiEmptyResponse)
         case .responseTruncated:
-            return "AI 输出被服务端截断，内容可能不完整。"
+            return language.text(.aiResponseTruncated)
         case .streamEndedPrematurely:
-            return "AI 流式响应提前结束，内容可能不完整，请重试。"
+            return language.text(.aiStreamEndedPrematurely)
         case .server(let message):
             return message
         case .transport(let message):

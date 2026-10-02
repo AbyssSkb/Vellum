@@ -10,9 +10,10 @@ final class AIInteractionState {
     var conversationOverlay: NSView?
     var activeConversationModel: AIConversationPopoverModel?
     var activeSelection: PDFSelection?
-    var existingAnnotations: [PDFAnnotation] = []
     var explanationTask: Task<Void, Never>?
     var conversationTask: Task<Void, Never>?
+    var explanationRequestID: UUID?
+    var conversationRequestID: UUID?
     weak var activeWebView: AIExplanationWebView?
     var continuousScrollKey: String?
     var continuousScrollKeyCode: UInt16?
@@ -40,12 +41,22 @@ final class AIInteractionState {
     }
 
     func clearActiveRequest() {
+        cancelExplanationRequest()
+        cancelConversationRequest()
+        activeSelection = nil
+    }
+
+    func cancelExplanationRequest() {
+        explanationRequestID = nil
         explanationTask?.cancel()
         explanationTask = nil
+    }
+
+    func cancelConversationRequest() {
+        conversationRequestID = nil
         conversationTask?.cancel()
         conversationTask = nil
-        activeSelection = nil
-        existingAnnotations = []
+        activeConversationModel?.isSending = false
     }
 
     func clearPopoverState() {
