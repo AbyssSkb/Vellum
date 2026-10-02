@@ -1,4 +1,4 @@
-// Run: swiftc -module-cache-path .build/ModuleCache Sources/Vellum/App/AppUpdateInstaller.swift Tests/InstallerTests/main.swift -o /tmp/vellum-installer-tests && /tmp/vellum-installer-tests
+// Run: swiftc -module-cache-path .build/ModuleCache Sources/Vellum/App/AppUpdateInstaller.swift Sources/Vellum/App/UpdateCancellation.swift Tests/InstallerTests/main.swift -o /tmp/vellum-installer-tests && /tmp/vellum-installer-tests
 import Foundation
 
 func quoted(_ value: String) -> String {
@@ -10,10 +10,19 @@ let root = manager.temporaryDirectory.appendingPathComponent("Vellum installer t
 try manager.createDirectory(at: root, withIntermediateDirectories: true)
 defer { try? manager.removeItem(at: root) }
 
-for failure in ["none", "copy", "replace", "relaunch", "rollback"] {
+let customInstallation = root.appendingPathComponent("My Apps/Reader.app")
+assert(AppUpdateInstaller.destinationURL(for: customInstallation, onReadOnlyVolume: false) == customInstallation)
+assert(AppUpdateInstaller.destinationURL(for: customInstallation, onReadOnlyVolume: true).path == "/Applications/Vellum.app")
+assert(isUpdateCancellation(CancellationError()))
+assert(isUpdateCancellation(URLError(.cancelled)))
+assert(isUpdateCancellation(NSError(domain: NSURLErrorDomain, code: -999)))
+assert(!isUpdateCancellation(URLError(.timedOut)))
+print("Installer destination and update cancellation: passed")
+
+for failure in ["none", "incompatible", "copy", "replace", "relaunch", "rollback"] {
     let directory = root.appendingPathComponent(failure)
     let source = directory.appendingPathComponent("source/Vellum.app")
-    let destination = directory.appendingPathComponent("Applications/Vellum.app")
+    let destination = directory.appendingPathComponent("My Apps/Reader.app")
     let diskImage = directory.appendingPathComponent("update.dmg")
     for app in [source, destination] {
         try manager.createDirectory(at: app, withIntermediateDirectories: true)
@@ -51,6 +60,10 @@ for failure in ["none", "copy", "replace", "relaunch", "rollback"] {
         fi
         exit 0
         """)
+    let architecture = try command("architecture", """
+        [[ "$1" == */Vellum.app/Contents/MacOS/Vellum && "$2" == -verify_arch && "$3" == arm64 ]] || exit 1
+        exit \(failure == "incompatible" ? 1 : 0)
+        """)
     let script = AppUpdateInstaller.installScript(
         diskImageURL: diskImage,
         destinationURL: destination,
@@ -60,6 +73,8 @@ for failure in ["none", "copy", "replace", "relaunch", "rollback"] {
         .replacingOccurrences(of: "/usr/bin/ditto", with: copy)
         .replacingOccurrences(of: "/bin/mv", with: move)
         .replacingOccurrences(of: "/usr/bin/open", with: open)
+        .replacingOccurrences(of: "/usr/bin/lipo", with: architecture)
+        .replacingOccurrences(of: "/usr/sbin/sysctl", with: "/usr/bin/printf 1")
         .replacingOccurrences(of: "/usr/bin/osascript", with: "/usr/bin/true")
     let process = Process()
     process.executableURL = URL(fileURLWithPath: "/bin/zsh")

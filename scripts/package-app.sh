@@ -22,9 +22,10 @@ if [ -z "${BUILD_NUMBER:-}" ]; then
 fi
 
 CLANG_MODULE_CACHE_PATH="$ROOT_DIR/.build/ModuleCache" \
-    swift build --configuration "$BUILD_CONFIG" --cache-path "$ROOT_DIR/.build/SwiftPMCache"
-PRODUCT_DIR="$(CLANG_MODULE_CACHE_PATH="$ROOT_DIR/.build/ModuleCache" swift build --configuration "$BUILD_CONFIG" --cache-path "$ROOT_DIR/.build/SwiftPMCache" --show-bin-path)"
+    swift build --configuration "$BUILD_CONFIG" --arch arm64 --arch x86_64 --cache-path "$ROOT_DIR/.build/SwiftPMCache"
+PRODUCT_DIR="$(CLANG_MODULE_CACHE_PATH="$ROOT_DIR/.build/ModuleCache" swift build --configuration "$BUILD_CONFIG" --arch arm64 --arch x86_64 --cache-path "$ROOT_DIR/.build/SwiftPMCache" --show-bin-path)"
 EXECUTABLE="$PRODUCT_DIR/$APP_NAME"
+/usr/bin/lipo "$EXECUTABLE" -verify_arch arm64 x86_64
 
 rm -rf "$APP_DIR"
 mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"

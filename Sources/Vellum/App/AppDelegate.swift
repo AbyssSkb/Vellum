@@ -4,7 +4,9 @@ import VellumCore
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     weak var appState: AppState?
-    private let updateChecker = GitHubUpdateChecker()
+    private lazy var updateChecker = GitHubUpdateChecker(prepareToTerminate: { [weak self] in
+        self?.appState?.prepareToTerminate() ?? true
+    })
     private var settingsWindowController: SettingsWindowController?
     private var checkForUpdatesObserver: NSObjectProtocol?
 

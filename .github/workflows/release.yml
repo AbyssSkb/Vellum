@@ -100,8 +100,9 @@ jobs:
 
       - name: Run tests
         run: |
-          swift test
-          swiftc Sources/Vellum/App/AppUpdateInstaller.swift Tests/InstallerTests/main.swift -o "$RUNNER_TEMP/vellum-installer-tests"
+          # AppKit/PDFKit fixtures share the application, focus, and main run loop.
+          swift test --no-parallel
+          swiftc Sources/Vellum/App/AppUpdateInstaller.swift Sources/Vellum/App/UpdateCancellation.swift Tests/InstallerTests/main.swift -o "$RUNNER_TEMP/vellum-installer-tests"
           "$RUNNER_TEMP/vellum-installer-tests"
 
       - name: Build release notes
@@ -150,7 +151,6 @@ jobs:
           if [[ "$SIGNING_AVAILABLE" == "true" ]]; then
             codesign --force --timestamp --sign "$CODE_SIGN_IDENTITY" "dist/${{ steps.version.outputs.archive_name }}.dmg"
           fi
-          shasum -a 256 "dist/${{ steps.version.outputs.archive_name }}.dmg" > "dist/${{ steps.version.outputs.archive_name }}.dmg.sha256"
 
       - name: Notarize release disk image
         if: steps.signing.outputs.available == 'true'
@@ -171,6 +171,9 @@ jobs:
             --password "$APPLE_APP_SPECIFIC_PASSWORD" \
             --wait
           xcrun stapler staple "dist/${{ steps.version.outputs.archive_name }}.dmg"
+
+      - name: Generate final disk image checksum
+        run: shasum -a 256 "dist/${{ steps.version.outputs.archive_name }}.dmg" > "dist/${{ steps.version.outputs.archive_name }}.dmg.sha256"
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v3.0.0

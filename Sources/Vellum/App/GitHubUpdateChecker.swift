@@ -52,11 +52,13 @@ final class GitHubUpdateChecker {
     private static let releaseNotesRetryDelay: UInt64 = 600_000_000
 
     private let session: URLSession
+    private let prepareToTerminate: @MainActor () -> Bool
     private var task: Task<Void, Never>?
     private var downloadWindow: UpdateDownloadWindowController?
 
-    init(session: URLSession = .shared) {
+    init(session: URLSession = .shared, prepareToTerminate: @escaping @MainActor () -> Bool = { true }) {
         self.session = session
+        self.prepareToTerminate = prepareToTerminate
     }
 
     deinit {
@@ -70,11 +72,15 @@ final class GitHubUpdateChecker {
             do {
                 let currentVersion = self.currentAppVersion()
                 let update = try await fetchLatestUpdate(currentVersion: currentVersion)
+                try Task.checkCancellation()
                 await MainActor.run {
+                    guard !Task.isCancelled else { return }
                     self.handle(update: update, currentVersion: currentVersion, mode: mode)
                 }
             } catch {
+                guard !Task.isCancelled, !isUpdateCancellation(error) else { return }
                 await MainActor.run {
+                    guard !Task.isCancelled else { return }
                     if mode == .manual {
                         self.showUpdateError(error)
                     }
@@ -91,7 +97,9 @@ final class GitHubUpdateChecker {
             do {
                 let currentVersion = self.currentAppVersion()
                 let update = try await fetchLatestUpdate(currentVersion: currentVersion)
+                try Task.checkCancellation()
                 await MainActor.run {
+                    guard !Task.isCancelled else { return }
                     self.handle(update: update, currentVersion: currentVersion, mode: .automatic)
                 }
             } catch {
@@ -107,6 +115,8 @@ final class GitHubUpdateChecker {
         do {
             latestReleaseUpdate = try await fetchLatestReleaseUpdate()
         } catch {
+            if isUpdateCancellation(error) { throw error }
+            try Task.checkCancellation()
             latestReleaseError = error
         }
 
@@ -118,6 +128,8 @@ final class GitHubUpdateChecker {
             }
             return await updateIncludingReleaseHistory(redirectUpdate, currentVersion: currentVersion)
         } catch {
+            if isUpdateCancellation(error) { throw error }
+            try Task.checkCancellation()
             if let latestReleaseUpdate {
                 return await updateIncludingReleaseHistory(latestReleaseUpdate, currentVersion: currentVersion)
             }
@@ -126,6 +138,8 @@ final class GitHubUpdateChecker {
                 let update = try await fetchLatestTaggedUpdate()
                 return await updateIncludingReleaseHistory(update, currentVersion: currentVersion)
             } catch {
+                if isUpdateCancellation(error) { throw error }
+                try Task.checkCancellation()
                 throw latestReleaseError ?? error
             }
         }
@@ -200,6 +214,8 @@ final class GitHubUpdateChecker {
         do {
             return try await fetchReleaseUpdate(tagName: tagName)
         } catch {
+            if isUpdateCancellation(error) { throw error }
+            try Task.checkCancellation()
             return try await fallbackGitHubReleaseUpdate(tagName: tagName)
         }
     }
@@ -224,6 +240,8 @@ final class GitHubUpdateChecker {
         do {
             return try await fetchReleaseUpdate(tagName: update.version)
         } catch {
+            if isUpdateCancellation(error) { throw error }
+            try Task.checkCancellation()
             return AppUpdateInfo(
                 version: update.version,
                 releaseURL: update.releaseURL,
@@ -409,12 +427,14 @@ final class GitHubUpdateChecker {
         }
 
         task?.cancel()
+        downloadWindow?.finish()
         let window = UpdateDownloadWindowController(version: update.version)
         downloadWindow = window
-        window.onCancel = { [weak self] in
-            self?.task?.cancel()
-            self?.downloadWindow?.finish()
-            self?.downloadWindow = nil
+        window.onCancel = { [weak self, weak window] in
+            guard let self, let window, self.downloadWindow === window else { return }
+            self.task?.cancel()
+            window.finish()
+            self.downloadWindow = nil
         }
         window.show()
 
@@ -427,7 +447,14 @@ final class GitHubUpdateChecker {
                 ) { [weak window] receivedBytes, totalBytes in
                     window?.updateProgress(receivedBytes: receivedBytes, totalBytes: totalBytes)
                 }
+                try Task.checkCancellation()
                 await MainActor.run {
+                    guard !Task.isCancelled, self.downloadWindow === window else { return }
+                    guard self.prepareToTerminate(), !Task.isCancelled else {
+                        window.finish()
+                        self.downloadWindow = nil
+                        return
+                    }
                     window.updateStatus(
                         AppUILanguage.saved().text(.installingVersion(update.version)),
                         detail: AppUILanguage.saved().text(.installingDetail),
@@ -436,24 +463,28 @@ final class GitHubUpdateChecker {
                     )
                     self.markPromptedIfNeeded(update: update, mode: mode)
                     do {
-                        try AppUpdateInstaller.installAndRelaunch(from: fileURL)
+                        let language = AppUILanguage.saved()
+                        try AppUpdateInstaller.installAndRelaunch(
+                            from: fileURL,
+                            failureTitle: language.text(.unableToInstallUpdate),
+                            failureMessage: language.text(.manualUpdateInstallDetail)
+                        )
                         window.finish()
-                        self.downloadWindow = nil
+                        if self.downloadWindow === window {
+                            self.downloadWindow = nil
+                        }
                     } catch {
                         window.finish()
                         self.downloadWindow = nil
                         self.showInstallError(error, diskImageURL: fileURL)
                     }
                 }
-            } catch is CancellationError {
-                await MainActor.run {
-                    window.finish()
-                    self.downloadWindow = nil
-                }
             } catch {
                 await MainActor.run {
                     window.finish()
+                    guard self.downloadWindow === window else { return }
                     self.downloadWindow = nil
+                    guard !Task.isCancelled, !isUpdateCancellation(error) else { return }
                     self.showDownloadError(error, releaseURL: update.releaseURL)
                 }
             }
@@ -532,6 +563,7 @@ final class GitHubUpdateChecker {
             try fileHandle.write(contentsOf: buffer)
         }
         try fileHandle.close()
+        try Task.checkCancellation()
 
         if FileManager.default.fileExists(atPath: destinationURL.path) {
             try FileManager.default.removeItem(at: destinationURL)
