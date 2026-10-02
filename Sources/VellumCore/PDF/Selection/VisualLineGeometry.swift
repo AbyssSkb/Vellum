@@ -82,14 +82,18 @@ enum VisualLineGeometry {
 
     static func pageIndex(containing globalOffset: Int, pageStarts: [Int]) -> Int? {
         guard pageStarts.count > 1 else { return nil }
-
-        for index in 0..<(pageStarts.count - 1) {
-            if globalOffset >= pageStarts[index], globalOffset < pageStarts[index + 1] {
-                return index
+        guard globalOffset >= pageStarts[0] else { return pageStarts.count - 2 }
+        var lower = 0
+        var upper = pageStarts.count - 1
+        while lower < upper {
+            let middle = (lower + upper) / 2
+            if pageStarts[middle + 1] <= globalOffset {
+                lower = middle + 1
+            } else {
+                upper = middle
             }
         }
-
-        return pageStarts.count >= 2 ? pageStarts.count - 2 : nil
+        return min(lower, pageStarts.count - 2)
     }
 
     static func splitVisualLineSegments(_ characters: [VimTextLineCharacter]) -> [[VimTextLineCharacter]] {

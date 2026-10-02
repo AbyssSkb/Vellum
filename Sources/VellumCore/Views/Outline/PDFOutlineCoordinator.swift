@@ -1,4 +1,5 @@
 @preconcurrency import AppKit
+import PDFKit
 
 extension PDFOutlineView {
     @MainActor
@@ -10,26 +11,73 @@ extension PDFOutlineView {
         var lastFocusGeneration = 0
         private var items: [PDFOutlineItem]
         private var itemSignature: String
+        private var tabID: PDFTab.ID
+        private var documentID: ObjectIdentifier
+        private var language: AppUILanguage
 
-        init(items: [PDFOutlineItem], appState: AppState) {
+        init(
+            items: [PDFOutlineItem],
+            tabID: PDFTab.ID,
+            documentID: ObjectIdentifier,
+            appState: AppState,
+            language: AppUILanguage
+        ) {
             self.items = items
+            self.tabID = tabID
+            self.documentID = documentID
             self.appState = appState
+            self.language = language
             itemSignature = Self.signature(for: items)
             super.init()
         }
 
-        func updateItemsIfNeeded(_ nextItems: [PDFOutlineItem], in outlineView: NSOutlineView) -> Bool {
+        @discardableResult
+        func updateItemsIfNeeded(
+            _ nextItems: [PDFOutlineItem],
+            tabID nextTabID: PDFTab.ID,
+            documentID nextDocumentID: ObjectIdentifier,
+            language nextLanguage: AppUILanguage,
+            in outlineView: NSOutlineView
+        ) -> Bool {
             let nextSignature = Self.signature(for: nextItems)
-            guard nextSignature != itemSignature else { return false }
+            guard nextSignature != itemSignature || nextTabID != tabID || nextDocumentID != documentID || nextLanguage != language else {
+                return false
+            }
 
-            let selectedID = selectedItem(in: outlineView)?.id
-            let expandedIDs = expandedItemIDs(in: outlineView)
+            saveState(in: outlineView)
             items = nextItems
             itemSignature = nextSignature
+            tabID = nextTabID
+            documentID = nextDocumentID
+            language = nextLanguage
+            outlineView.deselectAll(nil)
             outlineView.reloadData()
-            restoreExpandedItems(expandedIDs, in: outlineView)
-            restoreSelection(selectedID, in: outlineView)
+            restoreState(in: outlineView)
             return true
+        }
+
+        func saveState(in outlineView: NSOutlineView) {
+            let openTabIDs = Set(appState.tabs.map(\.id))
+            appState.outlineStates = appState.outlineStates.filter { openTabIDs.contains($0.key) }
+            guard openTabIDs.contains(tabID) else { return }
+            appState.outlineStates[tabID] = State(
+                documentID: documentID,
+                selectedID: selectedItem(in: outlineView)?.id,
+                expandedIDs: expandedItemIDs(in: outlineView)
+            )
+        }
+
+        func restoreState(in outlineView: NSOutlineView) {
+            outlineView.collapseItem(nil, collapseChildren: true)
+            if let state = appState.outlineStates[tabID], state.documentID == documentID {
+                restoreExpandedItems(state.expandedIDs, in: outlineView)
+                restoreSelection(state.selectedID, in: outlineView)
+            } else {
+                for item in items where !item.children.isEmpty {
+                    outlineView.expandItem(item)
+                }
+                selectInitialRow(in: outlineView)
+            }
         }
 
         func selectInitialRow(in outlineView: NSOutlineView) {
@@ -66,7 +114,7 @@ extension PDFOutlineView {
 
             cell.textField?.stringValue = item.title
             if let pageIndex = item.pageIndex {
-                cell.textField?.toolTip = "\(item.title) · Page \(pageIndex + 1)"
+                cell.textField?.toolTip = "\(item.title) · \(language.text(.outlinePage(pageIndex + 1)))"
             } else {
                 cell.textField?.toolTip = item.title
             }
@@ -82,8 +130,7 @@ extension PDFOutlineView {
         }
 
         @objc func doubleClick(_ sender: NSOutlineView) {
-            guard let destination = selectedItem(in: sender)?.destination else { return }
-            appState.jumpToOutlineDestination(destination)
+            selectedItem(in: sender)?.activate(in: appState)
         }
 
         private func makeCell() -> NSTableCellView {
@@ -151,7 +198,8 @@ extension PDFOutlineView {
             items.flattened()
                 .map { item in
                     let documentID = (item.destination?.page?.document).map(ObjectIdentifier.init)
-                    return "\(String(describing: documentID))|\(item.id)|\(item.title)|\(item.pageIndex ?? -1)"
+                    let action = (item.action as? PDFActionNamed).map { "Named:\($0.name.rawValue)" } ?? ""
+                    return "\(String(describing: documentID))|\(item.id)|\(item.title)|\(item.pageIndex ?? -1)|\(action)"
                 }
                 .joined(separator: "\n")
         }

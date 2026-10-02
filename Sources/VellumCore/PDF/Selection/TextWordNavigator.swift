@@ -2,17 +2,22 @@ import Foundation
 
 enum TextWordNavigator {
     static func wordForwardOffset(from offset: Int, in text: NSString, lengthLimit: Int? = nil) -> Int {
-        let length = min(text.length, lengthLimit ?? text.length)
+        wordForwardOffset(from: offset, length: min(text.length, lengthLimit ?? text.length)) {
+            characterClass(at: $0, in: text)
+        }
+    }
+
+    static func wordForwardOffset(from offset: Int, length: Int, characterClass: (Int) -> VimTextCharacterClass) -> Int {
         var index = min(max(offset, 0), length)
 
-        if index < length, characterClass(at: index, in: text) != .whitespace {
-            let currentClass = characterClass(at: index, in: text)
-            while index < length, characterClass(at: index, in: text) == currentClass {
+        if index < length, characterClass(index) != .whitespace {
+            let currentClass = characterClass(index)
+            while index < length, characterClass(index) == currentClass {
                 index += 1
             }
         }
 
-        while index < length, characterClass(at: index, in: text) == .whitespace {
+        while index < length, characterClass(index) == .whitespace {
             index += 1
         }
 
@@ -20,16 +25,21 @@ enum TextWordNavigator {
     }
 
     static func wordBackwardOffset(from offset: Int, in text: NSString, lengthLimit: Int? = nil) -> Int {
-        let length = min(text.length, lengthLimit ?? text.length)
+        wordBackwardOffset(from: offset, length: min(text.length, lengthLimit ?? text.length)) {
+            characterClass(at: $0, in: text)
+        }
+    }
+
+    static func wordBackwardOffset(from offset: Int, length: Int, characterClass: (Int) -> VimTextCharacterClass) -> Int {
         var index = min(max(offset, 0), length) - 1
 
-        while index > 0, characterClass(at: index, in: text) == .whitespace {
+        while index > 0, characterClass(index) == .whitespace {
             index -= 1
         }
 
         guard index >= 0 else { return 0 }
-        let targetClass = characterClass(at: index, in: text)
-        while index > 0, characterClass(at: index - 1, in: text) == targetClass {
+        let targetClass = characterClass(index)
+        while index > 0, characterClass(index - 1) == targetClass {
             index -= 1
         }
 
@@ -37,16 +47,21 @@ enum TextWordNavigator {
     }
 
     static func wordEndOffset(from offset: Int, in text: NSString, lengthLimit: Int? = nil) -> Int {
-        let length = min(text.length, lengthLimit ?? text.length)
+        wordEndOffset(from: offset, length: min(text.length, lengthLimit ?? text.length)) {
+            characterClass(at: $0, in: text)
+        }
+    }
+
+    static func wordEndOffset(from offset: Int, length: Int, characterClass: (Int) -> VimTextCharacterClass) -> Int {
         var index = min(max(offset, 0), length)
 
-        while index < length, characterClass(at: index, in: text) == .whitespace {
+        while index < length, characterClass(index) == .whitespace {
             index += 1
         }
 
         guard index < length else { return length }
-        let targetClass = characterClass(at: index, in: text)
-        while index + 1 < length, characterClass(at: index + 1, in: text) == targetClass {
+        let targetClass = characterClass(index)
+        while index + 1 < length, characterClass(index + 1) == targetClass {
             index += 1
         }
 

@@ -79,7 +79,8 @@ extension VellumPDFView {
             guard let pageIndex = document?.index(for: page),
                   pageIndex != NSNotFound,
                   pageIndex < pageStarts.count,
-                  let pageText = page.string as NSString? else { continue }
+                  let document,
+                  let pageText = textSelectionCache.text(on: page, in: document) else { continue }
 
             let range = pageText.range(of: selectedText)
             if range.location != NSNotFound, range.length > 0 {
@@ -89,7 +90,7 @@ extension VellumPDFView {
         }
 
         guard let document else { return nil }
-        let documentText = documentText(in: document) as NSString
+        let documentText = documentText(in: document)
         let range = documentText.range(of: selectedText)
         guard range.location != NSNotFound, range.length > 0 else { return nil }
         return (range.location, range.location + range.length)
@@ -298,11 +299,18 @@ extension VellumPDFView {
 
         let line = lines[lineIndex]
         let useTrailingEdge = preferTrailingEdge || insertionOffset >= totalLength
-        let slotIndex = slotIndex(
+        let fallbackSlot = slotIndex(
             forInsertionOffset: insertionOffset,
             preferTrailingEdge: useTrailingEdge,
             in: line
         )
+        guard let page = document?.page(at: character.pageIndex) else { return nil }
+        let characterPoint = NSPoint(
+            x: useTrailingEdge ? character.bounds.maxX : character.bounds.minX,
+            y: character.bounds.midY
+        )
+        let displayPoint = PDFPageDisplayGeometry(page: page, box: displayBox).point(forPagePoint: characterPoint)
+        let slotIndex = closestSlotIndex(to: displayPoint.x, in: line, fallbackSlot: fallbackSlot)
         let slotPoint = pointForSlot(slotIndex, in: line)
 
         return VimTextCaret(
@@ -356,11 +364,12 @@ extension VellumPDFView {
     ) -> (pageIndex: Int, globalOffset: Int, bounds: NSRect)? where S.Element == Int {
         for offset in offsets {
             guard let pageIndex = pageIndex(containing: offset, pageStarts: pageStarts),
-                  let page = document?.page(at: pageIndex) else { continue }
+                  let document,
+                  let page = document.page(at: pageIndex) else { continue }
 
             let characterIndex = offset - pageStarts[pageIndex]
             guard characterIndex >= 0, characterIndex < page.numberOfCharacters else { continue }
-            guard !isNewlineCharacter(at: characterIndex, in: page.string as NSString?) else { continue }
+            guard !isNewlineCharacter(at: characterIndex, in: textSelectionCache.text(on: page, in: document)) else { continue }
 
             let bounds = page.characterBounds(at: characterIndex)
             guard bounds.width > 0, bounds.height > 0 else { continue }
@@ -376,8 +385,9 @@ extension VellumPDFView {
               let documentView = scrollView.documentView,
               let page = document.page(at: caret.pageIndex) else { return }
 
+        let geometry = PDFPageDisplayGeometry(page: page, box: displayBox)
         guard let endpointRectInView = viewRect(
-            for: NSRect(x: caret.point.x - 2, y: caret.point.y - 8, width: 4, height: 16),
+            for: geometry.pageRect(forDisplayRect: NSRect(x: caret.point.x - 2, y: caret.point.y - 8, width: 4, height: 16)),
             on: page
         ) else { return }
 

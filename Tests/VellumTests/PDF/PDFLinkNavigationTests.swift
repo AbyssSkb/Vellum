@@ -30,6 +30,22 @@ struct PDFLinkNavigationTests {
         #expect(!PDFLinkNavigation.shouldRecordJumpSource(for: annotation))
     }
 
+    @Test(arguments: [PDFActionNamedName.nextPage, .previousPage, .firstPage, .lastPage, .goBack, .goForward, .goToPage])
+    func namedNavigationLinkRecordsJumpSource(name: PDFActionNamedName) {
+        let annotation = PDFAnnotation(bounds: .zero, forType: .link, withProperties: nil)
+        annotation.action = PDFActionNamed(name: name)
+
+        #expect(PDFLinkNavigation.shouldRecordJumpSource(for: annotation))
+    }
+
+    @Test(arguments: [PDFActionNamedName.none, .find, .print, .zoomIn, .zoomOut])
+    func namedNonNavigationLinkDoesNotRecordJumpSource(name: PDFActionNamedName) {
+        let annotation = PDFAnnotation(bounds: .zero, forType: .link, withProperties: nil)
+        annotation.action = PDFActionNamed(name: name)
+
+        #expect(!PDFLinkNavigation.shouldRecordJumpSource(for: annotation))
+    }
+
     @Test
     func nonLinkAnnotationDoesNotRecordJumpSource() {
         let annotation = PDFAnnotation(bounds: .zero, forType: .highlight, withProperties: nil)

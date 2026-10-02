@@ -17,7 +17,7 @@ struct SidebarToggleButton: View {
         .buttonStyle(.plain)
         .help(language.text(.toggleContents))
         .accessibilityLabel(language.text(.toggleContentsSidebar))
-        .accessibilityValue(appState.isOutlineVisible ? "Open" : "Closed")
+        .accessibilityValue(language.text(appState.isOutlineVisible ? .sidebarOpen : .sidebarClosed))
         .accessibilityHint(language.text(.toggleContentsHint))
         .onHover { isHovered = $0 }
     }

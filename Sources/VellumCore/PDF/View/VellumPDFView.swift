@@ -66,6 +66,7 @@ final class VellumPDFView: PDFView {
     var didCompleteInitialPointerInteraction = false
     var pendingRestoreAction: PendingRestoreAction?
     var textSelectionNavigationState: VimTextSelectionNavigationState?
+    let textSelectionCache = PDFTextSelectionCache()
     private var mouseTextSelectionCacheDocumentID: ObjectIdentifier?
     private var mouseTextSelectionLineCache: [MouseTextSelectionLineCacheKey: [VimTextLine]] = [:]
     var pageOverviewController: PageOverviewController?
@@ -450,6 +451,7 @@ final class VellumPDFView: PDFView {
             queue: .main
         ) { [weak self] _ in
             MainActor.assumeIsolated {
+                self?.searchController?.refreshVisibleMatches()
                 self?.scheduleReaderStateSave()
             }
         }

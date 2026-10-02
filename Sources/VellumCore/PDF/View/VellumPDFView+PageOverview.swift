@@ -116,7 +116,7 @@ final class PageOverviewController {
     }
 
     func dismiss() {
-        overlay.removeFromSuperview()
+        overlay.dismiss()
     }
 }
 
@@ -127,7 +127,7 @@ final class PageOverviewOverlayView: NSView {
     private let visibleCount: Int
     private var selectedIndex: Int
     private var visibleSlots: [Int?] = []
-    private var thumbnailCache: [Int: NSImage] = [:]
+    private let thumbnails = PageOverviewThumbnailLoader()
 
     init(document: PDFDocument, selectedIndex: Int, columns: Int) {
         self.document = document
@@ -153,6 +153,11 @@ final class PageOverviewOverlayView: NSView {
         self.selectedIndex = selectedIndex
         updateVisibleSlots()
         needsDisplay = true
+    }
+
+    func dismiss() {
+        thumbnails.cancel()
+        removeFromSuperview()
     }
 
     override func draw(_ dirtyRect: NSRect) {
@@ -189,8 +194,12 @@ final class PageOverviewOverlayView: NSView {
             visibleCount: visibleCount
         )
 
-        for index in visibleSlots.compactMap(\.self) where thumbnailCache[index] == nil {
-            thumbnailCache[index] = thumbnail(for: index)
+        thumbnails.update(
+            document: document,
+            pageIndexes: visibleSlots.compactMap(\.self),
+            selectedIndex: selectedIndex
+        ) { [weak self] in
+            self?.needsDisplay = true
         }
     }
 
@@ -272,7 +281,7 @@ final class PageOverviewOverlayView: NSView {
             height: rect.height - labelHeight - 12
         )
 
-        if let image = thumbnailCache[pageIndex] {
+        if let image = thumbnails.images[pageIndex] {
             drawImage(image, in: imageRect)
         }
 
@@ -334,14 +343,9 @@ final class PageOverviewOverlayView: NSView {
         )
     }
 
-    private func thumbnail(for index: Int) -> NSImage? {
-        guard let page = document.page(at: index) else { return nil }
-        return page.thumbnail(of: NSSize(width: 960, height: 630), for: .cropBox)
-    }
-
     private func pageAspectRatio(for index: Int) -> CGFloat {
         guard let page = document.page(at: index) else { return 16 / 9 }
-        let bounds = page.bounds(for: .cropBox)
+        let bounds = PDFPageDisplayGeometry(page: page, box: .cropBox).bounds
         guard bounds.width > 0, bounds.height > 0 else { return 16 / 9 }
         return bounds.width / bounds.height
     }

@@ -2,12 +2,21 @@
 import SwiftUI
 
 struct PDFOutlineView: NSViewRepresentable {
+    struct State {
+        let documentID: ObjectIdentifier
+        let selectedID: String?
+        let expandedIDs: Set<String>
+    }
+
     let items: [PDFOutlineItem]
+    let tabID: PDFTab.ID
+    let documentID: ObjectIdentifier
     let focusGeneration: Int
     let appState: AppState
+    let language: AppUILanguage
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(items: items, appState: appState)
+        Coordinator(items: items, tabID: tabID, documentID: documentID, appState: appState, language: language)
     }
 
     func makeNSView(context: Context) -> NSScrollView {
@@ -47,8 +56,7 @@ struct PDFOutlineView: NSViewRepresentable {
         scrollView.documentView = outlineView
 
         outlineView.reloadData()
-        outlineView.expandItem(nil, expandChildren: false)
-        context.coordinator.selectInitialRow(in: outlineView)
+        context.coordinator.restoreState(in: outlineView)
 
         return scrollView
     }
@@ -59,10 +67,9 @@ struct PDFOutlineView: NSViewRepresentable {
         context.coordinator.appState = appState
         outlineView.appState = appState
 
-        if context.coordinator.updateItemsIfNeeded(items, in: outlineView) {
-            outlineView.expandItem(nil, expandChildren: false)
-            context.coordinator.selectInitialRow(in: outlineView)
-        }
+        context.coordinator.updateItemsIfNeeded(
+            items, tabID: tabID, documentID: documentID, language: language, in: outlineView
+        )
 
         if context.coordinator.lastFocusGeneration != focusGeneration {
             context.coordinator.lastFocusGeneration = focusGeneration
@@ -72,4 +79,8 @@ struct PDFOutlineView: NSViewRepresentable {
         }
     }
 
+    static func dismantleNSView(_ scrollView: NSScrollView, coordinator: Coordinator) {
+        guard let outlineView = scrollView.documentView as? PDFOutlineKeyView else { return }
+        coordinator.saveState(in: outlineView)
+    }
 }

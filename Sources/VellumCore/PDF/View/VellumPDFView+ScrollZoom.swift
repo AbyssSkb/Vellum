@@ -33,6 +33,7 @@ extension VellumPDFView {
     }
 
     func vimMoveByPage(_ delta: Int) {
+        completePendingRestoreBeforeUserInteraction()
         guard let document,
               let pageState = currentPageState(),
               let targetPage = document.page(at: pageState.pageIndex + delta) else { return }
@@ -42,18 +43,23 @@ extension VellumPDFView {
         stopScrollAnimation()
         stopZoomState()
 
-        let targetBounds = targetPage.bounds(for: displayBox)
-        let yRatio = pageState.pageBounds.height == 0
-            ? 0
-            : (pageState.pointOnPage.y - pageState.pageBounds.minY) / pageState.pageBounds.height
-        let targetY = targetBounds.minY + targetBounds.height * min(max(yRatio, 0), 1)
-        let targetPoint = NSPoint(x: targetBounds.midX, y: targetY)
+        let sourceGeometry = PDFPageDisplayGeometry(page: pageState.page, box: displayBox)
+        let targetGeometry = PDFPageDisplayGeometry(page: targetPage, box: displayBox)
+        let sourcePoint = sourceGeometry.point(forPagePoint: pageState.pointOnPage)
+        let xRatio = sourceGeometry.bounds.width > 0 ? sourcePoint.x / sourceGeometry.bounds.width : 0.5
+        let yRatio = sourceGeometry.bounds.height > 0 ? sourcePoint.y / sourceGeometry.bounds.height : 0.5
+        let targetPoint = targetGeometry.pagePoint(forDisplayPoint: NSPoint(
+            x: targetGeometry.bounds.width * min(max(xRatio, 0), 1),
+            y: targetGeometry.bounds.height * min(max(yRatio, 0), 1)
+        ))
+        let destination = PDFDestination(page: targetPage, at: targetPoint)
 
-        go(to: PDFDestination(page: targetPage, at: targetPoint))
+        go(to: destination)
+        centerBothAxes(on: destination)
         let generation = restoreGeneration
         DispatchQueue.main.async { [weak self] in
             guard let self, self.restoreGeneration == generation else { return }
-            self.centerVertically(on: PDFDestination(page: targetPage, at: targetPoint))
+            self.centerBothAxes(on: destination)
         }
     }
 }

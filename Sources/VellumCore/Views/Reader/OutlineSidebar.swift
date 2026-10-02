@@ -7,8 +7,8 @@ struct OutlineSidebar: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if let document = tab?.document {
-                let items = PDFOutlineBuilder.items(for: document)
+            if let tab, let document = tab.document {
+                let items = PDFOutlineBuilder.items(for: document, language: language)
                 OutlineSidebarHeader()
                 TokyoNightDivider(axis: .horizontal)
 
@@ -17,8 +17,11 @@ struct OutlineSidebar: View {
                 } else {
                     PDFOutlineView(
                         items: items,
+                        tabID: tab.id,
+                        documentID: ObjectIdentifier(document),
                         focusGeneration: appState.outlineFocusGeneration,
-                        appState: appState
+                        appState: appState,
+                        language: language
                     )
                 }
             } else {

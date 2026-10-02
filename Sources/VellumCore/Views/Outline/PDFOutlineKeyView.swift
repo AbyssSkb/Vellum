@@ -115,8 +115,8 @@ final class PDFOutlineKeyView: NSOutlineView {
     private func activateSelectedItem() {
         guard let item = selectedOutlineItem else { return }
 
-        if let destination = item.destination {
-            appState?.jumpToOutlineDestination(destination)
+        if let appState, item.activate(in: appState) {
+            return
         } else if !item.children.isEmpty {
             isItemExpanded(item) ? collapseItem(item) : expandItem(item)
         }

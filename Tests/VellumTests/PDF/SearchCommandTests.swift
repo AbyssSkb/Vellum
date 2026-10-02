@@ -58,7 +58,7 @@ struct SearchCommandTests {
         while !escaped && ContinuousClock.now < deadline {
             try await Task.sleep(for: .milliseconds(10))
         }
-        try #require(escaped)
+        try #require(escaped, "highlighted: \(view.highlightedSelections?.count ?? 0); visible: \(controller.hasVisibleHighlights); target: \(controller.hasTextTarget); field: \(field.stringValue)")
         for _ in 0..<10 { await Task.yield() }
         #expect(!controller.hasVisibleHighlights)
         #expect(view.highlightedSelections?.isEmpty == true)
@@ -73,23 +73,23 @@ struct SearchCommandTests {
         let locations = [
             SearchResultLocation(
                 pageIndex: 2,
-                boundsInPage: NSRect(x: 20, y: 760, width: 60, height: 16),
+                boundsInDisplay: NSRect(x: 20, y: 760, width: 60, height: 16),
                 documentOrder: 0
             ),
             SearchResultLocation(
                 pageIndex: 2,
-                boundsInPage: NSRect(x: 20, y: 500, width: 60, height: 16),
+                boundsInDisplay: NSRect(x: 20, y: 500, width: 60, height: 16),
                 documentOrder: 1
             ),
             SearchResultLocation(
                 pageIndex: 3,
-                boundsInPage: NSRect(x: 20, y: 780, width: 60, height: 16),
+                boundsInDisplay: NSRect(x: 20, y: 780, width: 60, height: 16),
                 documentOrder: 2
             )
         ]
 
         let index = SearchResultNavigator.firstIndex(
-            atOrAfter: SearchAnchor(pageIndex: 2, pointInPage: NSPoint(x: 0, y: 620)),
+            atOrAfter: SearchAnchor(pageIndex: 2, pointInDisplay: NSPoint(x: 0, y: 620)),
             in: locations
         )
 
@@ -101,18 +101,18 @@ struct SearchCommandTests {
         let locations = [
             SearchResultLocation(
                 pageIndex: 2,
-                boundsInPage: NSRect(x: 20, y: 760, width: 60, height: 16),
+                boundsInDisplay: NSRect(x: 20, y: 760, width: 60, height: 16),
                 documentOrder: 0
             ),
             SearchResultLocation(
                 pageIndex: 3,
-                boundsInPage: NSRect(x: 20, y: 780, width: 60, height: 16),
+                boundsInDisplay: NSRect(x: 20, y: 780, width: 60, height: 16),
                 documentOrder: 1
             )
         ]
 
         let index = SearchResultNavigator.firstIndex(
-            atOrAfter: SearchAnchor(pageIndex: 2, pointInPage: NSPoint(x: 0, y: 100)),
+            atOrAfter: SearchAnchor(pageIndex: 2, pointInDisplay: NSPoint(x: 0, y: 100)),
             in: locations
         )
 
@@ -124,18 +124,18 @@ struct SearchCommandTests {
         let locations = [
             SearchResultLocation(
                 pageIndex: 1,
-                boundsInPage: NSRect(x: 40, y: 300, width: 40, height: 18),
+                boundsInDisplay: NSRect(x: 40, y: 300, width: 40, height: 18),
                 documentOrder: 0
             ),
             SearchResultLocation(
                 pageIndex: 1,
-                boundsInPage: NSRect(x: 160, y: 300, width: 40, height: 18),
+                boundsInDisplay: NSRect(x: 160, y: 300, width: 40, height: 18),
                 documentOrder: 1
             )
         ]
 
         let index = SearchResultNavigator.firstIndex(
-            atOrAfter: SearchAnchor(pageIndex: 1, pointInPage: NSPoint(x: 100, y: 309)),
+            atOrAfter: SearchAnchor(pageIndex: 1, pointInDisplay: NSPoint(x: 100, y: 309)),
             in: locations
         )
 
@@ -147,18 +147,18 @@ struct SearchCommandTests {
         let locations = [
             SearchResultLocation(
                 pageIndex: 1,
-                boundsInPage: NSRect(x: 40, y: 300, width: 40, height: 18),
+                boundsInDisplay: NSRect(x: 40, y: 300, width: 40, height: 18),
                 documentOrder: 0
             ),
             SearchResultLocation(
                 pageIndex: 1,
-                boundsInPage: NSRect(x: 160, y: 300, width: 40, height: 18),
+                boundsInDisplay: NSRect(x: 160, y: 300, width: 40, height: 18),
                 documentOrder: 1
             )
         ]
 
         let index = SearchResultNavigator.firstIndex(
-            atOrAfter: SearchAnchor(pageIndex: 1, pointInPage: NSPoint(x: 40, y: 300)),
+            atOrAfter: SearchAnchor(pageIndex: 1, pointInDisplay: NSPoint(x: 40, y: 300)),
             in: locations
         )
 
@@ -170,23 +170,23 @@ struct SearchCommandTests {
         let locations = [
             SearchResultLocation(
                 pageIndex: 1,
-                boundsInPage: NSRect(x: 40, y: 760, width: 40, height: 18),
+                boundsInDisplay: NSRect(x: 40, y: 760, width: 40, height: 18),
                 documentOrder: 0
             ),
             SearchResultLocation(
                 pageIndex: 1,
-                boundsInPage: NSRect(x: 40, y: 300, width: 40, height: 18),
+                boundsInDisplay: NSRect(x: 40, y: 300, width: 40, height: 18),
                 documentOrder: 1
             ),
             SearchResultLocation(
                 pageIndex: 2,
-                boundsInPage: NSRect(x: 40, y: 760, width: 40, height: 18),
+                boundsInDisplay: NSRect(x: 40, y: 760, width: 40, height: 18),
                 documentOrder: 2
             )
         ]
 
         let index = SearchResultNavigator.lastIndex(
-            beforeOrAt: SearchAnchor(pageIndex: 1, pointInPage: NSPoint(x: 0, y: 620)),
+            beforeOrAt: SearchAnchor(pageIndex: 1, pointInDisplay: NSPoint(x: 0, y: 620)),
             in: locations
         )
 
@@ -234,22 +234,22 @@ struct SearchCommandTests {
         let locations = [
             SearchResultLocation(
                 pageIndex: 2,
-                boundsInPage: NSRect(x: 20, y: 700, width: 40, height: 18),
+                boundsInDisplay: NSRect(x: 20, y: 700, width: 40, height: 18),
                 documentOrder: 3
             ),
             SearchResultLocation(
                 pageIndex: 1,
-                boundsInPage: NSRect(x: 140, y: 500, width: 40, height: 18),
+                boundsInDisplay: NSRect(x: 140, y: 500, width: 40, height: 18),
                 documentOrder: 2
             ),
             SearchResultLocation(
                 pageIndex: 1,
-                boundsInPage: NSRect(x: 40, y: 500, width: 40, height: 18),
+                boundsInDisplay: NSRect(x: 40, y: 500, width: 40, height: 18),
                 documentOrder: 1
             ),
             SearchResultLocation(
                 pageIndex: 1,
-                boundsInPage: NSRect(x: 20, y: 760, width: 40, height: 18),
+                boundsInDisplay: NSRect(x: 20, y: 760, width: 40, height: 18),
                 documentOrder: 0
             )
         ]

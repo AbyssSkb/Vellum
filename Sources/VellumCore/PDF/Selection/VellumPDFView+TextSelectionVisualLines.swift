@@ -108,16 +108,29 @@ extension VellumPDFView {
     }
 
     func textLines(onPageAt pageIndex: Int, pageStarts: [Int]) -> [VimTextLine] {
-        guard let page = document?.page(at: pageIndex),
+        guard let document,
+              let page = document.page(at: pageIndex),
               pageIndex + 1 < pageStarts.count else { return [] }
 
+        return textSelectionCache.visualLines(
+            on: page, in: document, pageIndex: pageIndex,
+            pageStart: pageStarts[pageIndex], box: displayBox
+        ) {
+            buildTextLines(onPageAt: pageIndex, pageStarts: pageStarts)
+        }
+    }
+
+    private func buildTextLines(onPageAt pageIndex: Int, pageStarts: [Int]) -> [VimTextLine] {
+        guard let document,
+              let page = document.page(at: pageIndex) else { return [] }
         let pageStart = pageStarts[pageIndex]
-        let pageText = page.string as NSString?
+        let pageText = textSelectionCache.text(on: page, in: document)
+        let geometry = PDFPageDisplayGeometry(page: page, box: displayBox)
         var characters: [VimTextLineCharacter] = []
         for characterIndex in 0..<page.numberOfCharacters {
             guard !isNewlineCharacter(at: characterIndex, in: pageText) else { continue }
 
-            let bounds = page.characterBounds(at: characterIndex)
+            let bounds = geometry.rect(forPageRect: page.characterBounds(at: characterIndex))
             guard bounds.width > 0, bounds.height > 0 else { continue }
 
             characters.append(
@@ -317,6 +330,7 @@ extension VellumPDFView {
               let page = document?.page(at: pageIndex) else { return 0 }
 
         let localOffset = globalOffset - pageStarts[pageIndex]
-        return page.characterBounds(at: localOffset).midX
+        return PDFPageDisplayGeometry(page: page, box: displayBox)
+            .rect(forPageRect: page.characterBounds(at: localOffset)).midX
     }
 }

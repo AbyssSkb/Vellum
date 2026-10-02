@@ -13,6 +13,7 @@ public final class AppState: ObservableObject {
     @Published var aiExplanationHistory: [AIExplanationHistoryItem] = []
     @Published var outlineFocusGeneration = 0
     @Published private(set) var selectedHighlightColor: HighlightColor
+    var outlineStates: [PDFTab.ID: PDFOutlineView.State] = [:]
 
     private var allAIConversationHistory: [AIConversationHistoryItem] = []
     private var allAIExplanationHistory: [AIExplanationHistoryItem] = []
@@ -110,6 +111,10 @@ public final class AppState: ObservableObject {
 
     func jumpToOutlineDestination(_ destination: PDFDestination) {
         activeReaderController?.vimGoToDestination(destination)
+    }
+
+    func jumpToOutlineAction(_ action: PDFAction) {
+        activeReaderController?.vimPerformPDFAction(action)
     }
 
     func selectHighlightColor(_ color: HighlightColor) {

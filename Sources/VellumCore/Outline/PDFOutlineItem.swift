@@ -5,6 +5,7 @@ final class PDFOutlineItem: NSObject {
     let id: String
     let title: String
     let destination: PDFDestination?
+    let action: PDFAction?
     let pageIndex: Int?
     weak var parent: PDFOutlineItem?
     var children: [PDFOutlineItem] = []
@@ -14,26 +15,42 @@ final class PDFOutlineItem: NSObject {
         title: String,
         destination: PDFDestination?,
         pageIndex: Int?,
-        parent: PDFOutlineItem?
+        parent: PDFOutlineItem?,
+        action: PDFAction? = nil
     ) {
         self.id = id
         self.title = title
         self.destination = destination
+        self.action = action
         self.pageIndex = pageIndex
         self.parent = parent
         super.init()
     }
+
+    @MainActor
+    @discardableResult
+    func activate(in appState: AppState) -> Bool {
+        if let action {
+            appState.jumpToOutlineAction(action)
+        } else if let destination {
+            appState.jumpToOutlineDestination(destination)
+        } else {
+            return false
+        }
+        return true
+    }
 }
 
 enum PDFOutlineBuilder {
-    static func items(for document: PDFDocument) -> [PDFOutlineItem] {
+    static func items(for document: PDFDocument, language: AppUILanguage = .saved()) -> [PDFOutlineItem] {
         guard let root = document.outlineRoot else { return [] }
-        return children(of: root, document: document, parent: nil, path: "")
+        return children(of: root, document: document, language: language, parent: nil, path: "")
     }
 
     private static func children(
         of outline: PDFOutline,
         document: PDFDocument,
+        language: AppUILanguage,
         parent: PDFOutlineItem?,
         path: String
     ) -> [PDFOutlineItem] {
@@ -43,7 +60,7 @@ enum PDFOutlineBuilder {
             let itemPath = path.isEmpty ? "\(index)" : "\(path).\(index)"
             let destination = child.destination
             let pageIndex = destination?.page.map { document.index(for: $0) }
-            let fallbackTitle = pageIndex.map { "Page \($0 + 1)" } ?? "Untitled"
+            let fallbackTitle = pageIndex.map { language.text(.outlinePage($0 + 1)) } ?? language.text(.untitled)
             let title = child.label?
                 .trimmingCharacters(in: .whitespacesAndNewlines)
                 .nilIfEmpty ?? fallbackTitle
@@ -53,9 +70,10 @@ enum PDFOutlineBuilder {
                 title: title,
                 destination: destination,
                 pageIndex: pageIndex,
-                parent: parent
+                parent: parent,
+                action: child.action
             )
-            item.children = children(of: child, document: document, parent: item, path: itemPath)
+            item.children = children(of: child, document: document, language: language, parent: item, path: itemPath)
             return item
         }
     }

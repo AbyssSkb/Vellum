@@ -3,7 +3,7 @@
 
 struct SearchResultLocation: Equatable {
     var pageIndex: Int
-    var boundsInPage: NSRect
+    var boundsInDisplay: NSRect
     var documentOrder: Int
 }
 
@@ -11,20 +11,6 @@ struct SearchTextMatch: Equatable {
     var pageIndex: Int
     var range: NSRange
     var documentOrder: Int
-}
-
-extension SearchTextMatch {
-    static func pageTextOrderSort(_ lhs: SearchTextMatch, _ rhs: SearchTextMatch) -> Bool {
-        if lhs.pageIndex != rhs.pageIndex {
-            return lhs.pageIndex < rhs.pageIndex
-        }
-
-        if lhs.range.location != rhs.range.location {
-            return lhs.range.location < rhs.range.location
-        }
-
-        return lhs.documentOrder < rhs.documentOrder
-    }
 }
 
 enum SearchTextFinder {
@@ -80,12 +66,12 @@ extension SearchResultLocation {
         }
 
         let verticalTolerance: CGFloat = 2
-        if abs(lhs.boundsInPage.midY - rhs.boundsInPage.midY) > verticalTolerance {
-            return lhs.boundsInPage.midY > rhs.boundsInPage.midY
+        if abs(lhs.boundsInDisplay.midY - rhs.boundsInDisplay.midY) > verticalTolerance {
+            return lhs.boundsInDisplay.midY > rhs.boundsInDisplay.midY
         }
 
-        if lhs.boundsInPage.minX != rhs.boundsInPage.minX {
-            return lhs.boundsInPage.minX < rhs.boundsInPage.minX
+        if lhs.boundsInDisplay.minX != rhs.boundsInDisplay.minX {
+            return lhs.boundsInDisplay.minX < rhs.boundsInDisplay.minX
         }
 
         return lhs.documentOrder < rhs.documentOrder
@@ -108,7 +94,7 @@ struct PDFSearchResult {
     var searchLocation: SearchResultLocation {
         location ?? SearchResultLocation(
             pageIndex: match.pageIndex,
-            boundsInPage: NSRect(x: 0, y: CGFloat.greatestFiniteMagnitude, width: 1, height: 1),
+            boundsInDisplay: NSRect(x: 0, y: CGFloat.greatestFiniteMagnitude, width: 1, height: 1),
             documentOrder: match.documentOrder
         )
     }
@@ -116,7 +102,7 @@ struct PDFSearchResult {
 
 struct SearchAnchor: Equatable {
     var pageIndex: Int
-    var pointInPage: NSPoint
+    var pointInDisplay: NSPoint
 }
 
 enum SearchResultNavigator {
@@ -157,14 +143,14 @@ enum SearchResultNavigator {
         }
 
         let verticalTolerance: CGFloat = 2
-        if location.boundsInPage.maxY < anchor.pointInPage.y - verticalTolerance {
+        if location.boundsInDisplay.maxY < anchor.pointInDisplay.y - verticalTolerance {
             return true
         }
 
-        let sameLine = location.boundsInPage.minY <= anchor.pointInPage.y + verticalTolerance
-            && location.boundsInPage.maxY >= anchor.pointInPage.y - verticalTolerance
+        let sameLine = location.boundsInDisplay.minY <= anchor.pointInDisplay.y + verticalTolerance
+            && location.boundsInDisplay.maxY >= anchor.pointInDisplay.y - verticalTolerance
         if sameLine {
-            return location.boundsInPage.midX >= anchor.pointInPage.x
+            return location.boundsInDisplay.midX >= anchor.pointInDisplay.x
         }
 
         return false
@@ -176,14 +162,14 @@ enum SearchResultNavigator {
         }
 
         let verticalTolerance: CGFloat = 2
-        if location.boundsInPage.minY > anchor.pointInPage.y + verticalTolerance {
+        if location.boundsInDisplay.minY > anchor.pointInDisplay.y + verticalTolerance {
             return true
         }
 
-        let sameLine = location.boundsInPage.minY <= anchor.pointInPage.y + verticalTolerance
-            && location.boundsInPage.maxY >= anchor.pointInPage.y - verticalTolerance
+        let sameLine = location.boundsInDisplay.minY <= anchor.pointInDisplay.y + verticalTolerance
+            && location.boundsInDisplay.maxY >= anchor.pointInDisplay.y - verticalTolerance
         if sameLine {
-            return location.boundsInPage.midX <= anchor.pointInPage.x
+            return location.boundsInDisplay.midX <= anchor.pointInDisplay.x
         }
 
         return false
@@ -257,6 +243,8 @@ final class PDFSearchController {
     private var isSearchPending = false
     private var lastJumpCheckpointTime: Date?
     private var pageTextCache: [Int: String] = [:]
+    private var pendingSearchJumpSource: ReaderSnapshot?
+    nonisolated(unsafe) private var visiblePagesObserver: NSObjectProtocol?
 
     var hasVisibleHighlights: Bool {
         areMatchesVisible && !results.isEmpty
@@ -272,6 +260,27 @@ final class PDFSearchController {
 
     init(pdfView: VellumPDFView) {
         self.pdfView = pdfView
+        visiblePagesObserver = NotificationCenter.default.addObserver(
+            forName: .PDFViewVisiblePagesChanged,
+            object: pdfView,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.refreshVisibleMatches()
+            }
+        }
+    }
+
+    deinit {
+        if let visiblePagesObserver {
+            NotificationCenter.default.removeObserver(visiblePagesObserver)
+        }
+    }
+
+    func refreshVisibleMatches() {
+        guard areMatchesVisible else { return }
+        materializeVisibleMatchesAroundActive()
+        applyVisibleHighlights()
     }
 
     func begin() {
@@ -284,6 +293,7 @@ final class PDFSearchController {
         if !hasVisibleHighlights {
             resetSearchStateForNewCommand()
         }
+        pendingSearchJumpSource = pdfView.snapshot()
 
         let overlay = SearchCommandOverlayView(query: query)
         overlay.frame = pdfView.bounds
@@ -471,12 +481,14 @@ final class PDFSearchController {
         shouldAnchorNextMove = false
         isSearchPending = false
         lastJumpCheckpointTime = nil
+        pendingSearchJumpSource = nil
     }
 
     private func hideMatches() {
         cancelScheduledSearch()
         searchGeneration += 1
         areMatchesVisible = false
+        pendingSearchJumpSource = nil
         pdfView?.highlightedSelections = []
         dismissOverlay(returnFocus: false)
         updateOverlayStatus()
@@ -503,7 +515,8 @@ final class PDFSearchController {
 
         pdfView.cancelPendingRestore()
         if recordJump, shouldRecordJumpCheckpoint() {
-            pdfView.recordJumpSource()
+            pdfView.recordJumpSource(pendingSearchJumpSource)
+            pendingSearchJumpSource = nil
         }
         pdfView.stopScrollAnimation()
         pdfView.stopZoomState()
@@ -574,7 +587,7 @@ final class PDFSearchController {
 
         isSearchPending = false
         let matches = textMatches(for: term, in: document)
-        results = matches.map { PDFSearchResult(match: $0, selection: nil, location: nil) }
+        results = searchResults(for: matches, in: document)
 
         if results.isEmpty {
             activeIndex = nil
@@ -633,9 +646,7 @@ final class PDFSearchController {
                         startingDocumentOrder: previewResults.count
                     )
                     previewResults.append(
-                        contentsOf: pageMatches.map {
-                            PDFSearchResult(match: $0, selection: nil, location: nil)
-                        }
+                        contentsOf: self.searchResults(for: pageMatches, in: document)
                     )
                 }
 
@@ -678,7 +689,7 @@ final class PDFSearchController {
         let previousActiveIndex = activeIndex
 
         results = nextResults.sorted {
-            SearchTextMatch.pageTextOrderSort($0.match, $1.match)
+            SearchResultLocation.documentOrderSort($0.searchLocation, $1.searchLocation)
         }
         isSearchPending = !isComplete
 
@@ -740,6 +751,24 @@ final class PDFSearchController {
         return text
     }
 
+    private func searchResults(for matches: [SearchTextMatch], in document: PDFDocument) -> [PDFSearchResult] {
+        matches.map { match in
+            var location: SearchResultLocation?
+            if let page = document.page(at: match.pageIndex) {
+                let bounds = page.characterBounds(at: match.range.location)
+                if !bounds.isEmpty {
+                    location = SearchResultLocation(
+                        pageIndex: match.pageIndex,
+                        boundsInDisplay: PDFPageDisplayGeometry(page: page, box: pdfView?.displayBox ?? .cropBox)
+                            .rect(forPageRect: bounds),
+                        documentOrder: match.documentOrder
+                    )
+                }
+            }
+            return PDFSearchResult(match: match, selection: nil, location: location)
+        }.sorted { SearchResultLocation.documentOrderSort($0.searchLocation, $1.searchLocation) }
+    }
+
     private func materializedSelectionIfCached(at index: Int) -> PDFSelection? {
         guard results.indices.contains(index) else { return nil }
         return results[index].selection
@@ -764,18 +793,20 @@ final class PDFSearchController {
         results[index].selection = selection
         results[index].location = SearchResultLocation(
             pageIndex: results[index].match.pageIndex,
-            boundsInPage: bounds,
+            boundsInDisplay: PDFPageDisplayGeometry(page: page, box: pdfView.displayBox).rect(forPageRect: bounds),
             documentOrder: results[index].match.documentOrder
         )
         return selection
     }
 
     private func materializeVisibleMatchesAroundActive() {
-        guard let activeIndex, results.indices.contains(activeIndex) else { return }
-        _ = materializedSelection(at: activeIndex)
-        let activePageIndex = results[activeIndex].pageIndex
+        guard let pdfView, let document = pdfView.document else { return }
+        if let activeIndex, results.indices.contains(activeIndex) {
+            _ = materializedSelection(at: activeIndex)
+        }
+        let visiblePageIndices = Set(pdfView.visiblePages.map { document.index(for: $0) })
         for index in results.indices {
-            guard abs(results[index].pageIndex - activePageIndex) <= 1 else { continue }
+            guard visiblePageIndices.contains(results[index].pageIndex) else { continue }
             _ = materializedSelection(at: index)
         }
     }
@@ -820,7 +851,7 @@ final class PDFSearchController {
 
     private func currentSearchAnchor(in document: PDFDocument) -> SearchAnchor {
         guard let pdfView else {
-            return SearchAnchor(pageIndex: 0, pointInPage: .zero)
+            return SearchAnchor(pageIndex: 0, pointInDisplay: .zero)
         }
 
         if let selection = pdfView.currentSelection,
@@ -829,9 +860,10 @@ final class PDFSearchController {
             if pageIndex != NSNotFound {
                 let bounds = selection.bounds(for: page)
                 if !bounds.isEmpty {
+                    let displayBounds = PDFPageDisplayGeometry(page: page, box: pdfView.displayBox).rect(forPageRect: bounds)
                     return SearchAnchor(
                         pageIndex: pageIndex,
-                        pointInPage: NSPoint(x: bounds.maxX, y: bounds.minY)
+                        pointInDisplay: NSPoint(x: displayBounds.maxX, y: displayBounds.minY)
                     )
                 }
             }
@@ -854,7 +886,8 @@ final class PDFSearchController {
                 if pageIndex != NSNotFound {
                     return SearchAnchor(
                         pageIndex: min(max(pageIndex, 0), document.pageCount - 1),
-                        pointInPage: pdfView.convert(pointInPDFView, to: page)
+                        pointInDisplay: PDFPageDisplayGeometry(page: page, box: pdfView.displayBox)
+                            .point(forPagePoint: pdfView.convert(pointInPDFView, to: page))
                     )
                 }
             }
@@ -865,15 +898,15 @@ final class PDFSearchController {
             if index != NSNotFound {
                 return SearchAnchor(
                     pageIndex: min(max(index, 0), document.pageCount - 1),
-                    pointInPage: NSPoint(
-                        x: page.bounds(for: .cropBox).midX,
-                        y: page.bounds(for: .cropBox).midY
+                    pointInDisplay: NSPoint(
+                        x: PDFPageDisplayGeometry(page: page, box: pdfView.displayBox).bounds.midX,
+                        y: PDFPageDisplayGeometry(page: page, box: pdfView.displayBox).bounds.midY
                     )
                 )
             }
         }
 
-        return SearchAnchor(pageIndex: 0, pointInPage: .zero)
+        return SearchAnchor(pageIndex: 0, pointInDisplay: .zero)
     }
 
     private func updateOverlayStatus() {

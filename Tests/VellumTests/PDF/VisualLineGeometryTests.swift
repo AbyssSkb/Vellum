@@ -10,6 +10,7 @@ struct VisualLineGeometryTests {
         #expect(VisualLineGeometry.pageIndex(containing: 10, pageStarts: [0, 10, 25]) == 1)
         #expect(VisualLineGeometry.pageIndex(containing: 30, pageStarts: [0, 10, 25]) == 1)
         #expect(VisualLineGeometry.pageIndex(containing: 0, pageStarts: [0]) == nil)
+        #expect(VisualLineGeometry.pageIndex(containing: 10, pageStarts: [0, 10, 10, 25]) == 2)
     }
 
     @Test
