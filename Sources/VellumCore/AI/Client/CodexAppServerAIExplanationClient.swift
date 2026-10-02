@@ -4,8 +4,8 @@ struct CodexAppServerAIExplanationClient: AIExplaining {
     func testConnection(configuration: AIConfiguration) async throws -> String {
         let models = try await fetchModels(configuration: configuration)
         return models.isEmpty
-            ? "Codex App Server is available. No models returned."
-            : "Codex App Server available. \(models.count) models available."
+            ? AppUILanguage.saved().text(.codexAvailableNoModels)
+            : AppUILanguage.saved().text(.codexAvailableModels(models.count))
     }
 
     func testFunction(configuration: AIConfiguration) async throws -> String {
@@ -16,7 +16,7 @@ struct CodexAppServerAIExplanationClient: AIExplaining {
             timeout: 90,
             onChunk: nil
         )
-        return text.isEmpty ? "Codex App Server responded." : "Codex App Server responded: \(text)"
+        return AppUILanguage.saved().text(.codexResponded(text))
     }
 
     func fetchModels(configuration: AIConfiguration) async throws -> [String] {
@@ -173,7 +173,7 @@ struct CodexAppServerAIExplanationClient: AIExplaining {
 
                     if CodexAppServerMessageParser.responseID(from: message) == 1 {
                         guard let id = CodexAppServerMessageParser.threadID(from: message) else {
-                            throw AIExplanationError.transport("Codex App Server 没有返回 thread id。")
+                            throw AIExplanationError.transport(AppUILanguage.saved().text(.codexMissingThreadID))
                         }
                         threadID = id
                         try session.send([
@@ -286,6 +286,14 @@ struct CodexAppServerAIExplanationClient: AIExplaining {
         operation: @escaping @Sendable (CodexAppServerSession) async throws -> T
     ) async throws -> T {
         let session = try CodexAppServerSession(configuration: configuration)
+        return try await withAppServerSession(session: session, timeout: timeout, operation: operation)
+    }
+
+    func withAppServerSession<T: Sendable>(
+        session: CodexAppServerSession,
+        timeout: TimeInterval,
+        operation: @escaping @Sendable (CodexAppServerSession) async throws -> T
+    ) async throws -> T {
         defer { session.stop() }
 
         return try await withTaskCancellationHandler {
@@ -301,11 +309,11 @@ struct CodexAppServerAIExplanationClient: AIExplaining {
                 }
                 group.addTask {
                     try await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
-                    throw AIExplanationError.transport("Codex App Server 请求超时。")
+                    throw AIExplanationError.transport(AppUILanguage.saved().text(.codexRequestTimedOut))
                 }
 
                 guard let result = try await group.next() else {
-                    throw AIExplanationError.transport("Codex App Server 请求未完成。")
+                    throw AIExplanationError.transport(AppUILanguage.saved().text(.codexRequestIncomplete))
                 }
                 try Task.checkCancellation()
                 return result
@@ -323,12 +331,13 @@ final class CodexAppServerSession: @unchecked Sendable {
     private let stderrPipe = Pipe()
     private let stderrTask: Task<String, Never>
     private let stopLock = NSLock()
+    private var processGroup: pid_t?
     private var isStopped = false
 
     init(configuration: AIConfiguration) throws {
         let executablePath = configuration.codexExecutablePath
         guard FileManager.default.isExecutableFile(atPath: executablePath) else {
-            throw AIExplanationError.transport("Codex App Server 不可执行：\(executablePath)")
+            throw AIExplanationError.transport(AppUILanguage.saved().text(.codexNotExecutable(executablePath)))
         }
 
         process = Process()
@@ -350,9 +359,14 @@ final class CodexAppServerSession: @unchecked Sendable {
 
         do {
             try process.run()
+            let pid = process.processIdentifier
+            // Foundation launches a separate group. It can outlive a shell wrapper.
+            if pid != getpgrp(), getpgid(pid) == pid || kill(-pid, 0) == 0 {
+                processGroup = pid
+            }
         } catch {
             try? stderrPipe.fileHandleForWriting.close()
-            throw AIExplanationError.transport("Codex App Server 启动失败：\(error.localizedDescription)")
+            throw AIExplanationError.transport(AppUILanguage.saved().text(.codexStartFailed(error.localizedDescription)))
         }
     }
 
@@ -376,7 +390,7 @@ final class CodexAppServerSession: @unchecked Sendable {
         let stderr = await stderrTask.value
         throw AIExplanationError.transport(
             stderr.trimmingCharacters(in: .whitespacesAndNewlines)
-                .nilIfEmpty ?? "Codex App Server 连接已关闭。"
+                .nilIfEmpty ?? AppUILanguage.saved().text(.codexConnectionClosed)
         )
     }
 
@@ -386,11 +400,14 @@ final class CodexAppServerSession: @unchecked Sendable {
         guard !isStopped else { return }
         isStopped = true
 
-        if process.isRunning {
-            // This process serves only this request; a stalled server must not ignore cancellation.
+        if let processGroup {
+            kill(-processGroup, SIGKILL)
+        } else if process.isRunning {
             kill(process.processIdentifier, SIGKILL)
         }
         try? stdinPipe.fileHandleForWriting.close()
+        try? stdoutPipe.fileHandleForReading.close()
+        try? stderrPipe.fileHandleForReading.close()
     }
 
     private static func arguments(configuration: AIConfiguration) -> [String] {
@@ -486,10 +503,10 @@ enum CodexAppServerMessageParser {
         case "failed", "interrupted":
             let error = turn["error"] as? [String: Any]
             throw AIExplanationError.server(
-                (error?["message"] as? String)?.nilIfEmpty ?? "Codex App Server 请求未完成。"
+                (error?["message"] as? String)?.nilIfEmpty ?? AppUILanguage.saved().text(.codexRequestIncomplete)
             )
         default:
-            throw AIExplanationError.transport("Codex App Server 返回了无效的完成状态。")
+            throw AIExplanationError.transport(AppUILanguage.saved().text(.codexInvalidCompletionStatus))
         }
     }
 

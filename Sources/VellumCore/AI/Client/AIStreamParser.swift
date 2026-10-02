@@ -6,6 +6,7 @@ enum AIStreamParser {
         case chunkAndFinished(String, reason: String?)
         case finished(reason: String?)
         case done
+        case error(String)
         case ignored
     }
 
@@ -18,6 +19,11 @@ enum AIStreamParser {
 
         guard payload != "[DONE]" else { return .done }
         guard let data = payload.data(using: .utf8) else { return .ignored }
+
+        if let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           (object["error"] != nil && !(object["error"] is NSNull)) || object["type"] as? String == "error" {
+            return .error(AIHTTPErrorMessage.message(from: data, statusCode: nil))
+        }
 
         guard let chunk = try? JSONDecoder().decode(ChatCompletionStreamChunk.self, from: data),
               let choice = chunk.choices.first else {

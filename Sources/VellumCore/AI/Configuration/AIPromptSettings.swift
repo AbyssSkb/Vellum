@@ -282,11 +282,17 @@ You are Vellum's precise PDF reading assistant. Follow the user's prompt templat
         context: AIExplanationContext,
         configuration: AIPromptConfiguration = AIPromptSettings.current()
     ) -> String {
-        var prompt = configuration.template
-        for (name, value) in variables(context: context, configuration: configuration) {
-            prompt = prompt.replacingOccurrences(of: "{{\(name)}}", with: value)
+        let values = variables(context: context, configuration: configuration)
+        let template = configuration.template as NSString
+        let prompt = NSMutableString(string: configuration.template)
+        let placeholders = try! NSRegularExpression(pattern: #"\{\{([^{}]+)\}\}"#)
+        for match in placeholders.matches(in: configuration.template, range: NSRange(location: 0, length: template.length)).reversed() {
+            let name = template.substring(with: match.range(at: 1))
+            if let value = values[name] {
+                prompt.replaceCharacters(in: match.range, with: value)
+            }
         }
-        return prompt
+        return prompt as String
     }
 
     static func variables(

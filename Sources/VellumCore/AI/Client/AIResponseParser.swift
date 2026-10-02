@@ -17,6 +17,9 @@ enum AIResponseParser {
 
     private static func openAICompatibleCompletionText(from data: Data) throws -> String {
         let completion = try JSONDecoder().decode(ChatCompletionResponse.self, from: data)
+        if completion.choices.first?.finishReason == "length" {
+            throw AIExplanationError.responseTruncated
+        }
         guard let text = completion.choices.first?.message.content
             .trimmingCharacters(in: .whitespacesAndNewlines),
               !text.isEmpty else {
@@ -28,9 +31,12 @@ enum AIResponseParser {
 
     private static func anthropicMessageText(from data: Data) throws -> String {
         let message = try JSONDecoder().decode(AnthropicMessageResponse.self, from: data)
+        if message.stopReason == "max_tokens" {
+            throw AIExplanationError.responseTruncated
+        }
         let text = message.content
             .filter { $0.type == "text" }
-            .map(\.text)
+            .compactMap(\.text)
             .joined()
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -54,6 +60,12 @@ enum AIResponseParser {
 
         struct Choice: Decodable {
             var message: ChatMessage
+            var finishReason: String?
+
+            enum CodingKeys: String, CodingKey {
+                case message
+                case finishReason = "finish_reason"
+            }
         }
     }
 
@@ -67,10 +79,16 @@ enum AIResponseParser {
 
     private struct AnthropicMessageResponse: Decodable {
         var content: [Content]
+        var stopReason: String?
+
+        enum CodingKeys: String, CodingKey {
+            case content
+            case stopReason = "stop_reason"
+        }
 
         struct Content: Decodable {
             var type: String
-            var text: String
+            var text: String?
         }
     }
 }

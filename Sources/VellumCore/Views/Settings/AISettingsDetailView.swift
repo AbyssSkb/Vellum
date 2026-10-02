@@ -313,50 +313,14 @@ struct AIProviderSettingsDetailView: View {
     private func loadProviderSettings(for id: String) {
         let preset = AIProviderPreset.preset(for: id)
         let defaults = UserDefaults.standard
+        AIConfiguration.migrateLegacyProviderSettings(defaults: defaults)
         didLoadProviderSettings = false
         providerID = preset.id
-        baseURL = providerSetting(
-            key: AISettingsKeys.baseURLKey(for: preset.id),
-            fallbackKeys: [
-                AISettingsKeys.conversationBaseURLKey(for: preset.id),
-                AISettingsKeys.baseURL
-            ],
-            defaultValue: preset.baseURL,
-            defaults: defaults
-        )
-        apiKey = providerSetting(
-            key: AISettingsKeys.apiKeyKey(for: preset.id),
-            fallbackKeys: [
-                AISettingsKeys.conversationAPIKeyKey(for: preset.id),
-                AISettingsKeys.apiKey
-            ],
-            defaultValue: "",
-            defaults: defaults
-        )
+        baseURL = defaults.string(forKey: AISettingsKeys.baseURLKey(for: preset.id)) ?? preset.baseURL
+        apiKey = defaults.string(forKey: AISettingsKeys.apiKeyKey(for: preset.id)) ?? ""
         validation.invalidate()
         didLoadProviderSettings = true
         saveProviderSettings()
-    }
-
-    private func providerSetting(
-        key: String,
-        fallbackKeys: [String],
-        defaultValue: String,
-        defaults: UserDefaults
-    ) -> String {
-        if defaults.object(forKey: key) != nil {
-            return defaults.string(forKey: key) ?? ""
-        }
-
-        for fallbackKey in fallbackKeys {
-            if let value = defaults.string(forKey: fallbackKey)?
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-                .nilIfEmpty {
-                return value
-            }
-        }
-
-        return defaultValue
     }
 
     private func saveProviderSettings() {
@@ -681,18 +645,9 @@ struct AISettingsDetailView: View {
 
     func currentConfiguration(requireModel: Bool) throws -> AIConfiguration {
         let defaults = UserDefaults.standard
-        let baseURL = providerSetting(
-            key: AISettingsKeys.baseURLKey(for: selectedPreset.id),
-            fallbackKeys: page.profile.baseURLFallbackKeys(for: selectedPreset.id),
-            defaultValue: selectedPreset.baseURL,
-            defaults: defaults
-        )
-        let apiKey = providerSetting(
-            key: AISettingsKeys.apiKeyKey(for: selectedPreset.id),
-            fallbackKeys: page.profile.apiKeyFallbackKeys(for: selectedPreset.id),
-            defaultValue: "",
-            defaults: defaults
-        )
+        AIConfiguration.migrateLegacyProviderSettings(defaults: defaults)
+        let baseURL = defaults.string(forKey: AISettingsKeys.baseURLKey(for: selectedPreset.id)) ?? selectedPreset.baseURL
+        let apiKey = defaults.string(forKey: AISettingsKeys.apiKeyKey(for: selectedPreset.id)) ?? ""
 
         return try AIConfiguration(
             baseURLString: baseURL,
@@ -714,38 +669,13 @@ struct AISettingsDetailView: View {
     private func loadProviderSelection(for id: String) {
         let preset = AIProviderPreset.preset(for: id)
         let defaults = UserDefaults.standard
+        AIConfiguration.migrateLegacyProviderSettings(defaults: defaults)
         didLoadProviderSettings = false
         providerID = preset.id
-        model = providerSetting(
-            key: page.profile.modelKey(for: preset.id),
-            fallbackKeys: page.profile.modelFallbackKeys(for: preset.id),
-            defaultValue: preset.defaultModel,
-            defaults: defaults
-        )
+        model = defaults.string(forKey: page.profile.modelKey(for: preset.id)) ?? preset.defaultModel
         validation.invalidate()
         didLoadProviderSettings = true
         saveUsageSettings()
-    }
-
-    private func providerSetting(
-        key: String,
-        fallbackKeys: [String],
-        defaultValue: String,
-        defaults: UserDefaults
-    ) -> String {
-        if defaults.object(forKey: key) != nil {
-            return defaults.string(forKey: key) ?? ""
-        }
-
-        for fallbackKey in fallbackKeys {
-            if let value = defaults.string(forKey: fallbackKey)?
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-                .nilIfEmpty {
-                return value
-            }
-        }
-
-        return defaultValue
     }
 
     private func saveUsageSettings() {

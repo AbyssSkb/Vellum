@@ -5,6 +5,24 @@ import Testing
 @Suite("AI prompt settings")
 struct AIPromptSettingsTests {
     @Test
+    func insertedContextIsNeverReinterpretedAsTemplateVariables() {
+        let context = AIExplanationContext(
+            selectedText: "literal {{targetLanguage}} and {{fileName}} 🐈",
+            currentParagraph: "{{selectedText}}",
+            nearbyText: "{{currentParagraph}}",
+            fileName: "{{targetLanguage}}.pdf",
+            pageNumbers: [1]
+        )
+        let configuration = AIPromptConfiguration(
+            targetLanguage: "{{selectedText}}",
+            template: "{{selectedText}}|{{targetLanguage}}|{{fileName}}|{{currentParagraph}}|{{nearbyText}}|{{unknown}}"
+        )
+
+        #expect(AIPromptRenderer.renderUserPrompt(context: context, configuration: configuration)
+            == "literal {{targetLanguage}} and {{fileName}} 🐈|{{selectedText}}|{{targetLanguage}}.pdf|{{selectedText}}|{{currentParagraph}}|{{unknown}}")
+    }
+
+    @Test
     func rendererSubstitutesContextVariablesAndTargetLanguage() {
         let context = AIExplanationContext(
             selectedText: "salient",

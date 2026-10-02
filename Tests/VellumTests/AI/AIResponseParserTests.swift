@@ -19,6 +19,29 @@ struct AIResponseParserTests {
     }
 
     @Test
+    func anthropicMessageSkipsThinkingAndToolBlocks() throws {
+        let data = Data(#"{"content":[{"type":"thinking","thinking":"reasoning","signature":"sig"},{"type":"redacted_thinking","data":"private"},{"type":"tool_use","id":"tool","name":"lookup","input":{}},{"type":"text","text":"Answer"}],"stop_reason":"end_turn"}"#.utf8)
+
+        #expect(try AIResponseParser.completionText(from: data, providerFormat: .anthropicMessages) == "Answer")
+    }
+
+    @Test(arguments: [AIProviderFormat.openAICompatible, .anthropicMessages])
+    func rejectsTruncatedCompletion(format: AIProviderFormat) {
+        let json = format == .anthropicMessages
+            ? #"{"content":[{"type":"text","text":"partial"}],"stop_reason":"max_tokens"}"#
+            : #"{"choices":[{"message":{"role":"assistant","content":"partial"},"finish_reason":"length"}]}"#
+
+        do {
+            _ = try AIResponseParser.completionText(from: Data(json.utf8), providerFormat: format)
+            Issue.record("Expected responseTruncated error")
+        } catch AIExplanationError.responseTruncated {
+            return
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
+    @Test
     func completionTextRejectsEmptyContent() throws {
         let data = Data(#"{"choices":[{"message":{"role":"assistant","content":"  "}}]}"#.utf8)
 

@@ -8,7 +8,7 @@ enum AIRequestFactory {
         case .anthropicMessages:
             return try anthropicFunctionTestRequest(configuration: configuration)
         case .codexCLI:
-            throw AIExplanationError.server("Codex 本地 provider 不使用 HTTP 请求。")
+            throw AIExplanationError.server(AppUILanguage.saved().text(.aiCodexNoHTTPRequest))
         }
     }
 
@@ -75,7 +75,7 @@ enum AIRequestFactory {
             )
         }
         if configuration.providerFormat.usesCodexExecutable {
-            throw AIExplanationError.server("Codex 本地 provider 不使用 HTTP 请求。")
+            throw AIExplanationError.server(AppUILanguage.saved().text(.aiCodexNoHTTPRequest))
         }
 
         let body = ChatCompletionRequest(
@@ -111,7 +111,7 @@ enum AIRequestFactory {
             )
         }
         if configuration.providerFormat.usesCodexExecutable {
-            throw AIExplanationError.server("Codex 本地 provider 不使用 HTTP 请求。")
+            throw AIExplanationError.server(AppUILanguage.saved().text(.aiCodexNoHTTPRequest))
         }
 
         let body = ChatCompletionRequest(
@@ -153,7 +153,7 @@ enum AIRequestFactory {
             )
         }
         if configuration.providerFormat.usesCodexExecutable {
-            throw AIExplanationError.server("Codex 本地 provider 不使用 HTTP 请求。")
+            throw AIExplanationError.server(AppUILanguage.saved().text(.aiCodexNoHTTPRequest))
         }
 
         let body = ChatCompletionRequest(
@@ -186,7 +186,7 @@ enum AIRequestFactory {
             )
         }
         if configuration.providerFormat.usesCodexExecutable {
-            throw AIExplanationError.server("Codex 本地 provider 不使用 HTTP 请求。")
+            throw AIExplanationError.server(AppUILanguage.saved().text(.aiCodexNoHTTPRequest))
         }
 
         let body = ChatCompletionRequest(
@@ -218,6 +218,14 @@ enum AIRequestFactory {
         timeout: TimeInterval,
         body: ChatCompletionRequest
     ) throws -> URLRequest {
+        var body = body
+        let model = configuration.model.lowercased()
+        let reasoningModels = ["gpt-5", "gpt-5-mini", "gpt-5-nano", "o1", "o1-mini", "o1-preview", "o3", "o3-mini", "o4-mini"]
+        if reasoningModels.contains(where: { model == $0 || model.hasPrefix($0 + "-20") }) {
+            body.temperature = nil
+            body.maxCompletionTokens = body.maxTokens
+            body.maxTokens = nil
+        }
         var request = URLRequest(url: configuration.chatCompletionsURL)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -296,8 +304,9 @@ enum AIRequestFactory {
 struct ChatCompletionRequest: Encodable {
     var model: String
     var messages: [ChatMessage]
-    var temperature: Double
+    var temperature: Double?
     var maxTokens: Int? = nil
+    var maxCompletionTokens: Int? = nil
     var stream: Bool? = nil
     var enableThinking: Bool? = nil
 
@@ -306,6 +315,7 @@ struct ChatCompletionRequest: Encodable {
         case messages
         case temperature
         case maxTokens = "max_tokens"
+        case maxCompletionTokens = "max_completion_tokens"
         case stream
         case enableThinking = "enable_thinking"
     }

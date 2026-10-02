@@ -218,6 +218,31 @@ struct AIRequestFactoryTests {
         #expect(messages.first?["content"] == "Reply with OK.")
     }
 
+    @Test(arguments: ["gpt-5", "gpt-5-mini", "gpt-5-nano", "gpt-5-2025-08-07", "o1", "o1-mini", "o1-preview", "o3", "o3-mini", "o4-mini-2025-04-16"])
+    func reasoningModelsUseSupportedFunctionTestParameters(model: String) throws {
+        let configuration = try AIConfiguration(baseURLString: "https://api.openai.com/v1", model: model, apiKey: "test-key")
+        let body = try requestBody(AIRequestFactory.functionTestRequest(configuration: configuration))
+
+        #expect(body["temperature"] == nil)
+        #expect(body["max_tokens"] == nil)
+        #expect(body["max_completion_tokens"] as? Int == 64)
+
+        let explanation = try requestBody(AIRequestFactory.streamingExplanationRequest(context: makeContext(), configuration: configuration))
+        let conversation = try requestBody(AIRequestFactory.streamingConversationRequest(context: makeContext(), messages: [], configuration: configuration))
+        #expect(explanation["temperature"] == nil)
+        #expect(conversation["temperature"] == nil)
+    }
+
+    @Test(arguments: ["gpt-4.1-mini", "gpt-5-chat-latest", "gpt-5.1-chat-latest", "deepseek-chat"])
+    func nonReasoningModelsRetainTemperature(model: String) throws {
+        let configuration = try AIConfiguration(baseURLString: "https://api.example.com/v1", model: model, apiKey: "test-key")
+        let body = try requestBody(AIRequestFactory.functionTestRequest(configuration: configuration))
+
+        #expect(body["temperature"] as? Double == 0)
+        #expect(body["max_tokens"] as? Int == 64)
+        #expect(body["max_completion_tokens"] == nil)
+    }
+
     @Test
     func streamingExplanationRequestEnablesStream() throws {
         let configuration = try AIConfiguration(

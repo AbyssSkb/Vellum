@@ -83,37 +83,6 @@ enum AIConfigurationProfile: String, CaseIterable, Identifiable {
     func apiKeyKey(for providerID: String) -> String {
         AISettingsKeys.apiKeyKey(for: providerID)
     }
-
-    var allowsLegacyFallback: Bool {
-        self == .explanation
-    }
-
-    func baseURLFallbackKeys(for providerID: String) -> [String] {
-        switch self {
-        case .explanation:
-            return [AISettingsKeys.baseURL]
-        case .conversation:
-            return [AISettingsKeys.conversationBaseURLKey(for: providerID)]
-        }
-    }
-
-    func modelFallbackKeys(for providerID: String) -> [String] {
-        switch self {
-        case .explanation:
-            return [AISettingsKeys.model]
-        case .conversation:
-            return []
-        }
-    }
-
-    func apiKeyFallbackKeys(for providerID: String) -> [String] {
-        switch self {
-        case .explanation:
-            return [AISettingsKeys.apiKey]
-        case .conversation:
-            return [AISettingsKeys.conversationAPIKeyKey(for: providerID)]
-        }
-    }
 }
 
 enum AIProviderFormat: String, CaseIterable, Identifiable, Sendable {
@@ -237,33 +206,45 @@ struct AIConfiguration: Sendable {
     let apiKey: String
     let providerFormat: AIProviderFormat
 
+    static func migrateLegacyProviderSettings(defaults: UserDefaults = .standard) {
+        let providerID = defaults.string(forKey: AISettingsKeys.providerID)
+            ?? AIProviderPreset.presets.first?.id
+            ?? AIProviderPreset.customID
+        let provider = AIProviderPreset.preset(for: providerID)
+        let globalKeys = [
+            (AISettingsKeys.baseURL, AISettingsKeys.baseURLKey(for: provider.id)),
+            (AISettingsKeys.model, AISettingsKeys.modelKey(for: provider.id)),
+            (AISettingsKeys.apiKey, AISettingsKeys.apiKeyKey(for: provider.id))
+        ]
+        let conversationKeys = AIProviderPreset.presets.flatMap { provider in
+            [
+                (AISettingsKeys.conversationBaseURLKey(for: provider.id), AISettingsKeys.baseURLKey(for: provider.id)),
+                (AISettingsKeys.conversationAPIKeyKey(for: provider.id), AISettingsKeys.apiKeyKey(for: provider.id))
+            ]
+        }
+        for (legacyKey, scopedKey) in globalKeys + conversationKeys {
+            if defaults.object(forKey: scopedKey) == nil,
+               let value = defaults.string(forKey: legacyKey)?
+                .trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty {
+                defaults.set(value, forKey: scopedKey)
+            }
+            defaults.removeObject(forKey: legacyKey)
+        }
+    }
+
     static func current(
         profile: AIConfigurationProfile = .explanation,
         requireModel: Bool = true,
         defaults: UserDefaults = .standard
     ) throws -> AIConfiguration {
+        migrateLegacyProviderSettings(defaults: defaults)
         let providerID = defaults.string(forKey: profile.providerIDKey)
             ?? AIProviderPreset.presets.first?.id
             ?? AIProviderPreset.customID
         let provider = AIProviderPreset.preset(for: providerID)
-        let baseURLString = providerScopedValue(
-            forKey: profile.baseURLKey(for: provider.id),
-            fallbackKeys: profile.baseURLFallbackKeys(for: provider.id),
-            defaultValue: provider.baseURL,
-            defaults: defaults
-        )
-        let model = providerScopedValue(
-            forKey: profile.modelKey(for: provider.id),
-            fallbackKeys: profile.modelFallbackKeys(for: provider.id),
-            defaultValue: provider.defaultModel,
-            defaults: defaults
-        )
-        let apiKey = providerScopedValue(
-            forKey: profile.apiKeyKey(for: provider.id),
-            fallbackKeys: profile.apiKeyFallbackKeys(for: provider.id),
-            defaultValue: "",
-            defaults: defaults
-        )
+        let baseURLString = defaults.string(forKey: profile.baseURLKey(for: provider.id)) ?? provider.baseURL
+        let model = defaults.string(forKey: profile.modelKey(for: provider.id)) ?? provider.defaultModel
+        let apiKey = defaults.string(forKey: profile.apiKeyKey(for: provider.id)) ?? ""
 
         return try AIConfiguration(
             baseURLString: baseURLString,
@@ -272,29 +253,6 @@ struct AIConfiguration: Sendable {
             providerFormat: provider.format,
             requireModel: requireModel
         )
-    }
-
-    private static func providerScopedValue(
-        forKey key: String,
-        fallbackKeys: [String],
-        defaultValue: String,
-        defaults: UserDefaults
-    ) -> String {
-        if defaults.object(forKey: key) != nil {
-            let scopedValue = defaults.string(forKey: key) ?? ""
-            return scopedValue
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-
-        for fallbackKey in fallbackKeys {
-            if let value = defaults.string(forKey: fallbackKey)?
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-                .nilIfEmpty {
-                return value
-            }
-        }
-
-        return defaultValue
     }
 
     init(

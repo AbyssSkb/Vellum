@@ -26,7 +26,8 @@ struct OpenAICompatibleAIExplanationClient: AIExplaining {
         try validate(data: data, response: response)
 
         let models = try AIResponseParser.modelIDs(from: data)
-        return models.isEmpty ? "Endpoint responded. No models returned." : "Endpoint responded. \(models.count) models available."
+        let language = AppUILanguage.saved()
+        return models.isEmpty ? language.text(.aiEndpointNoModels) : language.text(.aiEndpointModels(models.count))
     }
 
     func testFunction(configuration: AIConfiguration) async throws -> String {
@@ -36,9 +37,9 @@ struct OpenAICompatibleAIExplanationClient: AIExplaining {
 
         do {
             let text = try AIResponseParser.completionText(from: data, providerFormat: configuration.providerFormat)
-            return "Model responded: \(text)"
+            return AppUILanguage.saved().text(.aiModelResponded(text))
         } catch AIExplanationError.emptyResponse {
-            return "Model responded, but returned empty text."
+            return AppUILanguage.saved().text(.aiModelEmptyResponse)
         }
     }
 
@@ -110,6 +111,8 @@ struct OpenAICompatibleAIExplanationClient: AIExplaining {
                 case .done:
                     didReceiveDone = true
                     break streamLoop
+                case .error(let message):
+                    throw AIExplanationError.server(message)
                 case .ignored:
                     continue
                 }
@@ -209,6 +212,8 @@ struct OpenAICompatibleAIExplanationClient: AIExplaining {
                 case .done:
                     didReceiveDone = true
                     break streamLoop
+                case .error(let message):
+                    throw AIExplanationError.server(message)
                 case .ignored:
                     continue
                 }
@@ -260,7 +265,7 @@ struct OpenAICompatibleAIExplanationClient: AIExplaining {
     private func validate(response: URLResponse) throws {
         if let httpResponse = response as? HTTPURLResponse,
            !(200..<300).contains(httpResponse.statusCode) {
-            throw AIExplanationError.server("AI 请求失败，HTTP \(httpResponse.statusCode)。")
+            throw AIExplanationError.server(AIHTTPErrorMessage.message(from: Data(), statusCode: httpResponse.statusCode))
         }
     }
 
@@ -311,7 +316,7 @@ struct OpenAICompatibleAIExplanationClient: AIExplaining {
                 startedAt: startedAt,
                 error: error
             )
-            throw AIExplanationError.transport("AI 连接失败：\(error.localizedDescription)")
+            throw AIExplanationError.transport(AppUILanguage.saved().text(.aiConnectionFailed(error.localizedDescription)))
         }
     }
 
@@ -332,7 +337,7 @@ struct OpenAICompatibleAIExplanationClient: AIExplaining {
                 startedAt: startedAt,
                 error: error
             )
-            throw AIExplanationError.transport("AI 连接失败：\(error.localizedDescription)")
+            throw AIExplanationError.transport(AppUILanguage.saved().text(.aiConnectionFailed(error.localizedDescription)))
         }
     }
 }

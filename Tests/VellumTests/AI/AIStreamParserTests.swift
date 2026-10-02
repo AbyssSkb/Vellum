@@ -37,10 +37,26 @@ struct AIStreamParserTests {
     }
 
     @Test
+    func recognizesProviderErrorInsideSuccessfulHTTPStream() {
+        let line = #"data: {"error":{"message":"Quota exhausted","type":"insufficient_quota","code":"quota","param":"model"}}"#
+
+        guard case .error(let message) = AIStreamParser.event(from: line) else {
+            Issue.record("Expected provider error")
+            return
+        }
+        #expect(message.contains("Quota exhausted"))
+        #expect(message.contains("type=insufficient_quota"))
+        #expect(message.contains("code=quota"))
+        #expect(message.contains("param=model"))
+        #expect(!message.contains("HTTP"))
+    }
+
+    @Test
     func ignoresNonDataAndMalformedLines() {
         #expect(AIStreamParser.event(from: ": keep-alive") == .ignored)
         #expect(AIStreamParser.event(from: "data: {") == .ignored)
         #expect(AIStreamParser.event(from: #"data: {"choices":[{"delta":{}}]}"#) == .ignored)
         #expect(AIStreamParser.event(from: #"data: {"choices":[{"delta":{"content":""}}]}"#) == .ignored)
+        #expect(AIStreamParser.event(from: #"data: {"error":null,"choices":[{"delta":{"content":"OK"}}]}"#) == .chunk("OK"))
     }
 }
