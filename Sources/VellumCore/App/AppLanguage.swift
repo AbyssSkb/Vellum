@@ -249,6 +249,9 @@ public enum AppText {
     case updateAvailableTitle(String)
     case updateAvailableInstallDetail(current: String)
     case updateAvailableGitHubDetail(current: String)
+    case updateReadyTitle(String)
+    case updateReadyInstallDetail(current: String)
+    case restartAndUpdate
     case updateWindowTitle
     case updates
     case useCodexDefault
@@ -354,7 +357,7 @@ public extension AppText {
         case .americanEnglish: return "US"
         case .askingTarget(let target): return "Asking \(target)..."
         case .automaticallyCheck: return "Automatically Check"
-        case .automaticallyCheckSubtitle: return "Look for new releases shortly after launch."
+        case .automaticallyCheckSubtitle: return "Check after launch and download updates in the background. Ask before restarting."
         case .baseURL: return "Base URL"
         case .britishEnglish: return "UK"
         case .cancel: return "Cancel"
@@ -481,6 +484,9 @@ public extension AppText {
         case .updateAvailableTitle(let version): return "Vellum \(version) is available"
         case .updateAvailableInstallDetail(let current): return "You are currently using Vellum \(current). Download and install the latest version now."
         case .updateAvailableGitHubDetail(let current): return "You are currently using Vellum \(current). Open GitHub to download the latest version."
+        case .updateReadyTitle(let version): return "Vellum \(version) is ready"
+        case .updateReadyInstallDetail(let current): return "You are using Vellum \(current). The update is downloaded. Restart to install it."
+        case .restartAndUpdate: return "Restart and Update"
         case .updateWindowTitle: return "Vellum Update"
         case .updates: return "Updates"
         case .useCodexDefault: return "Use Codex default"
@@ -577,7 +583,7 @@ public extension AppText {
         case .americanEnglish: return "美式"
         case .askingTarget(let target): return "正在请求 \(target)..."
         case .automaticallyCheck: return "自动检查"
-        case .automaticallyCheckSubtitle: return "启动后自动检查新版本。"
+        case .automaticallyCheckSubtitle: return "启动后检查新版本并在后台下载，重启更新前会询问你。"
         case .baseURL: return "Base URL"
         case .britishEnglish: return "英式"
         case .cancel: return "取消"
@@ -704,6 +710,9 @@ public extension AppText {
         case .updateAvailableTitle(let version): return "Vellum \(version) 可用"
         case .updateAvailableInstallDetail(let current): return "你当前正在使用 Vellum \(current)。现在可以下载并安装最新版本。"
         case .updateAvailableGitHubDetail(let current): return "你当前正在使用 Vellum \(current)。请打开 GitHub 下载最新版本。"
+        case .updateReadyTitle(let version): return "Vellum \(version) 已下载"
+        case .updateReadyInstallDetail(let current): return "你当前正在使用 Vellum \(current)。更新已下载，确认后将安装并重新启动。"
+        case .restartAndUpdate: return "重启并更新"
         case .updateWindowTitle: return "Vellum 更新"
         case .updates: return "更新"
         case .useCodexDefault: return "使用 Codex 默认值"

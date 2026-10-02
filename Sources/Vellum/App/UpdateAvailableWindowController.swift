@@ -16,11 +16,13 @@ final class UpdateAvailableWindowController: NSWindowController {
     }
 
     private let canInstall: Bool
+    private let isDownloaded: Bool
     private let language = AppUILanguage.saved()
     private var response: Response = .later
 
-    init(updateVersion: String, currentVersion: String, canInstall: Bool, releaseNotes: [AppReleaseNotesSection]) {
+    init(updateVersion: String, currentVersion: String, canInstall: Bool, releaseNotes: [AppReleaseNotesSection], isDownloaded: Bool = false) {
         self.canInstall = canInstall
+        self.isDownloaded = isDownloaded
         let notesMetrics = Self.notesMetrics(for: releaseNotes)
 
         let window = NSWindow(
@@ -92,12 +94,12 @@ final class UpdateAvailableWindowController: NSWindowController {
         iconView.translatesAutoresizingMaskIntoConstraints = false
         iconWell.addSubview(iconView)
 
-        let titleLabel = label(language.text(.updateAvailableTitle(updateVersion)), size: 17, weight: .semibold)
+        let titleLabel = label(language.text(isDownloaded ? .updateReadyTitle(updateVersion) : .updateAvailableTitle(updateVersion)), size: 17, weight: .semibold)
         titleLabel.lineBreakMode = .byTruncatingTail
 
-        let detailText = canInstall
-            ? language.text(.updateAvailableInstallDetail(current: currentVersion))
-            : language.text(.updateAvailableGitHubDetail(current: currentVersion))
+        let detailText = isDownloaded
+            ? language.text(.updateReadyInstallDetail(current: currentVersion))
+            : language.text(canInstall ? .updateAvailableInstallDetail(current: currentVersion) : .updateAvailableGitHubDetail(current: currentVersion))
         let detailLabel = label(detailText, size: 13, color: mutedColor)
         detailLabel.maximumNumberOfLines = 2
 
@@ -141,7 +143,7 @@ final class UpdateAvailableWindowController: NSWindowController {
         notesPanel.addSubview(scrollView)
 
         let primaryButton = button(
-            canInstall ? language.text(.downloadAndInstall) : language.text(.openGitHub),
+            language.text(isDownloaded ? .restartAndUpdate : (canInstall ? .downloadAndInstall : .openGitHub)),
             action: #selector(primaryAction),
             isPrimary: true
         )

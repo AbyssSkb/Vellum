@@ -25,6 +25,11 @@ let package = Package(
             name: "VellumTests",
             dependencies: ["VellumCore"],
             path: "Tests/VellumTests"
+        ),
+        .testTarget(
+            name: "VellumAppTests",
+            dependencies: ["Vellum", "VellumCore"],
+            path: "Tests/VellumAppTests"
         )
     ]
 )

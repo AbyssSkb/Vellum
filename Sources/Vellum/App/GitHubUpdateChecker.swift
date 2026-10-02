@@ -53,12 +53,24 @@ final class GitHubUpdateChecker {
 
     private let session: URLSession
     private let prepareToTerminate: @MainActor () -> Bool
+    private let presentUpdate: (@MainActor (AppUpdateInfo, String, Bool) -> UpdateAvailableWindowController.Response)?
+    private let installUpdate: (@MainActor (URL) throws -> Void)?
     private var task: Task<Void, Never>?
+    private var operationID = UUID()
     private var downloadWindow: UpdateDownloadWindowController?
+    private var isDownloading = false
+    private var downloadedUpdate: (update: AppUpdateInfo, fileURL: URL)?
 
-    init(session: URLSession = .shared, prepareToTerminate: @escaping @MainActor () -> Bool = { true }) {
+    init(
+        session: URLSession = .shared,
+        prepareToTerminate: @escaping @MainActor () -> Bool = { true },
+        presentUpdate: (@MainActor (AppUpdateInfo, String, Bool) -> UpdateAvailableWindowController.Response)? = nil,
+        installUpdate: (@MainActor (URL) throws -> Void)? = nil
+    ) {
         self.session = session
         self.prepareToTerminate = prepareToTerminate
+        self.presentUpdate = presentUpdate
+        self.installUpdate = installUpdate
     }
 
     deinit {
@@ -66,22 +78,38 @@ final class GitHubUpdateChecker {
     }
 
     func checkForUpdates(_ mode: CheckMode) {
-        task?.cancel()
+        startCheck(mode)
+    }
+
+    func checkAutomaticallySoon() {
+        startCheck(.automatic, delay: .seconds(2))
+    }
+
+    private func startCheck(_ mode: CheckMode, delay: Duration? = nil) {
+        let operationID = beginOperation()
+        let currentVersion = currentAppVersion()
         task = Task { [weak self] in
             guard let self else { return }
             do {
-                let currentVersion = self.currentAppVersion()
+                if let delay { try await Task.sleep(for: delay) }
                 let update = try await fetchLatestUpdate(currentVersion: currentVersion)
                 try Task.checkCancellation()
-                await MainActor.run {
-                    guard !Task.isCancelled else { return }
-                    self.handle(update: update, currentVersion: currentVersion, mode: mode)
-                }
+                guard self.operationID == operationID else { return }
+                self.handle(update: update, currentVersion: currentVersion, mode: mode, operationID: operationID)
             } catch {
-                guard !Task.isCancelled, !isUpdateCancellation(error) else { return }
-                await MainActor.run {
-                    guard !Task.isCancelled else { return }
-                    if mode == .manual {
+                guard self.operationID == operationID,
+                      !Task.isCancelled, !isUpdateCancellation(error) else { return }
+                if mode == .manual {
+                    if let downloadedUpdate,
+                       downloadedUpdate.update.isNewer(than: currentVersion),
+                       cachedInstaller(for: downloadedUpdate.update) != nil {
+                        self.showUpdateAvailable(
+                            update: downloadedUpdate.update,
+                            currentVersion: currentVersion,
+                            mode: mode,
+                            operationID: operationID
+                        )
+                    } else {
                         self.showUpdateError(error)
                     }
                 }
@@ -89,23 +117,14 @@ final class GitHubUpdateChecker {
         }
     }
 
-    func checkAutomaticallySoon() {
+    private func beginOperation() -> UUID {
         task?.cancel()
-        task = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(2))
-            guard !Task.isCancelled, let self else { return }
-            do {
-                let currentVersion = self.currentAppVersion()
-                let update = try await fetchLatestUpdate(currentVersion: currentVersion)
-                try Task.checkCancellation()
-                await MainActor.run {
-                    guard !Task.isCancelled else { return }
-                    self.handle(update: update, currentVersion: currentVersion, mode: .automatic)
-                }
-            } catch {
-                // Background checks stay quiet. The menu action reports errors.
-            }
-        }
+        task = nil
+        isDownloading = false
+        operationID = UUID()
+        downloadWindow?.finish()
+        downloadWindow = nil
+        return operationID
     }
 
     private func fetchLatestUpdate(currentVersion: String) async throws -> AppUpdateInfo {
@@ -324,7 +343,7 @@ final class GitHubUpdateChecker {
         return ReleaseNotesAtomParser.releaseNotes(for: tagName, from: data)
     }
 
-    private func handle(update: AppUpdateInfo, currentVersion: String, mode: CheckMode) {
+    private func handle(update: AppUpdateInfo, currentVersion: String, mode: CheckMode, operationID: UUID) {
         guard update.isNewer(than: currentVersion) else {
             if mode == .manual {
                 showNoUpdate(currentVersion: currentVersion, latestVersion: update.version)
@@ -337,26 +356,51 @@ final class GitHubUpdateChecker {
             return
         }
 
-        showUpdateAvailable(update: update, currentVersion: currentVersion, mode: mode)
+        if mode == .automatic, cachedInstaller(for: update) == nil {
+            guard update.downloadURL != nil else { return }
+            downloadAndOpenInstaller(for: update, mode: mode)
+            return
+        }
+        showUpdateAvailable(update: update, currentVersion: currentVersion, mode: mode, operationID: operationID)
     }
 
-    private func showUpdateAvailable(update: AppUpdateInfo, currentVersion: String, mode: CheckMode) {
-        let alert = UpdateAvailableWindowController(
-            updateVersion: update.version,
-            currentVersion: currentVersion,
-            canInstall: update.downloadURL != nil,
-            releaseNotes: AppReleaseNotesParser.sections(from: update.releaseNotes)
-        )
+    private func showUpdateAvailable(update: AppUpdateInfo, currentVersion: String, mode: CheckMode, operationID: UUID) {
+        let fileURL = cachedInstaller(for: update)
+        let response: UpdateAvailableWindowController.Response
+        if let presentUpdate {
+            response = presentUpdate(update, currentVersion, fileURL != nil)
+        } else {
+            response = UpdateAvailableWindowController(
+                updateVersion: update.version,
+                currentVersion: currentVersion,
+                canInstall: update.downloadURL != nil,
+                releaseNotes: AppReleaseNotesParser.sections(from: update.releaseNotes),
+                isDownloaded: fileURL != nil
+            ).runModal()
+        }
+        guard self.operationID == operationID, !Task.isCancelled else { return }
 
-        switch alert.runModal() {
+        switch response {
         case .install:
-            downloadAndOpenInstaller(for: update, mode: mode)
+            if let fileURL {
+                installDownloadedUpdate(for: update, fileURL: fileURL, mode: mode, operationID: operationID)
+            } else {
+                downloadAndOpenInstaller(for: update, mode: mode)
+            }
         case .openGitHub:
             markPromptedIfNeeded(update: update, mode: mode)
             NSWorkspace.shared.open(update.releaseURL)
         case .later:
             markPromptedIfNeeded(update: update, mode: mode)
         }
+    }
+
+    private func cachedInstaller(for update: AppUpdateInfo) -> URL? {
+        guard let downloadedUpdate,
+              downloadedUpdate.update.version == update.version,
+              downloadedUpdate.update.downloadURL == update.downloadURL,
+              FileManager.default.fileExists(atPath: downloadedUpdate.fileURL.path) else { return nil }
+        return downloadedUpdate.fileURL
     }
 
     private func markPromptedIfNeeded(update: AppUpdateInfo, mode: CheckMode) {
@@ -426,163 +470,136 @@ final class GitHubUpdateChecker {
             return
         }
 
-        task?.cancel()
-        downloadWindow?.finish()
-        let window = UpdateDownloadWindowController(version: update.version)
-        downloadWindow = window
-        window.onCancel = { [weak self, weak window] in
-            guard let self, let window, self.downloadWindow === window else { return }
-            self.task?.cancel()
-            window.finish()
-            self.downloadWindow = nil
-        }
-        window.show()
-
+        let operationID = beginOperation()
+        let window = mode == .manual ? showDownloadWindow(version: update.version, operationID: operationID) : nil
+        isDownloading = true
         task = Task { [weak self] in
             guard let self else { return }
+            var downloadedFileURL: URL?
             do {
-                let fileURL = try await downloadInstaller(
-                    from: downloadURL,
-                    version: update.version
-                ) { [weak window] receivedBytes, totalBytes in
+                let fileURL = try await Self.downloadInstaller(session: self.session, from: downloadURL) {
+                    [weak self, weak window] receivedBytes, totalBytes in
+                    guard let self, self.operationID == operationID,
+                          self.isDownloading, self.downloadWindow === window else { return }
                     window?.updateProgress(receivedBytes: receivedBytes, totalBytes: totalBytes)
                 }
+                downloadedFileURL = fileURL
                 try Task.checkCancellation()
-                await MainActor.run {
-                    guard !Task.isCancelled, self.downloadWindow === window else { return }
-                    guard self.prepareToTerminate(), !Task.isCancelled else {
-                        window.finish()
-                        self.downloadWindow = nil
-                        return
-                    }
-                    window.updateStatus(
-                        AppUILanguage.saved().text(.installingVersion(update.version)),
-                        detail: AppUILanguage.saved().text(.installingDetail),
-                        indeterminate: true,
-                        canCancel: false
+                guard self.operationID == operationID else {
+                    try? FileManager.default.removeItem(at: fileURL)
+                    return
+                }
+                if let previous = self.downloadedUpdate {
+                    try? FileManager.default.removeItem(at: previous.fileURL)
+                }
+                self.downloadedUpdate = (update, fileURL)
+                downloadedFileURL = nil
+                self.isDownloading = false
+
+                if mode == .automatic {
+                    self.showUpdateAvailable(
+                        update: update,
+                        currentVersion: self.currentAppVersion(),
+                        mode: mode,
+                        operationID: operationID
                     )
-                    self.markPromptedIfNeeded(update: update, mode: mode)
-                    do {
-                        let language = AppUILanguage.saved()
-                        try AppUpdateInstaller.installAndRelaunch(
-                            from: fileURL,
-                            failureTitle: language.text(.unableToInstallUpdate),
-                            failureMessage: language.text(.manualUpdateInstallDetail)
-                        )
-                        window.finish()
-                        if self.downloadWindow === window {
-                            self.downloadWindow = nil
-                        }
-                    } catch {
-                        window.finish()
-                        self.downloadWindow = nil
-                        self.showInstallError(error, diskImageURL: fileURL)
-                    }
+                } else {
+                    self.installDownloadedUpdate(for: update, fileURL: fileURL, mode: mode, operationID: operationID)
                 }
             } catch {
-                await MainActor.run {
-                    window.finish()
-                    guard self.downloadWindow === window else { return }
-                    self.downloadWindow = nil
-                    guard !Task.isCancelled, !isUpdateCancellation(error) else { return }
-                    self.showDownloadError(error, releaseURL: update.releaseURL)
+                if let downloadedFileURL {
+                    try? FileManager.default.removeItem(at: downloadedFileURL)
                 }
+                guard self.operationID == operationID else { return }
+                self.isDownloading = false
+                window?.finish()
+                self.downloadWindow = nil
+                guard mode == .manual, !Task.isCancelled, !isUpdateCancellation(error) else { return }
+                self.showDownloadError(error, releaseURL: update.releaseURL)
             }
         }
     }
 
-    private func downloadInstaller(
+    private func showDownloadWindow(version: String, operationID: UUID) -> UpdateDownloadWindowController {
+        let window = UpdateDownloadWindowController(version: version)
+        downloadWindow = window
+        window.onCancel = { [weak self, weak window] in
+            guard let self, let window,
+                  self.operationID == operationID, self.downloadWindow === window else { return }
+            _ = self.beginOperation()
+        }
+        window.show()
+        return window
+    }
+
+    private func installDownloadedUpdate(for update: AppUpdateInfo, fileURL: URL, mode: CheckMode, operationID: UUID) {
+        guard self.operationID == operationID, !Task.isCancelled else { return }
+        guard prepareToTerminate(), self.operationID == operationID, !Task.isCancelled else {
+            if self.operationID == operationID {
+                downloadWindow?.finish()
+                downloadWindow = nil
+            }
+            return
+        }
+
+        let window = downloadWindow ?? showDownloadWindow(version: update.version, operationID: operationID)
+        window.updateStatus(
+            AppUILanguage.saved().text(.installingVersion(update.version)),
+            detail: AppUILanguage.saved().text(.installingDetail),
+            indeterminate: true,
+            canCancel: false
+        )
+        markPromptedIfNeeded(update: update, mode: mode)
+        do {
+            if let installUpdate {
+                try installUpdate(fileURL)
+            } else {
+                let language = AppUILanguage.saved()
+                try AppUpdateInstaller.installAndRelaunch(
+                    from: fileURL,
+                    failureTitle: language.text(.unableToInstallUpdate),
+                    failureMessage: language.text(.manualUpdateInstallDetail)
+                )
+            }
+            window.finish()
+            if self.downloadWindow === window {
+                self.downloadWindow = nil
+            }
+        } catch {
+            window.finish()
+            if self.downloadWindow === window {
+                self.downloadWindow = nil
+            }
+            guard self.operationID == operationID else { return }
+            showInstallError(error, diskImageURL: fileURL)
+        }
+    }
+
+    nonisolated private static func downloadInstaller(
+        session: URLSession,
         from url: URL,
-        version: String,
-        progress: @MainActor @escaping (Int64, Int64?) -> Void
+        progress: @MainActor @Sendable @escaping (Int64, Int64?) -> Void
     ) async throws -> URL {
         var request = URLRequest(url: url)
         request.setValue("Vellum", forHTTPHeaderField: "User-Agent")
 
-        let (bytes, response) = try await session.bytes(for: request)
+        let delegate = UpdateInstallerDownloadDelegate(progress: progress)
+        let (temporaryURL, response) = try await session.download(for: request, delegate: delegate)
+        defer { try? FileManager.default.removeItem(at: temporaryURL) }
         guard let httpResponse = response as? HTTPURLResponse,
               (200..<300).contains(httpResponse.statusCode) else {
             throw URLError(.badServerResponse)
         }
-
-        let downloadsDirectory = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
-            ?? FileManager.default.temporaryDirectory
-        let fileName = installerFileName(from: url, version: version)
-        let destinationURL = downloadsDirectory.appendingPathComponent(fileName)
-        let temporaryDownloadURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("vellum-\(UUID().uuidString).download")
-
-        FileManager.default.createFile(atPath: temporaryDownloadURL.path, contents: nil)
-        let fileHandle = try FileHandle(forWritingTo: temporaryDownloadURL)
-        var shouldRemoveTemporaryDownload = true
-        defer {
-            if shouldRemoveTemporaryDownload {
-                try? FileManager.default.removeItem(at: temporaryDownloadURL)
-            }
-        }
-
-        defer {
-            try? fileHandle.close()
-        }
-
-        let totalBytes = response.expectedContentLength > 0 ? response.expectedContentLength : nil
-        var receivedBytes: Int64 = 0
-        let progressReportByteInterval: Int64 = 32 * 1024
-        let progressReportTimeInterval: TimeInterval = 0.05
-        var lastReportedBytes: Int64 = 0
-        var lastProgressReportDate = Date()
-        var buffer = Data()
-        buffer.reserveCapacity(64 * 1024)
-
-        await MainActor.run {
-            progress(receivedBytes, totalBytes)
-        }
-
-        for try await byte in bytes {
-            try Task.checkCancellation()
-            buffer.append(byte)
-            receivedBytes += 1
-
-            if buffer.count >= 64 * 1024 {
-                try fileHandle.write(contentsOf: buffer)
-                buffer.removeAll(keepingCapacity: true)
-            }
-
-            let now = Date()
-            if receivedBytes - lastReportedBytes >= progressReportByteInterval
-                || now.timeIntervalSince(lastProgressReportDate) >= progressReportTimeInterval {
-                lastReportedBytes = receivedBytes
-                lastProgressReportDate = now
-                await MainActor.run {
-                    progress(receivedBytes, totalBytes)
-                }
-            }
-        }
-
-        if !buffer.isEmpty {
-            try fileHandle.write(contentsOf: buffer)
-        }
-        try fileHandle.close()
         try Task.checkCancellation()
 
-        if FileManager.default.fileExists(atPath: destinationURL.path) {
-            try FileManager.default.removeItem(at: destinationURL)
-        }
-        try FileManager.default.moveItem(at: temporaryDownloadURL, to: destinationURL)
-        shouldRemoveTemporaryDownload = false
-
-        await MainActor.run {
-            progress(receivedBytes, totalBytes)
-        }
+        let fileExtension = url.pathExtension.isEmpty ? "dmg" : url.pathExtension
+        let destinationURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("vellum-\(UUID().uuidString)")
+            .appendingPathExtension(fileExtension)
+        try FileManager.default.moveItem(at: temporaryURL, to: destinationURL)
+        let receivedBytes = Int64((try? destinationURL.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0)
+        await progress(receivedBytes, response.expectedContentLength > 0 ? response.expectedContentLength : nil)
         return destinationURL
-    }
-
-    private func installerFileName(from url: URL, version: String) -> String {
-        let lastPathComponent = url.lastPathComponent.removingPercentEncoding ?? url.lastPathComponent
-        if !lastPathComponent.isEmpty {
-            return lastPathComponent
-        }
-        return "Vellum-\(version)-macOS.dmg"
     }
 
     private func showDownloadError(_ error: Error, releaseURL: URL) {
@@ -608,6 +625,28 @@ final class GitHubUpdateChecker {
 
         if alert.runModal() == .alertFirstButtonReturn {
             NSWorkspace.shared.open(diskImageURL)
+        }
+    }
+}
+
+private final class UpdateInstallerDownloadDelegate: NSObject, URLSessionDownloadDelegate {
+    private let progress: @MainActor @Sendable (Int64, Int64?) -> Void
+
+    init(progress: @MainActor @Sendable @escaping (Int64, Int64?) -> Void) {
+        self.progress = progress
+    }
+
+    func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {}
+
+    func urlSession(
+        _ session: URLSession,
+        downloadTask: URLSessionDownloadTask,
+        didWriteData bytesWritten: Int64,
+        totalBytesWritten: Int64,
+        totalBytesExpectedToWrite: Int64
+    ) {
+        Task { @MainActor [progress] in
+            progress(totalBytesWritten, totalBytesExpectedToWrite > 0 ? totalBytesExpectedToWrite : nil)
         }
     }
 }
