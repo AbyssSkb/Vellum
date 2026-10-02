@@ -15,6 +15,7 @@ final class KeyboardController {
     private let tabPageOverviewDelay: TimeInterval
     private let installsKeyMonitor: Bool
     private let installsOpenURLObserver: Bool
+    private let notificationCenter: NotificationCenter
     nonisolated(unsafe) private var keyMonitor: Any?
     private var vimInput = VimInputController()
     nonisolated(unsafe) private var heldKeyTimer: Timer?
@@ -28,11 +29,13 @@ final class KeyboardController {
     init(
         tabPageOverviewDelay: TimeInterval = 0.35,
         installsKeyMonitor: Bool = true,
-        installsOpenURLObserver: Bool = true
+        installsOpenURLObserver: Bool = true,
+        notificationCenter: NotificationCenter = .default
     ) {
         self.tabPageOverviewDelay = tabPageOverviewDelay
         self.installsKeyMonitor = installsKeyMonitor
         self.installsOpenURLObserver = installsOpenURLObserver
+        self.notificationCenter = notificationCenter
         installLifecycleObservers()
         if installsKeyMonitor {
             installKeyMonitor()
@@ -48,7 +51,7 @@ final class KeyboardController {
         }
         heldKeyTimer?.invalidate()
         tabPageOverviewTimer?.invalidate()
-        lifecycleObservers.forEach(NotificationCenter.default.removeObserver)
+        lifecycleObservers.forEach(notificationCenter.removeObserver)
     }
 
     func handleKeyEvent(_ event: NSEvent) -> Bool {
@@ -118,7 +121,7 @@ final class KeyboardController {
 
     private func installLifecycleObservers() {
         lifecycleObservers = [NSApplication.willResignActiveNotification, NSWindow.didResignKeyNotification].map { name in
-            NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+            notificationCenter.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
                 MainActor.assumeIsolated {
                     self?.cancelInput()
                 }

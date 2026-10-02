@@ -6,12 +6,15 @@ import Testing
 @MainActor
 @Suite("Keyboard controller")
 struct KeyboardControllerTests {
+    private let notificationCenter = NotificationCenter()
+
     @Test
     func shortTabPressKeepsToggleOutlineBehavior() {
         let controller = KeyboardController(
             tabPageOverviewDelay: 10,
             installsKeyMonitor: false,
-            installsOpenURLObserver: false
+            installsOpenURLObserver: false,
+            notificationCenter: notificationCenter
         )
         let delegate = RecordingKeyboardDelegate()
         controller.delegate = delegate
@@ -24,17 +27,18 @@ struct KeyboardControllerTests {
     }
 
     @Test
-    func longTabPressBeginsMovesAndFinishesPageOverview() {
+    func longTabPressBeginsMovesAndFinishesPageOverview() throws {
         let controller = KeyboardController(
             tabPageOverviewDelay: 0.001,
             installsKeyMonitor: false,
-            installsOpenURLObserver: false
+            installsOpenURLObserver: false,
+            notificationCenter: notificationCenter
         )
         let delegate = RecordingKeyboardDelegate()
         controller.delegate = delegate
 
         #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "\t", keyCode: 48)))
-        RunLoop.main.run(until: Date().addingTimeInterval(0.02))
+        try waitForPageOverview(delegate.reader)
 
         #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "l", keyCode: 37)))
         #expect(controller.handleKeyEvent(keyEvent(.keyUp, key: "l", keyCode: 37)))
@@ -52,7 +56,8 @@ struct KeyboardControllerTests {
     func slashRoutesToSearchCommand() {
         let controller = KeyboardController(
             installsKeyMonitor: false,
-            installsOpenURLObserver: false
+            installsOpenURLObserver: false,
+            notificationCenter: notificationCenter
         )
         let delegate = RecordingKeyboardDelegate()
         controller.delegate = delegate
@@ -67,7 +72,8 @@ struct KeyboardControllerTests {
     func repeatedNSearchKeyRoutesEveryEvent() {
         let controller = KeyboardController(
             installsKeyMonitor: false,
-            installsOpenURLObserver: false
+            installsOpenURLObserver: false,
+            notificationCenter: notificationCenter
         )
         let delegate = RecordingKeyboardDelegate()
         controller.delegate = delegate
@@ -84,7 +90,8 @@ struct KeyboardControllerTests {
     func dScrollsWhenOnlySearchTargetExists() {
         let controller = KeyboardController(
             installsKeyMonitor: false,
-            installsOpenURLObserver: false
+            installsOpenURLObserver: false,
+            notificationCenter: notificationCenter
         )
         let delegate = RecordingKeyboardDelegate()
         delegate.reader.hasSearchTextTarget = true
@@ -101,7 +108,8 @@ struct KeyboardControllerTests {
     func dDeletesHighlightWhenTextSelectionExists() {
         let controller = KeyboardController(
             installsKeyMonitor: false,
-            installsOpenURLObserver: false
+            installsOpenURLObserver: false,
+            notificationCenter: notificationCenter
         )
         let delegate = RecordingKeyboardDelegate()
         delegate.reader.hasNavigableTextSelection = true
@@ -118,7 +126,8 @@ struct KeyboardControllerTests {
     func uppercaseDScrollsEvenWhenTextSelectionExists() {
         let controller = KeyboardController(
             installsKeyMonitor: false,
-            installsOpenURLObserver: false
+            installsOpenURLObserver: false,
+            notificationCenter: notificationCenter
         )
         let delegate = RecordingKeyboardDelegate()
         delegate.reader.hasNavigableTextSelection = true
@@ -135,7 +144,8 @@ struct KeyboardControllerTests {
     func uppercaseTRoutesToTabSwitcherCommand() {
         let controller = KeyboardController(
             installsKeyMonitor: false,
-            installsOpenURLObserver: false
+            installsOpenURLObserver: false,
+            notificationCenter: notificationCenter
         )
         let delegate = RecordingKeyboardDelegate()
         controller.delegate = delegate
@@ -150,7 +160,8 @@ struct KeyboardControllerTests {
     func commandShortcutsPassThroughToAppMenus() {
         let controller = KeyboardController(
             installsKeyMonitor: false,
-            installsOpenURLObserver: false
+            installsOpenURLObserver: false,
+            notificationCenter: notificationCenter
         )
         let delegate = RecordingKeyboardDelegate()
         controller.delegate = delegate
@@ -164,7 +175,7 @@ struct KeyboardControllerTests {
     @Test
     func modifiedKeyReleaseStopsContinuousScrolling() {
         for modifier: NSEvent.ModifierFlags in [.command, .control, .option] {
-            let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false)
+            let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
             let delegate = RecordingKeyboardDelegate()
             controller.delegate = delegate
 
@@ -181,7 +192,7 @@ struct KeyboardControllerTests {
 
     @Test
     func modifierShortcutStopsContinuousScrollingWithoutBeingConsumed() {
-        let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false)
+        let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
         let delegate = RecordingKeyboardDelegate()
         controller.delegate = delegate
 
@@ -197,18 +208,19 @@ struct KeyboardControllerTests {
             let controller = KeyboardController(
                 tabPageOverviewDelay: 0.001,
                 installsKeyMonitor: false,
-                installsOpenURLObserver: false
+                installsOpenURLObserver: false,
+                notificationCenter: notificationCenter
             )
             let delegate = RecordingKeyboardDelegate()
             controller.delegate = delegate
 
             #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "j", keyCode: 38)))
-            NotificationCenter.default.post(name: name, object: nil)
+            notificationCenter.post(name: name, object: nil)
             RunLoop.main.run(until: Date().addingTimeInterval(0.10))
             #expect(delegate.commands == [.scrollDown])
 
             #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "\t", keyCode: 48)))
-            NotificationCenter.default.post(name: name, object: nil)
+            notificationCenter.post(name: name, object: nil)
             RunLoop.main.run(until: Date().addingTimeInterval(0.02))
             #expect(!controller.handleKeyEvent(keyEvent(.keyUp, key: "\t", keyCode: 48)))
             #expect(delegate.commands == [.scrollDown])
@@ -217,18 +229,19 @@ struct KeyboardControllerTests {
     }
 
     @Test
-    func deactivationDismissesActivePageOverview() {
+    func deactivationDismissesActivePageOverview() throws {
         let controller = KeyboardController(
             tabPageOverviewDelay: 0.001,
             installsKeyMonitor: false,
-            installsOpenURLObserver: false
+            installsOpenURLObserver: false,
+            notificationCenter: notificationCenter
         )
         let delegate = RecordingKeyboardDelegate()
         controller.delegate = delegate
 
         #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "\t", keyCode: 48)))
-        RunLoop.main.run(until: Date().addingTimeInterval(0.02))
-        NotificationCenter.default.post(name: NSApplication.willResignActiveNotification, object: nil)
+        try waitForPageOverview(delegate.reader)
+        notificationCenter.post(name: NSApplication.willResignActiveNotification, object: nil)
         #expect(delegate.reader.actions == [.beginPageOverview, .finishPageOverview])
         #expect(!controller.handleKeyEvent(keyEvent(.keyUp, key: "\t", keyCode: 48)))
     }
@@ -242,7 +255,7 @@ struct KeyboardControllerTests {
         window.contentView?.addSubview(first)
         window.contentView?.addSubview(second)
         #expect(window.makeFirstResponder(first))
-        let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false)
+        let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
         let delegate = RecordingKeyboardDelegate()
         controller.delegate = delegate
 
@@ -255,6 +268,14 @@ struct KeyboardControllerTests {
         RunLoop.main.run(until: Date().addingTimeInterval(0.10))
         #expect(delegate.commands == commandsBeforeFocusChange)
         #expect(!controller.handleKeyEvent(keyEvent(.keyUp, key: "j", keyCode: 38)))
+    }
+
+    private func waitForPageOverview(_ reader: RecordingKeyboardReaderController) throws {
+        let deadline = Date().addingTimeInterval(1)
+        while !reader.isPageOverviewActive, Date() < deadline {
+            _ = RunLoop.main.run(mode: .default, before: deadline)
+        }
+        try #require(reader.isPageOverviewActive)
     }
 
     private func keyEvent(
