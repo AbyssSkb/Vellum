@@ -5,30 +5,27 @@ struct ShortcutSettingsView: View {
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 24) {
                 HStack(alignment: .center, spacing: 12) {
                     Image(systemName: "keyboard")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(TokyoNight.blueColor)
-                        .frame(width: 36, height: 36)
-                        .background(TokyoNight.panelElevatedColor, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .stroke(TokyoNight.borderColor.opacity(0.75), lineWidth: 1)
-                        }
+                        .font(.system(size: 18, weight: .medium))
+                        .foregroundStyle(TokyoNight.mutedColor)
+                        .frame(width: 24)
 
                     VStack(alignment: .leading, spacing: 3) {
                         Text(language.text(.shortcuts))
-                            .font(.system(size: 20, weight: .semibold))
+                            .font(.system(size: 20, weight: .medium))
                             .foregroundStyle(TokyoNight.foregroundColor)
 
                         Text(language.text(.shortcutsHeaderSubtitle))
                             .font(.system(size: 12.5))
                             .foregroundStyle(TokyoNight.mutedColor)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
 
                     Spacer()
                 }
+                .padding(.bottom, 4)
 
                 ForEach(ShortcutCatalog.groups(language: language)) { group in
                     ShortcutGroupCard(group: group)

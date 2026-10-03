@@ -13,7 +13,7 @@ struct GeneralSettingsView: View {
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 24) {
                 header
                 interfaceSection
                 startupSection
@@ -32,27 +32,24 @@ struct GeneralSettingsView: View {
     private var header: some View {
         HStack(alignment: .center, spacing: 12) {
             Image(systemName: "gearshape")
-                .font(.system(size: 19, weight: .semibold))
-                .foregroundStyle(TokyoNight.blueColor)
-                .frame(width: 36, height: 36)
-                .background(TokyoNight.panelElevatedColor, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(TokyoNight.borderColor.opacity(0.75), lineWidth: 1)
-                }
+                .font(.system(size: 19, weight: .medium))
+                .foregroundStyle(TokyoNight.mutedColor)
+                .frame(width: 24)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(language.text(.general))
-                    .font(.system(size: 20, weight: .semibold))
+                    .font(.system(size: 20, weight: .medium))
                     .foregroundStyle(TokyoNight.foregroundColor)
 
                 Text(language.text(.generalHeaderSubtitle))
                     .font(.system(size: 12.5))
                     .foregroundStyle(TokyoNight.mutedColor)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             Spacer()
         }
+        .padding(.bottom, 4)
     }
 
     private var interfaceSection: some View {
@@ -65,7 +62,7 @@ struct GeneralSettingsView: View {
 
     private var startupSection: some View {
         GeneralSettingsPanel(title: language.text(.startup), systemImage: "power") {
-            VStack(spacing: 10) {
+            VStack(spacing: 0) {
                 GeneralToggleRow(
                     title: language.text(.restorePreviousTabs),
                     subtitle: language.text(.restorePreviousTabsSubtitle),
@@ -85,7 +82,7 @@ struct GeneralSettingsView: View {
 
     private var readingSection: some View {
         GeneralSettingsPanel(title: language.text(.reading), systemImage: "doc.text.magnifyingglass") {
-            VStack(spacing: 10) {
+            VStack(spacing: 0) {
                 GeneralToggleRow(
                     title: language.text(.doubleClickTranslate),
                     subtitle: language.text(.doubleClickTranslateSubtitle),
@@ -105,7 +102,7 @@ struct GeneralSettingsView: View {
 
     private var updatesSection: some View {
         GeneralSettingsPanel(title: language.text(.updates), systemImage: "arrow.triangle.2.circlepath") {
-            VStack(spacing: 10) {
+            VStack(spacing: 0) {
                 GeneralToggleRow(
                     title: language.text(.automaticallyCheck),
                     subtitle: language.text(.automaticallyCheckSubtitle),
@@ -115,7 +112,7 @@ struct GeneralSettingsView: View {
                 HStack(spacing: 12) {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(language.text(.currentVersion))
-                            .font(.system(size: 13, weight: .semibold))
+                            .font(.system(size: 13, weight: .medium))
                             .foregroundStyle(TokyoNight.foregroundColor)
 
                         Text(appVersionText)
@@ -132,13 +129,10 @@ struct GeneralSettingsView: View {
                     }
                     .buttonStyle(GeneralActionButtonStyle())
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
+                .padding(.vertical, 12)
                 .frame(minHeight: 54)
-                .background(TokyoNight.backgroundDeepColor.opacity(0.56), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 7, style: .continuous)
-                        .stroke(TokyoNight.borderColor.opacity(0.48), lineWidth: 1)
+                .overlay(alignment: .bottom) {
+                    TokyoNight.borderColor.opacity(0.45).frame(height: 1)
                 }
             }
         }
@@ -151,11 +145,11 @@ struct GeneralSettingsView: View {
 
     private var diagnosticsSection: some View {
         GeneralSettingsPanel(title: language.text(.diagnostics), systemImage: "waveform.path.ecg") {
-            VStack(spacing: 10) {
+            VStack(spacing: 0) {
                 HStack(spacing: 12) {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(language.text(.aiRequestLogs))
-                            .font(.system(size: 13, weight: .semibold))
+                            .font(.system(size: 13, weight: .medium))
                             .foregroundStyle(TokyoNight.foregroundColor)
 
                         Text(language.text(.aiRequestLogsSubtitle))
@@ -166,7 +160,7 @@ struct GeneralSettingsView: View {
                         if let logStatusMessage {
                             Text(logStatusMessage)
                                 .font(.system(size: 11.5))
-                                .foregroundStyle(TokyoNight.cyanColor)
+                                .foregroundStyle(TokyoNight.mutedColor)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                     }
@@ -190,13 +184,10 @@ struct GeneralSettingsView: View {
                         .buttonStyle(GeneralActionButtonStyle())
                     }
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
+                .padding(.vertical, 12)
                 .frame(minHeight: 62)
-                .background(TokyoNight.backgroundDeepColor.opacity(0.56), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 7, style: .continuous)
-                        .stroke(TokyoNight.borderColor.opacity(0.48), lineWidth: 1)
+                .overlay(alignment: .bottom) {
+                    TokyoNight.borderColor.opacity(0.45).frame(height: 1)
                 }
             }
         }
@@ -227,20 +218,14 @@ private struct GeneralSettingsPanel<Content: View>: View {
     @ViewBuilder let content: Content
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 6) {
             Label(title, systemImage: systemImage)
-                .font(.system(size: 12.5, weight: .semibold))
-                .foregroundStyle(TokyoNight.foregroundColor)
+                .font(.system(size: 11.5, weight: .medium))
+                .foregroundStyle(TokyoNight.mutedColor)
 
             content
         }
-        .padding(15)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(TokyoNight.panelColor.opacity(0.8), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(TokyoNight.borderColor.opacity(0.62), lineWidth: 1)
-        }
     }
 }
 
@@ -257,7 +242,7 @@ private struct GeneralToggleRow: View {
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(title)
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(TokyoNight.foregroundColor)
 
                     Text(subtitle)
@@ -271,27 +256,17 @@ private struct GeneralToggleRow: View {
 
                 TogglePill(isOn: isOn)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
+            .padding(.vertical, 12)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .frame(minHeight: 54)
-            .background(rowBackground, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .stroke(rowStroke, lineWidth: 1)
+            .frame(minHeight: 58)
+            .background(isHovered ? TokyoNight.panelColor.opacity(0.6) : .clear)
+            .overlay(alignment: .bottom) {
+                TokyoNight.borderColor.opacity(0.45).frame(height: 1)
             }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .onHover { isHovered = $0 }
-    }
-
-    private var rowBackground: Color {
-        TokyoNight.backgroundDeepColor.opacity(isHovered ? 0.72 : 0.56)
-    }
-
-    private var rowStroke: Color {
-        TokyoNight.borderColor.opacity(isHovered ? 0.72 : 0.48)
     }
 }
 
@@ -304,7 +279,7 @@ private struct GeneralOptionRow<Content: View>: View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(TokyoNight.foregroundColor)
 
                 Text(subtitle)
@@ -318,13 +293,10 @@ private struct GeneralOptionRow<Content: View>: View {
 
             content
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .frame(minHeight: 54)
-        .background(TokyoNight.backgroundDeepColor.opacity(0.56), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .stroke(TokyoNight.borderColor.opacity(0.48), lineWidth: 1)
+        .padding(.vertical, 12)
+        .frame(minHeight: 58)
+        .overlay(alignment: .bottom) {
+            TokyoNight.borderColor.opacity(0.45).frame(height: 1)
         }
     }
 }
@@ -347,11 +319,7 @@ private struct GeneralSegmentedControl: View {
             }
         }
         .padding(3)
-        .background(TokyoNight.panelColor.opacity(0.86), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .stroke(TokyoNight.borderColor.opacity(0.54), lineWidth: 1)
-        }
+        .background(TokyoNight.backgroundDeepColor.opacity(0.7), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
     }
 }
 
@@ -372,11 +340,7 @@ private struct OpenFileZoomSegmentedControl: View {
             }
         }
         .padding(3)
-        .background(TokyoNight.panelColor.opacity(0.86), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .stroke(TokyoNight.borderColor.opacity(0.54), lineWidth: 1)
-        }
+        .background(TokyoNight.backgroundDeepColor.opacity(0.7), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
     }
 }
 
@@ -396,11 +360,7 @@ private struct LanguageSegmentedControl: View {
             }
         }
         .padding(3)
-        .background(TokyoNight.panelColor.opacity(0.86), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .stroke(TokyoNight.borderColor.opacity(0.54), lineWidth: 1)
-        }
+        .background(TokyoNight.backgroundDeepColor.opacity(0.7), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
     }
 }
 
@@ -414,11 +374,15 @@ private struct GeneralSegmentButton: View {
     var body: some View {
         Button(action: action) {
             Label(title, systemImage: systemImage)
-                .font(.system(size: 12, weight: .semibold))
+                .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(isSelected ? TokyoNight.foregroundColor : TokyoNight.mutedColor)
                 .padding(.horizontal, 10)
                 .frame(height: 28)
-                .background(background, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+                .background(background, in: RoundedRectangle(cornerRadius: 4, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .stroke(isSelected ? TokyoNight.borderColor.opacity(0.75) : .clear, lineWidth: 1)
+                }
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -427,9 +391,9 @@ private struct GeneralSegmentButton: View {
 
     private var background: Color {
         if isSelected {
-            return TokyoNight.selectionColor
+            return TokyoNight.panelElevatedColor
         }
-        return isHovered ? TokyoNight.selectionColor.opacity(0.55) : .clear
+        return isHovered ? TokyoNight.panelColor : .clear
     }
 }
 
@@ -456,11 +420,7 @@ private struct HighlightColorPicker: View {
         }
         .padding(.horizontal, 7)
         .frame(height: 34)
-        .background(TokyoNight.panelColor.opacity(0.86), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .stroke(TokyoNight.borderColor.opacity(0.54), lineWidth: 1)
-        }
+        .background(TokyoNight.backgroundDeepColor.opacity(0.7), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
     }
 }
 
@@ -487,7 +447,7 @@ private struct HighlightColorButton: View {
                 )
                 .overlay {
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .stroke(isSelected ? TokyoNight.blueColor.opacity(0.65) : .clear, lineWidth: 1)
+                        .stroke(isSelected ? TokyoNight.foregroundColor.opacity(0.65) : .clear, lineWidth: 1)
                 }
                 .contentShape(Rectangle())
         }
@@ -506,7 +466,7 @@ private struct TogglePill: View {
             .frame(width: 34, height: 20)
             .overlay(alignment: isOn ? .trailing : .leading) {
                 Circle()
-                    .fill(isOn ? TokyoNight.backgroundDeepColor : TokyoNight.mutedColor)
+                    .fill(isOn ? TokyoNight.foregroundColor : TokyoNight.mutedColor)
                     .frame(width: 14, height: 14)
                     .padding(3)
             }
@@ -518,21 +478,25 @@ private struct TogglePill: View {
 }
 
 private struct GeneralActionButtonStyle: ButtonStyle {
+    @State private var isHovered = false
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 12.5, weight: .semibold))
+            .font(.system(size: 12.5, weight: .medium))
             .foregroundStyle(TokyoNight.foregroundColor)
             .padding(.horizontal, 12)
             .frame(height: 32)
             .background(
                 configuration.isPressed
                 ? TokyoNight.selectionColor.opacity(0.72)
-                : TokyoNight.panelElevatedColor.opacity(0.9),
+                : (isHovered ? TokyoNight.panelElevatedColor : TokyoNight.panelColor),
                 in: RoundedRectangle(cornerRadius: 7, style: .continuous)
             )
             .overlay {
                 RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .stroke(TokyoNight.borderColor.opacity(0.72), lineWidth: 1)
+                    .stroke(TokyoNight.borderColor.opacity(isHovered ? 0.9 : 0.65), lineWidth: 1)
             }
+            .contentShape(Rectangle())
+            .onHover { isHovered = $0 }
     }
 }

@@ -24,16 +24,9 @@ struct TabButton: View {
                         .font(.system(size: 10.5, weight: .bold))
                         .foregroundStyle(TokyoNight.foregroundColor.opacity(isCloseHovered ? 0.95 : 0.68))
                         .frame(width: 22, height: 22)
-                        .background(
-                            Circle()
-                                .fill(isCloseHovered ? TokyoNight.redColor.opacity(0.22) : Color.clear)
-                        )
-                        .overlay {
-                            Circle()
-                                .stroke(isCloseHovered ? TokyoNight.redColor.opacity(0.48) : Color.clear, lineWidth: 1)
-                        }
-                        .clipShape(Circle())
-                        .contentShape(Circle())
+                        .background(isCloseHovered ? TokyoNight.selectionColor : .clear,
+                                    in: RoundedRectangle(cornerRadius: 4, style: .continuous))
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .help(language.text(.closeTab))
@@ -44,7 +37,7 @@ struct TabButton: View {
         .padding(.leading, width < 70 ? 6 : 12)
         .padding(.trailing, isSelected && width >= 90 ? 8 : (width < 70 ? 6 : 12))
         .frame(width: width, height: 32)
-        .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         .onTapGesture {
             if !isSelected {
                 appState.selectTab(tab.id)
@@ -64,28 +57,19 @@ struct TabButton: View {
         }
         .background(
             isSelected
-                ? TokyoNight.panelElevatedColor
-                : TokyoNight.panelColor.opacity(isHovered ? 0.72 : 0)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(
-                    isSelected
-                        ? TokyoNight.borderColor.opacity(isHovered ? 0.8 : 0.65)
-                        : TokyoNight.borderColor.opacity(isHovered ? 0.4 : 0),
-                    lineWidth: 1
-                )
+                ? TokyoNight.panelColor
+                : TokyoNight.panelColor.opacity(isHovered ? 0.6 : 0)
         )
         .overlay(alignment: .bottom) {
             if isSelected {
                 Rectangle()
-                    .fill(TokyoNight.blueColor.opacity(0.9))
-                    .frame(height: 2)
+                    .fill(TokyoNight.foregroundColor.opacity(0.65))
+                    .frame(height: 1)
                     .padding(.horizontal, 10)
                     .accessibilityHidden(true)
             }
         }
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         .onHover { isHovered = $0 }
         .animation(.easeInOut(duration: 0.12), value: isHovered)
         .animation(.easeInOut(duration: 0.1), value: isCloseHovered)

@@ -2,15 +2,15 @@
 import SwiftUI
 
 public enum TokyoNight {
-    public static var background: NSColor { color(0x191B25) }
-    public static var backgroundDeep: NSColor { color(0x13141C) }
-    public static var panel: NSColor { color(0x20222E) }
-    public static var panelElevated: NSColor { color(0x292C38) }
-    public static var selection: NSColor { color(0x30374F) }
-    public static var border: NSColor { color(0x363A48) }
-    public static var foreground: NSColor { color(0xDADEEE) }
-    public static var muted: NSColor { color(0xA1ABC2) }
-    public static var blue: NSColor { color(0x7AA2F7) }
+    public static var background: NSColor { color(0x151517) }
+    public static var backgroundDeep: NSColor { color(0x101012) }
+    public static var panel: NSColor { color(0x1B1B1E) }
+    public static var panelElevated: NSColor { color(0x242427) }
+    public static var selection: NSColor { color(0x303034) }
+    public static var border: NSColor { color(0x343438) }
+    public static var foreground: NSColor { color(0xDFDFE4) }
+    public static var muted: NSColor { color(0x9B9BA3) }
+    public static var blue: NSColor { color(0x8784C3) }
     public static var cyan: NSColor { color(0x7DCFFF) }
     public static var purple: NSColor { color(0xBB9AF7) }
     public static var red: NSColor { color(0xF7768E) }

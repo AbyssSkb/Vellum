@@ -7,13 +7,14 @@
 
 ## UI Design Style
 
-Vellum uses a compact Tokyo Night inspired macOS interface. New pages, panels, and overlays should feel like they belong to the existing reader, settings, search, and tab-switcher surfaces.
+Vellum uses a compact, neutral charcoal macOS interface with restrained Linear-inspired component hierarchy. New pages, panels, and overlays should feel like they belong to the existing reader, settings, search, and tab-switcher surfaces.
 
 - Use the shared `TokyoNight` palette from `Sources/VellumCore/Support/TokyoNight.swift`. Prefer `background`, `backgroundDeep`, `panel`, `panelElevated`, `selection`, `border`, `foreground`, `muted`, `blue`, `cyan`, `purple`, and `red` instead of introducing new color families.
+- The palette keeps its existing API name. Use neutral surfaces and text for ordinary chrome, and the muted indigo `blue` for focus and selected controls. Keep `cyan`, `purple`, and `red` values stable because PDF highlight colors depend on them.
 - Keep the app dark, calm, and reading-focused. Avoid bright marketing-style layouts, large decorative gradients, colorful illustration blocks, oversized hero text, or unrelated accent colors.
 - Build dense but breathable tool surfaces: constrained content widths, 12-24 px outer padding, 8-16 px section spacing, and compact controls that support repeated use.
-- Follow the existing hierarchy: page headers use an SF Symbol in a small 36 px elevated square, a 20 pt semibold title, and 12-13 pt muted supporting text. Body labels are usually 12-13 pt, semibold only for names or primary row text.
-- Use shallow surfaces. Page backgrounds use `TokyoNight.backgroundColor`; sidebars and tab bars use `backgroundDeepColor`; grouped panels use `panelColor.opacity(0.8)` or `panelElevatedColor` with a 1 px `borderColor` stroke.
+- Follow the existing hierarchy: page headers use a plain muted SF Symbol, a 20 pt medium title, and 12-13 pt muted supporting text. Body labels are usually 12-13 pt medium; group labels are smaller and muted.
+- Use shallow surfaces. Page backgrounds use `TokyoNight.backgroundColor`; sidebars and tab bars use `backgroundDeepColor`. Settings groups use independent labels and flat rows separated by subtle horizontal rules; reserve filled surfaces and borders for inputs, buttons, and overlays.
 - Keep corner radii restrained: 8 px for panels, overlays, tabs, and header icon wells; 7 px for rows and inputs; 5-6 px for keycaps, pills, and small choices. Do not use large rounded cards.
 - Prefer full-width bands, split panes, and direct tool layouts over nested cards. Cards are acceptable for repeated items or contained settings groups, but do not put cards inside cards.
 - Use SF Symbols/lucide-like icon semantics consistently: small icons inside headers, rows, and buttons should communicate the action or category. Do not add explanatory feature text when a familiar control and icon are enough.

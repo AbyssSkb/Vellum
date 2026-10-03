@@ -199,6 +199,7 @@ public enum AppText {
     case openPDF
     case openReleases
     case pageOverview
+    case pageOverviewPosition(Int, Int)
     case preparingDownload
     case previousTab
     case profile
@@ -434,6 +435,7 @@ public extension AppText {
         case .openPDF: return "Open a PDF"
         case .openReleases: return "Open Releases"
         case .pageOverview: return "Page Overview"
+        case .pageOverviewPosition(let number, let count): return "Page \(number) of \(count)"
         case .preparingDownload: return "Preparing download..."
         case .previousTab: return "Previous Tab"
         case .profile: return "Profile"
@@ -660,6 +662,7 @@ public extension AppText {
         case .openPDF: return "打开 PDF"
         case .openReleases: return "打开发布页面"
         case .pageOverview: return "页面概览"
+        case .pageOverviewPosition(let number, let count): return "第 \(number) 页 / 共 \(count) 页"
         case .preparingDownload: return "正在准备下载..."
         case .previousTab: return "上一个标签页"
         case .profile: return "Profile"

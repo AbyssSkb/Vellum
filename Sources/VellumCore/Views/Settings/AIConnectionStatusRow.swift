@@ -24,12 +24,7 @@ struct AIConnectionStatusRow: View {
                 .lineLimit(6)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(10)
+        .padding(.vertical, 4)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(TokyoNight.backgroundDeepColor.opacity(0.62), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .stroke(TokyoNight.borderColor.opacity(0.5), lineWidth: 1)
-        }
     }
 }

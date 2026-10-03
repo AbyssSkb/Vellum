@@ -243,8 +243,13 @@ struct AIConversationPopoverView: View {
     var body: some View {
         visibleContent
         .frame(width: AIConversationPopoverMetrics.width, height: model.preferredHeight)
-        .background(TokyoNight.panelElevatedColor)
+        .background(TokyoNight.panelColor)
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(TokyoNight.borderColor, lineWidth: 1)
+                .allowsHitTesting(false)
+        }
         .foregroundStyle(TokyoNight.foregroundColor)
         .overlay(alignment: .topLeading) {
             if model.requestStatus != .idle {
@@ -304,7 +309,7 @@ struct AIConversationPopoverView: View {
             onContentHeightChange: applyMeasuredContentHeight
         )
         .frame(height: messageViewportHeight)
-        .background(TokyoNight.panelColor.opacity(0.22))
+        .background(TokyoNight.panelColor)
     }
 
     private var composer: some View {
@@ -347,11 +352,11 @@ struct AIConversationPopoverView: View {
             .padding(.bottom, 7)
         }
         .frame(height: model.composerTextHeight)
-        .background(TokyoNight.backgroundDeepColor.opacity(0.88), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .background(TokyoNight.backgroundDeepColor, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
                 .stroke(
-                    inputIsFocused ? TokyoNight.blueColor.opacity(0.65) : TokyoNight.borderColor.opacity(0.62),
+                    inputIsFocused ? TokyoNight.blueColor.opacity(0.75) : TokyoNight.borderColor,
                     lineWidth: 1
                 )
         }
@@ -361,7 +366,7 @@ struct AIConversationPopoverView: View {
         }
         .padding(8)
         .frame(height: model.composerHeight)
-        .background(TokyoNight.panelElevatedColor)
+        .background(TokyoNight.panelColor)
     }
 
     private func sendDraft() {
@@ -740,13 +745,9 @@ private struct AIConversationSendButtonStyle: ButtonStyle {
             .foregroundStyle(isEnabled ? TokyoNight.backgroundDeepColor : TokyoNight.mutedColor)
             .background(
                 isEnabled
-                    ? TokyoNight.blueColor.opacity(configuration.isPressed ? 0.72 : 0.92)
-                    : TokyoNight.panelColor.opacity(0.72),
+                    ? TokyoNight.foregroundColor.opacity(configuration.isPressed ? 0.82 : 1)
+                    : TokyoNight.panelElevatedColor,
                 in: RoundedRectangle(cornerRadius: 7, style: .continuous)
             )
-            .overlay {
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .stroke(isEnabled ? TokyoNight.blueColor.opacity(0.58) : TokyoNight.borderColor.opacity(0.48), lineWidth: 1)
-            }
     }
 }

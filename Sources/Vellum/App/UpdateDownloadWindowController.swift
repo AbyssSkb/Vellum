@@ -87,7 +87,7 @@ final class UpdateDownloadWindowController: NSWindowController {
 
         let iconView = NSImageView()
         iconView.image = NSImage(systemSymbolName: "arrow.down.circle.fill", accessibilityDescription: nil)
-        iconView.contentTintColor = TokyoNight.blue
+        iconView.contentTintColor = TokyoNight.muted
         iconView.imageScaling = .scaleProportionallyUpOrDown
         iconView.translatesAutoresizingMaskIntoConstraints = false
         iconWell.addSubview(iconView)

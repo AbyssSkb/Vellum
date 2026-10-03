@@ -31,10 +31,6 @@ public struct AISettingsView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(TokyoNight.backgroundColor)
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(TokyoNight.borderColor.opacity(0.95), lineWidth: 1)
-        }
         .foregroundStyle(TokyoNight.foregroundColor)
         .tint(TokyoNight.blueColor)
         .preferredColorScheme(.dark)
@@ -54,7 +50,7 @@ public struct AISettingsView: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 Text("Vellum")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.system(size: 15, weight: .medium))
                     .foregroundStyle(TokyoNight.foregroundColor)
 
                 Text(language.text(.settings))
@@ -63,7 +59,7 @@ public struct AISettingsView: View {
             }
             .padding(.horizontal, 18)
 
-            VStack(spacing: 6) {
+            VStack(spacing: 3) {
                 ForEach(SettingsSection.allCases) { section in
                     SettingsSidebarRow(
                         section: section,
@@ -128,17 +124,18 @@ private struct SettingsSidebarRow: View {
     let section: SettingsSection
     let isSelected: Bool
     let action: () -> Void
+    @State private var isHovered = false
 
     var body: some View {
         Button(action: action) {
             HStack(spacing: 9) {
                 Image(systemName: section.systemImage)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 13, weight: .regular))
                     .frame(width: 17)
-                    .foregroundStyle(isSelected ? TokyoNight.blueColor : TokyoNight.mutedColor)
+                    .foregroundStyle(isSelected ? TokyoNight.foregroundColor : TokyoNight.mutedColor)
 
                 Text(section.title(language: language))
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.system(size: 13, weight: isSelected ? .medium : .regular))
                     .foregroundStyle(TokyoNight.foregroundColor)
 
                 Spacer()
@@ -146,10 +143,11 @@ private struct SettingsSidebarRow: View {
             .padding(.horizontal, 10)
             .frame(maxWidth: .infinity, alignment: .leading)
             .frame(height: 34)
-            .background(isSelected ? TokyoNight.selectionColor.opacity(0.58) : .clear)
+            .background(isSelected ? TokyoNight.panelElevatedColor.opacity(0.75) : (isHovered ? TokyoNight.panelColor : .clear))
             .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
     }
 }

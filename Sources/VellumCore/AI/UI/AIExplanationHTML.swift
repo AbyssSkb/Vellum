@@ -54,7 +54,7 @@ enum AIExplanationHTML {
           width: 13px;
           height: 13px;
           border: 1.5px solid \(TokyoNight.cssHex(TokyoNight.border));
-          border-top-color: \(TokyoNight.cssHex(TokyoNight.cyan));
+          border-top-color: \(TokyoNight.cssHex(TokyoNight.blue));
           border-radius: 50%;
           animation: vellum-spin 0.8s linear infinite;
           flex: none;
@@ -82,12 +82,12 @@ enum AIExplanationHTML {
         blockquote {
           margin: 0.7em 0;
           padding: 0.2em 0 0.2em 0.8em;
-          border-left: 3px solid \(TokyoNight.cssHex(TokyoNight.blue));
+          border-left: 2px solid \(TokyoNight.cssHex(TokyoNight.blue));
           color: \(TokyoNight.cssHex(TokyoNight.muted));
         }
         code {
           background: \(TokyoNight.cssHex(TokyoNight.background));
-          color: \(TokyoNight.cssHex(TokyoNight.cyan));
+          color: \(TokyoNight.cssHex(TokyoNight.foreground));
           padding: 1px 4px;
           border-radius: 4px;
           font-family: "SF Mono", Menlo, monospace;
@@ -128,9 +128,9 @@ enum AIExplanationHTML {
           border: 1px solid \(TokyoNight.cssHex(TokyoNight.border));
           border-radius: 5px;
           background: \(TokyoNight.cssHex(TokyoNight.background));
-          color: \(TokyoNight.cssHex(TokyoNight.cyan));
+          color: \(TokyoNight.cssHex(TokyoNight.foreground));
           font: 11px -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
-          font-weight: 650;
+          font-weight: 600;
           line-height: 1;
           cursor: default;
         }

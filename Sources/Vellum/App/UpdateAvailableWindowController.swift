@@ -303,7 +303,7 @@ final class UpdateAvailableWindowController: NSWindowController {
                 string: version,
                 attributes: [
                     .font: NSFont.systemFont(ofSize: 12, weight: .semibold),
-                    .foregroundColor: TokyoNight.cyan,
+                    .foregroundColor: TokyoNight.blue,
                     .paragraphStyle: headingParagraph
                 ]
             ))
@@ -324,7 +324,7 @@ final class UpdateAvailableWindowController: NSWindowController {
                     .paragraphStyle: noteParagraph
                 ]
             ))
-            result.addAttribute(.foregroundColor, value: TokyoNight.cyan, range: NSRange(location: lineStart, length: 1))
+            result.addAttribute(.foregroundColor, value: TokyoNight.muted, range: NSRange(location: lineStart, length: 1))
             result.addAttribute(.font, value: NSFont.systemFont(ofSize: 14, weight: .semibold), range: NSRange(location: lineStart, length: 1))
         }
     }
@@ -336,10 +336,10 @@ final class UpdateAvailableWindowController: NSWindowController {
         button.font = .systemFont(ofSize: 13, weight: .semibold)
         button.contentTintColor = isPrimary ? TokyoNight.backgroundDeep : TokyoNight.foreground
         button.wantsLayer = true
-        button.layer?.backgroundColor = (isPrimary ? TokyoNight.blue : TokyoNight.panelElevated).cgColor
+        button.layer?.backgroundColor = (isPrimary ? TokyoNight.foreground : TokyoNight.panel).cgColor
         button.layer?.cornerRadius = 7
         button.layer?.borderWidth = 1
-        button.layer?.borderColor = (isPrimary ? TokyoNight.blue : TokyoNight.border).withAlphaComponent(0.75).cgColor
+        button.layer?.borderColor = (isPrimary ? TokyoNight.foreground : TokyoNight.border).withAlphaComponent(0.75).cgColor
         button.translatesAutoresizingMaskIntoConstraints = false
         button.heightAnchor.constraint(equalToConstant: 32).isActive = true
         return button

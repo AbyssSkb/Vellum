@@ -19,7 +19,7 @@ struct TabSwitcherOverlay: View {
 
     private var listHeight: CGFloat {
         let visibleRows = matches.isEmpty ? 1 : min(matches.count, 6)
-        return CGFloat(visibleRows) * TabSwitcherRow.metricsHeight
+        return CGFloat(visibleRows) * TabSwitcherRow.metricsHeight + CGFloat(visibleRows - 1) * 2 + 12
     }
 
     var body: some View {
@@ -45,7 +45,7 @@ struct TabSwitcherOverlay: View {
             .background {
                 ZStack {
                     TabSwitcherVisualEffectBackground()
-                    TokyoNight.panelElevatedColor.opacity(0.86)
+                    TokyoNight.panelColor.opacity(0.98)
                 }
             }
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -53,7 +53,7 @@ struct TabSwitcherOverlay: View {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .stroke(TokyoNight.borderColor.opacity(0.95), lineWidth: 1)
             }
-            .shadow(color: .black.opacity(0.55), radius: 28, y: 18)
+            .shadow(color: .black.opacity(0.40), radius: 24, y: 12)
             .padding(.horizontal, 28)
         }
         .transition(.opacity.combined(with: .scale(scale: 0.985)))
@@ -73,9 +73,9 @@ struct TabSwitcherOverlay: View {
     }
 
     private var searchHeader: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 17, weight: .semibold))
+                .font(.system(size: 15, weight: .medium))
                 .foregroundStyle(TokyoNight.mutedColor)
                 .frame(width: 24, height: 24)
 
@@ -89,38 +89,26 @@ struct TabSwitcherOverlay: View {
                     appState.hideTabSwitcher()
                 }
             )
-            .frame(height: 34)
+            .frame(height: 30)
 
             matchCount
         }
-        .padding(.horizontal, 18)
-        .frame(height: 64)
-        .background(TokyoNight.panelColor.opacity(0.92))
+        .padding(.horizontal, 16)
+        .frame(height: 52)
+        .background(TokyoNight.panelColor)
     }
 
     private var matchCount: some View {
         Text("\(matches.count)")
-            .font(.system(size: 12, weight: .semibold, design: .monospaced))
+            .font(.system(size: 11.5, weight: .medium, design: .monospaced))
             .foregroundStyle(matches.isEmpty ? TokyoNight.redColor : TokyoNight.mutedColor)
-            .frame(minWidth: 34, minHeight: 24)
-            .padding(.horizontal, 8)
-            .background(TokyoNight.backgroundDeepColor)
-            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .stroke(
-                        matches.isEmpty
-                            ? TokyoNight.redColor.opacity(0.42)
-                            : TokyoNight.borderColor,
-                        lineWidth: 1
-                    )
-            }
+            .frame(minWidth: 24)
     }
 
     private var tabList: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(spacing: 0) {
+                LazyVStack(spacing: 2) {
                     if matches.isEmpty {
                         emptyRow
                     } else {
@@ -138,10 +126,11 @@ struct TabSwitcherOverlay: View {
                         }
                     }
                 }
+                .padding(6)
             }
             .scrollIndicators(.hidden)
             .frame(height: listHeight)
-            .background(TokyoNight.panelElevatedColor.opacity(0.82))
+            .background(TokyoNight.panelColor)
             .onChange(of: selectedTabIDForScroll) { _, id in
                 guard let id else { return }
                 withAnimation(.easeOut(duration: 0.12)) {
@@ -159,13 +148,13 @@ struct TabSwitcherOverlay: View {
                 .frame(width: 22)
 
             Text(language.text(.noMatchingTabs))
-                .font(.system(size: 14, weight: .medium))
+                .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(TokyoNight.mutedColor)
 
             Spacer()
         }
-        .padding(.horizontal, 16)
-        .frame(height: 58)
+        .padding(.horizontal, 12)
+        .frame(height: TabSwitcherRow.metricsHeight)
     }
 
     private var selectedTabIDForScroll: PDFTab.ID? {
@@ -305,7 +294,7 @@ private final class TabSwitcherTextField: NSTextField {
 
     func configure(language: AppUILanguage) {
         cell = TabSwitcherTextFieldCell(textCell: "")
-        font = .systemFont(ofSize: 22, weight: .medium)
+        font = .systemFont(ofSize: 16, weight: .medium)
         textColor = TokyoNight.foreground
         configurePlaceholder(language: language)
         backgroundColor = .clear
@@ -326,7 +315,7 @@ private final class TabSwitcherTextField: NSTextField {
             string: language.text(.searchOpenTabs),
             attributes: [
                 .foregroundColor: TokyoNight.muted.withAlphaComponent(0.92),
-                .font: NSFont.systemFont(ofSize: 22, weight: .regular)
+                .font: NSFont.systemFont(ofSize: 16, weight: .regular)
             ]
         )
     }
@@ -396,26 +385,27 @@ private final class TabSwitcherTextFieldCell: NSTextFieldCell {
 
 private struct TabSwitcherRow: View {
     @Environment(\.appUILanguage) private var language
-    static let metricsHeight: CGFloat = 58
+    static let metricsHeight: CGFloat = 52
     let tab: PDFTab
     let isSelected: Bool
     let isCurrent: Bool
+    @State private var isHovered = false
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: isCurrent ? "doc.fill" : "doc")
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(iconColor)
+            Image(systemName: "doc")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(isSelected ? TokyoNight.foregroundColor : TokyoNight.mutedColor)
                 .frame(width: 22)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(tab.title)
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(TokyoNight.foregroundColor)
                     .lineLimit(1)
 
                 Text(tab.url?.path ?? language.text(.untitled))
-                    .font(.system(size: 11))
+                    .font(.system(size: 11.5))
                     .foregroundStyle(TokyoNight.mutedColor)
                     .lineLimit(1)
                     .truncationMode(.middle)
@@ -425,32 +415,19 @@ private struct TabSwitcherRow: View {
 
             if isCurrent {
                 Image(systemName: "checkmark")
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(TokyoNight.blueColor)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(TokyoNight.foregroundColor)
                     .frame(width: 18)
             }
         }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, 12)
         .frame(height: Self.metricsHeight)
         .background(rowBackground)
-        .overlay(alignment: .leading) {
-            if isSelected {
-                Rectangle()
-                    .fill(TokyoNight.blueColor)
-                    .frame(width: 3)
-            }
-        }
-    }
-
-    private var iconColor: Color {
-        if isSelected {
-            return TokyoNight.blueColor
-        }
-        return isCurrent ? TokyoNight.blueColor : TokyoNight.mutedColor
+        .onHover { isHovered = $0 }
     }
 
     private var rowBackground: some View {
-        Rectangle()
-            .fill(isSelected ? TokyoNight.selectionColor.opacity(0.82) : Color.clear)
+        RoundedRectangle(cornerRadius: 6, style: .continuous)
+            .fill(isSelected ? TokyoNight.selectionColor : isHovered ? TokyoNight.panelElevatedColor : Color.clear)
     }
 }

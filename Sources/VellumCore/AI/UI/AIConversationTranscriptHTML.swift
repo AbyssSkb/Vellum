@@ -57,8 +57,7 @@ enum AIConversationTranscriptHTML {
           max-width: calc(100% - 68px);
           box-sizing: border-box;
           padding: 9px 12px;
-          border: 1px solid \#(TokyoNight.cssHex(TokyoNight.border));
-          border-radius: 8px;
+          border-radius: 6px;
           background: \#(TokyoNight.cssHex(TokyoNight.selection));
           color: \#(TokyoNight.cssHex(TokyoNight.foreground));
           white-space: pre-wrap;
@@ -100,7 +99,7 @@ enum AIConversationTranscriptHTML {
         }
         code {
           background: \#(TokyoNight.cssHex(TokyoNight.background));
-          color: \#(TokyoNight.cssHex(TokyoNight.cyan));
+          color: \#(TokyoNight.cssHex(TokyoNight.foreground));
           padding: 1px 4px;
           border-radius: 4px;
           font-family: "SF Mono", Menlo, monospace;

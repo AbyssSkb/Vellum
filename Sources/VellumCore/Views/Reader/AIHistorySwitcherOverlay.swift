@@ -86,7 +86,7 @@ private struct AIHistorySwitcherOverlay: View {
 
     private var listHeight: CGFloat {
         let visibleRows = matches.isEmpty ? 1 : min(matches.count, 6)
-        return CGFloat(visibleRows) * AIHistorySwitcherRow.metricsHeight
+        return CGFloat(visibleRows) * AIHistorySwitcherRow.metricsHeight + CGFloat(visibleRows - 1) * 2 + 12
     }
 
     var body: some View {
@@ -110,7 +110,7 @@ private struct AIHistorySwitcherOverlay: View {
             .background {
                 ZStack {
                     AIHistoryVisualEffectBackground()
-                    TokyoNight.panelElevatedColor.opacity(0.86)
+                    TokyoNight.panelColor.opacity(0.98)
                 }
             }
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -118,7 +118,7 @@ private struct AIHistorySwitcherOverlay: View {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .stroke(TokyoNight.borderColor.opacity(0.95), lineWidth: 1)
             }
-            .shadow(color: .black.opacity(0.55), radius: 28, y: 18)
+            .shadow(color: .black.opacity(0.40), radius: 24, y: 12)
             .padding(.horizontal, 28)
         }
         .transition(.opacity.combined(with: .scale(scale: 0.985)))
@@ -135,9 +135,9 @@ private struct AIHistorySwitcherOverlay: View {
     }
 
     private var searchHeader: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             Image(systemName: mode.systemImage)
-                .font(.system(size: 17, weight: .semibold))
+                .font(.system(size: 15, weight: .medium))
                 .foregroundStyle(TokyoNight.mutedColor)
                 .frame(width: 24, height: 24)
 
@@ -149,38 +149,26 @@ private struct AIHistorySwitcherOverlay: View {
                 onCommit: openSelectedMatch,
                 onCancel: onDismiss
             )
-            .frame(height: 34)
+            .frame(height: 30)
 
             matchCount
         }
-        .padding(.horizontal, 18)
-        .frame(height: 64)
-        .background(TokyoNight.panelColor.opacity(0.92))
+        .padding(.horizontal, 16)
+        .frame(height: 52)
+        .background(TokyoNight.panelColor)
     }
 
     private var matchCount: some View {
         Text("\(matches.count)")
-            .font(.system(size: 12, weight: .semibold, design: .monospaced))
+            .font(.system(size: 11.5, weight: .medium, design: .monospaced))
             .foregroundStyle(matches.isEmpty ? TokyoNight.redColor : TokyoNight.mutedColor)
-            .frame(minWidth: 34, minHeight: 24)
-            .padding(.horizontal, 8)
-            .background(TokyoNight.backgroundDeepColor)
-            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .stroke(
-                        matches.isEmpty
-                            ? TokyoNight.redColor.opacity(0.42)
-                            : TokyoNight.borderColor,
-                        lineWidth: 1
-                    )
-            }
+            .frame(minWidth: 24)
     }
 
     private var historyList: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(spacing: 0) {
+                LazyVStack(spacing: 2) {
                     if matches.isEmpty {
                         emptyRow
                     } else {
@@ -197,10 +185,11 @@ private struct AIHistorySwitcherOverlay: View {
                         }
                     }
                 }
+                .padding(6)
             }
             .scrollIndicators(.hidden)
             .frame(height: listHeight)
-            .background(TokyoNight.panelElevatedColor.opacity(0.82))
+            .background(TokyoNight.panelColor)
             .onChange(of: selectedItemIDForScroll) { _, id in
                 guard let id else { return }
                 withAnimation(.easeOut(duration: 0.12)) {
@@ -218,12 +207,12 @@ private struct AIHistorySwitcherOverlay: View {
                 .frame(width: 22)
 
             Text(mode.emptyText(in: language))
-                .font(.system(size: 14, weight: .medium))
+                .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(TokyoNight.mutedColor)
 
             Spacer()
         }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, 12)
         .frame(height: AIHistorySwitcherRow.metricsHeight)
     }
 
@@ -283,15 +272,16 @@ private extension String {
 }
 
 private struct AIHistorySwitcherRow: View {
-    static let metricsHeight: CGFloat = 58
+    static let metricsHeight: CGFloat = 52
     let item: AIHistorySwitcherItem
     let isSelected: Bool
+    @State private var isHovered = false
 
     var body: some View {
         HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(item.title)
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(TokyoNight.foregroundColor)
                     .lineLimit(1)
 
@@ -304,16 +294,13 @@ private struct AIHistorySwitcherRow: View {
 
             Spacer(minLength: 12)
         }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, 12)
         .frame(height: Self.metricsHeight)
-        .background(isSelected ? TokyoNight.selectionColor.opacity(0.82) : Color.clear)
-        .overlay(alignment: .leading) {
-            if isSelected {
-                Rectangle()
-                    .fill(TokyoNight.blueColor)
-                    .frame(width: 3)
-            }
-        }
+        .background(
+            isSelected ? TokyoNight.selectionColor : isHovered ? TokyoNight.panelElevatedColor : Color.clear,
+            in: RoundedRectangle(cornerRadius: 6, style: .continuous)
+        )
+        .onHover { isHovered = $0 }
     }
 }
 
@@ -415,7 +402,7 @@ private final class AIHistoryTextField: NSTextField {
 
     func configure(placeholder: String) {
         cell = AIHistoryTextFieldCell(textCell: "")
-        font = .systemFont(ofSize: 22, weight: .medium)
+        font = .systemFont(ofSize: 16, weight: .medium)
         textColor = TokyoNight.foreground
         configurePlaceholder(placeholder)
         backgroundColor = .clear
@@ -436,7 +423,7 @@ private final class AIHistoryTextField: NSTextField {
             string: placeholder,
             attributes: [
                 .foregroundColor: TokyoNight.muted.withAlphaComponent(0.92),
-                .font: NSFont.systemFont(ofSize: 22, weight: .regular)
+                .font: NSFont.systemFont(ofSize: 16, weight: .regular)
             ]
         )
     }

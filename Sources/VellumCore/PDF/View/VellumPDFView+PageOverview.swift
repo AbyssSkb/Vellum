@@ -182,7 +182,7 @@ final class PageOverviewOverlayView: NSView {
         bounds.fill()
 
         let panelRect = gridPanelRect()
-        let panelPath = NSBezierPath(roundedRect: panelRect, xRadius: 10, yRadius: 10)
+        let panelPath = NSBezierPath(roundedRect: panelRect, xRadius: 8, yRadius: 8)
         TokyoNight.backgroundDeep.withAlphaComponent(0.92).setFill()
         panelPath.fill()
         TokyoNight.border.withAlphaComponent(0.72).setStroke()
@@ -276,9 +276,9 @@ final class PageOverviewOverlayView: NSView {
     }
 
     private func drawHeader(in panelRect: NSRect) {
-        let title = "Page \(selectedIndex + 1) of \(document.pageCount)"
+        let title = AppUILanguage.saved().text(.pageOverviewPosition(selectedIndex + 1, document.pageCount))
         let attributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 15, weight: .semibold),
+            .font: NSFont.systemFont(ofSize: 13, weight: .medium),
             .foregroundColor: TokyoNight.foreground
         ]
         title.draw(
@@ -295,7 +295,7 @@ final class PageOverviewOverlayView: NSView {
         path.fill()
 
         (isSelected ? TokyoNight.blue : TokyoNight.border).withAlphaComponent(isSelected ? 1 : 0.65).setStroke()
-        path.lineWidth = isSelected ? 2.4 : 1
+        path.lineWidth = isSelected ? 1.5 : 1
         path.stroke()
 
         let labelHeight: CGFloat = 26

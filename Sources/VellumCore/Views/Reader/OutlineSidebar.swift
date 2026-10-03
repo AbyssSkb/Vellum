@@ -45,15 +45,14 @@ struct OutlineSidebarHeader: View {
     var body: some View {
         HStack(spacing: 8) {
             Text(language.text(.contents))
-                .font(.system(size: 13.5, weight: .semibold))
-                .foregroundStyle(TokyoNight.foregroundColor)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(TokyoNight.mutedColor)
 
             Spacer(minLength: 8)
         }
         .padding(.horizontal, 16)
-        .frame(height: 44)
+        .frame(height: 36)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(TokyoNight.backgroundDeepColor.opacity(0.34))
         .accessibilityAddTraits(.isHeader)
     }
 }

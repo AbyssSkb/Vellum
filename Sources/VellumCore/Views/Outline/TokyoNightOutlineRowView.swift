@@ -38,8 +38,8 @@ final class TokyoNightOutlineRowView: NSTableRowView {
     override func drawBackground(in dirtyRect: NSRect) {
         if mouseInside && !isSelected {
             let hoverRect = roundedBackgroundRect()
-            let path = NSBezierPath(roundedRect: hoverRect, xRadius: 7, yRadius: 7)
-            TokyoNight.panel.withAlphaComponent(0.38).setFill()
+            let path = NSBezierPath(roundedRect: hoverRect, xRadius: 5, yRadius: 5)
+            TokyoNight.panelElevated.withAlphaComponent(0.5).setFill()
             path.fill()
         }
     }
@@ -48,13 +48,9 @@ final class TokyoNightOutlineRowView: NSTableRowView {
         guard isSelected else { return }
 
         let selectionRect = roundedBackgroundRect()
-        let path = NSBezierPath(roundedRect: selectionRect, xRadius: 7, yRadius: 7)
-        TokyoNight.panelElevated.withAlphaComponent(0.82).setFill()
+        let path = NSBezierPath(roundedRect: selectionRect, xRadius: 5, yRadius: 5)
+        TokyoNight.selection.withAlphaComponent(0.7).setFill()
         path.fill()
-
-        TokyoNight.blue.withAlphaComponent(0.18).setStroke()
-        path.lineWidth = 1
-        path.stroke()
     }
 
     private func roundedBackgroundRect() -> NSRect {

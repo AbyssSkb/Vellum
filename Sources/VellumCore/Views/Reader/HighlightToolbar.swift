@@ -46,12 +46,6 @@ struct HighlightToolbar: View {
         }
         .padding(.horizontal, 7)
         .frame(height: 38)
-        .background(TokyoNight.panelColor.opacity(0.9))
-        .overlay(
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .stroke(TokyoNight.borderColor.opacity(0.55), lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
         .animation(.easeInOut(duration: 0.12), value: hoveredColor)
     }
 }
