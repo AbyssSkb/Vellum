@@ -27,6 +27,16 @@ struct TabStrip: View {
                             isSelected: tab.id == appState.selectedTabID,
                             width: tabWidth
                         )
+                        .overlay(alignment: .trailing) {
+                            if tab.id != appState.tabs.last?.id {
+                                Rectangle()
+                                    .fill(TokyoNight.borderColor)
+                                    .frame(width: 1, height: 18)
+                                    .offset(x: (tabSpacing + 1) / 2)
+                                    .allowsHitTesting(false)
+                                    .accessibilityHidden(true)
+                            }
+                        }
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)

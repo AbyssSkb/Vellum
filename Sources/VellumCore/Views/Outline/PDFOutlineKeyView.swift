@@ -25,6 +25,12 @@ final class PDFOutlineKeyView: NSOutlineView {
         window?.makeFirstResponder(self)
     }
 
+    override func scrollRowToVisible(_ row: Int) {
+        // AppKit can normalize the top inset even when the row is already visible.
+        guard !visibleRect.contains(rect(ofRow: row)) else { return }
+        super.scrollRowToVisible(row)
+    }
+
     override func keyDown(with event: NSEvent) {
         if handleOutlineKey(event) {
             return
@@ -66,6 +72,10 @@ final class PDFOutlineKeyView: NSOutlineView {
         let key = event.charactersIgnoringModifiers?.lowercased()
 
         switch key {
+        case "t" where !isShifted:
+            if !event.isARepeat {
+                appState?.toggleOutlineSidebar()
+            }
         case "j" where !isShifted:
             moveSelection(by: 1)
         case "k" where !isShifted:

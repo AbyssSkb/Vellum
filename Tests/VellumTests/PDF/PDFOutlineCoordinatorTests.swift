@@ -119,8 +119,112 @@ struct PDFOutlineCoordinatorTests {
         #expect((recreatedView.item(atRow: recreatedView.selectedRow) as? PDFOutlineItem)?.id == "0")
     }
 
-    private func makeOutlineView(coordinator: PDFOutlineView.Coordinator) -> NSOutlineView {
+    @Test
+    func outlineToggleKeyClosesSidebarAfterItReceivesFocus() throws {
+        _ = NSApplication.shared
+        let appState = makeAppState()
+        let document = PDFDocument()
+        document.insert(PDFPage(), at: 0)
+        let tab = PDFTab(url: nil, document: document)
+        _ = appState.tabStore.openInNewTabs([tab])
+        let coordinator = PDFOutlineView.Coordinator(
+            items: tree(for: document), tabID: tab.id, documentID: ObjectIdentifier(document),
+            appState: appState, language: .english
+        )
+        let outlineView = makeOutlineView(coordinator: coordinator)
+        let window = NSWindow(
+            contentRect: outlineView.frame, styleMask: .borderless, backing: .buffered, defer: false
+        )
+        window.isReleasedWhenClosed = false
+        window.contentView = outlineView
+        window.orderFront(nil)
+        defer { window.close() }
+        appState.readerWindow = window
+        #expect(window.makeFirstResponder(nil))
+
+        let event = keyEvent("t", keyCode: 17, window: window)
+        #expect(appState.handleKeyEvent(event))
+        #expect(appState.isOutlineVisible)
+        #expect(window.makeFirstResponder(outlineView))
+        #expect(!appState.handleKeyEvent(event))
+        outlineView.keyDown(with: event)
+        #expect(!appState.isOutlineVisible)
+    }
+
+    @Test(arguments: [false, true])
+    func movingBetweenVisibleOutlineRowsPreservesTopInset(longOutline: Bool) throws {
+        _ = NSApplication.shared
+        let document = PDFDocument()
+        document.insert(PDFPage(), at: 0)
+        let items = tree(for: document) + (longOutline ? (2..<30).map { index in
+            PDFOutlineItem(
+                id: "\(index)", title: "Chapter \(index + 1)",
+                destination: PDFDestination(page: document.page(at: 0)!, at: .zero), pageIndex: 0, parent: nil
+            )
+        } : [])
+        let coordinator = PDFOutlineView.Coordinator(
+            items: items, tabID: UUID(), documentID: ObjectIdentifier(document),
+            appState: makeAppState(), language: .english
+        )
+        let outlineView = makeOutlineView(coordinator: coordinator)
+        outlineView.headerView = nil
+        outlineView.intercellSpacing = NSSize(width: 0, height: 3)
+        outlineView.rowHeight = 32
+        outlineView.rowSizeStyle = .medium
+        outlineView.style = .plain
+        let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 280, height: 160))
+        scrollView.hasVerticalScroller = false
+        scrollView.hasHorizontalScroller = false
+        scrollView.automaticallyAdjustsContentInsets = false
+        scrollView.contentInsets = NSEdgeInsets(top: 10, left: 0, bottom: 12, right: 0)
+        scrollView.documentView = outlineView
+        coordinator.restoreState(in: outlineView)
+        let window = NSWindow(
+            contentRect: scrollView.frame, styleMask: .borderless, backing: .buffered, defer: false
+        )
+        window.isReleasedWhenClosed = false
+        window.contentView = scrollView
+        window.orderFront(nil)
+        defer { window.close() }
+        scrollView.layoutSubtreeIfNeeded()
+        #expect(window.makeFirstResponder(outlineView))
+        let initialTop = scrollView.contentView.bounds.minY
+        #expect(outlineView.visibleRect.contains(outlineView.rect(ofRow: 1)))
+
+        outlineView.keyDown(with: keyEvent("j", keyCode: 38))
+        #expect(outlineView.selectedRow == 1)
+        outlineView.keyDown(with: keyEvent("k", keyCode: 40))
+        #expect(outlineView.selectedRow == 0)
+        #expect(scrollView.contentView.bounds.minY == initialTop)
+
+        if longOutline {
+            let lastRow = outlineView.numberOfRows - 1
+            #expect(!outlineView.visibleRect.contains(outlineView.rect(ofRow: lastRow)))
+            outlineView.selectRowIndexes(IndexSet(integer: lastRow - 1), byExtendingSelection: false)
+            outlineView.keyDown(with: keyEvent("j", keyCode: 38))
+            #expect(outlineView.selectedRow == lastRow)
+            #expect(outlineView.visibleRect.contains(outlineView.rect(ofRow: lastRow)))
+            #expect(scrollView.contentView.bounds.minY > initialTop)
+        }
+    }
+
+    private func keyEvent(_ key: String, keyCode: UInt16, window: NSWindow? = nil) -> NSEvent {
+        NSEvent.keyEvent(
+            with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0,
+            windowNumber: window?.windowNumber ?? 0, context: nil,
+            characters: key, charactersIgnoringModifiers: key, isARepeat: false, keyCode: keyCode
+        )!
+    }
+
+    private func makeAppState() -> AppState {
+        AppState(sessionDefaults: UserDefaults(suiteName: UUID().uuidString)!, keyboardController: KeyboardController(
+            installsKeyMonitor: false, installsOpenURLObserver: false
+        ))
+    }
+
+    private func makeOutlineView(coordinator: PDFOutlineView.Coordinator) -> PDFOutlineKeyView {
         let outlineView = PDFOutlineKeyView(frame: NSRect(x: 0, y: 0, width: 280, height: 400))
+        outlineView.appState = coordinator.appState
         let column = NSTableColumn(identifier: PDFOutlineView.Coordinator.columnIdentifier)
         outlineView.addTableColumn(column)
         outlineView.outlineTableColumn = column
