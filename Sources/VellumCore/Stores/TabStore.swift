@@ -1,4 +1,5 @@
 import Foundation
+import PDFKit
 
 struct TabStore {
     private(set) var tabs: [PDFTab] = []
@@ -122,6 +123,17 @@ struct TabStore {
     mutating func saveSnapshot(_ snapshot: ReaderSnapshot, for tabID: PDFTab.ID) {
         guard let index = tabs.firstIndex(where: { $0.id == tabID }) else { return }
         tabs[index].snapshot = snapshot
+    }
+
+    mutating func replaceDocument(for tabID: PDFTab.ID, with document: PDFDocument) {
+        guard let index = tabs.firstIndex(where: { $0.id == tabID }) else { return }
+        tabs[index].document = document
+        if var snapshot = tabs[index].snapshot,
+           document.pageCount > 0, snapshot.pageIndex >= document.pageCount {
+            snapshot.pageIndex = document.pageCount - 1
+            snapshot.scrollOrigin = nil
+            tabs[index].snapshot = snapshot
+        }
     }
 
     func snapshotForSelectedTab() -> ReaderSnapshot? {

@@ -470,6 +470,7 @@ final class PDFSearchController {
         cancelScheduledSearch()
         resetSearchStateForNewCommand()
         pdfView?.highlightedSelections = []
+        dismissOverlay(returnFocus: false)
     }
 
     private func resetSearchStateForNewCommand() {

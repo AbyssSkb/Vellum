@@ -32,11 +32,16 @@ extension AppState {
     }
 
     func openInCurrentTab(url: URL) {
+        saveActiveReaderState()
         if let existingTab = tabStore.tab(for: url) {
-            selectTab(existingTab.id)
+            let didReload = reloadTabIfNeeded(existingTab, from: url)
+            let didSelect = tabStore.selectTab(existingTab.id)
+            saveCurrentSession()
+            if didReload || didSelect {
+                prepareForSelectedReaderChange()
+            }
             return
         }
-        saveActiveReaderState()
 
         guard let tab = pdfCoordinator.openTab(for: url) else { return }
         if let selectedTabID, !canCloseTab(selectedTabID) { return }
@@ -51,8 +56,12 @@ extension AppState {
         saveActiveReaderState()
 
         var didOpenTab = false
+        var didReloadSelectedTab = false
         for url in urls {
             if let existingTab = tabStore.tab(for: url) {
+                if reloadTabIfNeeded(existingTab, from: url), existingTab.id == previousSelectedTabID {
+                    didReloadSelectedTab = true
+                }
                 _ = tabStore.selectTab(existingTab.id)
                 didOpenTab = true
             } else if let tab = pdfCoordinator.openTab(for: url) {
@@ -63,9 +72,19 @@ extension AppState {
 
         guard didOpenTab else { return }
         saveCurrentSession()
-        if selectedTabID != previousSelectedTabID {
+        if selectedTabID != previousSelectedTabID || didReloadSelectedTab {
             prepareForSelectedReaderChange()
         }
+    }
+
+    private func reloadTabIfNeeded(_ tab: PDFTab, from url: URL) -> Bool {
+        guard let document = tab.document,
+              let persistence = PDFAnnotationPersistence.existing(for: document),
+              persistence.hasFileChanged(at: url),
+              canCloseTab(tab.id),
+              let reloadedDocument = pdfCoordinator.openTab(for: url)?.document else { return false }
+        tabStore.replaceDocument(for: tab.id, with: reloadedDocument)
+        return true
     }
 
     public func closeSelectedTab() {

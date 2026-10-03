@@ -127,6 +127,14 @@ final class PDFAnnotationPersistence: @unchecked Sendable {
         lock.withLock { lastError }
     }
 
+    func hasFileChanged(at url: URL) -> Bool {
+        queue.sync {
+            guard let diskSignature else { return true }
+            return url.standardizedFileURL.resolvingSymlinksInPath() != self.url
+                || (try? FileSignature(url: self.url)) != diskSignature
+        }
+    }
+
     @MainActor
     func save(_ document: PDFDocument, onFailure: @escaping @MainActor @Sendable () -> Void) {
         let currentRevision = lock.withLock {

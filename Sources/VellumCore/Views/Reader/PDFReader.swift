@@ -51,6 +51,14 @@ struct PDFReader: NSViewRepresentable {
 
         if nsView.document !== document {
             nsView.hideAIExplanationPopover()
+            nsView.clearSuppressedHoverExplanation()
+            nsView.cancelPageOverview()
+            nsView.searchController?.clear()
+            nsView.searchController = nil
+            nsView.clearSelection()
+            nsView.textSelectionNavigationState = nil
+            nsView.jumpBackStack.removeAll()
+            nsView.jumpForwardStack.removeAll()
             nsView.cancelPendingRestore()
             nsView.stopScrollAnimation()
             nsView.stopZoomState()
