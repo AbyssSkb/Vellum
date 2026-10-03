@@ -17,7 +17,7 @@ struct PDFReader: NSViewRepresentable {
                   let snapshot = view?.snapshot() else { return }
             appState?.saveSnapshot(snapshot, for: tabID)
         }
-        view.backgroundColor = TokyoNight.background
+        view.backgroundColor = TokyoNight.panel
         view.displayMode = .singlePageContinuous
         view.displayDirection = .vertical
         view.displaysPageBreaks = true

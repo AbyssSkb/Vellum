@@ -132,7 +132,7 @@ private struct SettingsSidebarRow: View {
                 Image(systemName: section.systemImage)
                     .font(.system(size: 13, weight: .regular))
                     .frame(width: 17)
-                    .foregroundStyle(isSelected ? TokyoNight.foregroundColor : TokyoNight.mutedColor)
+                    .foregroundStyle(isSelected ? TokyoNight.blueColor : TokyoNight.mutedColor)
 
                 Text(section.title(language: language))
                     .font(.system(size: 13, weight: isSelected ? .medium : .regular))
@@ -143,7 +143,7 @@ private struct SettingsSidebarRow: View {
             .padding(.horizontal, 10)
             .frame(maxWidth: .infinity, alignment: .leading)
             .frame(height: 34)
-            .background(isSelected ? TokyoNight.panelElevatedColor.opacity(0.75) : (isHovered ? TokyoNight.panelColor : .clear))
+            .background(isSelected ? TokyoNight.selectionColor : (isHovered ? TokyoNight.panelColor : .clear))
             .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
             .contentShape(Rectangle())
         }

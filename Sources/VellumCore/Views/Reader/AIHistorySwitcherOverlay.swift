@@ -92,7 +92,7 @@ private struct AIHistorySwitcherOverlay: View {
     var body: some View {
         ZStack {
             Rectangle()
-                .fill(TokyoNight.backgroundDeepColor.opacity(0.80))
+                .fill(TokyoNight.backgroundDeepColor.opacity(0.48))
                 .ignoresSafeArea()
                 .contentShape(Rectangle())
                 .onTapGesture(perform: onDismiss)
@@ -101,7 +101,7 @@ private struct AIHistorySwitcherOverlay: View {
                 searchHeader
 
                 Rectangle()
-                    .fill(TokyoNight.borderColor.opacity(0.72))
+                    .fill(TokyoNight.borderColor.opacity(0.52))
                     .frame(height: 1)
 
                 historyList
@@ -116,9 +116,10 @@ private struct AIHistorySwitcherOverlay: View {
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(TokyoNight.borderColor.opacity(0.95), lineWidth: 1)
+                    .stroke(TokyoNight.borderColor.opacity(0.72), lineWidth: 1)
+                    .allowsHitTesting(false)
             }
-            .shadow(color: .black.opacity(0.40), radius: 24, y: 12)
+            .shadow(color: .black.opacity(0.26), radius: 18, y: 8)
             .padding(.horizontal, 28)
         }
         .transition(.opacity.combined(with: .scale(scale: 0.985)))
@@ -281,7 +282,7 @@ private struct AIHistorySwitcherRow: View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(item.title)
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.system(size: 13, weight: isSelected ? .medium : .regular))
                     .foregroundStyle(TokyoNight.foregroundColor)
                     .lineLimit(1)
 
@@ -297,9 +298,18 @@ private struct AIHistorySwitcherRow: View {
         .padding(.horizontal, 12)
         .frame(height: Self.metricsHeight)
         .background(
-            isSelected ? TokyoNight.selectionColor : isHovered ? TokyoNight.panelElevatedColor : Color.clear,
+            isSelected ? TokyoNight.selectionColor.opacity(0.85) : isHovered ? TokyoNight.panelElevatedColor.opacity(0.35) : Color.clear,
             in: RoundedRectangle(cornerRadius: 6, style: .continuous)
         )
+        .overlay(alignment: .leading) {
+            if isSelected {
+                Capsule()
+                    .fill(TokyoNight.blueColor)
+                    .frame(width: 2, height: 12)
+                    .padding(.leading, 4)
+                    .allowsHitTesting(false)
+            }
+        }
         .onHover { isHovered = $0 }
     }
 }

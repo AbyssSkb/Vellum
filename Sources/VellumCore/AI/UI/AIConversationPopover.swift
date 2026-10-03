@@ -247,7 +247,7 @@ struct AIConversationPopoverView: View {
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(TokyoNight.borderColor, lineWidth: 1)
+                .stroke(TokyoNight.borderColor.opacity(0.72), lineWidth: 1)
                 .allowsHitTesting(false)
         }
         .foregroundStyle(TokyoNight.foregroundColor)
@@ -340,7 +340,7 @@ struct AIConversationPopoverView: View {
                 sendDraft()
             } label: {
                 Image(systemName: model.isSending ? "hourglass" : "arrow.up")
-                    .font(.system(size: 11.5, weight: .bold))
+                    .font(.system(size: 11.5, weight: .semibold))
                     .frame(width: 26, height: 26)
                     .contentShape(Rectangle())
             }
@@ -352,11 +352,11 @@ struct AIConversationPopoverView: View {
             .padding(.bottom, 7)
         }
         .frame(height: model.composerTextHeight)
-        .background(TokyoNight.backgroundDeepColor, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .background(TokyoNight.backgroundColor, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 7, style: .continuous)
                 .stroke(
-                    inputIsFocused ? TokyoNight.blueColor.opacity(0.75) : TokyoNight.borderColor,
+                    inputIsFocused ? TokyoNight.blueColor.opacity(0.85) : TokyoNight.borderColor.opacity(0.72),
                     lineWidth: 1
                 )
         }

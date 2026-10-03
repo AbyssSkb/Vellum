@@ -6,7 +6,7 @@ struct ShortcutRow: View {
     var body: some View {
         HStack(alignment: .center, spacing: 16) {
             Text(item.action)
-                .font(.system(size: 12.5, weight: .medium))
+                .font(.system(size: 12.5, weight: .regular))
                 .foregroundStyle(TokyoNight.foregroundColor)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)

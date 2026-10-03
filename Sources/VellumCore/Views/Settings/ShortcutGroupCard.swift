@@ -6,7 +6,7 @@ struct ShortcutGroupCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Label(group.title, systemImage: group.systemImage)
-                .font(.system(size: 11.5, weight: .medium))
+                .font(.system(size: 11.5, weight: .regular))
                 .foregroundStyle(TokyoNight.mutedColor)
 
             VStack(spacing: 0) {

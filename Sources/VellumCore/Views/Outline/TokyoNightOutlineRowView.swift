@@ -7,6 +7,15 @@ final class TokyoNightOutlineRowView: NSTableRowView {
     }
     private var hoverTrackingArea: NSTrackingArea?
 
+    override var isSelected: Bool {
+        didSet { updateTextAppearance() }
+    }
+
+    override func didAddSubview(_ subview: NSView) {
+        super.didAddSubview(subview)
+        updateTextAppearance()
+    }
+
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
 
@@ -39,7 +48,7 @@ final class TokyoNightOutlineRowView: NSTableRowView {
         if mouseInside && !isSelected {
             let hoverRect = roundedBackgroundRect()
             let path = NSBezierPath(roundedRect: hoverRect, xRadius: 5, yRadius: 5)
-            TokyoNight.panelElevated.withAlphaComponent(0.5).setFill()
+            TokyoNight.panelElevated.withAlphaComponent(0.35).setFill()
             path.fill()
         }
     }
@@ -49,8 +58,19 @@ final class TokyoNightOutlineRowView: NSTableRowView {
 
         let selectionRect = roundedBackgroundRect()
         let path = NSBezierPath(roundedRect: selectionRect, xRadius: 5, yRadius: 5)
-        TokyoNight.selection.withAlphaComponent(0.7).setFill()
+        TokyoNight.selection.withAlphaComponent(0.5).setFill()
         path.fill()
+
+        TokyoNight.blue.withAlphaComponent(isEmphasized ? 0.9 : 0.6).setFill()
+        NSBezierPath(roundedRect: NSRect(x: selectionRect.minX + 4, y: selectionRect.midY - 6,
+                                       width: 2, height: 12), xRadius: 1, yRadius: 1).fill()
+    }
+
+    private func updateTextAppearance() {
+        for case let cell as NSTableCellView in subviews {
+            cell.textField?.font = .systemFont(ofSize: 13, weight: isSelected ? .medium : .regular)
+            cell.textField?.textColor = isSelected ? TokyoNight.foreground : TokyoNight.muted
+        }
     }
 
     private func roundedBackgroundRect() -> NSRect {

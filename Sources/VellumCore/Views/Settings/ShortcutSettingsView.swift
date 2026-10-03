@@ -8,7 +8,7 @@ struct ShortcutSettingsView: View {
             VStack(alignment: .leading, spacing: 24) {
                 HStack(alignment: .center, spacing: 12) {
                     Image(systemName: "keyboard")
-                        .font(.system(size: 18, weight: .medium))
+                        .font(.system(size: 18, weight: .regular))
                         .foregroundStyle(TokyoNight.mutedColor)
                         .frame(width: 24)
 

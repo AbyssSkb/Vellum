@@ -53,7 +53,7 @@ struct EmptyReader: View {
             .tint(TokyoNight.blueColor)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(TokyoNight.backgroundColor)
+        .background(TokyoNight.panelColor)
         .background(KeyboardCapture(appState: appState))
     }
 }

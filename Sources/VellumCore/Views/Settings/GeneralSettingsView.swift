@@ -32,7 +32,7 @@ struct GeneralSettingsView: View {
     private var header: some View {
         HStack(alignment: .center, spacing: 12) {
             Image(systemName: "gearshape")
-                .font(.system(size: 19, weight: .medium))
+                .font(.system(size: 19, weight: .regular))
                 .foregroundStyle(TokyoNight.mutedColor)
                 .frame(width: 24)
 
@@ -220,7 +220,7 @@ private struct GeneralSettingsPanel<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Label(title, systemImage: systemImage)
-                .font(.system(size: 11.5, weight: .medium))
+                .font(.system(size: 11.5, weight: .regular))
                 .foregroundStyle(TokyoNight.mutedColor)
 
             content
@@ -259,7 +259,7 @@ private struct GeneralToggleRow: View {
             .padding(.vertical, 12)
             .frame(maxWidth: .infinity, alignment: .leading)
             .frame(minHeight: 58)
-            .background(isHovered ? TokyoNight.panelColor.opacity(0.6) : .clear)
+            .background(isHovered ? TokyoNight.panelColor : .clear)
             .overlay(alignment: .bottom) {
                 TokyoNight.borderColor.opacity(0.45).frame(height: 1)
             }
@@ -374,14 +374,14 @@ private struct GeneralSegmentButton: View {
     var body: some View {
         Button(action: action) {
             Label(title, systemImage: systemImage)
-                .font(.system(size: 12, weight: .medium))
+                .font(.system(size: 12, weight: isSelected ? .medium : .regular))
                 .foregroundStyle(isSelected ? TokyoNight.foregroundColor : TokyoNight.mutedColor)
                 .padding(.horizontal, 10)
                 .frame(height: 28)
                 .background(background, in: RoundedRectangle(cornerRadius: 4, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 4, style: .continuous)
-                        .stroke(isSelected ? TokyoNight.borderColor.opacity(0.75) : .clear, lineWidth: 1)
+                        .stroke(isSelected ? TokyoNight.blueColor.opacity(0.5) : .clear, lineWidth: 1)
                 }
                 .contentShape(Rectangle())
         }
@@ -447,7 +447,7 @@ private struct HighlightColorButton: View {
                 )
                 .overlay {
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .stroke(isSelected ? TokyoNight.foregroundColor.opacity(0.65) : .clear, lineWidth: 1)
+                        .stroke(isSelected ? TokyoNight.blueColor.opacity(0.65) : .clear, lineWidth: 1)
                 }
                 .contentShape(Rectangle())
         }
@@ -482,7 +482,7 @@ private struct GeneralActionButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 12.5, weight: .medium))
+            .font(.system(size: 12.5, weight: .regular))
             .foregroundStyle(TokyoNight.foregroundColor)
             .padding(.horizontal, 12)
             .frame(height: 32)

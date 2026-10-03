@@ -141,8 +141,8 @@ extension PDFOutlineView {
             textField.translatesAutoresizingMaskIntoConstraints = false
             textField.lineBreakMode = .byTruncatingTail
             textField.maximumNumberOfLines = 1
-            textField.font = .systemFont(ofSize: 13, weight: .medium)
-            textField.textColor = TokyoNight.foreground.withAlphaComponent(0.88)
+            textField.font = .systemFont(ofSize: 13, weight: .regular)
+            textField.textColor = TokyoNight.muted
             textField.backgroundColor = .clear
             textField.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 

@@ -18,7 +18,7 @@ struct AIConnectionStatusRow: View {
             }
 
             Text(status.text(language: language))
-                .font(.system(size: 12.5))
+                .font(.system(size: 12.5, weight: status.isIdle ? .regular : .medium))
                 .foregroundStyle(status.isIdle ? TokyoNight.mutedColor : TokyoNight.foregroundColor)
                 .textSelection(.enabled)
                 .lineLimit(6)

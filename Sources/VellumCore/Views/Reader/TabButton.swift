@@ -57,13 +57,13 @@ struct TabButton: View {
         }
         .background(
             isSelected
-                ? TokyoNight.panelColor
+                ? TokyoNight.backgroundColor
                 : TokyoNight.panelColor.opacity(isHovered ? 0.6 : 0)
         )
         .overlay(alignment: .bottom) {
             if isSelected {
                 Rectangle()
-                    .fill(TokyoNight.foregroundColor.opacity(0.65))
+                    .fill(TokyoNight.blueColor.opacity(0.8))
                     .frame(height: 1)
                     .padding(.horizontal, 10)
                     .accessibilityHidden(true)

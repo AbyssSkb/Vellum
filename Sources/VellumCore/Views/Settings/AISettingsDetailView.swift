@@ -278,7 +278,7 @@ struct AIProviderSettingsDetailView: View {
     private func diagnosticRow(_ title: String, _ value: String) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
             Text(title)
-                .font(.system(size: 11, weight: .semibold))
+                .font(.system(size: 11, weight: .regular))
                 .foregroundStyle(TokyoNight.mutedColor)
                 .frame(width: 58, alignment: .leading)
 
@@ -514,11 +514,11 @@ struct AISettingsDetailView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(spacing: 8) {
                         Image(systemName: "curlybraces")
-                            .font(.system(size: 11, weight: .semibold))
+                            .font(.system(size: 11, weight: .regular))
                             .foregroundStyle(TokyoNight.mutedColor)
 
                         Text(language.text(.promptVariables))
-                            .font(.system(size: 11.5, weight: .semibold))
+                            .font(.system(size: 11.5, weight: .regular))
                             .foregroundStyle(TokyoNight.mutedColor)
                     }
 
@@ -631,7 +631,7 @@ struct AISettingsDetailView: View {
     private func diagnosticRow(_ title: String, _ value: String) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
             Text(title)
-                .font(.system(size: 11, weight: .semibold))
+                .font(.system(size: 11, weight: .regular))
                 .foregroundStyle(TokyoNight.mutedColor)
                 .frame(width: 58, alignment: .leading)
 
@@ -742,7 +742,7 @@ private struct AIPronunciationToggleRow: View {
             .padding(.vertical, 12)
             .frame(maxWidth: .infinity, alignment: .leading)
             .frame(minHeight: 58)
-            .background(isHovered ? TokyoNight.panelColor.opacity(0.6) : .clear)
+            .background(isHovered ? TokyoNight.panelColor : .clear)
             .overlay(alignment: .bottom) {
                 TokyoNight.borderColor.opacity(0.45).frame(height: 1)
             }
@@ -813,14 +813,14 @@ private struct AIPronunciationSegmentButton: View {
     var body: some View {
         Button(action: action) {
             Label(title, systemImage: systemImage)
-                .font(.system(size: 12, weight: .medium))
+                .font(.system(size: 12, weight: isSelected ? .medium : .regular))
                 .foregroundStyle(isSelected ? TokyoNight.foregroundColor : TokyoNight.mutedColor)
                 .padding(.horizontal, 10)
                 .frame(height: 28)
                 .background(background, in: RoundedRectangle(cornerRadius: 4, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 4, style: .continuous)
-                        .stroke(isSelected ? TokyoNight.borderColor.opacity(0.75) : .clear, lineWidth: 1)
+                        .stroke(isSelected ? TokyoNight.blueColor.opacity(0.5) : .clear, lineWidth: 1)
                 }
                 .contentShape(Rectangle())
         }
@@ -864,7 +864,7 @@ private struct SettingsHeader: View {
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
             Image(systemName: systemImage)
-                .font(.system(size: 19, weight: .medium))
+                .font(.system(size: 19, weight: .regular))
                 .foregroundStyle(TokyoNight.mutedColor)
                 .frame(width: 24)
 
@@ -893,7 +893,7 @@ private struct SettingsPanel<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Label(title, systemImage: systemImage)
-                .font(.system(size: 11.5, weight: .medium))
+                .font(.system(size: 11.5, weight: .regular))
                 .foregroundStyle(TokyoNight.mutedColor)
 
             content
@@ -926,7 +926,7 @@ private struct StyledTextField: View {
     var body: some View {
         HStack(spacing: 9) {
             Image(systemName: systemImage)
-                .font(.system(size: 12, weight: .semibold))
+                .font(.system(size: 12, weight: .regular))
                 .foregroundStyle(isFocused ? TokyoNight.blueColor : TokyoNight.mutedColor)
                 .frame(width: 16)
 
@@ -949,7 +949,7 @@ private struct StyledSecureField: View {
     var body: some View {
         HStack(spacing: 9) {
             Image(systemName: "key.fill")
-                .font(.system(size: 12, weight: .semibold))
+                .font(.system(size: 12, weight: .regular))
                 .foregroundStyle(isFocused ? TokyoNight.blueColor : TokyoNight.mutedColor)
                 .frame(width: 16)
 
@@ -991,7 +991,7 @@ private struct PromptVariableChip: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text("{{\(variable.name)}}")
-                .font(.system(size: 11.5, weight: .semibold, design: .monospaced))
+                .font(.system(size: 11.5, weight: .medium, design: .monospaced))
                 .foregroundStyle(TokyoNight.foregroundColor)
                 .lineLimit(1)
 
@@ -1031,7 +1031,7 @@ private struct ProviderPresetRow: View {
             HStack(spacing: 10) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(preset.name)
-                        .font(.system(size: 13, weight: .medium))
+                        .font(.system(size: 13, weight: isSelected ? .medium : .regular))
                         .foregroundStyle(TokyoNight.foregroundColor)
 
                     Text(preset.localizedSummary(language: language))
@@ -1054,7 +1054,7 @@ private struct ProviderPresetRow: View {
             .padding(.vertical, 10)
             .frame(maxWidth: .infinity, alignment: .leading)
             .frame(minHeight: 50)
-            .background(isSelected ? TokyoNight.panelElevatedColor.opacity(0.55) : (isHovered ? TokyoNight.panelColor : .clear))
+            .background(isSelected ? TokyoNight.selectionColor : (isHovered ? TokyoNight.panelColor : .clear))
             .overlay(alignment: .bottom) {
                 TokyoNight.borderColor.opacity(0.45).frame(height: 1)
             }
@@ -1092,6 +1092,7 @@ private extension AIProviderPreset {
 private struct ModelChoiceGrid: View {
     let models: [String]
     @Binding var selection: String
+    @State private var hoveredModel: String?
 
     private let columns = [
         GridItem(.adaptive(minimum: 180), spacing: 8)
@@ -1105,7 +1106,7 @@ private struct ModelChoiceGrid: View {
                 } label: {
                     HStack(spacing: 8) {
                         Text(model)
-                            .font(.system(size: 11.5, design: .monospaced))
+                            .font(.system(size: 11.5, weight: selection == model ? .medium : .regular, design: .monospaced))
                             .foregroundStyle(TokyoNight.foregroundColor)
                             .lineLimit(1)
 
@@ -1113,22 +1114,23 @@ private struct ModelChoiceGrid: View {
 
                         if selection == model {
                             Image(systemName: "checkmark")
-                                .font(.system(size: 10, weight: .bold))
+                                .font(.system(size: 10, weight: .medium))
                                 .foregroundStyle(TokyoNight.blueColor)
                         }
                     }
                     .padding(.horizontal, 10)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .frame(height: 30)
-                    .background(selection == model ? TokyoNight.panelElevatedColor : TokyoNight.panelColor)
+                    .background(selection == model || hoveredModel == model ? TokyoNight.panelElevatedColor : TokyoNight.panelColor)
                     .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                     .overlay {
                         RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .stroke(TokyoNight.borderColor.opacity(selection == model ? 0.8 : 0.55), lineWidth: 1)
+                            .stroke(selection == model ? TokyoNight.blueColor.opacity(0.5) : TokyoNight.borderColor.opacity(hoveredModel == model ? 0.85 : 0.55), lineWidth: 1)
                     }
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .onHover { hoveredModel = $0 ? model : nil }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1168,7 +1170,7 @@ private struct SettingsActionButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 12.5, weight: .medium))
+            .font(.system(size: 12.5, weight: .regular))
             .foregroundStyle(TokyoNight.foregroundColor)
             .padding(.horizontal, 12)
             .frame(height: 32)

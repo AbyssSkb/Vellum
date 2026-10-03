@@ -23,13 +23,13 @@ struct HighlightToolbar: View {
 
                         if isSelected {
                             Circle()
-                                .stroke(TokyoNight.foregroundColor.opacity(0.8), lineWidth: 1)
-                                .frame(width: 24, height: 24)
+                                .stroke(TokyoNight.mutedColor.opacity(0.85), lineWidth: 1)
+                                .frame(width: 22, height: 22)
                         }
 
                         Circle()
                             .fill(color.swatchColor)
-                            .frame(width: 16, height: 16)
+                            .frame(width: isSelected ? 14 : 12, height: isSelected ? 14 : 12)
                     }
                     .frame(width: 34, height: 34)
                     .contentShape(Rectangle())
