@@ -1,6 +1,10 @@
 @preconcurrency import AppKit
 import PDFKit
 
+final class PDFOutlineCellView: NSTableCellView {
+    let pageNumberField = NSTextField(labelWithString: "")
+}
+
 extension PDFOutlineView {
     @MainActor
     final class Coordinator: NSObject, NSOutlineViewDataSource, NSOutlineViewDelegate {
@@ -110,9 +114,11 @@ extension PDFOutlineView {
             let cell = outlineView.makeView(
                 withIdentifier: Self.cellIdentifier,
                 owner: self
-            ) as? NSTableCellView ?? makeCell()
+            ) as? PDFOutlineCellView ?? makeCell()
 
             cell.textField?.stringValue = item.title
+            cell.pageNumberField.stringValue = item.pageIndex.map { String($0 + 1) } ?? ""
+            cell.pageNumberField.isHidden = item.pageIndex == nil
             if let pageIndex = item.pageIndex {
                 cell.textField?.toolTip = "\(item.title) · \(language.text(.outlinePage(pageIndex + 1)))"
             } else {
@@ -122,7 +128,7 @@ extension PDFOutlineView {
         }
 
         func outlineView(_ outlineView: NSOutlineView, heightOfRowByItem item: Any) -> CGFloat {
-            32
+            30
         }
 
         func outlineView(_ outlineView: NSOutlineView, rowViewForItem item: Any) -> NSTableRowView? {
@@ -133,8 +139,8 @@ extension PDFOutlineView {
             selectedItem(in: sender)?.activate(in: appState)
         }
 
-        private func makeCell() -> NSTableCellView {
-            let cell = NSTableCellView()
+        private func makeCell() -> PDFOutlineCellView {
+            let cell = PDFOutlineCellView()
             cell.identifier = Self.cellIdentifier
 
             let textField = NSTextField(labelWithString: "")
@@ -146,13 +152,28 @@ extension PDFOutlineView {
             textField.backgroundColor = .clear
             textField.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
-            cell.addSubview(textField)
             cell.textField = textField
 
+            let pageNumberField = cell.pageNumberField
+            pageNumberField.translatesAutoresizingMaskIntoConstraints = false
+            pageNumberField.font = .monospacedDigitSystemFont(ofSize: 10.5, weight: .regular)
+            pageNumberField.textColor = TokyoNight.muted
+            pageNumberField.setContentHuggingPriority(.required, for: .horizontal)
+            pageNumberField.setContentCompressionResistancePriority(.required, for: .horizontal)
+
+            let stack = NSStackView(views: [textField, pageNumberField])
+            stack.translatesAutoresizingMaskIntoConstraints = false
+            stack.orientation = .horizontal
+            stack.distribution = .fill
+            stack.alignment = .centerY
+            stack.spacing = 8
+            stack.detachesHiddenViews = true
+            cell.addSubview(stack)
+
             NSLayoutConstraint.activate([
-                textField.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 0),
-                textField.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -8),
-                textField.centerYAnchor.constraint(equalTo: cell.centerYAnchor)
+                stack.leadingAnchor.constraint(equalTo: cell.leadingAnchor),
+                stack.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -8),
+                stack.centerYAnchor.constraint(equalTo: cell.centerYAnchor)
             ])
 
             return cell

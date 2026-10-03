@@ -32,8 +32,8 @@ struct PDFOutlineView: NSViewRepresentable {
         outlineView.allowsEmptySelection = false
         outlineView.allowsMultipleSelection = false
         outlineView.indentationPerLevel = 14
-        outlineView.intercellSpacing = NSSize(width: 0, height: 3)
-        outlineView.rowHeight = 32
+        outlineView.intercellSpacing = NSSize(width: 0, height: 2)
+        outlineView.rowHeight = 30
         outlineView.rowSizeStyle = .medium
         outlineView.gridStyleMask = []
         if #available(macOS 11.0, *) {

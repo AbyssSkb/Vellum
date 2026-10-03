@@ -36,7 +36,7 @@ struct TabSwitcherOverlay: View {
                 searchHeader
 
                 Rectangle()
-                    .fill(TokyoNight.borderColor.opacity(0.52))
+                    .fill(TokyoNight.foregroundColor.opacity(0.06))
                     .frame(height: 1)
 
                 tabList
@@ -51,7 +51,7 @@ struct TabSwitcherOverlay: View {
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(TokyoNight.borderColor.opacity(0.72), lineWidth: 1)
+                    .strokeBorder(TokyoNight.foregroundColor.opacity(0.12), lineWidth: 1)
                     .allowsHitTesting(false)
             }
             .shadow(color: .black.opacity(0.26), radius: 18, y: 8)
@@ -96,7 +96,7 @@ struct TabSwitcherOverlay: View {
         }
         .padding(.horizontal, 16)
         .frame(height: 52)
-        .background(TokyoNight.panelColor)
+        .background(TokyoNight.backgroundColor)
     }
 
     private var matchCount: some View {
@@ -295,7 +295,7 @@ private final class TabSwitcherTextField: NSTextField {
 
     func configure(language: AppUILanguage) {
         cell = TabSwitcherTextFieldCell(textCell: "")
-        font = .systemFont(ofSize: 16, weight: .medium)
+        font = .systemFont(ofSize: 14, weight: .medium)
         textColor = TokyoNight.foreground
         configurePlaceholder(language: language)
         backgroundColor = .clear
@@ -316,7 +316,7 @@ private final class TabSwitcherTextField: NSTextField {
             string: language.text(.searchOpenTabs),
             attributes: [
                 .foregroundColor: TokyoNight.muted.withAlphaComponent(0.92),
-                .font: NSFont.systemFont(ofSize: 16, weight: .regular)
+                .font: NSFont.systemFont(ofSize: 14, weight: .regular)
             ]
         )
     }
@@ -405,7 +405,7 @@ private struct TabSwitcherRow: View {
                     .foregroundStyle(TokyoNight.foregroundColor)
                     .lineLimit(1)
 
-                Text(tab.url?.path ?? language.text(.untitled))
+                Text(tab.url?.deletingLastPathComponent().path ?? language.text(.untitled))
                     .font(.system(size: 11.5))
                     .foregroundStyle(TokyoNight.mutedColor)
                     .lineLimit(1)
@@ -433,6 +433,7 @@ private struct TabSwitcherRow: View {
                     .allowsHitTesting(false)
             }
         }
+        .help(tab.url?.path ?? tab.title)
         .onHover { isHovered = $0 }
     }
 

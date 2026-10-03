@@ -7,7 +7,7 @@ struct ClippedTabTitle: NSViewRepresentable {
 
     func makeNSView(context: Context) -> NSTextField {
         let textField = NSTextField(labelWithString: title)
-        textField.lineBreakMode = .byClipping
+        textField.lineBreakMode = .byTruncatingTail
         textField.maximumNumberOfLines = 1
         textField.alignment = .left
         textField.isSelectable = false
@@ -24,7 +24,7 @@ struct ClippedTabTitle: NSViewRepresentable {
         textField.textColor = isSelected
             ? TokyoNight.foreground
             : TokyoNight.muted
-        textField.lineBreakMode = .byClipping
+        textField.lineBreakMode = .byTruncatingTail
         textField.maximumNumberOfLines = 1
         textField.alignment = .left
     }

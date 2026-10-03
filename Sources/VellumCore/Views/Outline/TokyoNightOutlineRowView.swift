@@ -60,6 +60,9 @@ final class TokyoNightOutlineRowView: NSTableRowView {
         let path = NSBezierPath(roundedRect: selectionRect, xRadius: 5, yRadius: 5)
         TokyoNight.selection.withAlphaComponent(0.5).setFill()
         path.fill()
+        TokyoNight.foreground.withAlphaComponent(isEmphasized ? 0.06 : 0.03).setStroke()
+        path.lineWidth = 0.5
+        path.stroke()
 
         TokyoNight.blue.withAlphaComponent(isEmphasized ? 0.9 : 0.6).setFill()
         NSBezierPath(roundedRect: NSRect(x: selectionRect.minX + 4, y: selectionRect.midY - 6,
@@ -70,6 +73,8 @@ final class TokyoNightOutlineRowView: NSTableRowView {
         for case let cell as NSTableCellView in subviews {
             cell.textField?.font = .systemFont(ofSize: 13, weight: isSelected ? .medium : .regular)
             cell.textField?.textColor = isSelected ? TokyoNight.foreground : TokyoNight.muted
+            (cell as? PDFOutlineCellView)?.pageNumberField.textColor = isSelected
+                ? TokyoNight.foreground.withAlphaComponent(0.7) : TokyoNight.muted
         }
     }
 

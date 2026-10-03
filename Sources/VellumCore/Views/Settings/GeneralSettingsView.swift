@@ -131,9 +131,6 @@ struct GeneralSettingsView: View {
                 }
                 .padding(.vertical, 12)
                 .frame(minHeight: 54)
-                .overlay(alignment: .bottom) {
-                    TokyoNight.borderColor.opacity(0.45).frame(height: 1)
-                }
             }
         }
     }
@@ -186,9 +183,6 @@ struct GeneralSettingsView: View {
                 }
                 .padding(.vertical, 12)
                 .frame(minHeight: 62)
-                .overlay(alignment: .bottom) {
-                    TokyoNight.borderColor.opacity(0.45).frame(height: 1)
-                }
             }
         }
     }
@@ -219,9 +213,15 @@ private struct GeneralSettingsPanel<Content: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Label(title, systemImage: systemImage)
-                .font(.system(size: 11.5, weight: .regular))
-                .foregroundStyle(TokyoNight.mutedColor)
+            HStack(spacing: 12) {
+                Label(title, systemImage: systemImage)
+                    .font(.system(size: 11.5, weight: .regular))
+                    .foregroundStyle(TokyoNight.mutedColor)
+                    .layoutPriority(1)
+
+                TokyoNight.borderColor.opacity(0.45)
+                    .frame(height: 0.5)
+            }
 
             content
         }
@@ -260,9 +260,6 @@ private struct GeneralToggleRow: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .frame(minHeight: 58)
             .background(isHovered ? TokyoNight.panelColor : .clear)
-            .overlay(alignment: .bottom) {
-                TokyoNight.borderColor.opacity(0.45).frame(height: 1)
-            }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -295,9 +292,6 @@ private struct GeneralOptionRow<Content: View>: View {
         }
         .padding(.vertical, 12)
         .frame(minHeight: 58)
-        .overlay(alignment: .bottom) {
-            TokyoNight.borderColor.opacity(0.45).frame(height: 1)
-        }
     }
 }
 
@@ -381,8 +375,9 @@ private struct GeneralSegmentButton: View {
                 .background(background, in: RoundedRectangle(cornerRadius: 4, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 4, style: .continuous)
-                        .stroke(isSelected ? TokyoNight.blueColor.opacity(0.5) : .clear, lineWidth: 1)
+                        .stroke(isSelected ? TokyoNight.borderColor.opacity(0.65) : .clear, lineWidth: 1)
                 }
+                .shadow(color: .black.opacity(isSelected ? 0.14 : 0), radius: 1, y: 1)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -489,12 +484,12 @@ private struct GeneralActionButtonStyle: ButtonStyle {
             .background(
                 configuration.isPressed
                 ? TokyoNight.selectionColor.opacity(0.72)
-                : (isHovered ? TokyoNight.panelElevatedColor : TokyoNight.panelColor),
+                : (isHovered ? TokyoNight.panelColor : TokyoNight.panelColor.opacity(0.35)),
                 in: RoundedRectangle(cornerRadius: 7, style: .continuous)
             )
             .overlay {
                 RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .stroke(TokyoNight.borderColor.opacity(isHovered ? 0.9 : 0.65), lineWidth: 1)
+                    .stroke(TokyoNight.borderColor.opacity(isHovered ? 0.8 : 0.4), lineWidth: 1)
             }
             .contentShape(Rectangle())
             .onHover { isHovered = $0 }

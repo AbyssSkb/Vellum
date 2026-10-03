@@ -168,11 +168,11 @@ struct PDFOutlineCoordinatorTests {
         )
         let outlineView = makeOutlineView(coordinator: coordinator)
         outlineView.headerView = nil
-        outlineView.intercellSpacing = NSSize(width: 0, height: 3)
-        outlineView.rowHeight = 32
+        outlineView.intercellSpacing = NSSize(width: 0, height: 2)
+        outlineView.rowHeight = 30
         outlineView.rowSizeStyle = .medium
         outlineView.style = .plain
-        let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 280, height: 160))
+        let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 256, height: 160))
         scrollView.hasVerticalScroller = false
         scrollView.hasHorizontalScroller = false
         scrollView.automaticallyAdjustsContentInsets = false

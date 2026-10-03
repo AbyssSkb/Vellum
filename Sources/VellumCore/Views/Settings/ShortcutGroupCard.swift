@@ -5,9 +5,15 @@ struct ShortcutGroupCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Label(group.title, systemImage: group.systemImage)
-                .font(.system(size: 11.5, weight: .regular))
-                .foregroundStyle(TokyoNight.mutedColor)
+            HStack(spacing: 12) {
+                Label(group.title, systemImage: group.systemImage)
+                    .font(.system(size: 11.5, weight: .regular))
+                    .foregroundStyle(TokyoNight.mutedColor)
+                    .layoutPriority(1)
+
+                TokyoNight.borderColor.opacity(0.45)
+                    .frame(height: 0.5)
+            }
 
             VStack(spacing: 0) {
                 ForEach(group.items) { item in
@@ -15,7 +21,7 @@ struct ShortcutGroupCard: View {
 
                     if item.id != group.items.last?.id {
                         TokyoNightDivider(axis: .horizontal)
-                            .opacity(0.75)
+                            .opacity(0.35)
                     }
                 }
             }

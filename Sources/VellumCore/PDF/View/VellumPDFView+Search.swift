@@ -977,11 +977,11 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
         var accentColor: NSColor {
             switch self {
             case .hint:
-                return TokyoNight.border.withAlphaComponent(0.72)
+                return .clear
             case .error:
                 return TokyoNight.red.withAlphaComponent(0.24)
             case .count:
-                return TokyoNight.border.withAlphaComponent(0.72)
+                return .clear
             }
         }
     }
@@ -991,6 +991,7 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
     var onCancel: (() -> Void)?
 
     private let container = NSVisualEffectView()
+    private let inputFocusLine = CALayer()
     private let miniContainer = NSVisualEffectView()
     private let miniLabel = CenteredTextLabel(text: "")
     private let iconView = NSImageView()
@@ -1042,6 +1043,7 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
             width: width,
             height: height
         )
+        inputFocusLine.frame = NSRect(x: 12, y: 1, width: container.bounds.width - 24, height: 1)
 
         let centerY = container.bounds.midY
         iconView.frame = centeredFrame(x: 16, size: NSSize(width: 16, height: 16), in: container.bounds)
@@ -1149,20 +1151,23 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
         container.state = .active
         container.wantsLayer = true
         container.layer?.backgroundColor = TokyoNight.panel.withAlphaComponent(0.98).cgColor
-        container.layer?.borderColor = TokyoNight.border.withAlphaComponent(0.72).cgColor
+        container.layer?.borderColor = TokyoNight.foreground.withAlphaComponent(0.12).cgColor
         container.layer?.borderWidth = 1
         container.layer?.cornerRadius = 8
         container.layer?.shadowColor = NSColor.black.cgColor
         container.layer?.shadowOpacity = 0.18
         container.layer?.shadowRadius = 16
         container.layer?.shadowOffset = NSSize(width: 0, height: 5)
+        inputFocusLine.backgroundColor = TokyoNight.blue.withAlphaComponent(0.7).cgColor
+        inputFocusLine.actions = ["position": NSNull(), "bounds": NSNull()]
+        container.layer?.addSublayer(inputFocusLine)
 
         miniContainer.material = .hudWindow
         miniContainer.blendingMode = .withinWindow
         miniContainer.state = .active
         miniContainer.wantsLayer = true
         miniContainer.layer?.backgroundColor = TokyoNight.panel.withAlphaComponent(0.98).cgColor
-        miniContainer.layer?.borderColor = TokyoNight.border.withAlphaComponent(0.72).cgColor
+        miniContainer.layer?.borderColor = TokyoNight.foreground.withAlphaComponent(0.12).cgColor
         miniContainer.layer?.borderWidth = 1
         miniContainer.layer?.cornerRadius = 8
         miniContainer.layer?.shadowColor = NSColor.black.cgColor
@@ -1187,7 +1192,7 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
         statusPill.state = .active
         statusPill.wantsLayer = true
         statusPill.layer?.backgroundColor = TokyoNight.backgroundDeep.withAlphaComponent(0.94).cgColor
-        statusPill.layer?.borderColor = TokyoNight.border.withAlphaComponent(0.72).cgColor
+        statusPill.layer?.borderColor = currentStatus.accentColor.cgColor
         statusPill.layer?.borderWidth = 1
         statusPill.layer?.cornerRadius = 7
     }

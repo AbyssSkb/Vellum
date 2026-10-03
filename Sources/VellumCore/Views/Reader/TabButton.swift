@@ -12,6 +12,13 @@ struct TabButton: View {
 
     var body: some View {
         HStack(spacing: width < 70 ? 4 : 7) {
+            if width >= 130 {
+                Image(systemName: "doc")
+                    .font(.system(size: 11, weight: .regular))
+                    .foregroundStyle(isSelected ? TokyoNight.blueColor : TokyoNight.mutedColor.opacity(0.65))
+                    .accessibilityHidden(true)
+            }
+
             ClippedTabTitle(title: tab.title, isSelected: isSelected)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .clipped()
@@ -21,7 +28,7 @@ struct TabButton: View {
                     appState.closeSelectedTab()
                 } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 10.5, weight: .bold))
+                        .font(.system(size: 10, weight: .medium))
                         .foregroundStyle(TokyoNight.foregroundColor.opacity(isCloseHovered ? 0.95 : 0.68))
                         .frame(width: 22, height: 22)
                         .background(isCloseHovered ? TokyoNight.selectionColor : .clear,
@@ -60,12 +67,24 @@ struct TabButton: View {
                 ? TokyoNight.backgroundColor
                 : TokyoNight.panelColor.opacity(isHovered ? 0.6 : 0)
         )
+        .overlay {
+            if isSelected {
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .strokeBorder(
+                        LinearGradient(colors: [TokyoNight.foregroundColor.opacity(0.10),
+                                                TokyoNight.foregroundColor.opacity(0.025)],
+                                       startPoint: .top, endPoint: .bottom),
+                        lineWidth: 0.5
+                    )
+                    .allowsHitTesting(false)
+            }
+        }
         .overlay(alignment: .bottom) {
             if isSelected {
                 Rectangle()
                     .fill(TokyoNight.blueColor.opacity(0.8))
-                    .frame(height: 1)
-                    .padding(.horizontal, 10)
+                    .frame(width: 24, height: 1)
+                    .allowsHitTesting(false)
                     .accessibilityHidden(true)
             }
         }

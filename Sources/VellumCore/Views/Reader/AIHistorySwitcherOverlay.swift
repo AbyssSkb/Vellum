@@ -101,7 +101,7 @@ private struct AIHistorySwitcherOverlay: View {
                 searchHeader
 
                 Rectangle()
-                    .fill(TokyoNight.borderColor.opacity(0.52))
+                    .fill(TokyoNight.foregroundColor.opacity(0.06))
                     .frame(height: 1)
 
                 historyList
@@ -116,7 +116,7 @@ private struct AIHistorySwitcherOverlay: View {
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(TokyoNight.borderColor.opacity(0.72), lineWidth: 1)
+                    .strokeBorder(TokyoNight.foregroundColor.opacity(0.12), lineWidth: 1)
                     .allowsHitTesting(false)
             }
             .shadow(color: .black.opacity(0.26), radius: 18, y: 8)
@@ -156,7 +156,7 @@ private struct AIHistorySwitcherOverlay: View {
         }
         .padding(.horizontal, 16)
         .frame(height: 52)
-        .background(TokyoNight.panelColor)
+        .background(TokyoNight.backgroundColor)
     }
 
     private var matchCount: some View {
@@ -412,7 +412,7 @@ private final class AIHistoryTextField: NSTextField {
 
     func configure(placeholder: String) {
         cell = AIHistoryTextFieldCell(textCell: "")
-        font = .systemFont(ofSize: 16, weight: .medium)
+        font = .systemFont(ofSize: 14, weight: .medium)
         textColor = TokyoNight.foreground
         configurePlaceholder(placeholder)
         backgroundColor = .clear
@@ -433,7 +433,7 @@ private final class AIHistoryTextField: NSTextField {
             string: placeholder,
             attributes: [
                 .foregroundColor: TokyoNight.muted.withAlphaComponent(0.92),
-                .font: NSFont.systemFont(ofSize: 16, weight: .regular)
+                .font: NSFont.systemFont(ofSize: 14, weight: .regular)
             ]
         )
     }

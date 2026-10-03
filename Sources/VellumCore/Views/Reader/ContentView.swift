@@ -12,19 +12,37 @@ public struct ContentView: View {
             VStack(spacing: 0) {
                 if appState.hasOpenTabs {
                     TabStrip()
-                    TokyoNightDivider(axis: .horizontal)
                 }
 
                 HStack(spacing: 0) {
                     if appState.isOutlineVisible, appState.hasOpenTabs {
                         OutlineSidebar(tab: appState.selectedTab)
-                            .frame(width: 280)
-                        TokyoNightDivider(axis: .vertical)
+                            .frame(width: 256)
                     }
 
                     ReaderStack()
-                        .clipped()
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .background {
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(TokyoNight.panelColor)
+                                .shadow(color: .black.opacity(0.20), radius: 12, y: 4)
+                        }
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .strokeBorder(
+                                    LinearGradient(colors: [TokyoNight.foregroundColor.opacity(0.10),
+                                                            TokyoNight.foregroundColor.opacity(0.025)],
+                                                   startPoint: .top, endPoint: .bottom),
+                                    lineWidth: 0.5
+                                )
+                                .allowsHitTesting(false)
+                        }
+                        .padding(.trailing, 12)
+                        .padding(.bottom, 12)
+                        .padding(.leading, appState.isOutlineVisible && appState.hasOpenTabs ? 0 : 12)
+                        .padding(.top, 4)
                 }
+                .background(TokyoNight.backgroundDeepColor)
             }
 
             if appState.isTabSwitcherPresented {

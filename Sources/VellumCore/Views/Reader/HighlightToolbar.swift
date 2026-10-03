@@ -15,21 +15,14 @@ struct HighlightToolbar: View {
                     appState.selectHighlightColor(color)
                 } label: {
                     ZStack {
-                        if isHovered {
-                            Circle()
-                                .fill(TokyoNight.panelElevatedColor)
-                                .frame(width: 30, height: 30)
-                        }
-
-                        if isSelected {
-                            Circle()
-                                .stroke(TokyoNight.mutedColor.opacity(0.85), lineWidth: 1)
-                                .frame(width: 22, height: 22)
-                        }
+                        RoundedRectangle(cornerRadius: 5, style: .continuous)
+                            .fill(isSelected ? TokyoNight.selectionColor : isHovered ? TokyoNight.panelElevatedColor : .clear)
+                            .frame(width: 28, height: 28)
 
                         Circle()
                             .fill(color.swatchColor)
-                            .frame(width: isSelected ? 14 : 12, height: isSelected ? 14 : 12)
+                            .frame(width: isSelected ? 12 : 10, height: isSelected ? 12 : 10)
+                            .opacity(isSelected || isHovered ? 1 : 0.68)
                     }
                     .frame(width: 34, height: 34)
                     .contentShape(Rectangle())
@@ -45,6 +38,13 @@ struct HighlightToolbar: View {
             }
         }
         .padding(.horizontal, 7)
+        .frame(height: 34)
+        .background(TokyoNight.backgroundColor, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .strokeBorder(TokyoNight.foregroundColor.opacity(0.05), lineWidth: 0.5)
+                .allowsHitTesting(false)
+        }
         .frame(height: 38)
         .animation(.easeInOut(duration: 0.12), value: hoveredColor)
     }

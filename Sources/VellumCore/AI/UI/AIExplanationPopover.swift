@@ -31,7 +31,7 @@ struct AIExplanationPopoverView: View {
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(TokyoNight.borderColor.opacity(0.72), lineWidth: 1)
+                .strokeBorder(TokyoNight.foregroundColor.opacity(0.12), lineWidth: 1)
                 .allowsHitTesting(false)
         }
         .overlay(alignment: .topTrailing) {

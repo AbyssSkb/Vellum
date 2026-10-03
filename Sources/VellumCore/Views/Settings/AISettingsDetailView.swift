@@ -139,7 +139,7 @@ struct AIProviderSettingsDetailView: View {
 
     private var providerSection: some View {
         SettingsPanel(title: language.text(.provider), systemImage: "building.2") {
-            VStack(alignment: .leading, spacing: 0) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 240), spacing: 8)], spacing: 8) {
                 ForEach(AIProviderPreset.presets) { preset in
                     ProviderPresetRow(
                         preset: preset,
@@ -437,7 +437,7 @@ struct AISettingsDetailView: View {
 
     private var providerSection: some View {
         SettingsPanel(title: language.text(.provider), systemImage: "building.2") {
-            VStack(alignment: .leading, spacing: 0) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 240), spacing: 8)], spacing: 8) {
                 ForEach(AIProviderPreset.presets) { preset in
                     ProviderPresetRow(
                         preset: preset,
@@ -743,9 +743,6 @@ private struct AIPronunciationToggleRow: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .frame(minHeight: 58)
             .background(isHovered ? TokyoNight.panelColor : .clear)
-            .overlay(alignment: .bottom) {
-                TokyoNight.borderColor.opacity(0.45).frame(height: 1)
-            }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -776,9 +773,6 @@ private struct AIPronunciationOptionRow<Content: View>: View {
         }
         .padding(.vertical, 12)
         .frame(minHeight: 58)
-        .overlay(alignment: .bottom) {
-            TokyoNight.borderColor.opacity(0.45).frame(height: 1)
-        }
     }
 }
 
@@ -820,8 +814,9 @@ private struct AIPronunciationSegmentButton: View {
                 .background(background, in: RoundedRectangle(cornerRadius: 4, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 4, style: .continuous)
-                        .stroke(isSelected ? TokyoNight.blueColor.opacity(0.5) : .clear, lineWidth: 1)
+                        .stroke(isSelected ? TokyoNight.borderColor.opacity(0.65) : .clear, lineWidth: 1)
                 }
+                .shadow(color: .black.opacity(isSelected ? 0.14 : 0), radius: 1, y: 1)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -892,9 +887,15 @@ private struct SettingsPanel<Content: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label(title, systemImage: systemImage)
-                .font(.system(size: 11.5, weight: .regular))
-                .foregroundStyle(TokyoNight.mutedColor)
+            HStack(spacing: 12) {
+                Label(title, systemImage: systemImage)
+                    .font(.system(size: 11.5, weight: .regular))
+                    .foregroundStyle(TokyoNight.mutedColor)
+                    .layoutPriority(1)
+
+                TokyoNight.borderColor.opacity(0.45)
+                    .frame(height: 0.5)
+            }
 
             content
         }
@@ -980,7 +981,7 @@ private struct StyledPromptEditor: View {
             .background(TokyoNight.panelColor, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .stroke(isFocused ? TokyoNight.blueColor.opacity(0.8) : TokyoNight.borderColor.opacity(0.7), lineWidth: 1)
+                    .stroke(isFocused ? TokyoNight.blueColor.opacity(0.8) : TokyoNight.borderColor.opacity(0.45), lineWidth: 1)
             }
     }
 }
@@ -1014,7 +1015,7 @@ private extension View {
             .background(TokyoNight.panelColor, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .stroke(isFocused ? TokyoNight.blueColor.opacity(0.8) : TokyoNight.borderColor.opacity(0.7), lineWidth: 1)
+                    .stroke(isFocused ? TokyoNight.blueColor.opacity(0.8) : TokyoNight.borderColor.opacity(0.45), lineWidth: 1)
             }
     }
 }
@@ -1050,13 +1051,27 @@ private struct ProviderPresetRow: View {
                     .opacity(isSelected ? 1 : 0)
                     .accessibilityHidden(true)
             }
-            .padding(.horizontal, 12)
+            .padding(.horizontal, 14)
             .padding(.vertical, 10)
             .frame(maxWidth: .infinity, alignment: .leading)
             .frame(minHeight: 50)
-            .background(isSelected ? TokyoNight.selectionColor : (isHovered ? TokyoNight.panelColor : .clear))
-            .overlay(alignment: .bottom) {
-                TokyoNight.borderColor.opacity(0.45).frame(height: 1)
+            .background(
+                isSelected ? TokyoNight.selectionColor.opacity(0.65) : (isHovered ? TokyoNight.panelColor : .clear),
+                in: RoundedRectangle(cornerRadius: 7, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .stroke(TokyoNight.borderColor.opacity(isSelected ? 0.45 : 0), lineWidth: 1)
+                    .allowsHitTesting(false)
+            }
+            .overlay(alignment: .leading) {
+                if isSelected {
+                    RoundedRectangle(cornerRadius: 1, style: .continuous)
+                        .fill(TokyoNight.blueColor.opacity(0.85))
+                        .frame(width: 2, height: 14)
+                        .padding(.leading, 5)
+                        .allowsHitTesting(false)
+                }
             }
             .contentShape(Rectangle())
         }
@@ -1177,12 +1192,12 @@ private struct SettingsActionButtonStyle: ButtonStyle {
             .background(
                 configuration.isPressed
                 ? TokyoNight.selectionColor.opacity(0.72)
-                : (isHovered ? TokyoNight.panelElevatedColor : TokyoNight.panelColor),
+                : (isHovered ? TokyoNight.panelColor : TokyoNight.panelColor.opacity(0.35)),
                 in: RoundedRectangle(cornerRadius: 7, style: .continuous)
             )
             .overlay {
                 RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .stroke(TokyoNight.borderColor.opacity(isHovered ? 0.9 : 0.65), lineWidth: 1)
+                    .stroke(TokyoNight.borderColor.opacity(isHovered ? 0.8 : 0.4), lineWidth: 1)
             }
             .contentShape(Rectangle())
             .onHover { isHovered = $0 }

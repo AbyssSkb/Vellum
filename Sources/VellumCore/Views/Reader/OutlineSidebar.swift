@@ -11,6 +11,7 @@ struct OutlineSidebar: View {
                 let items = PDFOutlineBuilder.items(for: document, language: language)
                 OutlineSidebarHeader()
                 TokyoNightDivider(axis: .horizontal)
+                    .opacity(0.5)
 
                 if items.isEmpty {
                     OutlinePlaceholder(text: language.text(.noContents))
@@ -27,13 +28,14 @@ struct OutlineSidebar: View {
             } else {
                 OutlineSidebarHeader()
                 TokyoNightDivider(axis: .horizontal)
+                    .opacity(0.5)
                 OutlinePlaceholder(text: language.text(.noDocument))
             }
         }
         .background {
             ZStack {
                 SidebarVisualEffectBackground()
-                TokyoNight.backgroundDeepColor.opacity(0.9)
+                TokyoNight.backgroundDeepColor.opacity(0.97)
             }
         }
     }
@@ -44,14 +46,19 @@ struct OutlineSidebarHeader: View {
 
     var body: some View {
         HStack(spacing: 8) {
+            Image(systemName: "list.bullet")
+                .font(.system(size: 11, weight: .regular))
+                .foregroundStyle(TokyoNight.mutedColor)
+                .accessibilityHidden(true)
+
             Text(language.text(.contents))
-                .font(.system(size: 12, weight: .medium))
+                .font(.system(size: 11.5, weight: .medium))
                 .foregroundStyle(TokyoNight.mutedColor)
 
             Spacer(minLength: 8)
         }
         .padding(.horizontal, 16)
-        .frame(height: 36)
+        .frame(height: 34)
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityAddTraits(.isHeader)
     }

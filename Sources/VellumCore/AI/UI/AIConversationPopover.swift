@@ -247,7 +247,7 @@ struct AIConversationPopoverView: View {
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(TokyoNight.borderColor.opacity(0.72), lineWidth: 1)
+                .strokeBorder(TokyoNight.foregroundColor.opacity(0.12), lineWidth: 1)
                 .allowsHitTesting(false)
         }
         .foregroundStyle(TokyoNight.foregroundColor)
@@ -352,13 +352,12 @@ struct AIConversationPopoverView: View {
             .padding(.bottom, 7)
         }
         .frame(height: model.composerTextHeight)
-        .background(TokyoNight.backgroundColor, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .stroke(
-                    inputIsFocused ? TokyoNight.blueColor.opacity(0.85) : TokyoNight.borderColor.opacity(0.72),
-                    lineWidth: 1
-                )
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(inputIsFocused ? TokyoNight.blueColor.opacity(0.7) : Color.clear)
+                .frame(height: 1)
+                .padding(.horizontal, 12)
+                .allowsHitTesting(false)
         }
         .contentShape(Rectangle())
         .onTapGesture {
@@ -366,7 +365,7 @@ struct AIConversationPopoverView: View {
         }
         .padding(8)
         .frame(height: model.composerHeight)
-        .background(TokyoNight.panelColor)
+        .background(TokyoNight.backgroundColor)
     }
 
     private func sendDraft() {

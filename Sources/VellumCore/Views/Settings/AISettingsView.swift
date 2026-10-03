@@ -136,15 +136,26 @@ private struct SettingsSidebarRow: View {
 
                 Text(section.title(language: language))
                     .font(.system(size: 13, weight: isSelected ? .medium : .regular))
-                    .foregroundStyle(TokyoNight.foregroundColor)
+                    .foregroundStyle(isSelected ? TokyoNight.foregroundColor : TokyoNight.mutedColor)
 
                 Spacer()
             }
             .padding(.horizontal, 10)
             .frame(maxWidth: .infinity, alignment: .leading)
             .frame(height: 34)
-            .background(isSelected ? TokyoNight.selectionColor : (isHovered ? TokyoNight.panelColor : .clear))
-            .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+            .background(
+                isSelected ? TokyoNight.selectionColor.opacity(0.65) : (isHovered ? TokyoNight.panelColor : .clear),
+                in: RoundedRectangle(cornerRadius: 7, style: .continuous)
+            )
+            .overlay(alignment: .leading) {
+                if isSelected {
+                    RoundedRectangle(cornerRadius: 1, style: .continuous)
+                        .fill(TokyoNight.blueColor.opacity(0.85))
+                        .frame(width: 2, height: 12)
+                        .padding(.leading, 3)
+                        .allowsHitTesting(false)
+                }
+            }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
