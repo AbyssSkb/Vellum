@@ -15,13 +15,19 @@ struct HighlightToolbar: View {
                     appState.selectHighlightColor(color)
                 } label: {
                     ZStack {
-                        RoundedRectangle(cornerRadius: 5, style: .continuous)
-                            .fill(isSelected ? TokyoNight.selectionColor : isHovered ? TokyoNight.panelElevatedColor : .clear)
+                        Circle()
+                            .fill(isHovered ? TokyoNight.panelElevatedColor : .clear)
                             .frame(width: 28, height: 28)
+
+                        if isSelected {
+                            Circle()
+                                .strokeBorder(TokyoNight.mutedColor.opacity(0.85), lineWidth: 1)
+                                .frame(width: 22, height: 22)
+                        }
 
                         Circle()
                             .fill(color.swatchColor)
-                            .frame(width: isSelected ? 12 : 10, height: isSelected ? 12 : 10)
+                            .frame(width: isSelected ? 14 : 12, height: isSelected ? 14 : 12)
                             .opacity(isSelected || isHovered ? 1 : 0.68)
                     }
                     .frame(width: 34, height: 34)
