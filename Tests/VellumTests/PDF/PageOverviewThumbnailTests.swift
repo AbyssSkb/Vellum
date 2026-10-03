@@ -7,6 +7,61 @@ import Testing
 struct PageOverviewThumbnailTests {
     @Test
     @MainActor
+    func retinaThumbnailKeepsFinePDFDetailAtItsActualPixelSize() async throws {
+        let document = try #require(PDFDocument(data: Self.makePDFData(pageCount: 1, drawFineLine: true)))
+        let loader = PageOverviewThumbnailLoader()
+        await withCheckedContinuation { continuation in
+            loader.update(document: document, pageIndexes: [0], selectedIndex: 0,
+                          maximumPixelSize: NSSize(width: 1224, height: 1584)) { continuation.resume() }
+        }
+        let image = try #require(loader.images[0])
+        let bitmap = try #require(image.representations.first as? NSBitmapImageRep)
+        #expect(bitmap.pixelsWide == 1224)
+        #expect(bitmap.pixelsHigh == 1584)
+        // A half-point PDF line is one black pixel at 2x, with white neighbors.
+        // A low-resolution snapshot scaled up to Retina blurs it across two gray pixels.
+        let line = try #require(bitmap.colorAt(x: 100, y: 1400)?.usingColorSpace(.sRGB))
+        let left = try #require(bitmap.colorAt(x: 99, y: 1400)?.usingColorSpace(.sRGB))
+        let right = try #require(bitmap.colorAt(x: 101, y: 1400)?.usingColorSpace(.sRGB))
+        #expect(line.redComponent < 0.1)
+        #expect(left.redComponent > 0.9)
+        #expect(right.redComponent > 0.9)
+    }
+
+    @Test
+    @MainActor
+    func increasingDisplayPixelsUpgradesCachedImagesAndSmallerViewsReuseThem() async throws {
+        let document = try #require(PDFDocument(data: Self.makePDFData(pageCount: 1)))
+        let queue = OperationQueue()
+        let loader = PageOverviewThumbnailLoader(queue: queue)
+        await withCheckedContinuation { continuation in
+            loader.update(document: document, pageIndexes: [0], selectedIndex: 0,
+                          maximumPixelSize: NSSize(width: 612, height: 792)) { continuation.resume() }
+        }
+        let original = try #require(loader.images[0])
+        await withCheckedContinuation { continuation in
+            loader.update(document: document, pageIndexes: [0], selectedIndex: 0,
+                          maximumPixelSize: NSSize(width: 1224, height: 1584)) { continuation.resume() }
+            // Keep the previous preview visible while its larger replacement is generated.
+            #expect(loader.images[0] === original)
+        }
+        let upgraded = try #require(loader.images[0])
+        #expect(upgraded !== original)
+        #expect(upgraded.representations.first?.pixelsWide == 1224)
+        #expect(upgraded.representations.first?.pixelsHigh == 1584)
+
+        for size in [NSSize(width: 1224, height: 1584), NSSize(width: 612, height: 792)] {
+            loader.update(document: document, pageIndexes: [0], selectedIndex: 0, maximumPixelSize: size) {
+                Issue.record("An adequate cached thumbnail was rendered again")
+            }
+            Self.finishBackgroundWork(in: queue)
+            await drainMainQueue()
+            #expect(loader.images[0] === upgraded)
+        }
+    }
+
+    @Test
+    @MainActor
     func renderingUsesAnIndependentPageOffMainWithCurrentCropAndRotation() async throws {
         let data = try Self.makePDFData(pageCount: 1)
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("overview-\(UUID()).pdf")
@@ -35,7 +90,7 @@ struct PageOverviewThumbnailTests {
         }
 
         await withCheckedContinuation { continuation in
-            loader.update(document: document, pageIndexes: [0], selectedIndex: 0) {
+            loader.update(document: document, pageIndexes: [0], selectedIndex: 0, maximumPixelSize: NSSize(width: 960, height: 630)) {
                 continuation.resume()
             }
         }
@@ -92,7 +147,7 @@ struct PageOverviewThumbnailTests {
             return NSImage(size: size)
         }
         await withCheckedContinuation { continuation in
-            loader.update(document: document, pageIndexes: [0], selectedIndex: 0) { continuation.resume() }
+            loader.update(document: document, pageIndexes: [0], selectedIndex: 0, maximumPixelSize: NSSize(width: 960, height: 630)) { continuation.resume() }
         }
         #expect(loader.images[0] != nil)
     }
@@ -176,7 +231,7 @@ struct PageOverviewThumbnailTests {
         }
 
         await withCheckedContinuation { continuation in
-            loader.update(document: document, pageIndexes: [0], selectedIndex: 0) {
+            loader.update(document: document, pageIndexes: [0], selectedIndex: 0, maximumPixelSize: NSSize(width: 960, height: 630)) {
                 continuation.resume()
             }
         }
@@ -195,7 +250,7 @@ struct PageOverviewThumbnailTests {
         let loader = PageOverviewThumbnailLoader { _, size in NSImage(size: size) }
         for index in 0..<24 {
             await withCheckedContinuation { continuation in
-                loader.update(document: document, pageIndexes: [index], selectedIndex: index) {
+                loader.update(document: document, pageIndexes: [index], selectedIndex: index, maximumPixelSize: NSSize(width: 960, height: 630)) {
                     continuation.resume()
                 }
             }
@@ -214,7 +269,7 @@ struct PageOverviewThumbnailTests {
             #expect(!Thread.isMainThread)
             return NSImage(size: size)
         }
-        loader.update(document: document, pageIndexes: [0], selectedIndex: 0) {
+        loader.update(document: document, pageIndexes: [0], selectedIndex: 0, maximumPixelSize: NSSize(width: 960, height: 630)) {
             Issue.record("A stale thumbnail reached the overview")
         }
         // Keep only main delivery pending; the worker returns and releases PDFKit resources.
@@ -226,7 +281,7 @@ struct PageOverviewThumbnailTests {
             #expect(loader.images.isEmpty)
         } else {
             await withCheckedContinuation { continuation in
-                loader.update(document: document, pageIndexes: [1], selectedIndex: 1) {
+                loader.update(document: document, pageIndexes: [1], selectedIndex: 1, maximumPixelSize: NSSize(width: 960, height: 630)) {
                     continuation.resume()
                 }
             }
@@ -246,13 +301,17 @@ struct PageOverviewThumbnailTests {
         }
     }
 
-    private static func makePDFData(pageCount: Int) throws -> Data {
+    private static func makePDFData(pageCount: Int, drawFineLine: Bool = false) throws -> Data {
         let data = NSMutableData()
         var mediaBox = CGRect(x: 0, y: 0, width: 612, height: 792)
         let consumer = try #require(CGDataConsumer(data: data as CFMutableData))
         let context = try #require(CGContext(consumer: consumer, mediaBox: &mediaBox, nil))
         for _ in 0..<pageCount {
             context.beginPDFPage(nil)
+            if drawFineLine {
+                context.setFillColor(NSColor.black.cgColor)
+                context.fill(CGRect(x: 50, y: 50, width: 0.5, height: 100))
+            }
             context.endPDFPage()
         }
         context.closePDF()

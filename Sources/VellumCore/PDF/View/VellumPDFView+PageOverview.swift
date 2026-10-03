@@ -160,6 +160,21 @@ final class PageOverviewOverlayView: NSView {
         removeFromSuperview()
     }
 
+    override func setFrameSize(_ newSize: NSSize) {
+        super.setFrameSize(newSize)
+        updateThumbnails()
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        updateThumbnails()
+    }
+
+    override func viewDidChangeBackingProperties() {
+        super.viewDidChangeBackingProperties()
+        updateThumbnails()
+    }
+
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
 
@@ -193,11 +208,21 @@ final class PageOverviewOverlayView: NSView {
             pageCount: document.pageCount,
             visibleCount: visibleCount
         )
+        updateThumbnails()
+    }
 
+    private func updateThumbnails() {
+        guard let window, bounds.width > 24, bounds.height > 24 else { return }
+        let slotRect = cellRect(at: 0, panelRect: gridPanelRect())
+        let scale = window.backingScaleFactor
         thumbnails.update(
             document: document,
             pageIndexes: visibleSlots.compactMap(\.self),
-            selectedIndex: selectedIndex
+            selectedIndex: selectedIndex,
+            maximumPixelSize: NSSize(
+                width: max(1, (slotRect.width - 12) * scale),
+                height: max(1, (slotRect.height - 38) * scale)
+            )
         ) { [weak self] in
             self?.needsDisplay = true
         }
@@ -327,7 +352,10 @@ final class PageOverviewOverlayView: NSView {
 
         NSColor.white.withAlphaComponent(0.96).setFill()
         NSBezierPath(roundedRect: fittedRect.insetBy(dx: -1, dy: -1), xRadius: 4, yRadius: 4).fill()
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current?.imageInterpolation = .high
         image.draw(in: fittedRect, from: .zero, operation: .sourceOver, fraction: 1)
+        NSGraphicsContext.restoreGraphicsState()
     }
 
     private func drawPageNumber(_ pageNumber: Int, in rect: NSRect) {

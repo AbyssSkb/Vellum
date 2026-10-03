@@ -18,17 +18,25 @@ final class PageOverviewThumbnailLoader {
         let highlights: [PDFAnnotation]
         let popups: [PDFPopupSnapshot]
         let data: Data?
+        let pixelSize: NSSize
     }
 
     private let queue: OperationQueue
     private let render: @Sendable (PDFPage, NSSize) -> NSImage
     private var generation = 0
     private(set) var images: [Int: NSImage] = [:]
+    private var imagePixelSizes: [Int: NSSize] = [:]
 
     init(
         queue: OperationQueue = OperationQueue(),
         render: @escaping @Sendable (PDFPage, NSSize) -> NSImage = { page, size in
-            page.thumbnail(of: size, for: .cropBox)
+            let thumbnail = page.thumbnail(of: size, for: .cropBox)
+            guard let bitmap = thumbnail.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return thumbnail }
+            // Materialize the requested pixels: PDFKit's snapshot representation can
+            // advertise a 2x size while scaling a lower-resolution raster during drawing.
+            let image = NSImage(size: thumbnail.size)
+            image.addRepresentation(NSBitmapImageRep(cgImage: bitmap))
+            return image
         }
     ) {
         self.queue = queue
@@ -45,16 +53,26 @@ final class PageOverviewThumbnailLoader {
         document: PDFDocument,
         pageIndexes: [Int],
         selectedIndex: Int,
+        maximumPixelSize: NSSize,
         didLoad: @escaping @MainActor @Sendable () -> Void
     ) {
         cancel()
         // Retain at most nine nearby pages while moving through a long document.
         images = images.filter { abs($0.key - selectedIndex) <= 4 }
+        imagePixelSizes = imagePixelSizes.filter { images[$0.key] != nil }
         let url = document.documentURL
         let requests = pageIndexes.compactMap { index -> Request? in
             guard abs(index - selectedIndex) <= 4,
-                  images[index] == nil,
                   let page = document.page(at: index) else { return nil }
+            let size = PDFPageDisplayGeometry(page: page, box: .cropBox).bounds.size
+            guard size.width > 0, size.height > 0,
+                  maximumPixelSize.width > 0, maximumPixelSize.height > 0 else { return nil }
+            let scale = min(maximumPixelSize.width / size.width, maximumPixelSize.height / size.height)
+            let pixelSize = NSSize(width: ceil(size.width * scale), height: ceil(size.height * scale))
+            if let cachedSize = imagePixelSizes[index],
+               cachedSize.width + 1 >= pixelSize.width, cachedSize.height + 1 >= pixelSize.height {
+                return nil
+            }
             return Request(
                 index: index,
                 rotation: page.rotation,
@@ -67,7 +85,8 @@ final class PageOverviewThumbnailLoader {
                 },
                 popups: PDFPopupSnapshot.capture(from: page),
                 // In-memory documents need only the requested page, never the entire PDF.
-                data: url == nil && !document.isEncrypted ? page.dataRepresentation : nil
+                data: url == nil && !document.isEncrypted ? page.dataRepresentation : nil,
+                pixelSize: pixelSize
             )
         }
         guard !requests.isEmpty else { return }
@@ -104,15 +123,13 @@ final class PageOverviewThumbnailLoader {
                     }
                     for highlight in request.highlights { page.addAnnotation(highlight) }
 
-                    let size = PDFPageDisplayGeometry(page: page, box: .cropBox).bounds.size
-                    guard size.width > 0, size.height > 0 else { return nil }
-                    let scale = min(960 / size.width, 630 / size.height)
-                    return renderer(page, NSSize(width: size.width * scale, height: size.height * scale))
+                    return renderer(page, request.pixelSize)
                 }
                 guard let image, operation?.isCancelled == false else { continue }
                 DispatchQueue.main.async { [weak self] in
                     guard let self, self.generation == currentGeneration else { return }
                     self.images[request.index] = image
+                    self.imagePixelSizes[request.index] = Self.pixelSize(of: image)
                     didLoad()
                 }
             }
@@ -123,5 +140,12 @@ final class PageOverviewThumbnailLoader {
     func cancel() {
         generation &+= 1
         queue.cancelAllOperations()
+    }
+
+    private nonisolated static func pixelSize(of image: NSImage) -> NSSize {
+        NSSize(
+            width: image.representations.map(\.pixelsWide).max().map { CGFloat($0) } ?? image.size.width,
+            height: image.representations.map(\.pixelsHigh).max().map { CGFloat($0) } ?? image.size.height
+        )
     }
 }
