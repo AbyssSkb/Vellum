@@ -78,6 +78,7 @@ public enum AppText {
     case codexConnectionClosed
     case codexInvalidCompletionStatus
     case outlinePage(Int)
+    case outlinePageCount(Int)
     case sidebarOpen
     case sidebarClosed
     case manualUpdateInstallDetail
@@ -314,6 +315,7 @@ public extension AppText {
         case .codexConnectionClosed: return "Codex App Server connection closed."
         case .codexInvalidCompletionStatus: return "Codex App Server returned an invalid completion status."
         case .outlinePage(let number): return "Page \(number)"
+        case .outlinePageCount(let count): return count == 1 ? "1 page" : "\(count) pages"
         case .sidebarOpen: return "Open"
         case .sidebarClosed: return "Closed"
         case .manualUpdateInstallDetail: return "The update was downloaded, but Vellum could not replace the installed app. Open the disk image and install it manually."
@@ -541,6 +543,7 @@ public extension AppText {
         case .codexConnectionClosed: return "Codex App Server 连接已关闭。"
         case .codexInvalidCompletionStatus: return "Codex App Server 返回了无效的完成状态。"
         case .outlinePage(let number): return "第 \(number) 页"
+        case .outlinePageCount(let count): return "\(count) 页"
         case .sidebarOpen: return "已展开"
         case .sidebarClosed: return "已收起"
         case .manualUpdateInstallDetail: return "更新已下载，但 Vellum 无法替换已安装的应用。请打开磁盘映像手动安装。"

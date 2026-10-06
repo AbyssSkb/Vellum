@@ -118,10 +118,15 @@ enum ShortcutCatalog {
             title: "Contents",
             systemImage: "list.bullet.indent",
             items: [
-                ShortcutItem(keys: ["j", "k"], action: "Move outline selection"),
-                ShortcutItem(keys: ["h", "l"], action: "Collapse or expand"),
+                ShortcutItem(keys: ["j", "k", "[num]j", "[num]k"], action: "Move outline selection"),
+                ShortcutItem(keys: ["h", "l"], action: "Collapse or parent; expand or child"),
+                ShortcutItem(keys: ["gg", "G", "[num]G", "[num]gg"], action: "Select first, last, or numbered row"),
+                ShortcutItem(keys: ["d", "u"], action: "Move half a viewport"),
+                ShortcutItem(keys: ["D", "U", "f", "b", "Space"], action: "Move a full viewport"),
+                ShortcutItem(keys: ["zO", "zC"], action: "Expand or collapse selected branch"),
+                ShortcutItem(keys: ["zR", "zM"], action: "Expand or collapse all branches"),
                 ShortcutItem(keys: ["Enter"], action: "Jump to selected item"),
-                ShortcutItem(keys: ["Tab"], action: "Hide contents")
+                ShortcutItem(keys: ["Esc", "Tab", "t"], action: "Hide contents and focus reader")
             ]
         )
     ]
@@ -233,10 +238,15 @@ enum ShortcutCatalog {
             title: "目录",
             systemImage: "list.bullet.indent",
             items: [
-                ShortcutItem(keys: ["j", "k"], action: "移动目录选择"),
-                ShortcutItem(keys: ["h", "l"], action: "折叠或展开"),
+                ShortcutItem(keys: ["j", "k", "[num]j", "[num]k"], action: "移动目录选择"),
+                ShortcutItem(keys: ["h", "l"], action: "折叠或返回父项；展开或进入子项"),
+                ShortcutItem(keys: ["gg", "G", "[num]G", "[num]gg"], action: "选择首行、末行或指定行"),
+                ShortcutItem(keys: ["d", "u"], action: "移动半个可见区域"),
+                ShortcutItem(keys: ["D", "U", "f", "b", "Space"], action: "移动一个可见区域"),
+                ShortcutItem(keys: ["zO", "zC"], action: "展开或折叠选中分支"),
+                ShortcutItem(keys: ["zR", "zM"], action: "展开或折叠全部分支"),
                 ShortcutItem(keys: ["Enter"], action: "跳到选中的条目"),
-                ShortcutItem(keys: ["Tab"], action: "隐藏目录")
+                ShortcutItem(keys: ["Esc", "Tab", "t"], action: "隐藏目录并聚焦阅读器")
             ]
         )
     ]

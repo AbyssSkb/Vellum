@@ -2,6 +2,7 @@
 import PDFKit
 
 final class PDFOutlineCellView: NSTableCellView {
+    let titleView = PDFOutlineTitleView()
     let pageNumberField = NSTextField(labelWithString: "")
 }
 
@@ -116,7 +117,7 @@ extension PDFOutlineView {
                 owner: self
             ) as? PDFOutlineCellView ?? makeCell()
 
-            cell.textField?.stringValue = item.title
+            cell.titleView.title = item.title
             cell.pageNumberField.stringValue = item.pageIndex.map { String($0 + 1) } ?? ""
             cell.pageNumberField.isHidden = item.pageIndex == nil
             if let pageIndex = item.pageIndex {
@@ -128,12 +129,14 @@ extension PDFOutlineView {
         }
 
         func outlineView(_ outlineView: NSOutlineView, heightOfRowByItem item: Any) -> CGFloat {
-            30
+            (item as? PDFOutlineItem)?.parent == nil ? 34 : 28
         }
 
         func outlineView(_ outlineView: NSOutlineView, rowViewForItem item: Any) -> NSTableRowView? {
             let row = TokyoNightOutlineRowView()
-            row.contentIndent = CGFloat(outlineView.level(forItem: item)) * outlineView.indentationPerLevel
+            row.hierarchyLevel = outlineView.level(forItem: item)
+            row.levelIndent = outlineView.indentationPerLevel
+            row.contentIndent = CGFloat(row.hierarchyLevel) * row.levelIndent
             row.isBranch = (item as? PDFOutlineItem)?.children.isEmpty == false
             return row
         }
@@ -146,25 +149,27 @@ extension PDFOutlineView {
             let cell = PDFOutlineCellView()
             cell.identifier = Self.cellIdentifier
 
-            let textField = NSTextField(labelWithString: "")
-            textField.translatesAutoresizingMaskIntoConstraints = false
+            let titleView = cell.titleView
+            titleView.translatesAutoresizingMaskIntoConstraints = false
+            let textField = titleView.textField
             textField.lineBreakMode = .byTruncatingTail
             textField.maximumNumberOfLines = 1
             textField.font = .systemFont(ofSize: 13, weight: .regular)
             textField.textColor = TokyoNight.muted
             textField.backgroundColor = .clear
-            textField.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+            titleView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
             cell.textField = textField
 
             let pageNumberField = cell.pageNumberField
             pageNumberField.translatesAutoresizingMaskIntoConstraints = false
             pageNumberField.font = .monospacedDigitSystemFont(ofSize: 10.5, weight: .regular)
+            pageNumberField.alignment = .right
             pageNumberField.textColor = TokyoNight.muted
             pageNumberField.setContentHuggingPriority(.required, for: .horizontal)
             pageNumberField.setContentCompressionResistancePriority(.required, for: .horizontal)
 
-            let stack = NSStackView(views: [textField, pageNumberField])
+            let stack = NSStackView(views: [titleView, pageNumberField])
             stack.translatesAutoresizingMaskIntoConstraints = false
             stack.orientation = .horizontal
             stack.distribution = .fill

@@ -39,6 +39,7 @@ struct PDFOutlineCoordinatorTests {
         let outline = try #require(descendants(host).compactMap { $0 as? PDFOutlineKeyView }.first)
         let firstCell = try #require(outline.view(atColumn: 0, row: 0, makeIfNecessary: true) as? PDFOutlineCellView)
         host.layoutSubtreeIfNeeded()
+        let titleWidth = firstCell.titleView.bounds.width
         let pageRight = firstCell.pageNumberField.convert(firstCell.pageNumberField.bounds, to: outline).maxX
         let firstFrame = outline.frameOfCell(atColumn: 0, row: 0)
 
@@ -47,6 +48,7 @@ struct PDFOutlineCoordinatorTests {
         try await Task.sleep(for: .milliseconds(30))
         host.layoutSubtreeIfNeeded()
         #expect(outline.frameOfCell(atColumn: 0, row: 0) == firstFrame)
+        #expect(firstCell.titleView.bounds.width == titleWidth)
         #expect(firstCell.pageNumberField.convert(firstCell.pageNumberField.bounds, to: outline).maxX == pageRight)
         let rowIndex = outline.row(forItem: grandchild)
         outline.selectRowIndexes(IndexSet(integer: rowIndex), byExtendingSelection: false)

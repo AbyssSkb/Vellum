@@ -4,6 +4,8 @@ final class TokyoNightOutlineRowView: NSTableRowView {
     private static let horizontalInset: CGFloat = 10
     var contentIndent: CGFloat = 0
     var isBranch = false
+    var hierarchyLevel = 0
+    var levelIndent: CGFloat = 14
     private var mouseInside = false {
         didSet { needsDisplay = true }
     }
@@ -47,6 +49,10 @@ final class TokyoNightOutlineRowView: NSTableRowView {
     }
 
     override func drawBackground(in dirtyRect: NSRect) {
+        TokyoNight.border.withAlphaComponent(0.65).setFill()
+        for level in 0..<hierarchyLevel {
+            NSRect(x: 14 + CGFloat(level) * levelIndent, y: 0, width: 0.5, height: bounds.height).fill()
+        }
         if mouseInside && !isSelected {
             let hoverRect = roundedBackgroundRect()
             let path = NSBezierPath(roundedRect: hoverRect, xRadius: 5, yRadius: 5)
@@ -73,10 +79,15 @@ final class TokyoNightOutlineRowView: NSTableRowView {
 
     private func updateTextAppearance() {
         for case let cell as NSTableCellView in subviews {
-            cell.textField?.font = .systemFont(ofSize: 13, weight: isSelected ? .medium : .regular)
-            cell.textField?.textColor = isSelected ? TokyoNight.foreground : TokyoNight.muted
+            let isRoot = hierarchyLevel == 0
+            cell.textField?.font = .systemFont(ofSize: isRoot ? 13 : 12.5,
+                                              weight: isSelected || isRoot || isBranch ? .medium : .regular)
+            cell.textField?.textColor = isSelected ? TokyoNight.foreground : isRoot
+                ? TokyoNight.foreground.withAlphaComponent(0.9) : isBranch
+                ? TokyoNight.foreground.withAlphaComponent(0.8) : TokyoNight.muted
+            (cell as? PDFOutlineCellView)?.titleView.isSelected = isSelected
             (cell as? PDFOutlineCellView)?.pageNumberField.textColor = isSelected
-                ? TokyoNight.foreground.withAlphaComponent(0.7) : TokyoNight.muted
+                ? TokyoNight.foreground.withAlphaComponent(0.75) : TokyoNight.muted.withAlphaComponent(0.8)
         }
     }
 

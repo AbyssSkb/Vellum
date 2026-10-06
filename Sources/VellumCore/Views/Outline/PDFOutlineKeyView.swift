@@ -2,6 +2,23 @@
 
 final class PDFOutlineKeyView: NSOutlineView {
     weak var appState: AppState?
+    private var keyState = VimKeyState()
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        for name in [NSApplication.willResignActiveNotification, NSWindow.didResignKeyNotification] {
+            NotificationCenter.default.addObserver(self, selector: #selector(clearPendingOutlineInput), name: name, object: nil)
+        }
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    @objc private func clearPendingOutlineInput(_ notification: Notification) {
+        if let changedWindow = notification.object as? NSWindow, changedWindow !== window { return }
+        keyState.clearPendingInput()
+    }
 
     override var acceptsFirstResponder: Bool { true }
 
@@ -24,6 +41,17 @@ final class PDFOutlineKeyView: NSOutlineView {
 
     func focus() {
         window?.makeFirstResponder(self)
+    }
+
+    override func resignFirstResponder() -> Bool {
+        let resigned = super.resignFirstResponder()
+        if resigned { keyState.clearPendingInput() }
+        return resigned
+    }
+
+    override func reloadData() {
+        keyState.clearPendingInput()
+        super.reloadData()
     }
 
     override func scrollRowToVisible(_ row: Int) {
@@ -53,38 +81,107 @@ final class PDFOutlineKeyView: NSOutlineView {
     }
 
     private func handleOutlineKey(_ event: NSEvent) -> Bool {
-        guard event.type == .keyDown else { return false }
-
-        if event.keyCode == 48 || event.charactersIgnoringModifiers == "\t" {
-            appState?.toggleOutlineSidebar()
-            return true
-        }
-
-        if event.keyCode == 36 || event.keyCode == 76 {
-            activateSelectedItem()
-            return true
-        }
-
-        guard event.modifierFlags.intersection([.command, .control, .option]).isEmpty else {
+        guard event.type == .keyDown,
+              event.modifierFlags.intersection([.command, .control, .option]).isEmpty else {
+            keyState.clearPendingInput()
             return false
         }
 
         let isShifted = event.modifierFlags.contains(.shift)
-        let key = event.charactersIgnoringModifiers?.lowercased()
+        let key = event.charactersIgnoringModifiers?.lowercased() ?? ""
+        let isDigit = !isShifted && key.count == 1 && "0123456789".contains(key)
+        let hidesSidebar = event.keyCode == 48 || event.keyCode == 53
+            || key == "\t" || key == "\u{1b}" || (key == "t" && !isShifted)
+        let activatesItem = event.keyCode == 36 || event.keyCode == 76
+
+        if event.isARepeat && (isDigit || key == "g" || key == "z" || hidesSidebar || activatesItem) {
+            return true
+        }
+
+        if hidesSidebar {
+            keyState.clearPendingInput()
+            if appState?.isOutlineVisible == true {
+                appState?.toggleOutlineSidebar()
+            } else {
+                appState?.focusReaderSoon()
+            }
+            return true
+        }
+
+        if activatesItem {
+            keyState.clearPendingInput()
+            activateSelectedItem()
+            focus()
+            return true
+        }
+
+        if isDigit && keyState.handleNumericPrefixKey(key) {
+            keyState.numericPrefix = String(min(Int(keyState.numericPrefix) ?? Int.max, max(1, numberOfRows)))
+            return true
+        }
+
+        if key == "g" && !isShifted {
+            if keyState.pendingKey == "g" {
+                selectRow((keyState.consumeNumericPrefix() ?? 1) - 1)
+                keyState.clearPendingInput()
+            } else {
+                keyState.pendingKey = "g"
+            }
+            return true
+        }
+
+        if keyState.pendingKey == "z", isShifted, ["o", "c", "r", "m"].contains(key) {
+            keyState.clearPendingInput()
+            switch key {
+            case "o": if let item = selectedOutlineItem { expandItem(item, expandChildren: true) }
+            case "c": if let item = selectedOutlineItem { collapseItem(item, collapseChildren: true) }
+            case "r": expandItem(nil, expandChildren: true)
+            default: collapseItem(nil, collapseChildren: true)
+            }
+            return true
+        }
+
+        if key == "z" && !isShifted {
+            keyState.clearPendingInput()
+            keyState.pendingKey = "z"
+            return true
+        }
+
+        let count = keyState.consumeNumericPrefix()
+        keyState.clearPendingInput()
+
+        switch event.keyCode {
+        case 125: moveSelection(by: 1, count: count ?? 1)
+        case 126: moveSelection(by: -1, count: count ?? 1)
+        case 123: collapseSelectedItem()
+        case 124: expandSelectedItem()
+        case 115: selectRow(0)
+        case 119: selectRow(numberOfRows - 1)
+        case 116: moveSelectionByViewport(direction: -1, count: count ?? 1)
+        case 121: moveSelectionByViewport(direction: 1, count: count ?? 1)
+        default: break
+        }
+        if [123, 124, 125, 126, 115, 119, 116, 121].contains(event.keyCode) { return true }
 
         switch key {
-        case "t" where !isShifted:
-            if !event.isARepeat {
-                appState?.toggleOutlineSidebar()
-            }
         case "j" where !isShifted:
-            moveSelection(by: 1)
+            moveSelection(by: 1, count: count ?? 1)
         case "k" where !isShifted:
-            moveSelection(by: -1)
+            moveSelection(by: -1, count: count ?? 1)
         case "h" where !isShifted:
             collapseSelectedItem()
         case "l" where !isShifted:
             expandSelectedItem()
+        case "g" where isShifted:
+            selectRow((count ?? numberOfRows) - 1)
+        case "d", "u":
+            moveSelectionByViewport(direction: key == "d" ? 1 : -1, count: count ?? 1,
+                                    fraction: isShifted ? 1 : 0.5)
+        case "f", "b":
+            guard !isShifted else { return false }
+            moveSelectionByViewport(direction: key == "f" ? 1 : -1, count: count ?? 1)
+        case " ":
+            moveSelectionByViewport(direction: 1, count: count ?? 1)
         default:
             return false
         }
@@ -92,15 +189,32 @@ final class PDFOutlineKeyView: NSOutlineView {
         return true
     }
 
-    private func moveSelection(by delta: Int) {
+    private func moveSelectionByViewport(direction: Int, count: Int = 1, fraction: CGFloat = 1) {
+        guard numberOfRows > 0 else { return }
+        let startingRow = max(0, selectedRow)
+        let targetY = rect(ofRow: startingRow).midY + CGFloat(direction * count) * visibleRect.height * fraction
+        let targetRow = row(at: NSPoint(x: 0, y: targetY))
+        selectRow(targetRow >= 0 ? targetRow : direction > 0 ? numberOfRows - 1 : 0)
+    }
+
+    private func moveSelection(by direction: Int, count: Int = 1) {
         guard numberOfRows > 0 else { return }
 
         let startingRow = selectedRow >= 0
             ? selectedRow
-            : (delta > 0 ? -1 : numberOfRows)
-        let nextRow = min(max(startingRow + delta, 0), numberOfRows - 1)
-        selectRowIndexes(IndexSet(integer: nextRow), byExtendingSelection: false)
-        scrollRowToVisible(nextRow)
+            : (direction > 0 ? -1 : numberOfRows)
+        let distance = min(count, numberOfRows)
+        let nextRow = direction > 0
+            ? startingRow + min(distance, numberOfRows - 1 - startingRow)
+            : startingRow - min(distance, startingRow)
+        selectRow(nextRow)
+    }
+
+    private func selectRow(_ row: Int) {
+        guard numberOfRows > 0 else { return }
+        let clampedRow = min(max(row, 0), numberOfRows - 1)
+        selectRowIndexes(IndexSet(integer: clampedRow), byExtendingSelection: false)
+        scrollRowToVisible(clampedRow)
     }
 
     private func collapseSelectedItem() {
@@ -119,8 +233,12 @@ final class PDFOutlineKeyView: NSOutlineView {
     }
 
     private func expandSelectedItem() {
-        guard let item = selectedOutlineItem, !item.children.isEmpty else { return }
-        expandItem(item)
+        guard let item = selectedOutlineItem, let child = item.children.first else { return }
+        if isItemExpanded(item) {
+            selectRow(row(forItem: child))
+        } else {
+            expandItem(item)
+        }
     }
 
     private func activateSelectedItem() {
