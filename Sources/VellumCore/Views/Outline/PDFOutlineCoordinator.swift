@@ -138,7 +138,16 @@ extension PDFOutlineView {
             row.levelIndent = outlineView.indentationPerLevel
             row.contentIndent = CGFloat(row.hierarchyLevel) * row.levelIndent
             row.isBranch = (item as? PDFOutlineItem)?.children.isEmpty == false
+            row.outlineItem = item as? PDFOutlineItem
             return row
+        }
+
+        func outlineViewItemDidExpand(_ notification: Notification) {
+            (notification.object as? NSOutlineView)?.enumerateAvailableRowViews { row, _ in row.needsDisplay = true }
+        }
+
+        func outlineViewItemDidCollapse(_ notification: Notification) {
+            (notification.object as? NSOutlineView)?.enumerateAvailableRowViews { row, _ in row.needsDisplay = true }
         }
 
         @objc func doubleClick(_ sender: NSOutlineView) {

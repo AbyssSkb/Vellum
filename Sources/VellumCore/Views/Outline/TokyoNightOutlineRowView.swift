@@ -6,6 +6,7 @@ final class TokyoNightOutlineRowView: NSTableRowView {
     var isBranch = false
     var hierarchyLevel = 0
     var levelIndent: CGFloat = 14
+    weak var outlineItem: PDFOutlineItem?
     private var mouseInside = false {
         didSet { needsDisplay = true }
     }
@@ -49,16 +50,61 @@ final class TokyoNightOutlineRowView: NSTableRowView {
     }
 
     override func drawBackground(in dirtyRect: NSRect) {
-        TokyoNight.border.withAlphaComponent(0.65).setFill()
-        for level in 0..<hierarchyLevel {
-            NSRect(x: 14 + CGFloat(level) * levelIndent, y: 0, width: 0.5, height: bounds.height).fill()
+        NSGraphicsContext.saveGraphicsState()
+        if isSelected {
+            let clip = NSBezierPath(rect: bounds)
+            clip.append(NSBezierPath(roundedRect: roundedBackgroundRect(), xRadius: 5, yRadius: 5))
+            clip.windingRule = .evenOdd
+            clip.addClip()
         }
+        let guides = NSBezierPath()
+        for segment in hierarchyGuideSegments() {
+            guides.move(to: segment.start)
+            guides.line(to: segment.end)
+        }
+        guides.lineWidth = 1
+        TokyoNight.border.withAlphaComponent(0.65).setStroke()
+        guides.stroke()
+        NSGraphicsContext.restoreGraphicsState()
         if mouseInside && !isSelected {
             let hoverRect = roundedBackgroundRect()
             let path = NSBezierPath(roundedRect: hoverRect, xRadius: 5, yRadius: 5)
             TokyoNight.panelElevated.withAlphaComponent(0.35).setFill()
             path.fill()
         }
+    }
+
+    func hierarchyGuideSegments() -> [(start: NSPoint, end: NSPoint)] {
+        guard let item = outlineItem,
+              let outline = enclosingScrollView?.documentView as? NSOutlineView else { return [] }
+        let rowIndex = outline.row(forItem: item)
+        guard rowIndex >= 0 else { return [] }
+        let top = isFlipped ? bounds.minY : bounds.maxY
+        let bottom = isFlipped ? bounds.maxY : bounds.minY
+        var segments: [(start: NSPoint, end: NSPoint)] = []
+        var child = item
+        while let parent = child.parent {
+            let isDirectParent = child === item
+            let hasNextSibling = parent.children.last !== child
+            if isDirectParent || hasNextSibling {
+                let parentRow = outline.row(forItem: parent)
+                let x = outline.frameOfOutlineCell(atRow: parentRow).midX
+                let endY = isDirectParent && !hasNextSibling ? bounds.midY : bottom
+                segments.append((NSPoint(x: x, y: top), NSPoint(x: x, y: endY)))
+                if isDirectParent {
+                    let endX = isBranch ? outline.frameOfOutlineCell(atRow: rowIndex).minX - 3
+                        : outline.frameOfCell(atColumn: 0, row: rowIndex).minX - 11
+                    segments.append((NSPoint(x: x, y: bounds.midY), NSPoint(x: endX, y: bounds.midY)))
+                }
+            }
+            child = parent
+        }
+        if isBranch && outline.isItemExpanded(item) {
+            let disclosure = convert(outline.frameOfOutlineCell(atRow: rowIndex), from: outline)
+            segments.append((NSPoint(x: disclosure.midX, y: isFlipped ? disclosure.maxY : disclosure.minY),
+                             NSPoint(x: disclosure.midX, y: bottom)))
+        }
+        return segments
     }
 
     override func drawSelection(in dirtyRect: NSRect) {

@@ -21,8 +21,12 @@ struct PDFOutlineCoordinatorTests {
                                         pageIndex: 1233, parent: child)
         grandchild.children = [PDFOutlineItem(id: "0.0.0.0", title: "Fourth level", destination: root.destination,
                                              pageIndex: 0, parent: grandchild)]
-        child.children = [grandchild]
-        root.children = [child]
+        let childSibling = PDFOutlineItem(id: "0.0.1", title: "Last section", destination: root.destination,
+                                          pageIndex: 0, parent: child)
+        let rootSibling = PDFOutlineItem(id: "0.1", title: "Last chapter section", destination: root.destination,
+                                         pageIndex: 0, parent: root)
+        child.children = [grandchild, childSibling]
+        root.children = [child, rootSibling]
         let host = NSHostingView(rootView: PDFOutlineView(
             items: [root], tabID: UUID(), documentID: ObjectIdentifier(document),
             focusGeneration: 0, appState: makeAppState(), language: .english
@@ -63,6 +67,23 @@ struct PDFOutlineCoordinatorTests {
         let leafIndex = outline.row(forItem: grandchild.children[0])
         let leafRow = try #require(outline.rowView(atRow: leafIndex, makeIfNecessary: true) as? TokyoNightOutlineRowView)
         #expect(leafRow.roundedBackgroundRect().minX + 4 == outline.frameOfCell(atColumn: 0, row: leafIndex).minX - 8)
+
+        let leafGuides = leafRow.hierarchyGuideSegments()
+        #expect(leafGuides.count == 4)
+        #expect(leafGuides[0].start.x == outline.frameOfOutlineCell(atRow: rowIndex).midX)
+        #expect(leafGuides[0].end.y == leafRow.bounds.midY)
+        #expect(leafGuides[1].start.y == leafGuides[1].end.y)
+        #expect(leafGuides[1].end.x == outline.frameOfCell(atColumn: 0, row: leafIndex).minX - 11)
+        #expect(leafGuides[2].end.y == leafRow.bounds.maxY)
+        #expect(leafGuides[3].start.x == outline.frameOfOutlineCell(atRow: 0).midX)
+        let lastRow = try #require(outline.rowView(atRow: outline.row(forItem: rootSibling), makeIfNecessary: true)
+                                  as? TokyoNightOutlineRowView)
+        let lastGuides = lastRow.hierarchyGuideSegments()
+        #expect(lastGuides.count == 2)
+        #expect(lastGuides[0].end.y == lastRow.bounds.midY)
+        #expect(rootRow.hierarchyGuideSegments().count == 1)
+        outline.collapseItem(root, collapseChildren: true)
+        #expect(rootRow.hierarchyGuideSegments().isEmpty)
     }
 
     @Test
