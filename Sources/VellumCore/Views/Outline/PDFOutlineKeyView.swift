@@ -141,9 +141,15 @@ final class PDFOutlineKeyView: NSOutlineView {
             return true
         }
 
-        if keyState.pendingKey == "z", isShifted || characters != key, ["o", "c", "r", "m"].contains(key) {
+        if keyState.pendingKey == "z", ["o", "c", "r", "m"].contains(key) {
             keyState.clearPendingInput()
-            setBranchExpanded(key == "o" || key == "r", allBranches: key == "r" || key == "m")
+            if isShifted || characters != key {
+                setBranchExpanded(key == "o" || key == "r", allBranches: key == "r" || key == "m")
+            } else if key == "o" || key == "c" {
+                setBranchExpanded(key == "o", allBranches: false, recursive: false)
+            } else {
+                changeExpansionDepth(by: key == "r" ? 1 : -1)
+            }
             return true
         }
 
@@ -238,13 +244,39 @@ final class PDFOutlineKeyView: NSOutlineView {
         scrollRowToVisible(parentRow)
     }
 
-    private func setBranchExpanded(_ expanded: Bool, allBranches: Bool) {
+    private func setBranchExpanded(_ expanded: Bool, allBranches: Bool, recursive: Bool = true) {
         let branch = selectedOutlineItem.flatMap { $0.children.isEmpty ? $0.parent : $0 }
         guard allBranches || branch != nil else { return }
         if expanded {
-            expandItem(allBranches ? nil : branch, expandChildren: true)
+            expandItem(allBranches ? nil : branch, expandChildren: recursive)
         } else {
-            collapseItem(allBranches ? nil : branch, collapseChildren: true)
+            collapseItem(allBranches ? nil : branch, collapseChildren: recursive)
+        }
+    }
+
+    private func changeExpansionDepth(by delta: Int) {
+        var roots: [PDFOutlineItem] = []
+        var depth = 0
+        var selection = selectedOutlineItem
+        for row in 0..<numberOfRows {
+            guard let item = item(atRow: row) as? PDFOutlineItem else { continue }
+            let itemLevel = level(forItem: item)
+            if itemLevel == 0 { roots.append(item) }
+            if !item.children.isEmpty, isItemExpanded(item) { depth = max(depth, itemLevel + 1) }
+        }
+        let targetDepth = max(0, depth + delta)
+        for root in roots { setExpansionDepth(targetDepth, for: root) }
+        while let item = selection, row(forItem: item) < 0 { selection = item.parent }
+        if let selection, row(forItem: selection) != selectedRow { selectRow(row(forItem: selection)) }
+    }
+
+    private func setExpansionDepth(_ depth: Int, for item: PDFOutlineItem) {
+        guard !item.children.isEmpty else { return }
+        if depth > 0 {
+            expandItem(item)
+            for child in item.children { setExpansionDepth(depth - 1, for: child) }
+        } else {
+            collapseItem(item, collapseChildren: true)
         }
     }
 

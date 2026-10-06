@@ -213,6 +213,126 @@ struct PDFOutlineKeyboardTests {
         #expect(fixture.window.firstResponder === fixture.outline)
     }
 
+    @Test
+    func singleLayerBranchCommandsRetainHiddenDescendantsWithoutNavigating() {
+        let items = deepTree()
+        let parent = items[0].children[0]
+        let nested = parent.children[0]
+        let leaf = PDFOutlineItem(id: "0.0.1", title: "Sibling", destination: nil, pageIndex: nil, parent: parent)
+        parent.children.append(leaf)
+        let fixture = Fixture(items: items)
+        defer { fixture.window.close() }
+
+        fixture.outline.collapseItem(nil, collapseChildren: true)
+        fixture.send("z")
+        fixture.send("o")
+        #expect(fixture.outline.isItemExpanded(items[0]))
+        #expect(!fixture.outline.isItemExpanded(parent))
+        #expect(fixture.outline.row(forItem: nested) < 0)
+        fixture.send("z")
+        fixture.send("O", modifiers: .shift)
+        fixture.send("z")
+        fixture.send("c")
+        #expect(!fixture.outline.isItemExpanded(items[0]))
+        #expect(fixture.outline.row(forItem: parent) < 0)
+        #expect(fixture.outline.row(forItem: nested) < 0)
+        #expect(fixture.selectedItem === items[0])
+
+        for _ in 0..<2 {
+            fixture.send("z")
+            fixture.send("o")
+            #expect(fixture.outline.isItemExpanded(items[0]))
+            #expect(fixture.outline.isItemExpanded(parent))
+            #expect(fixture.outline.isItemExpanded(nested))
+            #expect(fixture.outline.row(forItem: nested.children[0]) >= 0)
+            #expect(fixture.selectedItem === items[0])
+        }
+        fixture.outline.selectRowIndexes(IndexSet(integer: fixture.outline.row(forItem: leaf)), byExtendingSelection: false)
+        fixture.send("z")
+        fixture.send("c")
+        #expect(!fixture.outline.isItemExpanded(parent))
+        #expect(fixture.outline.row(forItem: nested) < 0)
+        #expect(fixture.outline.isItemExpanded(items[0]))
+        fixture.outline.selectRowIndexes(IndexSet(integer: fixture.outline.row(forItem: parent)), byExtendingSelection: false)
+        fixture.send("z")
+        fixture.send("o")
+        #expect(fixture.outline.isItemExpanded(parent))
+        #expect(fixture.outline.isItemExpanded(nested))
+        #expect(fixture.outline.row(forItem: nested.children[0]) >= 0)
+        #expect(fixture.selectedItem === parent)
+        #expect(fixture.window.firstResponder === fixture.outline)
+    }
+
+    @Test
+    func globalFoldCommandsStepThroughUnevenTreeDepthAndClamp() {
+        let items = deepTree()
+        let fixture = Fixture(items: items)
+        defer { fixture.window.close() }
+
+        for (key, depth) in [("m", 0), ("r", 1), ("r", 2), ("r", 3), ("r", 3),
+                             ("m", 2), ("m", 1), ("m", 0), ("m", 0)] {
+            fixture.send("z")
+            fixture.send(key)
+            #expect(fixture.outline.isItemExpanded(items[0]) == (depth > 0))
+            #expect(fixture.outline.isItemExpanded(items[1]) == (depth > 0))
+            #expect(fixture.outline.isItemExpanded(items[0].children[0]) == (depth > 1))
+            #expect(fixture.outline.isItemExpanded(items[0].children[0].children[0]) == (depth > 2))
+            #expect(fixture.selectedItem === items[0])
+            #expect(fixture.window.firstResponder === fixture.outline)
+        }
+    }
+
+    @Test
+    func globalDepthUsesVisibleStateAndRestoresSelectionAcrossFoldCommands() {
+        let items = deepTree()
+        let parent = items[0].children[0]
+        let nested = parent.children[0]
+        let fixture = Fixture(items: items)
+        defer { fixture.window.close() }
+
+        fixture.send("z")
+        fixture.send("R", modifiers: .capsLock)
+        fixture.send("z")
+        fixture.send("c")
+        #expect(fixture.outline.row(forItem: nested) < 0)
+        fixture.send("z")
+        fixture.send("m")
+        #expect(!fixture.outline.isItemExpanded(items[0]))
+        #expect(!fixture.outline.isItemExpanded(items[1]))
+        #expect(fixture.outline.row(forItem: parent) < 0)
+        #expect(fixture.outline.row(forItem: nested) < 0)
+        fixture.send("z")
+        fixture.send("r")
+        #expect(fixture.outline.isItemExpanded(items[0]))
+        #expect(!fixture.outline.isItemExpanded(parent))
+        fixture.outline.selectRowIndexes(IndexSet(integer: fixture.outline.row(forItem: parent)), byExtendingSelection: false)
+        fixture.send("z")
+        fixture.send("o")
+        #expect(fixture.outline.row(forItem: nested) >= 0)
+        #expect(!fixture.outline.isItemExpanded(nested))
+        #expect(fixture.outline.row(forItem: nested.children[0]) < 0)
+        fixture.outline.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+
+        fixture.send("\u{f703}", keyCode: 124, modifiers: .option)
+        fixture.outline.collapseItem(items[1], collapseChildren: true)
+        fixture.outline.selectRowIndexes(IndexSet(integer: fixture.outline.row(forItem: nested.children[0])), byExtendingSelection: false)
+        for ancestor in [nested, parent, items[0]] {
+            fixture.send("z")
+            fixture.send("m")
+            #expect(fixture.selectedItem === ancestor)
+            #expect(fixture.outline.isItemExpanded(items[1]) == (ancestor !== items[0]))
+            #expect(fixture.window.firstResponder === fixture.outline)
+        }
+        #expect(!fixture.outline.isItemExpanded(items[1]))
+        fixture.send("\u{f703}", keyCode: 124, modifiers: [.option, .shift])
+        #expect(fixture.outline.isItemExpanded(nested))
+        #expect(fixture.outline.isItemExpanded(items[1]))
+        fixture.send("z")
+        fixture.send("M", modifiers: .shift)
+        #expect(!fixture.outline.isItemExpanded(items[0]))
+        #expect(!fixture.outline.isItemExpanded(items[1]))
+    }
+
     @Test(arguments: [CGFloat(160), CGFloat(198)])
     func pageCommandsMoveByHalfOrFullVisibleViewport(viewportHeight: CGFloat) {
         let fixture = Fixture()
@@ -339,6 +459,15 @@ struct PDFOutlineKeyboardTests {
 
         #expect(!fixture.appState.isOutlineVisible)
         #expect(fixture.window.firstResponder === fixture.reader)
+    }
+
+    private func deepTree() -> [PDFOutlineItem] {
+        let items = tree()
+        let detail = items[0].children[0].children[0]
+        detail.children = [PDFOutlineItem(
+            id: "0.0.0.0", title: "Deep detail", destination: nil, pageIndex: nil, parent: detail
+        )]
+        return items
     }
 
     private func tree() -> [PDFOutlineItem] {
