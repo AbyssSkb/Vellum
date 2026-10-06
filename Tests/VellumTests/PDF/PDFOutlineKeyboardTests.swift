@@ -118,6 +118,52 @@ struct PDFOutlineKeyboardTests {
         #expect(!fixture.outline.isItemExpanded(items[1]))
     }
 
+    @Test
+    func uppercaseBranchCommandsUseLeafParentAndKeepZeroDistinct() {
+        let items = tree()
+        let parent = items[0].children[0]
+        let leaf = parent.children[0]
+        let nested = PDFOutlineItem(id: "0.0.1", title: "Nested", destination: nil, pageIndex: nil, parent: parent)
+        nested.children = [PDFOutlineItem(
+            id: "0.0.1.0", title: "Nested detail", destination: nil, pageIndex: nil, parent: nested
+        )]
+        parent.children.append(nested)
+        let rootLeaf = PDFOutlineItem(id: "2", title: "Root leaf", destination: nil, pageIndex: nil, parent: nil)
+        let fixture = Fixture(items: items + [rootLeaf])
+        defer { fixture.window.close() }
+
+        fixture.send("z")
+        fixture.send("R", modifiers: .capsLock)
+        #expect(fixture.outline.isItemExpanded(parent))
+        #expect(fixture.outline.isItemExpanded(items[1]))
+        fixture.outline.collapseItem(nested, collapseChildren: true)
+        fixture.outline.selectRowIndexes(IndexSet(integer: fixture.outline.row(forItem: leaf)), byExtendingSelection: false)
+
+        fixture.send("z")
+        fixture.send("0")
+        #expect(!fixture.outline.isItemExpanded(nested))
+        fixture.send("z")
+        fixture.send("O", modifiers: .capsLock)
+        #expect(fixture.outline.isItemExpanded(nested))
+        fixture.send("z")
+        fixture.send("C", modifiers: .capsLock)
+        #expect(!fixture.outline.isItemExpanded(parent))
+        #expect(fixture.outline.isItemExpanded(items[0]))
+
+        fixture.send("z")
+        fixture.send("M", modifiers: .capsLock)
+        #expect(!fixture.outline.isItemExpanded(items[0]))
+        #expect(!fixture.outline.isItemExpanded(items[1]))
+        fixture.outline.selectRowIndexes(IndexSet(integer: fixture.outline.row(forItem: rootLeaf)), byExtendingSelection: false)
+        fixture.send("z")
+        fixture.send("O", modifiers: .capsLock)
+        fixture.send("z")
+        fixture.send("C", modifiers: .capsLock)
+        #expect(fixture.outline.numberOfRows == 3)
+        #expect(fixture.selectedItem === rootLeaf)
+        #expect(fixture.window.firstResponder === fixture.outline)
+    }
+
     @Test(arguments: [CGFloat(160), CGFloat(198)])
     func pageCommandsMoveByHalfOrFullVisibleViewport(viewportHeight: CGFloat) {
         let fixture = Fixture()

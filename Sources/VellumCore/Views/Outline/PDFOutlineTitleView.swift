@@ -133,12 +133,14 @@ final class PDFOutlineTitleView: NSView {
             animationDistance = nextDistance
             if let nextDistance {
                 let pause = 1.5
-                let travel = max(2, Double(nextDistance) / 30)
+                let travel = Double(nextDistance) / 30
                 let duration = pause * 2 + travel
                 let animation = CAKeyframeAnimation(keyPath: "transform.translation.x")
                 animation.values = [0, 0, -nextDistance, -nextDistance]
                 animation.keyTimes = [0, pause / duration, (pause + travel) / duration, 1]
                     .map { NSNumber(value: $0) }
+                animation.calculationMode = .linear
+                animation.timingFunction = CAMediaTimingFunction(name: .linear)
                 animation.duration = duration
                 animation.repeatCount = .infinity
                 marqueeLayer.add(animation, forKey: Self.animationKey)

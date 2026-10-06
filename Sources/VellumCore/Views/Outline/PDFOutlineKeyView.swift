@@ -88,7 +88,8 @@ final class PDFOutlineKeyView: NSOutlineView {
         }
 
         let isShifted = event.modifierFlags.contains(.shift)
-        let key = event.charactersIgnoringModifiers?.lowercased() ?? ""
+        let characters = event.charactersIgnoringModifiers ?? ""
+        let key = characters.lowercased()
         let isDigit = !isShifted && key.count == 1 && "0123456789".contains(key)
         let hidesSidebar = event.keyCode == 48 || event.keyCode == 53
             || key == "\t" || key == "\u{1b}" || (key == "t" && !isShifted)
@@ -130,11 +131,12 @@ final class PDFOutlineKeyView: NSOutlineView {
             return true
         }
 
-        if keyState.pendingKey == "z", isShifted, ["o", "c", "r", "m"].contains(key) {
+        if keyState.pendingKey == "z", isShifted || characters != key, ["o", "c", "r", "m"].contains(key) {
             keyState.clearPendingInput()
+            let branch = selectedOutlineItem.flatMap { $0.children.isEmpty ? $0.parent : $0 }
             switch key {
-            case "o": if let item = selectedOutlineItem { expandItem(item, expandChildren: true) }
-            case "c": if let item = selectedOutlineItem { collapseItem(item, collapseChildren: true) }
+            case "o": if let branch { expandItem(branch, expandChildren: true) }
+            case "c": if let branch { collapseItem(branch, collapseChildren: true) }
             case "r": expandItem(nil, expandChildren: true)
             default: collapseItem(nil, collapseChildren: true)
             }
