@@ -129,14 +129,6 @@ struct MarkdownWebView: NSViewRepresentable {
         webView.autoPronunciationLanguageCode = autoPronunciationLanguageCode
         webView.speakAmericanButtonTitle = speakAmericanButtonTitle
         webView.speakBritishButtonTitle = speakBritishButtonTitle
-        onReady(webView)
         webView.render(markdown)
-
-        guard focusWhenReady else { return }
-
-        DispatchQueue.main.async { [weak webView] in
-            guard let webView else { return }
-            webView.window?.makeFirstResponder(webView)
-        }
     }
 }

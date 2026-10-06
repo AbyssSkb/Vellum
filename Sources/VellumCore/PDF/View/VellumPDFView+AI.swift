@@ -186,23 +186,27 @@ extension VellumPDFView {
         model: AIExplanationPopoverModel,
         kind: AIExplanationPopoverKind
     ) {
+        let expectedResponder = window?.firstResponder
         let overlay = showAIFloatingOverlay(
             rootView: AIExplanationPopoverView(
                 model: model,
                 kind: kind,
-                onDismiss: { [weak self] in
+                onDismiss: { [weak self, weak model] in
+                    guard let self, let model, self.aiInteraction.activeExplanationModel === model else { return }
                     switch kind {
                     case .hover:
-                        self?.dismissHoverAIExplanation(suppressCurrent: true)
+                        self.dismissHoverAIExplanation(suppressCurrent: true)
                     case .message, .streaming:
-                        self?.dismissActiveAIInteraction(clearSelection: true)
+                        self.dismissActiveAIInteraction(clearSelection: true)
                     }
                 },
-                onHighlight: { [weak self] in
-                    self?.highlightActiveAISelection()
+                onHighlight: { [weak self, weak model] in
+                    guard let self, let model, self.aiInteraction.activeExplanationModel === model else { return }
+                    self.highlightActiveAISelection()
                 },
-                onCycleColor: { [weak self] in
-                    self?.appState?.cycleHighlightColor(preserveFocus: true)
+                onCycleColor: { [weak self, weak model] in
+                    guard let self, let model, self.aiInteraction.activeExplanationModel === model else { return }
+                    self.appState?.cycleHighlightColor(preserveFocus: true)
                 },
                 onContentHeightChange: { [weak self, model, kind] contentHeight in
                     guard kind.allowsDynamicHeight else { return }
@@ -221,13 +225,25 @@ extension VellumPDFView {
                         )
                     }
                 },
-                onWebViewReady: { [weak self, kind] webView in
-                    self?.aiInteraction.activeWebView = webView
-                    guard kind.shouldFocusWebView else { return }
-
-                    DispatchQueue.main.async { [weak webView] in
-                        guard let webView else { return }
-                        webView.window?.makeFirstResponder(webView)
+                onWebViewReady: { [weak self, weak expectedResponder, model, kind] webView in
+                    DispatchQueue.main.async { [weak self, weak webView] in
+                        guard let self, let webView,
+                              self.aiInteraction.activeExplanationModel === model,
+                              let overlay = self.aiInteraction.explanationOverlay,
+                              overlay.superview === self, webView.isDescendant(of: overlay) else { return }
+                        self.aiInteraction.activeWebView = webView
+                    }
+                    webView.onInitialFocus = { [weak self, weak webView, weak expectedResponder] in
+                        guard let self, let webView, kind.shouldFocusWebView,
+                              self.aiInteraction.activeExplanationModel === model,
+                              let overlay = self.aiInteraction.explanationOverlay,
+                              webView.isDescendant(of: overlay),
+                              self.canFocusAIFloatingOverlay(overlay),
+                              self.window?.firstResponder === expectedResponder
+                                || self.window?.firstResponder === overlay
+                                || (self.window?.firstResponder as? NSView)?.isDescendant(of: overlay) == true else { return false }
+                        self.aiInteraction.activeWebView = webView
+                        return self.window?.makeFirstResponder(webView) == true
                     }
                 }
             ),
@@ -257,8 +273,9 @@ extension VellumPDFView {
         let createdOverlay = showAIFloatingOverlay(
             rootView: AIConversationPopoverView(
                 model: model,
-                onDismiss: { [weak self] in
-                    self?.dismissActiveAIInteraction(clearSelection: true)
+                onDismiss: { [weak self, weak model] in
+                    guard let self, let model, self.aiInteraction.activeConversationModel === model else { return }
+                    self.dismissActiveAIInteraction(clearSelection: true)
                 },
                 onSend: { [weak self, weak model] prompt in
                     self?.sendAIConversationMessage(prompt, model: model) ?? false
@@ -287,7 +304,8 @@ extension VellumPDFView {
         aiInteraction.floatingOverlayDismissMonitor = NSEvent.addLocalMonitorForEvents(
             matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]
         ) { [weak self] event in
-            guard let self else { return event }
+            guard let self, event.window === self.window,
+                  self.appState == nil || self.appState?.activeReaderController === self else { return event }
             guard self.aiInteraction.explanationOverlay?.superview != nil
                 || self.aiInteraction.conversationOverlay?.superview != nil else {
                 return event
@@ -308,11 +326,12 @@ extension VellumPDFView {
         aiInteraction.floatingOverlayLifecycleObservers = [
             NSApplication.didBecomeActiveNotification,
             NSApplication.willResignActiveNotification,
+            NSWindow.didBecomeKeyNotification,
             NSWindow.didResignKeyNotification
         ].map { name in
             NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
                 MainActor.assumeIsolated {
-                    if name == NSApplication.didBecomeActiveNotification {
+                    if name == NSApplication.didBecomeActiveNotification || name == NSWindow.didBecomeKeyNotification {
                         self?.restoreAIFloatingOverlayPresentation()
                     } else {
                         self?.stopAIContinuousScroll()
@@ -353,9 +372,11 @@ extension VellumPDFView {
         addSubview(overlay)
 
         if focusWhenReady {
-            DispatchQueue.main.async { [weak self, weak overlay] in
-                guard let self, let overlay else { return }
-                self.window?.makeFirstResponder(self.firstTextView(in: overlay) ?? overlay)
+            let expectedResponder = window?.firstResponder
+            DispatchQueue.main.async { [weak self, weak overlay, weak expectedResponder] in
+                guard let self, let overlay, self.canFocusAIFloatingOverlay(overlay),
+                      self.window?.firstResponder === expectedResponder else { return }
+                self.focusAIFloatingOverlay(overlay)
             }
         }
 
@@ -397,21 +418,34 @@ extension VellumPDFView {
         }
 
         if let explanationOverlay = aiInteraction.explanationOverlay,
-           let activeExplanationModel = aiInteraction.activeExplanationModel {
+           let activeExplanationModel = aiInteraction.activeExplanationModel,
+           canFocusAIFloatingOverlay(explanationOverlay) {
             resizeAIFloatingOverlay(explanationOverlay, size: activeExplanationModel.preferredSize)
-            if aiInteraction.activeConversationModel == nil {
-                focusAIFloatingOverlay(explanationOverlay)
+            if let responder = window?.firstResponder as? NSView,
+               responder === explanationOverlay || responder.isDescendant(of: explanationOverlay) {
+                aiInteraction.activeWebView?.requestInitialFocus()
             }
         }
 
         if let conversationOverlay = aiInteraction.conversationOverlay,
-           let activeConversationModel = aiInteraction.activeConversationModel {
+           let activeConversationModel = aiInteraction.activeConversationModel,
+           canFocusAIFloatingOverlay(conversationOverlay) {
             resizeAIFloatingOverlay(conversationOverlay, size: activeConversationModel.preferredSize)
-            focusAIFloatingOverlay(conversationOverlay)
         }
     }
 
+    func canFocusAIFloatingOverlay(_ overlay: NSView) -> Bool {
+        guard overlay.superview === self, let window, overlay.window === window,
+              overlay === aiInteraction.explanationOverlay || overlay === aiInteraction.conversationOverlay,
+              appState?.canFocusReaderContent != false,
+              appState == nil || appState?.activeReaderController === self,
+              NSApp.modalWindow == nil, window.attachedSheet == nil,
+              NSApp.keyWindow == nil || window.isKeyWindow else { return false }
+        return true
+    }
+
     private func focusAIFloatingOverlay(_ overlay: NSView) {
+        guard canFocusAIFloatingOverlay(overlay) else { return }
         if let textView = firstTextView(in: overlay) {
             window?.makeFirstResponder(textView)
             textView.setSelectedRange(NSRange(location: textView.string.utf16.count, length: 0))
@@ -439,12 +473,13 @@ extension VellumPDFView {
     }
 
     func scheduleStreamingPopoverHeightUpdate(model: AIExplanationPopoverModel, contentHeight: CGFloat) {
+        guard aiInteraction.activeExplanationModel === model else { return }
         aiInteraction.pendingPopoverContentHeight = contentHeight
 
         guard aiInteraction.popoverHeightUpdateWorkItem == nil else { return }
 
         let workItem = DispatchWorkItem { [weak self, model] in
-            guard let self else { return }
+            guard let self, self.aiInteraction.activeExplanationModel === model else { return }
 
             let latestHeight = self.aiInteraction.pendingPopoverContentHeight ?? contentHeight
             self.aiInteraction.pendingPopoverContentHeight = nil
@@ -664,6 +699,7 @@ extension VellumPDFView {
 
     func handleAIKeyEvent(_ event: NSEvent) -> Bool {
         guard isAIInteractionActive else { return false }
+        if let editor = window?.firstResponder as? NSTextView, editor.hasMarkedText() { return false }
         if event.type == .keyUp,
            event.keyCode == aiInteraction.continuousScrollKeyCode {
             stopAIContinuousScroll()

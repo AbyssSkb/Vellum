@@ -315,6 +315,7 @@ private struct AIHistorySwitcherRow: View {
 }
 
 private struct AIHistorySearchField: NSViewRepresentable {
+    @EnvironmentObject private var appState: AppState
     @Binding var text: String
     let placeholder: String
     let onMoveUp: () -> Void
@@ -330,7 +331,9 @@ private struct AIHistorySearchField: NSViewRepresentable {
         textField.onCommit = onCommit
         textField.onCancel = onCancel
         textField.configure(placeholder: placeholder)
-        focus(textField)
+        textField.canFocus = { [weak appState] in
+            appState?.isAIConversationHistoryPresented == true || appState?.isAIExplanationHistoryPresented == true
+        }
         return textField
     }
 
@@ -346,19 +349,11 @@ private struct AIHistorySearchField: NSViewRepresentable {
         }
 
         context.coordinator.text = $text
-        focus(nsView)
+        nsView.focusInitiallyIfNeeded()
     }
 
     func makeCoordinator() -> Coordinator {
         Coordinator(text: $text)
-    }
-
-    private func focus(_ textField: AIHistoryTextField) {
-        DispatchQueue.main.async {
-            guard textField.window?.firstResponder !== textField.currentEditor() else { return }
-            textField.window?.makeFirstResponder(textField)
-            textField.currentEditor()?.selectedRange = NSRange(location: textField.stringValue.count, length: 0)
-        }
     }
 
     final class Coordinator: NSObject, NSTextFieldDelegate {
@@ -378,7 +373,7 @@ private struct AIHistorySearchField: NSViewRepresentable {
             textView: NSTextView,
             doCommandBy commandSelector: Selector
         ) -> Bool {
-            guard let textField = control as? AIHistoryTextField else { return false }
+            guard !textView.hasMarkedText(), let textField = control as? AIHistoryTextField else { return false }
             return textField.performCommand(commandSelector)
         }
     }
@@ -407,8 +402,36 @@ private final class AIHistoryTextField: NSTextField {
     var onMoveDown: (() -> Void)?
     var onCommit: (() -> Void)?
     var onCancel: (() -> Void)?
+    var canFocus: (() -> Bool)?
+    private var needsInitialFocus = true
 
     override var acceptsFirstResponder: Bool { true }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        focusInitiallyIfNeeded()
+    }
+
+    func focusInitiallyIfNeeded() {
+        guard needsInitialFocus, let window else { return }
+        if let responder = window.firstResponder,
+           responder === self || responder === currentEditor() {
+            needsInitialFocus = false
+            return
+        }
+        let expectedResponder = window.firstResponder
+        DispatchQueue.main.async { [weak self, weak window, weak expectedResponder] in
+            guard let self, let window, self.needsInitialFocus,
+                  self.window === window, self.superview != nil,
+                  self.canFocus?() == true,
+                  NSApp.modalWindow == nil, window.attachedSheet == nil,
+                  NSApp.keyWindow == nil || window.isKeyWindow else { return }
+            self.needsInitialFocus = false
+            guard window.firstResponder === expectedResponder else { return }
+            window.makeFirstResponder(self)
+            self.currentEditor()?.selectedRange = NSRange(location: self.stringValue.utf16.count, length: 0)
+        }
+    }
 
     func configure(placeholder: String) {
         cell = AIHistoryTextFieldCell(textCell: "")

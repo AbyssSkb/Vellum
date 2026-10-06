@@ -62,6 +62,32 @@ struct PDFOutlineKeyboardTests {
         #expect(fixture.outline.selectedRow == 0)
     }
 
+    @Test
+    func capsLockPreservesUppercaseTabAndOutlineCommands() {
+        let fixture = Fixture(items: tree())
+        defer { fixture.window.close() }
+        let firstTabID = fixture.appState.selectedTabID
+        let secondTab = PDFTab(url: nil, document: fixture.document)
+        _ = fixture.appState.tabStore.openInNewTabs([secondTab])
+        _ = fixture.appState.tabStore.selectTab(firstTabID!)
+        let expandedIDs = fixture.outline.expandedIDs
+        let selectedRow = fixture.outline.selectedRow
+
+        fixture.send("L", modifiers: .capsLock)
+        #expect(fixture.appState.selectedTabID == secondTab.id)
+        fixture.send("H", modifiers: .capsLock)
+        #expect(fixture.appState.selectedTabID == firstTabID)
+        #expect(fixture.outline.expandedIDs == expandedIDs)
+        #expect(fixture.outline.selectedRow == selectedRow)
+        #expect(fixture.appState.isOutlineVisible)
+
+        fixture.send("G", modifiers: .capsLock)
+        #expect(fixture.outline.selectedRow == fixture.outline.numberOfRows - 1)
+        fixture.send("T", modifiers: .capsLock)
+        #expect(fixture.appState.isTabSwitcherPresented)
+        #expect(fixture.appState.isOutlineVisible)
+    }
+
     @Test(arguments: [false, true])
     func hierarchyKeysFoldLogicalCursorAndMoveToNextVisibleRow(arrows: Bool) {
         let items = tree()
@@ -688,7 +714,8 @@ struct PDFOutlineKeyboardTests {
         try await Task.sleep(for: .milliseconds(20))
 
         #expect(!fixture.appState.isOutlineVisible)
-        #expect(fixture.window.firstResponder === fixture.reader)
+        let readerIsFocused = fixture.window.firstResponder === fixture.reader
+        #expect(readerIsFocused)
     }
 
     private func deepTree() -> [PDFOutlineItem] {
@@ -747,7 +774,7 @@ struct PDFOutlineKeyboardTests {
                 items: outlineItems, tabID: tab.id, documentID: ObjectIdentifier(document),
                 appState: appState, language: .english
             )
-            window = NSWindow(
+            window = OutlineKeyboardWindow(
                 contentRect: NSRect(x: 0, y: 0, width: 640, height: 320),
                 styleMask: .borderless, backing: .buffered, defer: false
             )
@@ -797,4 +824,10 @@ struct PDFOutlineKeyboardTests {
             for key in keys { send(String(key)) }
         }
     }
+}
+
+// Keep focus ownership deterministic without requiring WindowServer activation.
+@MainActor
+private final class OutlineKeyboardWindow: NSWindow {
+    override var isKeyWindow: Bool { true }
 }

@@ -13,9 +13,7 @@ struct OutlineSidebar: View {
                 TokyoNightDivider(axis: .horizontal)
                     .opacity(0.5)
 
-                if items.isEmpty {
-                    OutlinePlaceholder(text: language.text(.noContents))
-                } else {
+                ZStack {
                     PDFOutlineView(
                         items: items,
                         tabID: tab.id,
@@ -24,6 +22,10 @@ struct OutlineSidebar: View {
                         appState: appState,
                         language: language
                     )
+                    if items.isEmpty {
+                        OutlinePlaceholder(text: language.text(.noContents))
+                            .allowsHitTesting(false)
+                    }
                 }
             } else {
                 OutlineSidebarHeader()

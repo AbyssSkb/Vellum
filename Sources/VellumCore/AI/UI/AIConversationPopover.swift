@@ -265,7 +265,6 @@ struct AIConversationPopoverView: View {
         }
         .onAppear {
             DispatchQueue.main.async {
-                refocusInput()
                 applyFallbackHeightIfNeeded()
                 onPreferredSizeChange(model.preferredSize)
             }
@@ -474,10 +473,7 @@ struct AIConversationInputTextView: NSViewRepresentable {
         context.coordinator.focusGeneration = focusGeneration
 
         if shouldRefocus {
-            DispatchQueue.main.async { [weak textView] in
-                guard let textView else { return }
-                textView.focusAndShowInsertionPoint()
-            }
+            textView.requestFocusAndShowInsertionPoint()
         }
     }
 
@@ -549,18 +545,42 @@ struct AIConversationInputTextView: NSViewRepresentable {
 final class AIConversationNSTextView: NSTextView {
     var onCommandReturn: (() -> Void)?
     var shouldFocusWhenAttached = true
+    private var pendingFocusGeneration = 0
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
-        guard shouldFocusWhenAttached, window != nil else { return }
+        requestFocusAndShowInsertionPoint()
+    }
 
-        DispatchQueue.main.async { [weak self] in
-            self?.focusAndShowInsertionPoint()
+    func requestFocusAndShowInsertionPoint() {
+        pendingFocusGeneration += 1
+        let generation = pendingFocusGeneration
+        guard shouldFocusWhenAttached, let window else { return }
+        let responder = window.firstResponder
+
+        DispatchQueue.main.async { [weak self, weak window, weak responder] in
+            guard let self, let window,
+                  self.pendingFocusGeneration == generation,
+                  self.shouldFocusWhenAttached,
+                  self.window === window,
+                  window.firstResponder === responder else { return }
+            self.focusAndShowInsertionPoint()
         }
     }
 
     func focusAndShowInsertionPoint() {
-        window?.makeFirstResponder(self)
+        guard shouldFocusWhenAttached, let window,
+              NSApp.modalWindow == nil, window.attachedSheet == nil,
+              NSApp.keyWindow == nil || NSApp.keyWindow === window else { return }
+        var overlay: NSView = self
+        while let parent = overlay.superview {
+            if let reader = parent as? VellumPDFView {
+                guard reader.canFocusAIFloatingOverlay(overlay) else { return }
+                break
+            }
+            overlay = parent
+        }
+        guard window.makeFirstResponder(self) else { return }
         scrollRangeToVisible(selectedRange())
         needsDisplay = true
     }

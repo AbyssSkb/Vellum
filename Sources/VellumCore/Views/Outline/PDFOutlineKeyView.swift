@@ -10,6 +10,8 @@ final class PDFOutlineKeyView: NSOutlineView {
     private var foldCursorItem: PDFOutlineItem?
     private var isFoldingCommand = false
     private var isApplyingFoldState = false
+    private var pendingFocus: (tabID: PDFTab.ID, documentID: ObjectIdentifier, generation: Int)?
+    private weak var pendingFocusResponder: NSResponder?
     private(set) var expandedIDs = Set<String>()
     private(set) var foldLevel = 1
 
@@ -77,6 +79,8 @@ final class PDFOutlineKeyView: NSOutlineView {
     }
 
     override func mouseDown(with event: NSEvent) {
+        cancelPendingFocus()
+        keyState.clearPendingInput()
         foldCursorItem = nil
         super.mouseDown(with: event)
     }
@@ -115,6 +119,9 @@ final class PDFOutlineKeyView: NSOutlineView {
         for name in [NSApplication.willResignActiveNotification, NSWindow.didResignKeyNotification] {
             NotificationCenter.default.addObserver(self, selector: #selector(clearPendingOutlineInput), name: name, object: nil)
         }
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(retryPendingOutlineFocus), name: NSWindow.didBecomeKeyNotification, object: nil
+        )
     }
 
     required init?(coder: NSCoder) {
@@ -123,7 +130,13 @@ final class PDFOutlineKeyView: NSOutlineView {
 
     @objc private func clearPendingOutlineInput(_ notification: Notification) {
         if let changedWindow = notification.object as? NSWindow, changedWindow !== window { return }
+        cancelPendingFocus()
         keyState.clearPendingInput()
+    }
+
+    @objc private func retryPendingOutlineFocus(_ notification: Notification) {
+        guard let changedWindow = notification.object as? NSWindow, changedWindow === window else { return }
+        applyPendingFocus()
     }
 
     override var acceptsFirstResponder: Bool { true }
@@ -145,13 +158,66 @@ final class PDFOutlineKeyView: NSOutlineView {
         return frame
     }
 
+    func requestFocus(tabID: PDFTab.ID, documentID: ObjectIdentifier, generation: Int) {
+        pendingFocus = (tabID, documentID, generation)
+        pendingFocusResponder = window?.firstResponder ?? appState?.readerWindow?.firstResponder
+        DispatchQueue.main.async { [weak self] in
+            self?.applyPendingFocus()
+        }
+    }
+
+    func cancelPendingFocus() {
+        pendingFocus = nil
+        pendingFocusResponder = nil
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if window == nil {
+            cancelPendingFocus()
+            keyState.clearPendingInput()
+        } else {
+            DispatchQueue.main.async { [weak self] in
+                self?.applyPendingFocus()
+            }
+        }
+    }
+
+    private func applyPendingFocus() {
+        guard let request = pendingFocus, let appState else { return }
+        guard appState.isOutlineVisible,
+              appState.selectedTabID == request.tabID,
+              appState.selectedTab?.document.map(ObjectIdentifier.init) == request.documentID,
+              appState.outlineFocusGeneration == request.generation,
+              !appState.hasBlockingReaderPresentation else {
+            cancelPendingFocus()
+            return
+        }
+        guard let window else { return }
+        guard appState.readerWindow == nil || appState.readerWindow === window else {
+            cancelPendingFocus()
+            return
+        }
+        if let current = window.firstResponder as? NSView,
+           current !== pendingFocusResponder, current.window === window {
+            cancelPendingFocus()
+            return
+        }
+        guard window.isKeyWindow, appState.canFocusReaderContent else { return }
+        if window.makeFirstResponder(self) { cancelPendingFocus() }
+    }
+
     func focus() {
+        guard appState?.canFocusReaderContent != false else { return }
         window?.makeFirstResponder(self)
     }
 
     override func resignFirstResponder() -> Bool {
         let resigned = super.resignFirstResponder()
-        if resigned { keyState.clearPendingInput() }
+        if resigned {
+            cancelPendingFocus()
+            keyState.clearPendingInput()
+        }
         return resigned
     }
 
@@ -171,7 +237,7 @@ final class PDFOutlineKeyView: NSOutlineView {
             return
         }
 
-        if appState?.handleKeyEvent(event) == true {
+        if appState?.keyboardController.routeOutlineGlobalKeyEvent(event) == true {
             return
         }
 
@@ -203,9 +269,9 @@ final class PDFOutlineKeyView: NSOutlineView {
             return false
         }
 
-        let isShifted = event.modifierFlags.contains(.shift)
         let characters = event.charactersIgnoringModifiers ?? ""
         let key = characters.lowercased()
+        let isShifted = event.modifierFlags.contains(.shift) || characters != key
         let isDigit = !isShifted && key.count == 1 && "0123456789".contains(key)
         let hidesSidebar = event.keyCode == 48 || event.keyCode == 53
             || key == "\t" || key == "\u{1b}" || (key == "t" && !isShifted)
@@ -258,7 +324,7 @@ final class PDFOutlineKeyView: NSOutlineView {
 
         if keyState.pendingKey == "z", ["o", "c", "r", "m"].contains(key) {
             keyState.clearPendingInput()
-            performFoldCommand(isShifted || characters != key ? key.uppercased() : key,
+            performFoldCommand(isShifted ? key.uppercased() : key,
                                count: min(pendingFoldCount, max(1, maximumFoldLevel)))
             return true
         }

@@ -27,6 +27,8 @@ public final class AppState: ObservableObject {
 
     weak var activeReaderController: ReaderController?
     weak var readerWindow: NSWindow?
+    weak var responderBeforeSwitcher: NSResponder?
+    var tabBeforeSwitcher: PDFTab.ID?
 
     public convenience init() {
         self.init(sessionDefaults: .standard)
@@ -91,6 +93,7 @@ public final class AppState: ObservableObject {
     }
 
     func toggleOutlineSidebar() {
+        keyboardController.cancelInput()
         guard hasOpenTabs else {
             isOutlineVisible = false
             return
@@ -106,6 +109,7 @@ public final class AppState: ObservableObject {
 
     func focusOutlineSidebar() {
         guard isOutlineVisible else { return }
+        keyboardController.cancelInput()
         outlineFocusGeneration += 1
     }
 
@@ -137,12 +141,13 @@ public final class AppState: ObservableObject {
 
     func showTabSwitcher() {
         guard hasOpenTabs else { return }
+        rememberFocusBeforeSwitcher()
         isTabSwitcherPresented = true
     }
 
     func hideTabSwitcher() {
         isTabSwitcherPresented = false
-        focusActiveReaderSoon()
+        restoreFocusAfterSwitcher()
     }
 
     func showAIConversationHistory() {
@@ -151,16 +156,20 @@ public final class AppState: ObservableObject {
             activeReaderController?.showAINotification(AppUILanguage.saved().text(.noAIConversationsInFile))
             return
         }
+        rememberFocusBeforeSwitcher()
         isAIConversationHistoryPresented = true
     }
 
     func hideAIConversationHistory() {
         isAIConversationHistoryPresented = false
-        focusActiveReaderSoon()
+        restoreFocusAfterSwitcher()
     }
 
     func restoreAIConversation(_ item: AIConversationHistoryItem) {
         isAIConversationHistoryPresented = false
+        responderBeforeSwitcher = nil
+        tabBeforeSwitcher = nil
+        activeReaderController?.focus()
         activeReaderController?.restoreAIConversation(item)
     }
 
@@ -180,16 +189,20 @@ public final class AppState: ObservableObject {
             activeReaderController?.showAINotification(AppUILanguage.saved().text(.noAIExplanationsInFile))
             return
         }
+        rememberFocusBeforeSwitcher()
         isAIExplanationHistoryPresented = true
     }
 
     func hideAIExplanationHistory() {
         isAIExplanationHistoryPresented = false
-        focusActiveReaderSoon()
+        restoreFocusAfterSwitcher()
     }
 
     func restoreAIExplanation(_ item: AIExplanationHistoryItem) {
         isAIExplanationHistoryPresented = false
+        responderBeforeSwitcher = nil
+        tabBeforeSwitcher = nil
+        activeReaderController?.focus()
         activeReaderController?.restoreAIExplanation(item)
     }
 

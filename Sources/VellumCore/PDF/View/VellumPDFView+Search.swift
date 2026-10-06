@@ -231,6 +231,7 @@ final class PDFSearchController {
     }
 
     private weak var pdfView: VellumPDFView?
+    private weak var returnFocusView: NSView?
     private var overlay: SearchCommandOverlayView?
     private var query = ""
     private var results: [PDFSearchResult] = []
@@ -286,6 +287,10 @@ final class PDFSearchController {
     func begin() {
         guard let pdfView, pdfView.document != nil else { return }
 
+        if overlay?.ownsFocus != true {
+            returnFocusView = pdfView.window?.firstResponder as? NSView
+        }
+
         pdfView.stopScrollAnimation()
         pdfView.stopZoomState()
         pdfView.hideAIExplanationPopover()
@@ -306,6 +311,13 @@ final class PDFSearchController {
         }
         overlay.onCancel = { [weak self] in
             self?.cancel()
+        }
+        overlay.canFocus = { [weak self, weak pdfView, weak overlay] in
+            guard let self, let pdfView, let overlay,
+                  self.overlay === overlay, overlay.superview === pdfView,
+                  pdfView.appState?.canFocusReaderContent != false,
+                  pdfView.appState == nil || pdfView.appState?.activeReaderController === pdfView else { return false }
+            return true
         }
 
         self.overlay?.removeFromSuperview()
@@ -457,9 +469,10 @@ final class PDFSearchController {
         materializeVisibleMatchesAroundActive()
         applyVisibleHighlights()
         updateOverlayStatus()
+        let shouldRestoreFocus = overlay?.ownsFocus == true
         overlay?.showMini(query: query.trimmingCharacters(in: .whitespacesAndNewlines))
-        pdfView?.focus()
         jumpToSelectedMatch(recordJump: true)
+        if shouldRestoreFocus { restoreFocus() }
     }
 
     private func cancel() {
@@ -496,12 +509,32 @@ final class PDFSearchController {
     }
 
     private func dismissOverlay(returnFocus: Bool) {
+        let shouldRestoreFocus = overlay?.ownsFocus == true
         overlay?.removeFromSuperview()
         overlay = nil
 
-        if returnFocus {
-            pdfView?.focus()
+        if returnFocus && shouldRestoreFocus {
+            restoreFocus()
         }
+        returnFocusView = nil
+    }
+
+    private func restoreFocus() {
+        guard let pdfView, let window = pdfView.window,
+              pdfView.appState?.canFocusReaderContent != false,
+              pdfView.appState == nil || pdfView.appState?.activeReaderController === pdfView,
+              NSApp.modalWindow == nil, window.attachedSheet == nil,
+              NSApp.keyWindow == nil || window.isKeyWindow else { return }
+        if let returnFocusView, returnFocusView.window === window,
+           !returnFocusView.isHiddenOrHasHiddenAncestor,
+           returnFocusView === pdfView || (returnFocusView is PDFOutlineKeyView && pdfView.appState?.isOutlineVisible != false) {
+            window.makeFirstResponder(returnFocusView)
+        } else if let appState = pdfView.appState {
+            appState.focusActiveReaderSoon()
+        } else {
+            pdfView.focus()
+        }
+        returnFocusView = nil
     }
 
     private func jumpToSelectedMatch(recordJump: Bool) {
@@ -990,6 +1023,12 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
     var onQueryChanged: ((String) -> Void)?
     var onCommit: (() -> Void)?
     var onCancel: (() -> Void)?
+    var canFocus: (() -> Bool)?
+
+    var ownsFocus: Bool {
+        guard let responder = window?.firstResponder else { return false }
+        return responder === textField || responder === textField.currentEditor()
+    }
 
     private let container = NSVisualEffectView()
     private let inputFocusLine = CALayer()
@@ -1093,11 +1132,17 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
         layoutSubtreeIfNeeded()
         showEditing()
 
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            self.window?.makeFirstResponder(self.textField)
+        let expectedResponder = window?.firstResponder
+        DispatchQueue.main.async { [weak self, weak expectedResponder] in
+            guard let self, self.presentation == .editing,
+                  self.superview != nil, let window = self.window,
+                  self.canFocus?() != false,
+                  NSApp.modalWindow == nil, window.attachedSheet == nil,
+                  NSApp.keyWindow == nil || window.isKeyWindow,
+                  window.firstResponder === expectedResponder || self.ownsFocus else { return }
+            window.makeFirstResponder(self.textField)
             self.textField.currentEditor()?.selectedRange = NSRange(
-                location: self.textField.stringValue.count,
+                location: self.textField.stringValue.utf16.count,
                 length: 0
             )
         }
@@ -1134,6 +1179,7 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
         textView: NSTextView,
         doCommandBy commandSelector: Selector
     ) -> Bool {
+        guard !textView.hasMarkedText() else { return false }
         switch SearchCommandEditingCommand.action(for: commandSelector) {
         case .commit:
             onCommit?()

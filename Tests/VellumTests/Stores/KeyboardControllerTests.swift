@@ -270,6 +270,295 @@ struct KeyboardControllerTests {
         #expect(!controller.handleKeyEvent(keyEvent(.keyUp, key: "j", keyCode: 38)))
     }
 
+    @Test(arguments: ["g", "1"], [false, true])
+    func pendingInputBelongsToItsStartingResponderAndReader(firstKey: String, changesReader: Bool) {
+        let window = makeWindow()
+        defer { window.close() }
+        let first = NSTextView()
+        let second = NSTextView()
+        window.contentView?.addSubview(first)
+        window.contentView?.addSubview(second)
+        #expect(window.makeFirstResponder(first))
+        let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
+        let delegate = RecordingKeyboardDelegate()
+        controller.delegate = delegate
+        let event = WindowKeyboardEvent()
+        event.targetWindow = window
+        event.key = firstKey
+        #expect(controller.handleKeyEvent(event))
+
+        if changesReader {
+            delegate.reader = RecordingKeyboardReaderController()
+        } else {
+            #expect(window.makeFirstResponder(second))
+        }
+        event.key = firstKey == "g" ? "g" : "2"
+        #expect(controller.handleKeyEvent(event))
+        #expect(delegate.commands.isEmpty)
+        event.key = firstKey == "g" ? "g" : "G"
+        #expect(controller.handleKeyEvent(event))
+        #expect(delegate.commands == (firstKey == "g" ? [.firstPage] : [.jumpToPage(2)]))
+    }
+
+    @Test
+    func numericSequenceRetainsItsStartingContextUntilConsumed() {
+        let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
+        let delegate = RecordingKeyboardDelegate()
+        controller.delegate = delegate
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "1", keyCode: 18)))
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "2", keyCode: 19)))
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "G", keyCode: 5)))
+        #expect(delegate.commands == [.jumpToPage(12)])
+    }
+
+    @Test(arguments: ["g", "1", "/", "T", "H", "L"])
+    func startingAnotherCommandStopsHeldScrolling(key: String) {
+        let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
+        let delegate = RecordingKeyboardDelegate()
+        controller.delegate = delegate
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "j", keyCode: 38)))
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: key, keyCode: 0)))
+        let commands = delegate.commands
+        RunLoop.main.run(until: Date().addingTimeInterval(0.10))
+        #expect(delegate.commands == commands)
+        #expect(commands.filter { $0 == .scrollDown }.count == 1)
+        #expect(!controller.handleKeyEvent(keyEvent(.keyUp, key: "j", keyCode: 38)))
+    }
+
+    @Test
+    func changingReaderStopsHeldScrollingBeforeItsNextTick() {
+        let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
+        let delegate = RecordingKeyboardDelegate()
+        controller.delegate = delegate
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "j", keyCode: 38)))
+        delegate.reader = RecordingKeyboardReaderController()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.10))
+        #expect(delegate.commands == [.scrollDown])
+        #expect(!controller.handleKeyEvent(keyEvent(.keyUp, key: "j", keyCode: 38)))
+    }
+
+    @Test(arguments: ["j", "g"])
+    func blockingPresentationCancelsInputBeforeItsEditorTakesFocus(key: String) {
+        let window = makeWindow()
+        defer { window.close() }
+        let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
+        let delegate = RecordingKeyboardDelegate()
+        controller.delegate = delegate
+        delegate.readerWindow = window
+        let event = WindowKeyboardEvent()
+        event.targetWindow = window
+        event.key = key
+        #expect(controller.routeKeyEvent(event))
+        let commands = delegate.commands
+        let readerActions = delegate.reader.actions
+        delegate.hasBlockingReaderPresentation = true
+        RunLoop.main.run(until: Date().addingTimeInterval(0.10))
+        #expect(!controller.routeKeyEvent(event))
+        event.key = "j"
+        #expect(!controller.routeKeyEvent(event))
+        #expect(delegate.commands == commands)
+        #expect(delegate.reader.actions == readerActions)
+
+        delegate.hasBlockingReaderPresentation = false
+        event.key = "g"
+        #expect(controller.routeKeyEvent(event))
+        #expect(delegate.commands == commands)
+        #expect(controller.routeKeyEvent(event))
+        #expect(delegate.commands == commands + [.firstPage])
+    }
+
+    @Test
+    func hidingInputWindowStopsHeldScrolling() {
+        let window = makeWindow()
+        defer { window.close() }
+        let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
+        let delegate = RecordingKeyboardDelegate()
+        controller.delegate = delegate
+        delegate.readerWindow = window
+        let event = WindowKeyboardEvent()
+        event.targetWindow = window
+        #expect(controller.routeKeyEvent(event))
+        window.orderOut(nil)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.10))
+        #expect(delegate.commands == [.scrollDown])
+        #expect(!controller.routeKeyEvent(event))
+        window.orderFront(nil)
+        event.eventType = .keyUp
+        #expect(!controller.routeKeyEvent(event))
+        #expect(delegate.commands == [.scrollDown])
+    }
+
+    @Test
+    func attachedSheetCancelsReaderPrefixesAndBlocksCommands() throws {
+        let window = makeWindow()
+        let sheet = makeWindow()
+        sheet.orderOut(nil)
+        defer {
+            window.endSheet(sheet)
+            sheet.orderOut(nil)
+            sheet.close()
+            window.close()
+        }
+        let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
+        let delegate = RecordingKeyboardDelegate()
+        controller.delegate = delegate
+        delegate.readerWindow = window
+        let event = WindowKeyboardEvent()
+        event.targetWindow = window
+        event.key = "g"
+        #expect(controller.routeKeyEvent(event))
+        window.beginSheet(sheet)
+        #expect(window.attachedSheet === sheet)
+        #expect(!controller.routeKeyEvent(event))
+        event.key = "j"
+        #expect(!controller.routeKeyEvent(event))
+        #expect(delegate.commands.isEmpty)
+        window.endSheet(sheet)
+        sheet.orderOut(nil)
+        let deadline = Date().addingTimeInterval(1)
+        while window.attachedSheet != nil, Date() < deadline {
+            _ = RunLoop.main.run(mode: .default, before: deadline)
+        }
+        try #require(window.attachedSheet == nil)
+        event.key = "g"
+        #expect(controller.routeKeyEvent(event))
+        #expect(delegate.commands.isEmpty)
+        #expect(controller.routeKeyEvent(event))
+        #expect(delegate.commands == [.firstPage])
+    }
+
+    @Test(arguments: [("H", VimCommand.previousTab), ("L", .nextTab)])
+    func uppercaseTabCommandsTakePrecedenceOverTextSelection(key: String, command: VimCommand) {
+        let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
+        let delegate = RecordingKeyboardDelegate()
+        delegate.reader.textSelectionKeyResult = true
+        controller.delegate = delegate
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: key, keyCode: 0, modifierFlags: [.shift])))
+        #expect(delegate.commands == [command])
+        #expect(delegate.reader.actions.isEmpty)
+    }
+
+    @Test(arguments: [
+        ("o", UInt16(31), VimCommand.jumpBack),
+        ("i", 34, .jumpForward),
+        ("O", 34, .jumpBack),
+        ("\u{000F}", 0, .jumpBack),
+        ("\t", 31, .jumpForward),
+        ("", 31, .jumpBack)
+    ])
+    func controlHistoryKeysWorkFromOutline(key: String, keyCode: UInt16, command: VimCommand) {
+        let window = makeWindow()
+        defer { window.close() }
+        let outline = PDFOutlineKeyView(frame: window.contentView!.bounds)
+        window.contentView?.addSubview(outline)
+        #expect(window.makeFirstResponder(outline))
+        let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
+        let delegate = RecordingKeyboardDelegate()
+        controller.delegate = delegate
+        delegate.readerWindow = window
+        let event = WindowKeyboardEvent()
+        event.targetWindow = window
+        event.key = key
+        event.physicalKeyCode = keyCode
+        event.flags = [.control]
+
+        #expect(controller.routeKeyEvent(event))
+        #expect(delegate.commands == [command])
+        #expect(window.firstResponder === outline)
+        event.eventType = .keyUp
+        #expect(!controller.routeOutlineGlobalKeyEvent(event))
+        #expect(delegate.commands == [command])
+    }
+
+    @Test(arguments: ["p", "щ", "ы", "\u{0010}", "\u{0003}"])
+    func controlHistoryDoesNotOverrideOtherLayoutCharacters(key: String) {
+        let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
+        let delegate = RecordingKeyboardDelegate()
+        controller.delegate = delegate
+        #expect(!controller.handleKeyEvent(keyEvent(.keyDown, key: key, keyCode: 31, modifierFlags: [.control])))
+        #expect(!controller.handleKeyEvent(keyEvent(.keyDown, key: key, keyCode: 34, modifierFlags: [.control])))
+        #expect(delegate.commands.isEmpty)
+    }
+
+    @Test
+    func controlHistoryPreservesTextEditorAndWindowOwnership() {
+        let window = makeWindow()
+        let settingsWindow = makeWindow()
+        defer { window.close(); settingsWindow.close() }
+        let editor = NSTextView()
+        window.contentView?.addSubview(editor)
+        #expect(window.makeFirstResponder(editor))
+        let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
+        let delegate = RecordingKeyboardDelegate()
+        controller.delegate = delegate
+        delegate.readerWindow = window
+        let event = WindowKeyboardEvent()
+        event.targetWindow = window
+        event.key = "o"
+        event.flags = [.control]
+        event.physicalKeyCode = 31
+        #expect(!controller.routeKeyEvent(event))
+        #expect(window.makeFirstResponder(nil))
+        event.targetWindow = settingsWindow
+        #expect(!controller.routeKeyEvent(event))
+        #expect(delegate.commands.isEmpty)
+    }
+
+    @Test(arguments: [
+        ("H", VimCommand.previousTab), ("L", .nextTab), ("o", .open), ("O", .openInNewTab),
+        ("x", .closeTab), ("X", .restoreClosedTab), ("T", .showTabSwitcher), ("/", .beginSearch),
+        ("A", .showAIExplanationHistory), ("I", .showAIConversationHistory),
+        ("[", .previousTab), ("]", .nextTab), ("n", .searchNext), ("N", .searchPrevious)
+    ])
+    func outlineGlobalCommandsWaitForLocalOutlineHandling(key: String, command: VimCommand) {
+        let window = makeWindow()
+        defer { window.close() }
+        let outline = PDFOutlineKeyView(frame: window.contentView!.bounds)
+        window.contentView?.addSubview(outline)
+        #expect(window.makeFirstResponder(outline))
+        let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
+        let delegate = RecordingKeyboardDelegate()
+        controller.delegate = delegate
+        delegate.readerWindow = window
+        let event = WindowKeyboardEvent()
+        event.targetWindow = window
+        event.key = key
+
+        #expect(!controller.routeKeyEvent(event))
+        #expect(delegate.commands.isEmpty)
+        #expect(controller.routeOutlineGlobalKeyEvent(event))
+        #expect(delegate.commands == [command])
+        #expect(delegate.reader.actions.isEmpty)
+        event.repeats = true
+        #expect(controller.routeOutlineGlobalKeyEvent(event))
+        let commands = ["H", "L", "X", "O", "n", "N"].contains(key) ? [command, command] : [command]
+        #expect(delegate.commands == commands)
+        event.eventType = .keyUp
+        #expect(!controller.routeOutlineGlobalKeyEvent(event))
+        #expect(delegate.commands == commands)
+    }
+
+    @Test(arguments: ["j", "k", "h", "l", "g", "G", "z", "d", "u", "f", "b", " ", "=", "m", "a", "i", "v", "y", "c"])
+    func outlineNeverFallsThroughToReaderMovementsOrTextActions(key: String) {
+        let window = makeWindow()
+        defer { window.close() }
+        let outline = PDFOutlineKeyView(frame: window.contentView!.bounds)
+        window.contentView?.addSubview(outline)
+        #expect(window.makeFirstResponder(outline))
+        let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
+        let delegate = RecordingKeyboardDelegate()
+        controller.delegate = delegate
+        delegate.readerWindow = window
+        let event = WindowKeyboardEvent()
+        event.targetWindow = window
+        event.key = key
+
+        #expect(!controller.routeKeyEvent(event))
+        #expect(!controller.routeOutlineGlobalKeyEvent(event))
+        #expect(delegate.commands.isEmpty)
+        #expect(delegate.reader.actions.isEmpty)
+    }
+
     @Test(arguments: [false, true])
     func changingReaderCancelsTabOverviewOnItsStartingReader(active: Bool) throws {
         let controller = KeyboardController(
@@ -412,11 +701,16 @@ struct KeyboardControllerTests {
 private final class WindowKeyboardEvent: NSEvent {
     var targetWindow: NSWindow?
     var key = "j"
+    var flags: NSEvent.ModifierFlags = []
+    var physicalKeyCode: UInt16 = 38
+    var eventType: NSEvent.EventType = .keyDown
+    var repeats = false
     override var window: NSWindow? { targetWindow }
-    override var type: NSEvent.EventType { .keyDown }
-    override var modifierFlags: NSEvent.ModifierFlags { [] }
+    override var type: NSEvent.EventType { eventType }
+    override var modifierFlags: NSEvent.ModifierFlags { flags }
     override var charactersIgnoringModifiers: String? { key }
-    override var isARepeat: Bool { false }
+    override var keyCode: UInt16 { physicalKeyCode }
+    override var isARepeat: Bool { repeats }
 }
 
 @MainActor
@@ -425,6 +719,7 @@ private final class RecordingKeyboardDelegate: KeyboardControllerDelegate {
     var overrideReader: ReaderController?
     var hasActiveReader = true
     var readerWindow: NSWindow?
+    var hasBlockingReaderPresentation = false
     private(set) var commands: [VimCommand] = []
     private(set) var openedURLs: [URL] = []
 
@@ -449,6 +744,7 @@ private final class RecordingKeyboardReaderController: ReaderController {
     var isPageOverviewActive = false
     var deleteHighlightsResult = false
     var aiKeyResult = false
+    var textSelectionKeyResult = false
     private(set) var actions: [Action] = []
 
     func snapshot() -> ReaderSnapshot? { nil }
@@ -487,7 +783,7 @@ private final class RecordingKeyboardReaderController: ReaderController {
 
     func handleTextSelectionKeyEvent(_ event: NSEvent) -> Bool { false }
 
-    func handleTextSelectionKey(_ rawKey: String, eventType: NSEvent.EventType) -> Bool { false }
+    func handleTextSelectionKey(_ rawKey: String, eventType: NSEvent.EventType) -> Bool { textSelectionKeyResult }
 
     func vimDeleteHighlightsForSelection() -> Bool {
         actions.append(.deleteHighlights)

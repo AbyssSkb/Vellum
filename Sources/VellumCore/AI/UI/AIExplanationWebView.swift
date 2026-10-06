@@ -39,6 +39,7 @@ final class AIExplanationWebView: WKWebView, WKNavigationDelegate, WKScriptMessa
     var onCycleColor: (() -> Void)?
     var onContentHeightChange: ((CGFloat) -> Void)?
     var shouldFocusWhenReady = true
+    var onInitialFocus: (() -> Bool)?
     var autoScrollOnUpdate = false
     var pronunciationSpeechText: String?
     var autoPronunciationLanguageCode: String?
@@ -46,6 +47,7 @@ final class AIExplanationWebView: WKWebView, WKNavigationDelegate, WKScriptMessa
     var speakBritishButtonTitle = "Speak British pronunciation"
     private var pendingMarkdown = ""
     private var didLoadDocument = false
+    private var didRequestInitialFocus = false
     private var lastAutoPronouncedKey: String?
     private let speechSynthesizer = AVSpeechSynthesizer()
 
@@ -86,9 +88,18 @@ final class AIExplanationWebView: WKWebView, WKNavigationDelegate, WKScriptMessa
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         didLoadDocument = true
         render(pendingMarkdown)
-        if shouldFocusWhenReady {
-            window?.makeFirstResponder(self)
-        }
+        requestInitialFocus()
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        requestInitialFocus()
+    }
+
+    func requestInitialFocus() {
+        guard didLoadDocument, window != nil,
+              shouldFocusWhenReady, !didRequestInitialFocus else { return }
+        didRequestInitialFocus = onInitialFocus?() == true
     }
 
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping @MainActor @Sendable (WKNavigationActionPolicy) -> Void) {

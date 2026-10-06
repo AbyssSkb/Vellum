@@ -75,14 +75,13 @@ struct PDFOutlineView: NSViewRepresentable {
 
         if context.coordinator.lastFocusGeneration != focusGeneration {
             context.coordinator.lastFocusGeneration = focusGeneration
-            DispatchQueue.main.async { [weak outlineView] in
-                outlineView?.focus()
-            }
+            outlineView.requestFocus(tabID: tabID, documentID: documentID, generation: focusGeneration)
         }
     }
 
     static func dismantleNSView(_ scrollView: NSScrollView, coordinator: Coordinator) {
         guard let outlineView = scrollView.documentView as? PDFOutlineKeyView else { return }
+        outlineView.cancelPendingFocus()
         coordinator.saveState(in: outlineView)
     }
 }

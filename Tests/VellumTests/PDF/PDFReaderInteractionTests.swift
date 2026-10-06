@@ -8,6 +8,31 @@ import Testing
 struct PDFReaderInteractionTests {
     @Test
     @MainActor
+    func customWordSelectionTakesReaderFocus() throws {
+        let (window, reader) = try makeReader()
+        defer { window.close() }
+        let page = try #require(reader.document?.page(at: 0))
+        let selection = try #require(page.selection(for: NSRange(location: 0, length: 5)))
+        reader.go(to: selection)
+        reader.layoutDocumentView()
+        let bounds = selection.bounds(for: page)
+        let location = reader.convert(reader.convert(NSPoint(x: bounds.midX, y: bounds.midY), from: page), to: nil)
+        let editor = NSTextView()
+        reader.addSubview(editor)
+        #expect(window.makeFirstResponder(editor))
+        let event = try #require(NSEvent.mouseEvent(
+            with: .leftMouseDown, location: location, modifierFlags: [], timestamp: 0,
+            windowNumber: window.windowNumber, context: nil, eventNumber: 1, clickCount: 2, pressure: 1
+        ))
+
+        reader.mouseDown(with: event)
+
+        #expect(window.firstResponder === reader)
+        #expect(reader.currentSelection?.string?.trimmingCharacters(in: .whitespacesAndNewlines) == "First")
+    }
+
+    @Test
+    @MainActor
     func snapshotUpdatePreservesTextInputFocus() throws {
         let (window, reader) = try makeReader()
         defer { window.close() }

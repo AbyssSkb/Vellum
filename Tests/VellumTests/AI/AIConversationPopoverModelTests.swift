@@ -113,6 +113,31 @@ struct AIConversationPopoverModelTests {
     }
 
     @Test
+    func escapeLetsTheComposerCancelMarkedTextBeforeClosingAI() throws {
+        let window = makeWindow()
+        defer { window.close() }
+        let reader = VellumPDFView(frame: window.contentView!.bounds)
+        window.contentView = reader
+        let editor = AIConversationNSTextView(frame: reader.bounds)
+        editor.shouldFocusWhenAttached = false
+        reader.addSubview(editor)
+        let model = AIConversationPopoverModel(context: Self.context())
+        reader.aiInteraction.activeConversationModel = model
+        #expect(window.makeFirstResponder(editor))
+        editor.setMarkedText("测", selectedRange: NSRange(location: 1, length: 0), replacementRange: NSRange(location: NSNotFound, length: 0))
+        let event = try #require(NSEvent.keyEvent(
+            with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0,
+            windowNumber: window.windowNumber, context: nil, characters: "\u{1b}", charactersIgnoringModifiers: "\u{1b}",
+            isARepeat: false, keyCode: 53
+        ))
+        #expect(!reader.handleAIKeyEvent(event))
+        #expect(reader.aiInteraction.activeConversationModel === model)
+        editor.unmarkText()
+        #expect(reader.handleAIKeyEvent(event))
+        #expect(reader.aiInteraction.activeConversationModel == nil)
+    }
+
+    @Test
     func streamingUpdatePreservesComposerSelection() throws {
         let window = makeWindow()
         defer { window.close() }
@@ -145,6 +170,56 @@ struct AIConversationPopoverModelTests {
         model.appendToLatestAssistant(" another chunk")
         RunLoop.main.run(until: Date().addingTimeInterval(0.05))
         #expect(window.firstResponder === otherEditor)
+    }
+
+    @Test
+    func deferredComposerFocusKeepsTheCurrentResponderAndOverlay() async throws {
+        let window = makeWindow()
+        defer { window.contentView = nil; window.close() }
+        let reader = VellumPDFView(frame: window.contentView!.bounds)
+        window.contentView = reader
+        let overlay = NSView(frame: reader.bounds)
+        reader.addSubview(overlay)
+        reader.aiInteraction.conversationOverlay = overlay
+        let editor = AIConversationNSTextView(frame: overlay.bounds)
+        overlay.addSubview(editor)
+        let otherEditor = NSTextView(frame: reader.bounds)
+        reader.addSubview(otherEditor)
+
+        try await Task.sleep(for: .milliseconds(50))
+        let receivedInitialFocus = window.firstResponder === editor
+        #expect(receivedInitialFocus)
+
+        editor.requestFocusAndShowInsertionPoint()
+        #expect(window.makeFirstResponder(otherEditor))
+        try await Task.sleep(for: .milliseconds(50))
+        let preservedNewResponder = window.firstResponder === otherEditor
+        #expect(preservedNewResponder)
+
+        editor.requestFocusAndShowInsertionPoint()
+        editor.shouldFocusWhenAttached = false
+        try await Task.sleep(for: .milliseconds(50))
+        let canceledFocus = window.firstResponder === otherEditor
+        #expect(canceledFocus)
+
+        editor.shouldFocusWhenAttached = true
+        editor.requestFocusAndShowInsertionPoint()
+        editor.removeFromSuperview()
+        try await Task.sleep(for: .milliseconds(50))
+        let detachedViewStayedUnfocused = window.firstResponder === otherEditor
+        #expect(detachedViewStayedUnfocused)
+
+        overlay.addSubview(editor)
+        reader.aiInteraction.conversationOverlay = nil
+        try await Task.sleep(for: .milliseconds(50))
+        let replacedOverlayStayedUnfocused = window.firstResponder === otherEditor
+        #expect(replacedOverlayStayedUnfocused)
+
+        reader.aiInteraction.conversationOverlay = overlay
+        editor.requestFocusAndShowInsertionPoint()
+        try await Task.sleep(for: .milliseconds(50))
+        let receivedExplicitFocus = window.firstResponder === editor
+        #expect(receivedExplicitFocus)
     }
 
     @Test

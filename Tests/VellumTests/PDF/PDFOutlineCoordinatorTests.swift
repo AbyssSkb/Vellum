@@ -365,6 +365,186 @@ struct PDFOutlineCoordinatorTests {
         #expect(!appState.isOutlineVisible)
     }
 
+    @Test
+    func requestedOutlineFocusWaitsForAttachmentAndCancelsAfterDetachment() async throws {
+        _ = NSApplication.shared
+        let appState = makeAppState()
+        let document = PDFDocument()
+        document.insert(PDFPage(), at: 0)
+        let tab = PDFTab(url: nil, document: document)
+        _ = appState.tabStore.openInNewTabs([tab])
+        appState.isOutlineVisible = true
+        appState.outlineFocusGeneration = 1
+        let outline = PDFOutlineKeyView(frame: NSRect(x: 0, y: 0, width: 256, height: 320))
+        outline.appState = appState
+        let field = NSTextField(frame: NSRect(x: 270, y: 20, width: 200, height: 24))
+        let window = OutlineFocusWindow(contentRect: NSRect(x: 0, y: 0, width: 500, height: 320),
+                                        styleMask: .borderless, backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentView?.addSubview(field)
+        window.orderFront(nil)
+        appState.readerWindow = window
+        defer {
+            window.setKeyForTesting(false)
+            window.contentView = nil
+            window.close()
+        }
+        #expect(window.makeFirstResponder(field))
+
+        outline.requestFocus(tabID: tab.id, documentID: ObjectIdentifier(document), generation: 1)
+        try await Task.sleep(for: .milliseconds(30))
+        var outlineIsFocused = window.firstResponder === outline
+        #expect(!outlineIsFocused)
+        window.contentView?.addSubview(outline)
+        try await Task.sleep(for: .milliseconds(30))
+        outlineIsFocused = window.firstResponder === outline
+        #expect(!outlineIsFocused)
+        window.setKeyForTesting(true)
+        try await Task.sleep(for: .milliseconds(30))
+        outlineIsFocused = window.firstResponder === outline
+        #expect(outlineIsFocused)
+
+        // A completed request must not reclaim focus on an unrelated view update.
+        #expect(window.makeFirstResponder(field))
+        try await Task.sleep(for: .milliseconds(30))
+        outlineIsFocused = window.firstResponder === outline
+        #expect(!outlineIsFocused)
+        outline.requestFocus(tabID: tab.id, documentID: ObjectIdentifier(document), generation: 1)
+        outline.removeFromSuperview()
+        window.contentView?.addSubview(outline)
+        try await Task.sleep(for: .milliseconds(30))
+        outlineIsFocused = window.firstResponder === outline
+        #expect(!outlineIsFocused)
+    }
+
+    enum FocusInterruption: CaseIterable {
+        case close, tab, document, generation, tabSwitcher, conversationHistory, explanationHistory, sheet, otherWindow
+        case textEditor, reader
+    }
+
+    @Test(arguments: FocusInterruption.allCases)
+    func deferredOutlineFocusCannotOverrideANewerContext(interruption: FocusInterruption) async throws {
+        _ = NSApplication.shared
+        let appState = makeAppState()
+        let document = PDFDocument()
+        document.insert(PDFPage(), at: 0)
+        let tab = PDFTab(url: nil, document: document)
+        _ = appState.tabStore.openInNewTabs([tab])
+        appState.isOutlineVisible = true
+        appState.outlineFocusGeneration = 1
+        let outline = PDFOutlineKeyView(frame: NSRect(x: 0, y: 0, width: 256, height: 320))
+        outline.appState = appState
+        let field = NSTextField(frame: NSRect(x: 270, y: 20, width: 200, height: 24))
+        let window = OutlineFocusWindow(contentRect: NSRect(x: 0, y: 0, width: 500, height: 320),
+                                        styleMask: .borderless, backing: .buffered, defer: false)
+        let otherWindow = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 200, height: 100),
+                                   styleMask: .borderless, backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        otherWindow.isReleasedWhenClosed = false
+        window.contentView?.addSubview(outline)
+        window.contentView?.addSubview(field)
+        window.orderFront(nil)
+        window.setKeyForTesting(true)
+        appState.readerWindow = window
+        defer {
+            if window.attachedSheet != nil {
+                window.endSheet(otherWindow)
+                otherWindow.orderOut(nil)
+                let deadline = Date().addingTimeInterval(1)
+                while window.attachedSheet != nil, Date() < deadline {
+                    drainSheetEvents(before: deadline)
+                }
+            }
+            window.setKeyForTesting(false)
+            otherWindow.contentView = nil
+            window.contentView = nil
+            otherWindow.close()
+            window.close()
+        }
+        #expect(window.makeFirstResponder(field))
+        outline.requestFocus(tabID: tab.id, documentID: ObjectIdentifier(document), generation: 1)
+
+        switch interruption {
+        case .close: appState.isOutlineVisible = false
+        case .tab: _ = appState.tabStore.openInNewTabs([PDFTab(url: nil, document: document)])
+        case .document: appState.tabStore.replaceDocument(for: tab.id, with: PDFDocument())
+        case .generation: appState.outlineFocusGeneration += 1
+        case .tabSwitcher: appState.isTabSwitcherPresented = true
+        case .conversationHistory: appState.isAIConversationHistoryPresented = true
+        case .explanationHistory: appState.isAIExplanationHistoryPresented = true
+        case .sheet: window.beginSheet(otherWindow, completionHandler: nil)
+        case .otherWindow:
+            window.setKeyForTesting(false)
+            otherWindow.orderFront(nil)
+        case .textEditor:
+            let editor = NSTextView(frame: NSRect(x: 270, y: 60, width: 200, height: 40))
+            window.contentView?.addSubview(editor)
+            #expect(window.makeFirstResponder(editor))
+        case .reader:
+            let reader = VellumPDFView(frame: NSRect(x: 270, y: 60, width: 200, height: 200))
+            reader.document = document
+            window.contentView?.addSubview(reader)
+            #expect(window.makeFirstResponder(reader))
+        }
+        try await Task.sleep(for: .milliseconds(30))
+        let outlineIsFocused = window.firstResponder === outline
+        #expect(!outlineIsFocused)
+    }
+
+    @Test
+    func emptyOutlineKeepsKeyboardFocusAndDoesNotNavigateThePDF() async throws {
+        _ = NSApplication.shared
+        let appState = makeAppState()
+        let document = PDFDocument()
+        for index in 0..<2 {
+            let page = PDFPage()
+            page.setBounds(NSRect(x: 0, y: 0, width: 612, height: 792), for: .mediaBox)
+            document.insert(page, at: index)
+        }
+        let tab = PDFTab(url: nil, document: document)
+        _ = appState.tabStore.openInNewTabs([tab])
+        appState.isOutlineVisible = true
+        appState.outlineFocusGeneration = 1
+        let host = NSHostingView(rootView: OutlineSidebar(tab: tab).environmentObject(appState))
+        host.frame = NSRect(x: 0, y: 0, width: 256, height: 320)
+        let reader = VellumPDFView(frame: NSRect(x: 256, y: 0, width: 400, height: 320))
+        reader.appState = appState
+        reader.document = document
+        let window = OutlineFocusWindow(contentRect: NSRect(x: 0, y: 0, width: 656, height: 320),
+                                        styleMask: .borderless, backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentView?.addSubview(reader)
+        window.contentView?.addSubview(host)
+        appState.readerWindow = window
+        appState.activeReaderController = reader
+        window.orderFront(nil)
+        window.setKeyForTesting(true)
+        defer {
+            window.setKeyForTesting(false)
+            window.contentView = nil
+            window.close()
+        }
+        host.layoutSubtreeIfNeeded()
+        reader.layoutDocumentView()
+        try await Task.sleep(for: .milliseconds(30))
+        func descendants(_ view: NSView) -> [NSView] { [view] + view.subviews.flatMap(descendants) }
+        let outline = try #require(descendants(host).compactMap { $0 as? PDFOutlineKeyView }.first)
+        var outlineIsFocused = window.firstResponder === outline
+        #expect(outlineIsFocused)
+        #expect(outline.numberOfRows == 0)
+        let snapshot = reader.snapshot()
+        for (key, code) in [("j", UInt16(38)), ("k", UInt16(40))] {
+            let event = keyEvent(key, keyCode: code, window: window)
+            #expect(!appState.handleKeyEvent(event))
+            outline.keyDown(with: event)
+        }
+        outlineIsFocused = window.firstResponder === outline
+        #expect(outlineIsFocused)
+        #expect(reader.snapshot() == snapshot)
+        outline.keyDown(with: keyEvent("t", keyCode: 17, window: window))
+        #expect(!appState.isOutlineVisible)
+    }
+
     @Test(arguments: [false, true])
     func movingBetweenVisibleOutlineRowsPreservesTopInset(longOutline: Bool) throws {
         _ = NSApplication.shared
@@ -422,6 +602,10 @@ struct PDFOutlineCoordinatorTests {
         }
     }
 
+    private func drainSheetEvents(before deadline: Date) {
+        _ = RunLoop.main.run(mode: .default, before: deadline)
+    }
+
     private func keyEvent(_ key: String, keyCode: UInt16, window: NSWindow? = nil) -> NSEvent {
         NSEvent.keyEvent(
             with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0,
@@ -477,6 +661,21 @@ struct PDFOutlineCoordinatorTests {
             destination: PDFDestination(page: document.page(at: 0)!, at: .zero),
             pageIndex: 0,
             parent: nil
+        )
+    }
+}
+
+// The test runner does not activate a WindowServer app; responder transitions still use AppKit.
+@MainActor
+private final class OutlineFocusWindow: NSWindow {
+    private var testKeyWindow = false
+    override var isKeyWindow: Bool { testKeyWindow }
+
+    func setKeyForTesting(_ isKey: Bool) {
+        guard testKeyWindow != isKey else { return }
+        testKeyWindow = isKey
+        NotificationCenter.default.post(
+            name: isKey ? NSWindow.didBecomeKeyNotification : NSWindow.didResignKeyNotification, object: self
         )
     }
 }

@@ -195,6 +195,7 @@ struct TabSwitcherOverlay: View {
 }
 
 private struct TabSwitcherSearchField: NSViewRepresentable {
+    @EnvironmentObject private var appState: AppState
     @Binding var text: String
     let language: AppUILanguage
     let onMoveUp: () -> Void
@@ -210,7 +211,7 @@ private struct TabSwitcherSearchField: NSViewRepresentable {
         textField.onCommit = onCommit
         textField.onCancel = onCancel
         textField.configure(language: language)
-        focus(textField)
+        textField.canFocus = { [weak appState] in appState?.isTabSwitcherPresented == true }
         return textField
     }
 
@@ -226,22 +227,11 @@ private struct TabSwitcherSearchField: NSViewRepresentable {
         }
 
         context.coordinator.text = $text
-        focus(nsView)
+        nsView.focusInitiallyIfNeeded()
     }
 
     func makeCoordinator() -> Coordinator {
         Coordinator(text: $text)
-    }
-
-    private func focus(_ textField: TabSwitcherTextField) {
-        DispatchQueue.main.async {
-            guard textField.window?.firstResponder !== textField.currentEditor() else { return }
-            textField.window?.makeFirstResponder(textField)
-            textField.currentEditor()?.selectedRange = NSRange(
-                location: textField.stringValue.count,
-                length: 0
-            )
-        }
     }
 
     final class Coordinator: NSObject, NSTextFieldDelegate {
@@ -261,7 +251,7 @@ private struct TabSwitcherSearchField: NSViewRepresentable {
             textView: NSTextView,
             doCommandBy commandSelector: Selector
         ) -> Bool {
-            guard let textField = control as? TabSwitcherTextField else { return false }
+            guard !textView.hasMarkedText(), let textField = control as? TabSwitcherTextField else { return false }
             return textField.performCommand(commandSelector)
         }
     }
@@ -290,8 +280,36 @@ private final class TabSwitcherTextField: NSTextField {
     var onMoveDown: (() -> Void)?
     var onCommit: (() -> Void)?
     var onCancel: (() -> Void)?
+    var canFocus: (() -> Bool)?
+    private var needsInitialFocus = true
 
     override var acceptsFirstResponder: Bool { true }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        focusInitiallyIfNeeded()
+    }
+
+    func focusInitiallyIfNeeded() {
+        guard needsInitialFocus, let window else { return }
+        if let responder = window.firstResponder,
+           responder === self || responder === currentEditor() {
+            needsInitialFocus = false
+            return
+        }
+        let expectedResponder = window.firstResponder
+        DispatchQueue.main.async { [weak self, weak window, weak expectedResponder] in
+            guard let self, let window, self.needsInitialFocus,
+                  self.window === window, self.superview != nil,
+                  self.canFocus?() == true,
+                  NSApp.modalWindow == nil, window.attachedSheet == nil,
+                  NSApp.keyWindow == nil || window.isKeyWindow else { return }
+            self.needsInitialFocus = false
+            guard window.firstResponder === expectedResponder else { return }
+            window.makeFirstResponder(self)
+            self.currentEditor()?.selectedRange = NSRange(location: self.stringValue.utf16.count, length: 0)
+        }
+    }
 
     func configure(language: AppUILanguage) {
         cell = TabSwitcherTextFieldCell(textCell: "")

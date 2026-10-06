@@ -5,8 +5,13 @@ import PDFKit
 protocol KeyboardControllerDelegate: AnyObject {
     var activeReaderController: ReaderController? { get }
     var readerWindow: NSWindow? { get }
+    var hasBlockingReaderPresentation: Bool { get }
     func handleVimCommand(_ command: VimCommand)
     func open(urls: [URL])
+}
+
+extension KeyboardControllerDelegate {
+    var hasBlockingReaderPresentation: Bool { false }
 }
 
 @MainActor
@@ -62,7 +67,7 @@ final class KeyboardController {
     }
 
     func handleKeyEvent(_ event: NSEvent) -> Bool {
-        if (vimInput.heldKey != nil || tabPageOverviewArmed || tabPageOverviewActive), !inputContextIsValid {
+        if hasInputSequence, (!inputContextIsValid || event.window !== inputWindow) {
             cancelInput()
         }
         if event.type == .keyDown, handleControlJump(event) {
@@ -75,7 +80,7 @@ final class KeyboardController {
         }
 
         guard let key = event.charactersIgnoringModifiers, !key.isEmpty else { return false }
-        if event.type == .keyDown, vimInput.heldKey == nil, !tabPageOverviewArmed, !tabPageOverviewActive {
+        if event.type == .keyDown, !hasInputSequence {
             inputWindow = event.window
             inputResponder = event.window?.firstResponder
             inputReader = delegate?.activeReaderController
@@ -89,7 +94,8 @@ final class KeyboardController {
             return true
         }
 
-        if delegate?.activeReaderController?.handleTextSelectionKey(key, eventType: event.type) == true {
+        if key != "H", key != "L",
+           delegate?.activeReaderController?.handleTextSelectionKey(key, eventType: event.type) == true {
             stopHeldKeyTimer()
             vimInput.clearPendingInput()
             return true
@@ -134,20 +140,42 @@ final class KeyboardController {
     // MARK: - Routing
 
     func routeKeyEvent(_ event: NSEvent) -> Bool {
+        routeKeyEvent(event, allowsOutlineGlobalCommands: false)
+    }
+
+    func routeOutlineGlobalKeyEvent(_ event: NSEvent) -> Bool {
+        routeKeyEvent(event, allowsOutlineGlobalCommands: true)
+    }
+
+    private func routeKeyEvent(_ event: NSEvent, allowsOutlineGlobalCommands: Bool) -> Bool {
         guard NSApp?.modalWindow == nil,
+              delegate?.hasBlockingReaderPresentation != true,
               let window = event.window,
               window === delegate?.readerWindow,
               window.isVisible,
+              window.attachedSheet == nil,
               !(window is NSPanel) else {
             cancelInput()
             return false
         }
 
         if let responder = window.firstResponder,
-           responder is PDFOutlineKeyView
-            || ((responder is NSTextView || responder is NSTextField) && !responderIsInsideAIOverlay(responder)) {
+           (responder is NSTextView || responder is NSTextField) && !responderIsInsideAIOverlay(responder) {
             cancelInput()
             return false
+        }
+
+        if window.firstResponder is PDFOutlineKeyView {
+            cancelInput()
+            if event.type == .keyDown, handleControlJump(event) { return true }
+            guard allowsOutlineGlobalCommands,
+                  event.type == .keyDown,
+                  event.modifierFlags.intersection([.command, .control, .option]).isEmpty,
+                  let key = event.charactersIgnoringModifiers,
+                  ["o", "O", "T", "H", "L", "x", "X", "/", "A", "I", "[", "]", "n", "N"].contains(key) else { return false }
+            return applyVimInputAction(vimInput.handleKeyDown(
+                key, isRepeat: event.isARepeat, hasNavigableTextSelection: false, hasTextActionTarget: false
+            ))
         }
 
         if delegate?.activeReaderController?.handleAIKeyEvent(event) == true {
@@ -192,27 +220,26 @@ final class KeyboardController {
         guard event.modifierFlags.contains(.control),
               event.modifierFlags.intersection([.command, .option]).isEmpty else { return false }
 
-        let key = event.charactersIgnoringModifiers?.lowercased()
-        if key == "o" || event.keyCode == 31 {
-            cancelInput()
-            delegate?.handleVimCommand(.jumpBack)
-            return true
+        let command: VimCommand
+        switch event.charactersIgnoringModifiers?.lowercased() ?? "" {
+        case "o", "\u{000F}": command = .jumpBack
+        case "i", "\t": command = .jumpForward
+        case "":
+            switch event.keyCode {
+            case 31: command = .jumpBack
+            case 34: command = .jumpForward
+            default: return false
+            }
+        default: return false
         }
-
-        if key == "i" || event.keyCode == 34 {
-            cancelInput()
-            delegate?.handleVimCommand(.jumpForward)
-            return true
-        }
-
-        return false
+        cancelInput()
+        delegate?.handleVimCommand(command)
+        return true
     }
 
     private func handleKeyDown(_ key: String, isRepeat: Bool) -> Bool {
-        if delegate?.activeReaderController?.handleTextSelectionKey(key, eventType: .keyDown) == true {
+        if !VimKeyMap.isContinuousKey(key) {
             stopHeldKeyTimer()
-            vimInput.clearPendingInput()
-            return true
         }
 
         let hasNavigableTextSelection = delegate?.activeReaderController?.hasNavigableTextSelection == true
@@ -365,9 +392,17 @@ final class KeyboardController {
 
     private var inputContextIsValid: Bool {
         NSApp?.modalWindow == nil
+            && delegate?.hasBlockingReaderPresentation != true
             && delegate?.activeReaderController?.isAIInteractionActive != true
             && delegate?.activeReaderController === inputReader
+            && inputWindow?.attachedSheet == nil
+            && (inputWindow == nil || inputWindow?.isVisible == true)
             && (inputWindow == nil || inputWindow?.firstResponder === inputResponder)
+    }
+
+    private var hasInputSequence: Bool {
+        vimInput.state.pendingKey != nil || !vimInput.state.numericPrefix.isEmpty
+            || vimInput.heldKey != nil || tabPageOverviewArmed || tabPageOverviewActive
     }
 
     func cancelInput() {
@@ -406,6 +441,7 @@ final class KeyboardController {
         case .handled:
             return true
         case .command(let command):
+            stopHeldKeyTimer()
             delegate?.handleVimCommand(command)
             return true
         case .continuousKey(let key):

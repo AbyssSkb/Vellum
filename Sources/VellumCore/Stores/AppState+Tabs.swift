@@ -12,7 +12,7 @@ extension AppState {
     func selectTabFromSwitcher(_ id: PDFTab.ID) {
         isTabSwitcherPresented = false
         selectTab(id)
-        focusActiveReaderSoon()
+        restoreFocusAfterSwitcher()
     }
 
     public func openPanel(mode: PDFOpenMode = .currentTab) {

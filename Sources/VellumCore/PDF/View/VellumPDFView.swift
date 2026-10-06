@@ -193,8 +193,15 @@ final class VellumPDFView: PDFView {
     }
 
     func focus() {
-        guard appState == nil || appState?.activeReaderController === self else { return }
+        guard appState == nil || appState?.activeReaderController === self,
+              appState?.hasBlockingReaderPresentation != true else { return }
         window?.makeFirstResponder(self)
+    }
+
+    override func resignFirstResponder() -> Bool {
+        let resigned = super.resignFirstResponder()
+        if resigned { appState?.keyboardController.cancelInput() }
+        return resigned
     }
 
     func vimCopySelection() {
@@ -232,6 +239,8 @@ final class VellumPDFView: PDFView {
     }
 
     override func mouseDown(with event: NSEvent) {
+        appState?.keyboardController.cancelInput()
+        focus()
         completePendingRestoreBeforeUserInteraction()
         cancelPendingRestore()
         stopScrollAnimation()
