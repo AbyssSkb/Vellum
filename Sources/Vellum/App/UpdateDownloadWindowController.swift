@@ -96,11 +96,13 @@ final class UpdateDownloadWindowController: NSWindowController {
         titleLabel.font = .systemFont(ofSize: 15, weight: .semibold)
         titleLabel.textColor = TokyoNight.foreground
         titleLabel.lineBreakMode = .byTruncatingTail
+        titleLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
         detailLabel.stringValue = language.text(.preparingDownload)
         detailLabel.textColor = TokyoNight.muted
         detailLabel.font = .systemFont(ofSize: 12)
         detailLabel.lineBreakMode = .byTruncatingMiddle
+        detailLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
         let labelStack = NSStackView(views: [titleLabel, detailLabel])
         labelStack.orientation = .vertical
@@ -158,6 +160,7 @@ final class UpdateDownloadWindowController: NSWindowController {
         progressFillWidthConstraint = progressFillView.widthAnchor.constraint(equalToConstant: 0)
         progressFillWidthConstraint?.isActive = true
         NSLayoutConstraint.activate([
+            contentView.widthAnchor.constraint(equalToConstant: 420),
             iconWell.widthAnchor.constraint(equalToConstant: 36),
             iconWell.heightAnchor.constraint(equalToConstant: 36),
             iconView.centerXAnchor.constraint(equalTo: iconWell.centerXAnchor),

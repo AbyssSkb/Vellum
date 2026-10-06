@@ -136,7 +136,7 @@ final class UpdateAvailableWindowController: NSWindowController {
         let scrollView = NSScrollView()
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.drawsBackground = false
-        scrollView.hasVerticalScroller = notesMetrics.needsScrolling
+        scrollView.hasVerticalScroller = true
         scrollView.autohidesScrollers = true
         scrollView.borderType = .noBorder
         scrollView.documentView = documentView
@@ -173,6 +173,7 @@ final class UpdateAvailableWindowController: NSWindowController {
         notesToActionsConstraint.priority = .defaultHigh
 
         NSLayoutConstraint.activate([
+            contentView.widthAnchor.constraint(equalToConstant: 500),
             iconWell.widthAnchor.constraint(equalToConstant: 48),
             iconWell.heightAnchor.constraint(equalToConstant: 48),
             iconView.centerXAnchor.constraint(equalTo: iconWell.centerXAnchor),
@@ -231,6 +232,7 @@ final class UpdateAvailableWindowController: NSWindowController {
         label.backgroundColor = .clear
         label.isBezeled = false
         label.translatesAutoresizingMaskIntoConstraints = false
+        label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         return label
     }
 
@@ -267,6 +269,7 @@ final class UpdateAvailableWindowController: NSWindowController {
         label.cell?.wraps = true
         label.cell?.isScrollable = false
         label.translatesAutoresizingMaskIntoConstraints = false
+        label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         return label
     }
 
@@ -377,8 +380,7 @@ final class UpdateAvailableWindowController: NSWindowController {
         let windowHeight = 224 + panelHeight
         return NotesMetrics(
             panelHeight: panelHeight,
-            windowHeight: windowHeight,
-            needsScrolling: contentHeight > maxContentHeight
+            windowHeight: windowHeight
         )
     }
 
@@ -408,7 +410,6 @@ final class UpdateAvailableWindowController: NSWindowController {
 private struct NotesMetrics {
     let panelHeight: CGFloat
     let windowHeight: CGFloat
-    let needsScrolling: Bool
 }
 
 private final class FlippedDocumentView: NSView {

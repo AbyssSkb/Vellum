@@ -206,6 +206,67 @@ struct GitHubUpdateCheckerTests {
         }
     }
 
+    @Test
+    func updateConfirmationKeepsItsWidthAndScrollableNotes() throws {
+        _ = NSApplication.shared
+        let key = AppPreferenceKeys.appLanguage
+        let previous = UserDefaults.standard.object(forKey: key)
+        defer { UserDefaults.standard.set(previous, forKey: key) }
+        let notes = [
+            [],
+            [AppReleaseNotesSection(version: "v0.7.25", notes: ["Fix document alignment."])],
+            [AppReleaseNotesSection(version: "v0.7.25", notes: [String(repeating: "修复恢复阅读位置后的页面布局，并改进更新说明。", count: 30)])],
+            [AppReleaseNotesSection(version: "v0.7.25", notes: [String(repeating: "LongReleaseNoteWithoutAnySpaces", count: 30)])],
+            [AppReleaseNotesSection(version: "v0.7.25", notes: [String(repeating: "Updated.\n", count: 30)])]
+        ]
+        for language in AppUILanguage.allCases {
+            UserDefaults.standard.set(language.rawValue, forKey: key)
+            for (offset, sections) in notes.enumerated() {
+                let controller = UpdateAvailableWindowController(
+                    updateVersion: "0.7.25", currentVersion: "0.7.24", canInstall: true,
+                    releaseNotes: sections, isDownloaded: true
+                )
+                let window = try #require(controller.window)
+                defer { window.delegate = nil; controller.close() }
+                let content = try #require(window.contentView)
+                content.layoutSubtreeIfNeeded()
+                #expect(abs(content.bounds.width - 500) < 0.5)
+                #expect(abs(content.fittingSize.width - 500) < 0.5)
+                let views = descendants(of: content)
+                let scrollView = try #require(views.compactMap { $0 as? NSScrollView }.first)
+                #expect(scrollView.hasVerticalScroller)
+                #expect(!scrollView.hasHorizontalScroller)
+                let document = try #require(scrollView.documentView)
+                #expect(abs(document.bounds.width - scrollView.contentView.bounds.width) < 0.5)
+                if offset >= 2 {
+                    #expect(document.bounds.height > scrollView.contentView.bounds.height)
+                }
+                for button in views.compactMap({ $0 as? NSButton }) {
+                    let frame = content.convert(button.bounds, from: button)
+                    #expect(content.bounds.contains(frame))
+                    #expect(frame.width >= 86)
+                }
+            }
+        }
+    }
+
+    @Test
+    func downloadStatusCannotWidenItsWindow() throws {
+        _ = NSApplication.shared
+        let controller = UpdateDownloadWindowController(version: "0.7.25")
+        let window = try #require(controller.window)
+        defer { window.delegate = nil; controller.finish() }
+        let content = try #require(window.contentView)
+        for text in ["Preparing download", String(repeating: "很长的下载状态", count: 50), String(repeating: "LongStatusWithoutSpaces", count: 50)] {
+            controller.updateStatus(text, detail: text)
+            content.layoutSubtreeIfNeeded()
+            #expect(abs(content.bounds.width - 420) < 0.5)
+            #expect(abs(content.fittingSize.width - 420) < 0.5)
+            let button = try #require(descendants(of: content).compactMap { $0 as? NSButton }.first)
+            #expect(content.bounds.contains(content.convert(button.bounds, from: button)))
+        }
+    }
+
     private func descendants(of view: NSView) -> [NSView] {
         view.subviews.flatMap { [$0] + descendants(of: $0) }
     }
