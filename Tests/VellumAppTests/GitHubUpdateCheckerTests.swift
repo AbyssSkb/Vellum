@@ -221,30 +221,41 @@ struct GitHubUpdateCheckerTests {
         ]
         for language in AppUILanguage.allCases {
             UserDefaults.standard.set(language.rawValue, forKey: key)
-            for (offset, sections) in notes.enumerated() {
-                let controller = UpdateAvailableWindowController(
-                    updateVersion: "0.7.25", currentVersion: "0.7.24", canInstall: true,
-                    releaseNotes: sections, isDownloaded: true
-                )
-                let window = try #require(controller.window)
-                defer { window.delegate = nil; controller.close() }
-                let content = try #require(window.contentView)
-                content.layoutSubtreeIfNeeded()
-                #expect(abs(content.bounds.width - 500) < 0.5)
-                #expect(abs(content.fittingSize.width - 500) < 0.5)
-                let views = descendants(of: content)
-                let scrollView = try #require(views.compactMap { $0 as? NSScrollView }.first)
-                #expect(scrollView.hasVerticalScroller)
-                #expect(!scrollView.hasHorizontalScroller)
-                let document = try #require(scrollView.documentView)
-                #expect(abs(document.bounds.width - scrollView.contentView.bounds.width) < 0.5)
-                if offset >= 2 {
-                    #expect(document.bounds.height > scrollView.contentView.bounds.height)
-                }
-                for button in views.compactMap({ $0 as? NSButton }) {
-                    let frame = content.convert(button.bounds, from: button)
-                    #expect(content.bounds.contains(frame))
-                    #expect(frame.width >= 86)
+            for style in [NSScroller.Style.legacy, .overlay] {
+                for (offset, sections) in notes.enumerated() {
+                    let controller = UpdateAvailableWindowController(
+                        updateVersion: "0.7.25", currentVersion: "0.7.24", canInstall: true,
+                        releaseNotes: sections, isDownloaded: true
+                    )
+                    let window = try #require(controller.window)
+                    defer { window.delegate = nil; controller.close() }
+                    let content = try #require(window.contentView)
+                    let views = descendants(of: content)
+                    let scrollView = try #require(views.compactMap { $0 as? NSScrollView }.first)
+                    scrollView.scrollerStyle = style
+                    let document = try #require(scrollView.documentView)
+                    content.layoutSubtreeIfNeeded()
+
+                    // Autohiding a legacy scroller retiles the clip view on the next AppKit run-loop pass.
+                    let deadline = Date(timeIntervalSinceNow: 0.1)
+                    while abs(document.bounds.width - scrollView.contentView.bounds.width) >= 0.5, Date() < deadline {
+                        RunLoop.main.run(until: min(deadline, Date(timeIntervalSinceNow: 0.01)))
+                        content.layoutSubtreeIfNeeded()
+                    }
+
+                    #expect(abs(content.bounds.width - 500) < 0.5)
+                    #expect(abs(content.fittingSize.width - 500) < 0.5)
+                    #expect(scrollView.hasVerticalScroller)
+                    #expect(!scrollView.hasHorizontalScroller)
+                    #expect(abs(document.bounds.width - scrollView.contentView.bounds.width) < 0.5)
+                    if offset >= 2 {
+                        #expect(document.bounds.height > scrollView.contentView.bounds.height)
+                    }
+                    for button in views.compactMap({ $0 as? NSButton }) {
+                        let frame = content.convert(button.bounds, from: button)
+                        #expect(content.bounds.contains(frame))
+                        #expect(frame.width >= 86)
+                    }
                 }
             }
         }
