@@ -226,25 +226,8 @@ extension VellumPDFView {
         stopScrollAnimation()
 
         let clipView = scrollView.contentView
-        let documentSize = scrollView.documentView?.bounds.size ?? .zero
-        let maxX = max(0, documentSize.width - clipView.bounds.width)
-        let maxY = max(0, documentSize.height - clipView.bounds.height)
-        let clamped = NSPoint(
-            x: ScrollGeometry.restoredCoordinate(
-                origin: origin.x,
-                contentLength: documentSize.width,
-                viewportLength: clipView.bounds.width,
-                maxValue: maxX
-            ),
-            y: ScrollGeometry.restoredCoordinate(
-                origin: origin.y,
-                contentLength: documentSize.height,
-                viewportLength: clipView.bounds.height,
-                maxValue: maxY
-            )
-        )
-
-        clipView.scroll(to: clamped)
+        let restoredBounds = clipView.constrainBoundsRect(NSRect(origin: origin, size: clipView.bounds.size))
+        clipView.scroll(to: restoredBounds.origin)
         scrollView.reflectScrolledClipView(clipView)
     }
 

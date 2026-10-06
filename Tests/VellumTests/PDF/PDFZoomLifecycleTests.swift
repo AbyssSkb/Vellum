@@ -5,6 +5,52 @@ import Testing
 
 @Suite("PDF zoom lifecycle")
 struct PDFZoomLifecycleTests {
+    @Test(arguments: [false, true]) @MainActor
+    func restoredSessionUsesCurrentViewportWithoutLosingHorizontalPan(zoomed: Bool) async throws {
+        _ = NSApplication.shared
+        let previousView = makeReader()
+        let previousWindow = makeWindow()
+        previousWindow.contentView = previousView
+        if zoomed {
+            previousView.scaleFactor = 1.5
+            previousView.layoutDocumentView()
+        } else {
+            #expect(previousView.applyWidthFitScaleNow())
+        }
+        let previousScrollView = try #require(previousView.pdfScrollView)
+        let previousClip = previousScrollView.contentView
+        let savedOrigin = previousClip.constrainBoundsRect(NSRect(
+            origin: NSPoint(x: zoomed ? 275 : 0, y: 300), size: previousClip.bounds.size
+        )).origin
+        previousClip.scroll(to: savedOrigin)
+        previousScrollView.reflectScrolledClipView(previousClip)
+        let encoded = try JSONEncoder().encode(try #require(previousView.snapshot()))
+        let savedSnapshot = try JSONDecoder().decode(ReaderSnapshot.self, from: encoded)
+        previousWindow.close()
+
+        let view = makeReader()
+        view.restore(savedSnapshot)
+        let window = makeWindow()
+        window.setContentSize(NSSize(width: 1_000, height: 600))
+        window.contentView = view
+        defer { view.cancelPendingRestore(); window.close() }
+        for _ in 0..<30 {
+            if view.pendingRestoreAction == nil { break }
+            try await Task.sleep(for: .milliseconds(50))
+        }
+
+        #expect(view.pendingRestoreAction == nil)
+        let clip = try #require(view.pdfScrollView?.contentView)
+        #expect(abs(clip.bounds.origin.y - savedOrigin.y) < 1)
+        if zoomed {
+            #expect(abs(clip.bounds.origin.x - savedOrigin.x) < 1)
+        } else {
+            let page = try #require(view.document?.page(at: 0))
+            let pageCenter = view.convert(view.pageCenterDestination(for: page).point, from: page)
+            #expect(abs(pageCenter.x - view.bounds.midX) < 1)
+        }
+    }
+
     @Test @MainActor
     func initialRestoreSurvivesMountingIntoDetachedHierarchy() async throws {
         _ = NSApplication.shared
