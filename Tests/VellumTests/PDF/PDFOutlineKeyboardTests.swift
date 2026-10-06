@@ -164,6 +164,55 @@ struct PDFOutlineKeyboardTests {
         #expect(fixture.window.firstResponder === fixture.outline)
     }
 
+    @Test
+    func optionArrowBranchCommandsRespectScopeModifiersAndPrefixes() {
+        let items = tree()
+        let fixture = Fixture(items: items)
+        defer { fixture.window.close() }
+        let left = "\u{f702}"
+        let right = "\u{f703}"
+        let parent = items[0].children[0]
+        let leaf = parent.children[0]
+        fixture.outline.collapseItem(nil, collapseChildren: true)
+
+        fixture.send("2")
+        fixture.send("g")
+        fixture.send(right, keyCode: 124, modifiers: .option)
+        #expect(fixture.outline.isItemExpanded(parent))
+        #expect(!fixture.outline.isItemExpanded(items[1]))
+        fixture.outline.selectRowIndexes(IndexSet(integer: 1), byExtendingSelection: false)
+        fixture.send("g")
+        #expect(fixture.outline.selectedRow == 1)
+        fixture.send("g")
+        #expect(fixture.outline.selectedRow == 0)
+
+        fixture.outline.selectRowIndexes(IndexSet(integer: fixture.outline.row(forItem: leaf)), byExtendingSelection: false)
+        fixture.send(left, keyCode: 123, modifiers: .option)
+        #expect(!fixture.outline.isItemExpanded(parent))
+        #expect(fixture.outline.isItemExpanded(items[0]))
+        fixture.send(right, keyCode: 124, modifiers: .option, repeating: true)
+        #expect(!fixture.outline.isItemExpanded(parent))
+
+        fixture.send(right, keyCode: 124, modifiers: [.option, .shift])
+        #expect(fixture.outline.isItemExpanded(parent))
+        #expect(fixture.outline.isItemExpanded(items[1]))
+        for excluded in [NSEvent.ModifierFlags.command, .control] {
+            fixture.outline.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+            fixture.send(left, keyCode: 123, modifiers: [.option, .shift, excluded])
+            #expect(fixture.outline.isItemExpanded(items[1]))
+        }
+
+        fixture.send(left, keyCode: 123, modifiers: [.option, .shift])
+        #expect(!fixture.outline.isItemExpanded(items[0]))
+        #expect(!fixture.outline.isItemExpanded(items[1]))
+        for excluded in [NSEvent.ModifierFlags.command, .control] {
+            fixture.outline.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+            fixture.send(right, keyCode: 124, modifiers: [.option, .shift, excluded])
+            #expect(!fixture.outline.isItemExpanded(items[1]))
+        }
+        #expect(fixture.window.firstResponder === fixture.outline)
+    }
+
     @Test(arguments: [CGFloat(160), CGFloat(198)])
     func pageCommandsMoveByHalfOrFullVisibleViewport(viewportHeight: CGFloat) {
         let fixture = Fixture()

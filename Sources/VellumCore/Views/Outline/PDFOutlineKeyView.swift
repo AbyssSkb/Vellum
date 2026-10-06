@@ -81,6 +81,16 @@ final class PDFOutlineKeyView: NSOutlineView {
     }
 
     private func handleOutlineKey(_ event: NSEvent) -> Bool {
+        if event.type == .keyDown, event.modifierFlags.contains(.option),
+           event.modifierFlags.intersection([.command, .control]).isEmpty,
+           event.keyCode == 123 || event.keyCode == 124 {
+            keyState.clearPendingInput()
+            if !event.isARepeat {
+                setBranchExpanded(event.keyCode == 124, allBranches: event.modifierFlags.contains(.shift))
+            }
+            return true
+        }
+
         guard event.type == .keyDown,
               event.modifierFlags.intersection([.command, .control, .option]).isEmpty else {
             keyState.clearPendingInput()
@@ -133,13 +143,7 @@ final class PDFOutlineKeyView: NSOutlineView {
 
         if keyState.pendingKey == "z", isShifted || characters != key, ["o", "c", "r", "m"].contains(key) {
             keyState.clearPendingInput()
-            let branch = selectedOutlineItem.flatMap { $0.children.isEmpty ? $0.parent : $0 }
-            switch key {
-            case "o": if let branch { expandItem(branch, expandChildren: true) }
-            case "c": if let branch { collapseItem(branch, collapseChildren: true) }
-            case "r": expandItem(nil, expandChildren: true)
-            default: collapseItem(nil, collapseChildren: true)
-            }
+            setBranchExpanded(key == "o" || key == "r", allBranches: key == "r" || key == "m")
             return true
         }
 
@@ -232,6 +236,16 @@ final class PDFOutlineKeyView: NSOutlineView {
         guard parentRow >= 0 else { return }
         selectRowIndexes(IndexSet(integer: parentRow), byExtendingSelection: false)
         scrollRowToVisible(parentRow)
+    }
+
+    private func setBranchExpanded(_ expanded: Bool, allBranches: Bool) {
+        let branch = selectedOutlineItem.flatMap { $0.children.isEmpty ? $0.parent : $0 }
+        guard allBranches || branch != nil else { return }
+        if expanded {
+            expandItem(allBranches ? nil : branch, expandChildren: true)
+        } else {
+            collapseItem(allBranches ? nil : branch, collapseChildren: true)
+        }
     }
 
     private func expandSelectedItem() {
