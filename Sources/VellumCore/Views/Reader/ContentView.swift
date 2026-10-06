@@ -8,7 +8,15 @@ public struct ContentView: View {
     public init() {}
 
     public var body: some View {
-        let readerShape = RoundedRectangle(cornerRadius: 8, style: .continuous)
+        let joinsLeadingTab = appState.hasOpenTabs && appState.isOutlineVisible
+            && appState.tabs.first?.id == appState.selectedTabID
+        let readerShape = UnevenRoundedRectangle(
+            topLeadingRadius: joinsLeadingTab ? 0 : 8,
+            bottomLeadingRadius: 8,
+            bottomTrailingRadius: 8,
+            topTrailingRadius: 8,
+            style: .continuous
+        )
 
         ZStack {
             VStack(spacing: 0) {
