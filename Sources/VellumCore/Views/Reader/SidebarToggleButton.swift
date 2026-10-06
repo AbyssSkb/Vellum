@@ -16,7 +16,7 @@ struct SidebarToggleButton: View {
                         : TokyoNight.mutedColor
                 )
                 .frame(width: 30, height: 30)
-                .background(isHovered ? TokyoNight.panelElevatedColor : .clear,
+                .background(isHovered ? TokyoNight.panelColor.opacity(0.55) : .clear,
                             in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                 .contentShape(Rectangle())
         }

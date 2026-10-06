@@ -4,7 +4,6 @@ struct TabStrip: View {
     @Environment(\.appUILanguage) private var language
     @EnvironmentObject private var appState: AppState
     private let preferredTabWidth: CGFloat = 220
-    private let tabSpacing: CGFloat = 2
 
     var body: some View {
         HStack(spacing: 10) {
@@ -20,19 +19,21 @@ struct TabStrip: View {
                     tabCount: appState.tabs.count
                 )
 
-                HStack(spacing: tabSpacing) {
-                    ForEach(appState.tabs) { tab in
+                HStack(spacing: 0) {
+                    ForEach(Array(appState.tabs.enumerated()), id: \.element.id) { index, tab in
                         TabButton(
                             tab: tab,
                             isSelected: tab.id == appState.selectedTabID,
                             width: tabWidth
                         )
                         .overlay(alignment: .trailing) {
-                            if tab.id != appState.tabs.last?.id {
+                            if tab.id != appState.selectedTabID,
+                               index + 1 < appState.tabs.count,
+                               appState.tabs[index + 1].id != appState.selectedTabID {
                                 Rectangle()
-                                    .fill(TokyoNight.borderColor)
-                                    .frame(width: 1, height: 18)
-                                    .offset(x: (tabSpacing + 1) / 2)
+                                    .fill(TokyoNight.borderColor.opacity(0.7))
+                                    .frame(width: 1, height: 22)
+                                    .offset(x: 0.5)
                                     .allowsHitTesting(false)
                                     .accessibilityHidden(true)
                             }
@@ -41,7 +42,8 @@ struct TabStrip: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
             }
-            .frame(height: 34)
+            .frame(height: 46)
+            .padding(.leading, appState.isOutlineVisible ? 134 : 0)
             .layoutPriority(1)
 
             HighlightToolbar()
@@ -56,11 +58,6 @@ struct TabStrip: View {
     private func tabWidth(availableWidth: CGFloat, tabCount: Int) -> CGFloat {
         guard tabCount > 0 else { return 0 }
 
-        let spacingWidth = tabSpacing * CGFloat(max(0, tabCount - 1))
-        let preferredTotal = preferredTabWidth * CGFloat(tabCount) + spacingWidth
-        guard preferredTotal > availableWidth else { return preferredTabWidth }
-
-        let availableForTabs = max(0, availableWidth - spacingWidth)
-        return availableForTabs / CGFloat(tabCount)
+        return min(preferredTabWidth, max(0, availableWidth) / CGFloat(tabCount))
     }
 }

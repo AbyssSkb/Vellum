@@ -11,14 +11,17 @@ struct TabButton: View {
     @State private var isCloseHovered = false
 
     var body: some View {
+        let tabShape = UnevenRoundedRectangle(topLeadingRadius: 8, topTrailingRadius: 8, style: .continuous)
+        let showsCloseButton = isSelected || isHovered
+
         HStack(spacing: width < 70 ? 4 : 7) {
-            ClippedTabTitle(title: tab.title, isSelected: isSelected)
+            ClippedTabTitle(title: tab.title, isSelected: isSelected, isHovered: isHovered)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .clipped()
 
-            if isSelected, width >= 90 {
+            if width >= 90 {
                 Button {
-                    appState.closeSelectedTab()
+                    appState.closeTab(tab.id)
                 } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 10, weight: .medium))
@@ -29,15 +32,18 @@ struct TabButton: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .opacity(showsCloseButton ? 1 : 0)
+                .disabled(!showsCloseButton)
+                .accessibilityHidden(!showsCloseButton)
                 .help(language.text(.closeTab))
                 .accessibilityLabel(language.text(.closeTabNamed(tab.title)))
                 .onHover { isCloseHovered = $0 }
             }
         }
         .padding(.leading, width < 70 ? 6 : 12)
-        .padding(.trailing, isSelected && width >= 90 ? 8 : (width < 70 ? 6 : 12))
-        .frame(width: width, height: 32)
-        .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .padding(.trailing, width >= 90 ? 8 : (width < 70 ? 6 : 12))
+        .frame(width: width, height: 38)
+        .contentShape(tabShape)
         .onTapGesture {
             if !isSelected {
                 appState.selectTab(tab.id)
@@ -57,31 +63,18 @@ struct TabButton: View {
         }
         .background(
             isSelected
-                ? TokyoNight.backgroundColor
-                : TokyoNight.panelColor.opacity(isHovered ? 0.6 : 0)
+                ? TokyoNight.panelColor
+                : TokyoNight.panelColor.opacity(isHovered ? 0.55 : 0)
         )
         .overlay {
             if isSelected {
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .strokeBorder(
-                        LinearGradient(colors: [TokyoNight.foregroundColor.opacity(0.10),
-                                                TokyoNight.foregroundColor.opacity(0.025)],
-                                       startPoint: .top, endPoint: .bottom),
-                        lineWidth: 0.5
-                    )
+                tabShape
+                    .strokeBorder(TokyoNight.foregroundColor.opacity(0.10), lineWidth: 0.5)
+                    .padding(.bottom, -1)
                     .allowsHitTesting(false)
             }
         }
-        .overlay(alignment: .bottom) {
-            if isSelected {
-                Rectangle()
-                    .fill(TokyoNight.blueColor.opacity(0.8))
-                    .frame(width: 24, height: 1)
-                    .allowsHitTesting(false)
-                    .accessibilityHidden(true)
-            }
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .clipShape(tabShape)
         .onHover { isHovered = $0 }
         .animation(.easeInOut(duration: 0.12), value: isHovered)
         .animation(.easeInOut(duration: 0.1), value: isCloseHovered)

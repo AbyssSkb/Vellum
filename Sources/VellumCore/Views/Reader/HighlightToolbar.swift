@@ -45,11 +45,12 @@ struct HighlightToolbar: View {
         }
         .padding(.horizontal, 7)
         .frame(height: 34)
-        .background(TokyoNight.backgroundColor, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .strokeBorder(TokyoNight.foregroundColor.opacity(0.05), lineWidth: 0.5)
+        .overlay(alignment: .leading) {
+            Rectangle()
+                .fill(TokyoNight.borderColor.opacity(0.6))
+                .frame(width: 1, height: 24)
                 .allowsHitTesting(false)
+                .accessibilityHidden(true)
         }
         .frame(height: 38)
         .animation(.easeInOut(duration: 0.12), value: hoveredColor)

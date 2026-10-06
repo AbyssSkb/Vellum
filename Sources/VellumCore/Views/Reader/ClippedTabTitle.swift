@@ -4,6 +4,7 @@ import SwiftUI
 struct ClippedTabTitle: NSViewRepresentable {
     let title: String
     let isSelected: Bool
+    var isHovered = false
 
     func makeNSView(context: Context) -> NSTextField {
         let textField = NSTextField(labelWithString: title)
@@ -21,7 +22,7 @@ struct ClippedTabTitle: NSViewRepresentable {
     func updateNSView(_ textField: NSTextField, context: Context) {
         textField.stringValue = title
         textField.font = .systemFont(ofSize: 12.5, weight: isSelected ? .medium : .regular)
-        textField.textColor = isSelected
+        textField.textColor = isSelected || isHovered
             ? TokyoNight.foreground
             : TokyoNight.muted
         textField.lineBreakMode = .byTruncatingTail

@@ -8,6 +8,8 @@ public struct ContentView: View {
     public init() {}
 
     public var body: some View {
+        let readerShape = RoundedRectangle(cornerRadius: 8, style: .continuous)
+
         ZStack {
             VStack(spacing: 0) {
                 if appState.hasOpenTabs {
@@ -21,26 +23,27 @@ public struct ContentView: View {
                     }
 
                     ReaderStack()
-                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .clipShape(readerShape)
                         .background {
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            readerShape
                                 .fill(TokyoNight.panelColor)
-                                .shadow(color: .black.opacity(0.20), radius: 12, y: 4)
+                                .shadow(color: .black.opacity(appState.hasOpenTabs ? 0 : 0.20), radius: 12, y: 4)
                         }
                         .overlay {
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            readerShape
                                 .strokeBorder(
                                     LinearGradient(colors: [TokyoNight.foregroundColor.opacity(0.10),
                                                             TokyoNight.foregroundColor.opacity(0.025)],
                                                    startPoint: .top, endPoint: .bottom),
                                     lineWidth: 0.5
                                 )
+                                .mask(Rectangle().padding(.top, appState.hasOpenTabs ? 1 : 0))
                                 .allowsHitTesting(false)
                         }
                         .padding(.trailing, 12)
                         .padding(.bottom, 12)
                         .padding(.leading, appState.isOutlineVisible && appState.hasOpenTabs ? 0 : 12)
-                        .padding(.top, 4)
+                        .padding(.top, appState.hasOpenTabs ? 0 : 4)
                 }
                 .background(TokyoNight.backgroundDeepColor)
             }
