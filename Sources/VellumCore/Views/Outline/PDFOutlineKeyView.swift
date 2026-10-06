@@ -6,6 +6,7 @@ final class PDFOutlineKeyView: NSOutlineView {
     private var pendingFoldCount = 1
     private var rootItems: [PDFOutlineItem] = []
     private var maximumFoldLevel = 0
+    private var maximumInputCount = 1
     private var foldCursorItem: PDFOutlineItem?
     private var isFoldingCommand = false
     private var isApplyingFoldState = false
@@ -17,8 +18,10 @@ final class PDFOutlineKeyView: NSOutlineView {
     func restoreFolding(items: [PDFOutlineItem], expandedIDs: Set<String>, foldLevel: Int) {
         rootItems = items
         foldCursorItem = nil
-        let branches = items.flattened().filter { !$0.children.isEmpty }
+        let allItems = items.flattened()
+        let branches = allItems.filter { !$0.children.isEmpty }
         maximumFoldLevel = branches.map { foldPath(to: $0).count }.max() ?? 0
+        maximumInputCount = max(1, allItems.count + branches.count)
         self.foldLevel = min(max(0, foldLevel), maximumFoldLevel)
         self.expandedIDs = expandedIDs.intersection(Set(branches.map(\.id)))
         isApplyingFoldState = true
@@ -234,7 +237,7 @@ final class PDFOutlineKeyView: NSOutlineView {
             return true
         }
         if isDigit && keyState.handleNumericPrefixKey(key) {
-            keyState.numericPrefix = String(min(Int(keyState.numericPrefix) ?? Int.max, max(1, max(numberOfRows, maximumFoldLevel))))
+            keyState.numericPrefix = String(min(Int(keyState.numericPrefix) ?? Int.max, maximumInputCount))
             return true
         }
         // Vim fold counts precede z; consume an invalid postfix command locally.
@@ -273,8 +276,8 @@ final class PDFOutlineKeyView: NSOutlineView {
         switch event.keyCode {
         case 125: moveSelection(by: 1, count: count ?? 1)
         case 126: moveSelection(by: -1, count: count ?? 1)
-        case 123: collapseSelectedItem()
-        case 124: expandSelectedItem()
+        case 123: collapseSelectedItem(count: count ?? 1)
+        case 124: expandSelectedItem(count: count ?? 1)
         case 115: selectRow(0)
         case 119: selectRow(numberOfRows - 1)
         case 116: moveSelectionByViewport(direction: -1, count: count ?? 1)
@@ -289,9 +292,9 @@ final class PDFOutlineKeyView: NSOutlineView {
         case "k" where !isShifted:
             moveSelection(by: -1, count: count ?? 1)
         case "h" where !isShifted:
-            collapseSelectedItem()
+            collapseSelectedItem(count: count ?? 1)
         case "l" where !isShifted:
-            expandSelectedItem()
+            expandSelectedItem(count: count ?? 1)
         case "g" where isShifted:
             selectRow((count ?? numberOfRows) - 1)
         case "d", "u":
@@ -337,20 +340,8 @@ final class PDFOutlineKeyView: NSOutlineView {
         scrollRowToVisible(clampedRow)
     }
 
-    private func collapseSelectedItem() {
-        foldCursorItem = nil
-        guard let item = selectedOutlineItem else { return }
-
-        if isItemExpanded(item) {
-            collapseItem(item)
-            return
-        }
-
-        guard let parent = item.parent else { return }
-        let parentRow = row(forItem: parent)
-        guard parentRow >= 0 else { return }
-        selectRowIndexes(IndexSet(integer: parentRow), byExtendingSelection: false)
-        scrollRowToVisible(parentRow)
+    private func collapseSelectedItem(count: Int) {
+        performFoldCommand("c", count: count)
     }
 
     private func setBranchExpanded(_ expanded: Bool, allBranches: Bool) {
@@ -425,13 +416,16 @@ final class PDFOutlineKeyView: NSOutlineView {
         applyExpansion(to: rootItems)
     }
 
-    private func expandSelectedItem() {
-        foldCursorItem = nil
-        guard let item = selectedOutlineItem, let child = item.children.first else { return }
-        if isItemExpanded(item) {
-            selectRow(row(forItem: child))
-        } else {
-            expandItem(item)
+    private func expandSelectedItem(count: Int) {
+        for _ in 0..<count {
+            if let item = selectedFoldItem,
+               foldPath(to: item).contains(where: { !expandedIDs.contains($0.id) }) {
+                performFoldCommand("o", count: 1)
+            } else {
+                let previousRow = selectedRow
+                moveSelection(by: 1)
+                if selectedRow == previousRow { break }
+            }
         }
     }
 

@@ -62,34 +62,117 @@ struct PDFOutlineKeyboardTests {
         #expect(fixture.outline.selectedRow == 0)
     }
 
-    @Test
-    func hierarchyKeysExpandDescendCollapseAndAscend() {
+    @Test(arguments: [false, true])
+    func hierarchyKeysFoldLogicalCursorAndMoveToNextVisibleRow(arrows: Bool) {
         let items = tree()
         let fixture = Fixture(items: items)
         defer { fixture.window.close() }
         let root = items[0]
         let child = root.children[0]
         let grandchild = child.children[0]
+        let closeKey = arrows ? "\u{f702}" : "h"
+        let openKey = arrows ? "\u{f703}" : "l"
+        let closeCode: UInt16 = arrows ? 123 : 0
+        let openCode: UInt16 = arrows ? 124 : 0
         fixture.outline.collapseItem(root, collapseChildren: true)
 
-        fixture.send("l")
+        fixture.send(openKey, keyCode: openCode)
         #expect(fixture.outline.isItemExpanded(root))
         #expect(fixture.selectedItem === root)
-        fixture.send("l", repeating: true)
+        fixture.send(openKey, keyCode: openCode, repeating: true)
         #expect(fixture.selectedItem === child)
-        fixture.send("l")
+        fixture.send(openKey, keyCode: openCode)
         #expect(fixture.outline.isItemExpanded(child))
         #expect(fixture.selectedItem === child)
-        fixture.send("l")
+        fixture.send(openKey, keyCode: openCode)
         #expect(fixture.selectedItem === grandchild)
-        fixture.send("h")
+        fixture.send(closeKey, keyCode: closeCode)
         #expect(fixture.selectedItem === child)
-        fixture.send("h")
         #expect(!fixture.outline.isItemExpanded(child))
-        fixture.send("h")
+        #expect(fixture.outline.selectedFoldItem === grandchild)
+        fixture.send(closeKey, keyCode: closeCode)
         #expect(fixture.selectedItem === root)
-        fixture.send("h")
         #expect(!fixture.outline.isItemExpanded(root))
+        #expect(fixture.outline.selectedFoldItem === grandchild)
+        fixture.send(openKey, keyCode: openCode)
+        #expect(fixture.selectedItem === child)
+        #expect(!fixture.outline.isItemExpanded(child))
+        fixture.send(openKey, keyCode: openCode)
+        #expect(fixture.selectedItem === grandchild)
+        fixture.send(openKey, keyCode: openCode)
+        #expect(fixture.selectedItem === items[1])
+        #expect(fixture.outline.selectedFoldItem === items[1])
+        #expect(fixture.outline.foldLevel == 1)
+    }
+
+    @Test(arguments: [false, true])
+    func hierarchyCountsAndAutoRepeatPreserveFoldPathUntilNavigation(arrows: Bool) {
+        let items = deepTree()
+        let fixture = Fixture(items: items)
+        defer { fixture.window.close() }
+        let parent = items[0].children[0]
+        let leaf = parent.children[0].children[0]
+        let closeKey = arrows ? "\u{f702}" : "h"
+        let openKey = arrows ? "\u{f703}" : "l"
+        let closeCode: UInt16 = arrows ? 123 : 0
+        let openCode: UInt16 = arrows ? 124 : 0
+        fixture.sendKeys("zR")
+        fixture.outline.selectRowIndexes(IndexSet(integer: fixture.outline.row(forItem: leaf)), byExtendingSelection: false)
+
+        fixture.send("2")
+        fixture.send(closeKey, keyCode: closeCode)
+        #expect(fixture.outline.expandedIDs == ["0", "1"])
+        #expect(fixture.selectedItem === parent)
+        #expect(fixture.outline.selectedFoldItem === leaf)
+        fixture.send(closeKey, keyCode: closeCode, repeating: true)
+        #expect(fixture.outline.expandedIDs == ["1"])
+        #expect(fixture.selectedItem === items[0])
+        fixture.send(closeKey, keyCode: closeCode, repeating: true)
+        #expect(fixture.outline.expandedIDs == ["1"])
+        fixture.send("3")
+        fixture.send(openKey, keyCode: openCode)
+        #expect(fixture.selectedItem === leaf)
+        #expect(fixture.outline.isItemExpanded(parent.children[0]))
+        fixture.send("2")
+        fixture.send(openKey, keyCode: openCode)
+        #expect(fixture.selectedItem === items[1].children[0])
+        fixture.send(openKey, keyCode: openCode, repeating: true)
+        #expect(fixture.selectedItem === items[1].children[0])
+        #expect(fixture.outline.selectedFoldItem === items[1].children[0])
+        #expect(fixture.outline.foldLevel == 3)
+    }
+
+    @Test(arguments: ["9", String(repeating: "9", count: 30)])
+    func expansionCountsIncludeNewlyVisibleRowsAndClampAtLastLeaf(count: String) {
+        let items = deepTree()
+        let fixture = Fixture(items: items)
+        defer { fixture.window.close() }
+        fixture.sendKeys("zM")
+
+        fixture.sendKeys(count + "l")
+        #expect(fixture.selectedItem === items[1].children[0])
+        #expect(fixture.outline.expandedIDs == ["0", "0.0", "0.0.0", "1"])
+        #expect(fixture.outline.foldLevel == 0)
+        #expect(fixture.window.firstResponder === fixture.outline)
+    }
+
+    @Test
+    func hierarchyKeysMoveBetweenRootLeavesAndClampAtBoundaries() {
+        let fixture = Fixture()
+        defer { fixture.window.close() }
+
+        fixture.sendKeys("hl")
+        #expect(fixture.outline.selectedRow == 1)
+        fixture.send("l", repeating: true)
+        #expect(fixture.outline.selectedRow == 2)
+        fixture.sendKeys("3h")
+        #expect(fixture.outline.selectedRow == 2)
+        fixture.sendKeys("G")
+        fixture.sendKeys(String(repeating: "9", count: 30) + "l")
+        #expect(fixture.outline.selectedRow == fixture.outline.numberOfRows - 1)
+        fixture.sendKeys("h")
+        #expect(fixture.outline.selectedRow == fixture.outline.numberOfRows - 1)
+        #expect(fixture.outline.expandedIDs.isEmpty)
     }
 
     @Test

@@ -119,7 +119,8 @@ enum ShortcutCatalog {
             systemImage: "list.bullet.indent",
             items: [
                 ShortcutItem(keys: ["j", "k", "[num]j", "[num]k"], action: "Move outline selection"),
-                ShortcutItem(keys: ["h", "l"], action: "Collapse or parent; expand or child"),
+                ShortcutItem(keys: ["h", "←", "[num]h"], action: "Close containing folds (same as zc)"),
+                ShortcutItem(keys: ["l", "→", "[num]l"], action: "Open a closed fold; otherwise select next row"),
                 ShortcutItem(keys: ["gg", "G", "[num]G", "[num]gg"], action: "Select first, last, or numbered row"),
                 ShortcutItem(keys: ["d", "u"], action: "Move half a viewport"),
                 ShortcutItem(keys: ["D", "U", "f", "b", "Space"], action: "Move a full viewport"),
@@ -244,7 +245,8 @@ enum ShortcutCatalog {
             systemImage: "list.bullet.indent",
             items: [
                 ShortcutItem(keys: ["j", "k", "[num]j", "[num]k"], action: "移动目录选择"),
-                ShortcutItem(keys: ["h", "l"], action: "折叠或返回父项；展开或进入子项"),
+                ShortcutItem(keys: ["h", "←", "[num]h"], action: "折叠所选路径（等同 zc）"),
+                ShortcutItem(keys: ["l", "→", "[num]l"], action: "展开收起的一层，否则移动到下一行"),
                 ShortcutItem(keys: ["gg", "G", "[num]G", "[num]gg"], action: "选择首行、末行或指定行"),
                 ShortcutItem(keys: ["d", "u"], action: "移动半个可见区域"),
                 ShortcutItem(keys: ["D", "U", "f", "b", "Space"], action: "移动一个可见区域"),
