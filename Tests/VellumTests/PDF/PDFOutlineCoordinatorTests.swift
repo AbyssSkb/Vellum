@@ -99,7 +99,7 @@ struct PDFOutlineCoordinatorTests {
             items: [firstItem], tabID: tabID, documentID: ObjectIdentifier(firstDocument),
             appState: AppState(), language: .english
         )
-        let outlineView = NSOutlineView()
+        let outlineView = PDFOutlineKeyView()
 
         #expect(coordinator.updateItemsIfNeeded(
             [secondItem], tabID: tabID, documentID: ObjectIdentifier(secondDocument), language: .english, in: outlineView
@@ -197,6 +197,140 @@ struct PDFOutlineCoordinatorTests {
             language: .english, in: recreatedView
         )
         #expect((recreatedView.item(atRow: recreatedView.selectedRow) as? PDFOutlineItem)?.id == "0")
+    }
+
+    enum Reload: CaseIterable {
+        case recreation, tabSwitch, language
+    }
+
+    @Test(arguments: Reload.allCases)
+    func hiddenExpandedDescendantsSurviveReload(reload: Reload) {
+        _ = NSApplication.shared
+        let appState = makeAppState()
+        let firstDocument = PDFDocument()
+        let secondDocument = PDFDocument()
+        firstDocument.insert(PDFPage(), at: 0)
+        secondDocument.insert(PDFPage(), at: 0)
+        let firstTab = PDFTab(url: nil, document: firstDocument)
+        let secondTab = PDFTab(url: nil, document: secondDocument)
+        _ = appState.tabStore.openInNewTabs([firstTab, secondTab])
+        let items = nestedTree(for: firstDocument)
+        var coordinator = PDFOutlineView.Coordinator(
+            items: items, tabID: firstTab.id, documentID: ObjectIdentifier(firstDocument),
+            appState: appState, language: .english
+        )
+        var outline = makeOutlineView(coordinator: coordinator)
+        coordinator.restoreState(in: outline)
+        outline.keyDown(with: keyEvent("z", keyCode: 6))
+        outline.keyDown(with: keyEvent("R", keyCode: 15))
+        outline.collapseItem(items[0])
+        #expect(outline.expandedIDs == ["0.0", "0.0.0"])
+        #expect(outline.foldLevel == 3)
+        #expect(!outline.isItemExpanded(items[0].children[0]))
+
+        switch reload {
+        case .recreation:
+            coordinator.saveState(in: outline)
+            coordinator = PDFOutlineView.Coordinator(
+                items: items, tabID: firstTab.id, documentID: ObjectIdentifier(firstDocument),
+                appState: appState, language: .english
+            )
+            outline = makeOutlineView(coordinator: coordinator)
+            coordinator.restoreState(in: outline)
+        case .tabSwitch:
+            coordinator.updateItemsIfNeeded(
+                tree(for: secondDocument), tabID: secondTab.id, documentID: ObjectIdentifier(secondDocument),
+                language: .english, in: outline
+            )
+            coordinator.updateItemsIfNeeded(
+                items, tabID: firstTab.id, documentID: ObjectIdentifier(firstDocument),
+                language: .english, in: outline
+            )
+        case .language:
+            coordinator.updateItemsIfNeeded(
+                items, tabID: firstTab.id, documentID: ObjectIdentifier(firstDocument),
+                language: .chinese, in: outline
+            )
+        }
+
+        withExtendedLifetime(coordinator) {
+            #expect(!outline.isItemExpanded(items[0]))
+            #expect(outline.expandedIDs == ["0.0", "0.0.0"])
+            #expect(outline.foldLevel == 3)
+            outline.expandItem(items[0])
+            #expect(outline.isItemExpanded(items[0].children[0]))
+            #expect(outline.isItemExpanded(items[0].children[0].children[0]))
+        }
+    }
+
+    @Test
+    func manuallyOpenedBranchDoesNotChangeSavedFoldLevel() {
+        _ = NSApplication.shared
+        let appState = makeAppState()
+        let document = PDFDocument()
+        document.insert(PDFPage(), at: 0)
+        let tab = PDFTab(url: nil, document: document)
+        _ = appState.tabStore.openInNewTabs([tab])
+        let items = nestedTree(for: document)
+        let coordinator = PDFOutlineView.Coordinator(
+            items: items, tabID: tab.id, documentID: ObjectIdentifier(document),
+            appState: appState, language: .english
+        )
+        let outline = makeOutlineView(coordinator: coordinator)
+        coordinator.restoreState(in: outline)
+        outline.keyDown(with: keyEvent("z", keyCode: 6))
+        outline.keyDown(with: keyEvent("M", keyCode: 46))
+        outline.keyDown(with: keyEvent("z", keyCode: 6))
+        outline.keyDown(with: keyEvent("o", keyCode: 31))
+        #expect(outline.foldLevel == 0)
+        #expect(outline.expandedIDs == ["0"])
+        coordinator.saveState(in: outline)
+
+        let recreated = PDFOutlineView.Coordinator(
+            items: items, tabID: tab.id, documentID: ObjectIdentifier(document),
+            appState: appState, language: .english
+        )
+        let recreatedView = makeOutlineView(coordinator: recreated)
+        recreated.restoreState(in: recreatedView)
+        #expect(recreatedView.foldLevel == 0)
+        #expect(recreatedView.expandedIDs == ["0"])
+        #expect(recreatedView.isItemExpanded(items[0]))
+        #expect(!recreatedView.isItemExpanded(items[0].children[0]))
+    }
+
+    @Test
+    func logicalFoldSelectionSurvivesSidebarRecreation() {
+        _ = NSApplication.shared
+        let appState = makeAppState()
+        let document = PDFDocument()
+        document.insert(PDFPage(), at: 0)
+        let tab = PDFTab(url: nil, document: document)
+        _ = appState.tabStore.openInNewTabs([tab])
+        let items = nestedTree(for: document)
+        let coordinator = PDFOutlineView.Coordinator(
+            items: items, tabID: tab.id, documentID: ObjectIdentifier(document),
+            appState: appState, language: .english
+        )
+        let outline = makeOutlineView(coordinator: coordinator)
+        coordinator.restoreState(in: outline)
+        outline.keyDown(with: keyEvent("z", keyCode: 6))
+        outline.keyDown(with: keyEvent("R", keyCode: 15))
+        let leaf = items[0].children[0].children[0].children[0]
+        outline.selectFoldItem(leaf)
+        outline.keyDown(with: keyEvent("z", keyCode: 6))
+        outline.keyDown(with: keyEvent("C", keyCode: 8))
+        #expect((outline.item(atRow: outline.selectedRow) as? PDFOutlineItem)?.id == "0")
+        #expect(outline.selectedFoldItem?.id == leaf.id)
+        coordinator.saveState(in: outline)
+
+        let recreated = PDFOutlineView.Coordinator(
+            items: items, tabID: tab.id, documentID: ObjectIdentifier(document),
+            appState: appState, language: .english
+        )
+        let recreatedView = makeOutlineView(coordinator: recreated)
+        recreated.restoreState(in: recreatedView)
+        #expect((recreatedView.item(atRow: recreatedView.selectedRow) as? PDFOutlineItem)?.id == "0")
+        #expect(recreatedView.selectedFoldItem?.id == leaf.id)
     }
 
     @Test
@@ -321,6 +455,19 @@ struct PDFOutlineCoordinatorTests {
         )]
         let second = PDFOutlineItem(id: "1", title: "Chapter 2", destination: parent.destination, pageIndex: 0, parent: nil)
         return [parent, second]
+    }
+
+    private func nestedTree(for document: PDFDocument) -> [PDFOutlineItem] {
+        let items = tree(for: document)
+        let child = items[0].children[0]
+        let grandchild = PDFOutlineItem(
+            id: "0.0.0", title: "Grandchild", destination: child.destination, pageIndex: 0, parent: child
+        )
+        grandchild.children = [PDFOutlineItem(
+            id: "0.0.0.0", title: "Leaf", destination: child.destination, pageIndex: 0, parent: grandchild
+        )]
+        child.children = [grandchild]
+        return items
     }
 
     private func item(for document: PDFDocument) -> PDFOutlineItem {

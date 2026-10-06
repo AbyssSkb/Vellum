@@ -93,33 +93,33 @@ struct PDFOutlineKeyboardTests {
     }
 
     @Test
-    func recursiveBranchCommandsUseNativeExpansion() {
-        let items = tree()
+    func recursiveFoldCommandsOpenClosedBranchesAndPreserveHiddenDescendants() {
+        let items = deepTree()
         let fixture = Fixture(items: items)
         defer { fixture.window.close() }
         fixture.outline.collapseItem(nil, collapseChildren: true)
 
-        fixture.send("z")
-        fixture.send("O", modifiers: .shift)
+        fixture.sendKeys("zO")
         #expect(fixture.outline.isItemExpanded(items[0]))
         #expect(fixture.outline.isItemExpanded(items[0].children[0]))
+        #expect(fixture.outline.isItemExpanded(items[0].children[0].children[0]))
         #expect(!fixture.outline.isItemExpanded(items[1]))
-        fixture.send("z")
-        fixture.send("C", modifiers: .shift)
+        fixture.sendKeys("zC")
         #expect(!fixture.outline.isItemExpanded(items[0]))
-        #expect(!fixture.outline.isItemExpanded(items[0].children[0]))
-        fixture.send("z")
-        fixture.send("R", modifiers: .shift)
+        #expect(fixture.outline.expandedIDs == ["0.0", "0.0.0"])
+        fixture.sendKeys("zo")
+        #expect(fixture.outline.isItemExpanded(items[0].children[0].children[0]))
+        fixture.sendKeys("zR")
         #expect(fixture.outline.isItemExpanded(items[0].children[0]))
         #expect(fixture.outline.isItemExpanded(items[1]))
-        fixture.send("z")
-        fixture.send("M", modifiers: .shift)
+        fixture.sendKeys("zM")
+        #expect(fixture.outline.expandedIDs.isEmpty)
         #expect(!fixture.outline.isItemExpanded(items[0]))
         #expect(!fixture.outline.isItemExpanded(items[1]))
     }
 
     @Test
-    func uppercaseBranchCommandsUseLeafParentAndKeepZeroDistinct() {
+    func uppercaseFoldCommandsRespectCursorPathAndKeepZeroDistinct() {
         let items = tree()
         let parent = items[0].children[0]
         let leaf = parent.children[0]
@@ -144,11 +144,13 @@ struct PDFOutlineKeyboardTests {
         #expect(!fixture.outline.isItemExpanded(nested))
         fixture.send("z")
         fixture.send("O", modifiers: .capsLock)
-        #expect(fixture.outline.isItemExpanded(nested))
+        #expect(!fixture.outline.isItemExpanded(nested))
         fixture.send("z")
         fixture.send("C", modifiers: .capsLock)
         #expect(!fixture.outline.isItemExpanded(parent))
-        #expect(fixture.outline.isItemExpanded(items[0]))
+        #expect(!fixture.outline.isItemExpanded(items[0]))
+        #expect(fixture.outline.isItemExpanded(items[1]))
+        #expect(fixture.outline.selectedFoldItem === leaf)
 
         fixture.send("z")
         fixture.send("M", modifiers: .capsLock)
@@ -196,6 +198,7 @@ struct PDFOutlineKeyboardTests {
         fixture.send(right, keyCode: 124, modifiers: [.option, .shift])
         #expect(fixture.outline.isItemExpanded(parent))
         #expect(fixture.outline.isItemExpanded(items[1]))
+        #expect(fixture.outline.foldLevel == 1)
         for excluded in [NSEvent.ModifierFlags.command, .control] {
             fixture.outline.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
             fixture.send(left, keyCode: 123, modifiers: [.option, .shift, excluded])
@@ -211,56 +214,125 @@ struct PDFOutlineKeyboardTests {
             #expect(!fixture.outline.isItemExpanded(items[1]))
         }
         #expect(fixture.window.firstResponder === fixture.outline)
+        #expect(fixture.outline.foldLevel == 1)
     }
 
     @Test
-    func singleLayerBranchCommandsRetainHiddenDescendantsWithoutNavigating() {
+    func singleLayerFoldCommandsFollowLogicalCursorThroughHiddenAncestors() {
         let items = deepTree()
         let parent = items[0].children[0]
         let nested = parent.children[0]
-        let leaf = PDFOutlineItem(id: "0.0.1", title: "Sibling", destination: nil, pageIndex: nil, parent: parent)
-        parent.children.append(leaf)
+        let leaf = nested.children[0]
         let fixture = Fixture(items: items)
         defer { fixture.window.close() }
 
-        fixture.outline.collapseItem(nil, collapseChildren: true)
-        fixture.send("z")
-        fixture.send("o")
-        #expect(fixture.outline.isItemExpanded(items[0]))
-        #expect(!fixture.outline.isItemExpanded(parent))
-        #expect(fixture.outline.row(forItem: nested) < 0)
-        fixture.send("z")
-        fixture.send("O", modifiers: .shift)
-        fixture.send("z")
-        fixture.send("c")
-        #expect(!fixture.outline.isItemExpanded(items[0]))
-        #expect(fixture.outline.row(forItem: parent) < 0)
-        #expect(fixture.outline.row(forItem: nested) < 0)
-        #expect(fixture.selectedItem === items[0])
-
-        for _ in 0..<2 {
-            fixture.send("z")
-            fixture.send("o")
-            #expect(fixture.outline.isItemExpanded(items[0]))
-            #expect(fixture.outline.isItemExpanded(parent))
-            #expect(fixture.outline.isItemExpanded(nested))
-            #expect(fixture.outline.row(forItem: nested.children[0]) >= 0)
-            #expect(fixture.selectedItem === items[0])
-        }
+        fixture.sendKeys("zR")
         fixture.outline.selectRowIndexes(IndexSet(integer: fixture.outline.row(forItem: leaf)), byExtendingSelection: false)
-        fixture.send("z")
-        fixture.send("c")
-        #expect(!fixture.outline.isItemExpanded(parent))
-        #expect(fixture.outline.row(forItem: nested) < 0)
-        #expect(fixture.outline.isItemExpanded(items[0]))
-        fixture.outline.selectRowIndexes(IndexSet(integer: fixture.outline.row(forItem: parent)), byExtendingSelection: false)
-        fixture.send("z")
-        fixture.send("o")
-        #expect(fixture.outline.isItemExpanded(parent))
-        #expect(fixture.outline.isItemExpanded(nested))
-        #expect(fixture.outline.row(forItem: nested.children[0]) >= 0)
-        #expect(fixture.selectedItem === parent)
+        for ancestor in [nested, parent, items[0]] {
+            fixture.sendKeys("zc")
+            #expect(!fixture.outline.expandedIDs.contains(ancestor.id))
+            #expect(fixture.selectedItem === ancestor)
+            #expect(fixture.outline.selectedFoldItem === leaf)
+        }
+        #expect(fixture.outline.isItemExpanded(items[1]))
+        for ancestor in [items[0], parent, nested] {
+            fixture.sendKeys("zo")
+            #expect(fixture.outline.isItemExpanded(ancestor))
+            #expect(fixture.outline.selectedFoldItem === leaf)
+        }
+        #expect(fixture.selectedItem === leaf)
+        #expect(fixture.outline.foldLevel == 3)
         #expect(fixture.window.firstResponder === fixture.outline)
+    }
+
+    @Test(arguments: [("2zc", "2zo", 2), ("3zc", "3zo", 3)])
+    func foldCountsBeforePrefixOpenAndCloseLogicalPath(close: String, open: String, depth: Int) {
+        let items = deepTree()
+        let fixture = Fixture(items: items)
+        defer { fixture.window.close() }
+        let path = [items[0], items[0].children[0], items[0].children[0].children[0]]
+        let leaf = path[2].children[0]
+        fixture.sendKeys("zR")
+        fixture.outline.selectRowIndexes(IndexSet(integer: fixture.outline.row(forItem: leaf)), byExtendingSelection: false)
+
+        fixture.sendKeys(close)
+        #expect(fixture.outline.expandedIDs == Set(path.prefix(3 - depth).map(\.id) + [items[1].id]))
+        #expect(fixture.outline.selectedFoldItem === leaf)
+        fixture.sendKeys(open)
+        #expect(fixture.outline.expandedIDs == Set(path.map(\.id) + [items[1].id]))
+        #expect(fixture.selectedItem === leaf)
+        #expect(fixture.outline.foldLevel == 3)
+    }
+
+    @Test(arguments: ["z2r", "z3m", "z2o", "z2c", "2z3O", "z0c"])
+    func countsAfterFoldPrefixAreConsumedWithoutChangingState(command: String) {
+        let items = deepTree()
+        let fixture = Fixture(items: items)
+        defer { fixture.window.close() }
+        let parent = items[0].children[0]
+        let leaf = parent.children[0].children[0]
+        fixture.outline.expandItem(items[0], expandChildren: true)
+        fixture.outline.collapseItem(parent)
+        fixture.outline.selectFoldItem(leaf)
+        let expandedIDs = fixture.outline.expandedIDs
+
+        fixture.sendKeys(command)
+        #expect(fixture.outline.foldLevel == 1)
+        #expect(fixture.outline.expandedIDs == expandedIDs)
+        #expect(fixture.selectedItem === parent)
+        #expect(fixture.outline.selectedFoldItem === leaf)
+        fixture.sendKeys("zo")
+        #expect(fixture.outline.isItemExpanded(parent))
+        #expect(fixture.selectedItem === leaf)
+    }
+
+    @Test
+    func recursiveCommandsLeaveOtherBranchesAndOffPathDescendantsUnchanged() {
+        let items = deepTree()
+        let parent = items[0].children[0]
+        let nested = parent.children[0]
+        let sibling = PDFOutlineItem(id: "0.0.1", title: "Sibling", destination: nil, pageIndex: nil, parent: parent)
+        sibling.children = [PDFOutlineItem(id: "0.0.1.0", title: "Sibling detail", destination: nil, pageIndex: nil, parent: sibling)]
+        parent.children.append(sibling)
+        let fixture = Fixture(items: items)
+        defer { fixture.window.close() }
+
+        fixture.sendKeys("zO")
+        #expect(fixture.outline.expandedIDs == ["0", "1"])
+        fixture.sendKeys("zR")
+        fixture.outline.collapseItem(sibling)
+        fixture.sendKeys("zO")
+        #expect(!fixture.outline.expandedIDs.contains(sibling.id))
+        fixture.outline.expandItem(sibling)
+        let leaf = nested.children[0]
+        fixture.outline.selectRowIndexes(IndexSet(integer: fixture.outline.row(forItem: leaf)), byExtendingSelection: false)
+        fixture.sendKeys("zC")
+        #expect(fixture.outline.expandedIDs == [sibling.id, items[1].id])
+        #expect(fixture.selectedItem === items[0])
+        fixture.sendKeys("zO")
+        #expect(fixture.outline.expandedIDs == ["0", "0.0", "0.0.0", "0.0.1", "1"])
+        #expect(fixture.selectedItem === leaf)
+    }
+
+    @Test
+    func closingSkipsRememberedOpenDescendantsBelowAClosedFold() {
+        let items = deepTree()
+        let fixture = Fixture(items: items)
+        defer { fixture.window.close() }
+        let parent = items[0].children[0]
+        let nested = parent.children[0]
+        let leaf = nested.children[0]
+        fixture.sendKeys("zR")
+        fixture.outline.selectRowIndexes(IndexSet(integer: fixture.outline.row(forItem: leaf)), byExtendingSelection: false)
+        fixture.outline.collapseItem(parent)
+        fixture.outline.selectFoldItem(leaf)
+
+        fixture.sendKeys("zc")
+        #expect(!fixture.outline.expandedIDs.contains(items[0].id))
+        #expect(fixture.outline.expandedIDs.contains(nested.id))
+        fixture.sendKeys("2zo")
+        #expect(fixture.outline.isItemExpanded(nested))
+        #expect(fixture.selectedItem === leaf)
     }
 
     @Test
@@ -273,6 +345,7 @@ struct PDFOutlineKeyboardTests {
                              ("m", 2), ("m", 1), ("m", 0), ("m", 0)] {
             fixture.send("z")
             fixture.send(key)
+            #expect(fixture.outline.foldLevel == depth)
             #expect(fixture.outline.isItemExpanded(items[0]) == (depth > 0))
             #expect(fixture.outline.isItemExpanded(items[1]) == (depth > 0))
             #expect(fixture.outline.isItemExpanded(items[0].children[0]) == (depth > 1))
@@ -283,54 +356,128 @@ struct PDFOutlineKeyboardTests {
     }
 
     @Test
-    func globalDepthUsesVisibleStateAndRestoresSelectionAcrossFoldCommands() {
+    func globalDepthUsesStoredLevelAndResetsManualOverrides() {
         let items = deepTree()
         let parent = items[0].children[0]
         let nested = parent.children[0]
         let fixture = Fixture(items: items)
         defer { fixture.window.close() }
 
-        fixture.send("z")
-        fixture.send("R", modifiers: .capsLock)
-        fixture.send("z")
-        fixture.send("c")
-        #expect(fixture.outline.row(forItem: nested) < 0)
-        fixture.send("z")
-        fixture.send("m")
-        #expect(!fixture.outline.isItemExpanded(items[0]))
-        #expect(!fixture.outline.isItemExpanded(items[1]))
-        #expect(fixture.outline.row(forItem: parent) < 0)
-        #expect(fixture.outline.row(forItem: nested) < 0)
-        fixture.send("z")
-        fixture.send("r")
-        #expect(fixture.outline.isItemExpanded(items[0]))
-        #expect(!fixture.outline.isItemExpanded(parent))
-        fixture.outline.selectRowIndexes(IndexSet(integer: fixture.outline.row(forItem: parent)), byExtendingSelection: false)
-        fixture.send("z")
-        fixture.send("o")
-        #expect(fixture.outline.row(forItem: nested) >= 0)
-        #expect(!fixture.outline.isItemExpanded(nested))
-        #expect(fixture.outline.row(forItem: nested.children[0]) < 0)
-        fixture.outline.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
-
-        fixture.send("\u{f703}", keyCode: 124, modifiers: .option)
-        fixture.outline.collapseItem(items[1], collapseChildren: true)
-        fixture.outline.selectRowIndexes(IndexSet(integer: fixture.outline.row(forItem: nested.children[0])), byExtendingSelection: false)
-        for ancestor in [nested, parent, items[0]] {
-            fixture.send("z")
-            fixture.send("m")
-            #expect(fixture.selectedItem === ancestor)
-            #expect(fixture.outline.isItemExpanded(items[1]) == (ancestor !== items[0]))
-            #expect(fixture.window.firstResponder === fixture.outline)
-        }
-        #expect(!fixture.outline.isItemExpanded(items[1]))
-        fixture.send("\u{f703}", keyCode: 124, modifiers: [.option, .shift])
+        fixture.sendKeys("zM")
+        fixture.sendKeys("zO")
+        #expect(fixture.outline.foldLevel == 0)
         #expect(fixture.outline.isItemExpanded(nested))
+        fixture.sendKeys("zr")
+        #expect(fixture.outline.foldLevel == 1)
+        #expect(fixture.outline.isItemExpanded(items[0]))
         #expect(fixture.outline.isItemExpanded(items[1]))
-        fixture.send("z")
-        fixture.send("M", modifiers: .shift)
+        #expect(!fixture.outline.isItemExpanded(parent))
+
+        fixture.sendKeys("zR")
+        fixture.sendKeys("zc")
         #expect(!fixture.outline.isItemExpanded(items[0]))
+        #expect(fixture.outline.foldLevel == 3)
+        fixture.sendKeys("zm")
+        #expect(fixture.outline.foldLevel == 2)
+        #expect(fixture.outline.isItemExpanded(parent))
+        #expect(!fixture.outline.isItemExpanded(nested))
+        fixture.outline.selectRowIndexes(IndexSet(integer: fixture.outline.row(forItem: items[1])), byExtendingSelection: false)
+        fixture.sendKeys("zc")
         #expect(!fixture.outline.isItemExpanded(items[1]))
+        fixture.sendKeys("zm")
+        #expect(fixture.outline.foldLevel == 1)
+        #expect(fixture.outline.isItemExpanded(items[1]))
+        #expect(!fixture.outline.isItemExpanded(parent))
+        #expect(fixture.window.firstResponder === fixture.outline)
+    }
+
+    @Test
+    func maximumReducePreservesOverridesButOpenAllAndMinimumIncreaseResetThem() {
+        let items = deepTree()
+        let fixture = Fixture(items: items)
+        defer { fixture.window.close() }
+
+        fixture.sendKeys("zR")
+        fixture.outline.selectRowIndexes(IndexSet(integer: fixture.outline.row(forItem: items[1])), byExtendingSelection: false)
+        fixture.sendKeys("zc")
+        fixture.sendKeys("zr")
+        #expect(fixture.outline.foldLevel == 3)
+        #expect(!fixture.outline.isItemExpanded(items[1]))
+        fixture.sendKeys("zR")
+        #expect(fixture.outline.isItemExpanded(items[1]))
+        fixture.sendKeys("zM")
+        fixture.sendKeys("zO")
+        #expect(fixture.outline.foldLevel == 0)
+        #expect(fixture.outline.isItemExpanded(items[1]))
+        fixture.sendKeys("zm")
+        #expect(fixture.outline.foldLevel == 0)
+        #expect(fixture.outline.expandedIDs.isEmpty)
+    }
+
+    @Test
+    func globalCountsAndOverflowClampWithoutChangingLogicalCursor() {
+        let items = deepTree()
+        let fixture = Fixture(items: items)
+        defer { fixture.window.close() }
+        let leaf = items[0].children[0].children[0].children[0]
+        fixture.sendKeys("zR")
+        fixture.outline.selectRowIndexes(IndexSet(integer: fixture.outline.row(forItem: leaf)), byExtendingSelection: false)
+        fixture.sendKeys("2zm")
+        #expect(fixture.outline.foldLevel == 1)
+        #expect(fixture.selectedItem === items[0].children[0])
+        #expect(fixture.outline.selectedFoldItem === leaf)
+        fixture.sendKeys("2zr")
+        #expect(fixture.outline.foldLevel == 3)
+        #expect(fixture.selectedItem === leaf)
+        fixture.sendKeys("3zm")
+        #expect(fixture.outline.foldLevel == 0)
+        #expect(fixture.selectedItem === items[0])
+        let overflowingCount = String(repeating: "9", count: 30)
+        fixture.sendKeys(overflowingCount + "zr")
+        #expect(fixture.outline.foldLevel == 3)
+        #expect(fixture.selectedItem === leaf)
+        fixture.sendKeys(overflowingCount + "zc")
+        #expect(fixture.outline.expandedIDs == [items[1].id])
+        fixture.sendKeys(overflowingCount + "zo")
+        #expect(fixture.selectedItem === leaf)
+        fixture.sendKeys(overflowingCount + "zm")
+        #expect(fixture.outline.foldLevel == 0)
+        #expect(fixture.outline.expandedIDs.isEmpty)
+        #expect(fixture.outline.selectedFoldItem === leaf)
+    }
+
+    @Test
+    func explicitSelectionAndNavigationReplaceLogicalFoldCursor() {
+        let items = deepTree()
+        let fixture = Fixture(items: items)
+        defer { fixture.window.close() }
+        let leaf = items[0].children[0].children[0].children[0]
+        fixture.sendKeys("zR")
+        fixture.outline.selectRowIndexes(IndexSet(integer: fixture.outline.row(forItem: leaf)), byExtendingSelection: false)
+        fixture.sendKeys("zC")
+        #expect(fixture.outline.selectedFoldItem === leaf)
+        fixture.outline.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+        #expect(fixture.outline.selectedFoldItem === items[0])
+        fixture.sendKeys("zozo")
+        #expect(fixture.outline.isItemExpanded(items[0]))
+        #expect(!fixture.outline.isItemExpanded(items[0].children[0]))
+
+        fixture.sendKeys("zR")
+        fixture.outline.selectRowIndexes(IndexSet(integer: fixture.outline.row(forItem: leaf)), byExtendingSelection: false)
+        fixture.sendKeys("zC")
+        fixture.outline.expandItem(items[0])
+        #expect(fixture.outline.selectedFoldItem === items[0])
+        fixture.sendKeys("zO")
+        #expect(!fixture.outline.isItemExpanded(items[0].children[0]))
+
+        fixture.sendKeys("zR")
+        fixture.outline.selectRowIndexes(IndexSet(integer: fixture.outline.row(forItem: leaf)), byExtendingSelection: false)
+        fixture.sendKeys("zM")
+        fixture.sendKeys("jzo")
+        #expect(fixture.outline.selectedFoldItem === items[1])
+        #expect(!fixture.outline.isItemExpanded(items[0]))
+        #expect(fixture.outline.isItemExpanded(items[1]))
+        #expect(fixture.outline.foldLevel == 0)
     }
 
     @Test(arguments: [CGFloat(160), CGFloat(198)])
@@ -561,6 +708,10 @@ struct PDFOutlineKeyboardTests {
                 windowNumber: window.windowNumber, context: nil,
                 characters: key, charactersIgnoringModifiers: key, isARepeat: repeating, keyCode: keyCode
             )!)
+        }
+
+        func sendKeys(_ keys: String) {
+            for key in keys { send(String(key)) }
         }
     }
 }

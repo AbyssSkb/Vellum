@@ -42,7 +42,7 @@ extension PDFOutlineView {
             tabID nextTabID: PDFTab.ID,
             documentID nextDocumentID: ObjectIdentifier,
             language nextLanguage: AppUILanguage,
-            in outlineView: NSOutlineView
+            in outlineView: PDFOutlineKeyView
         ) -> Bool {
             let nextSignature = Self.signature(for: nextItems)
             guard nextSignature != itemSignature || nextTabID != tabID || nextDocumentID != documentID || nextLanguage != language else {
@@ -61,26 +61,25 @@ extension PDFOutlineView {
             return true
         }
 
-        func saveState(in outlineView: NSOutlineView) {
+        func saveState(in outlineView: PDFOutlineKeyView) {
             let openTabIDs = Set(appState.tabs.map(\.id))
             appState.outlineStates = appState.outlineStates.filter { openTabIDs.contains($0.key) }
             guard openTabIDs.contains(tabID) else { return }
             appState.outlineStates[tabID] = State(
                 documentID: documentID,
-                selectedID: selectedItem(in: outlineView)?.id,
-                expandedIDs: expandedItemIDs(in: outlineView)
+                selectedID: outlineView.selectedFoldItem?.id,
+                expandedIDs: outlineView.expandedIDs,
+                foldLevel: outlineView.foldLevel
             )
         }
 
-        func restoreState(in outlineView: NSOutlineView) {
-            outlineView.collapseItem(nil, collapseChildren: true)
+        func restoreState(in outlineView: PDFOutlineKeyView) {
             if let state = appState.outlineStates[tabID], state.documentID == documentID {
-                restoreExpandedItems(state.expandedIDs, in: outlineView)
+                outlineView.restoreFolding(items: items, expandedIDs: state.expandedIDs, foldLevel: state.foldLevel)
                 restoreSelection(state.selectedID, in: outlineView)
             } else {
-                for item in items where !item.children.isEmpty {
-                    outlineView.expandItem(item)
-                }
+                let expandedIDs = Set(items.filter { !$0.children.isEmpty }.map(\.id))
+                outlineView.restoreFolding(items: items, expandedIDs: expandedIDs, foldLevel: 1)
                 selectInitialRow(in: outlineView)
             }
         }
@@ -143,11 +142,23 @@ extension PDFOutlineView {
         }
 
         func outlineViewItemDidExpand(_ notification: Notification) {
-            (notification.object as? NSOutlineView)?.enumerateAvailableRowViews { row, _ in row.needsDisplay = true }
+            guard let outlineView = notification.object as? PDFOutlineKeyView else { return }
+            if let item = notification.userInfo?["NSObject"] as? PDFOutlineItem {
+                outlineView.recordExpansion(of: item, expanded: true)
+            }
+            outlineView.enumerateAvailableRowViews { row, _ in row.needsDisplay = true }
         }
 
         func outlineViewItemDidCollapse(_ notification: Notification) {
-            (notification.object as? NSOutlineView)?.enumerateAvailableRowViews { row, _ in row.needsDisplay = true }
+            guard let outlineView = notification.object as? PDFOutlineKeyView else { return }
+            if let item = notification.userInfo?["NSObject"] as? PDFOutlineItem {
+                outlineView.recordExpansion(of: item, expanded: false)
+            }
+            outlineView.enumerateAvailableRowViews { row, _ in row.needsDisplay = true }
+        }
+
+        func outlineViewSelectionDidChange(_ notification: Notification) {
+            (notification.object as? PDFOutlineKeyView)?.recordSelection()
         }
 
         @objc func doubleClick(_ sender: NSOutlineView) {
@@ -201,35 +212,14 @@ extension PDFOutlineView {
             return outlineView.item(atRow: outlineView.selectedRow) as? PDFOutlineItem
         }
 
-        private func expandedItemIDs(in outlineView: NSOutlineView) -> Set<String> {
-            var ids = Set<String>()
-            for item in items.flattened() where outlineView.isItemExpanded(item) {
-                ids.insert(item.id)
-            }
-            return ids
-        }
-
-        private func restoreExpandedItems(_ ids: Set<String>, in outlineView: NSOutlineView) {
-            for item in items.flattened() where ids.contains(item.id) {
-                outlineView.expandItem(item)
-            }
-        }
-
-        private func restoreSelection(_ id: String?, in outlineView: NSOutlineView) {
+        private func restoreSelection(_ id: String?, in outlineView: PDFOutlineKeyView) {
             guard let id,
                   let item = items.flattened().first(where: { $0.id == id }) else {
                 selectInitialRow(in: outlineView)
                 return
             }
 
-            let row = outlineView.row(forItem: item)
-            guard row >= 0 else {
-                selectInitialRow(in: outlineView)
-                return
-            }
-
-            outlineView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
-            outlineView.scrollRowToVisible(row)
+            outlineView.selectFoldItem(item)
         }
 
         private static func signature(for items: [PDFOutlineItem]) -> String {

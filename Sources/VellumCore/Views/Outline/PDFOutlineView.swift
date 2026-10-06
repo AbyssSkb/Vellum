@@ -6,6 +6,7 @@ struct PDFOutlineView: NSViewRepresentable {
         let documentID: ObjectIdentifier
         let selectedID: String?
         let expandedIDs: Set<String>
+        let foldLevel: Int
     }
 
     let items: [PDFOutlineItem]

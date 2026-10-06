@@ -3,6 +3,109 @@
 final class PDFOutlineKeyView: NSOutlineView {
     weak var appState: AppState?
     private var keyState = VimKeyState()
+    private var pendingFoldCount = 1
+    private var rootItems: [PDFOutlineItem] = []
+    private var maximumFoldLevel = 0
+    private var foldCursorItem: PDFOutlineItem?
+    private var isFoldingCommand = false
+    private var isApplyingFoldState = false
+    private(set) var expandedIDs = Set<String>()
+    private(set) var foldLevel = 1
+
+    var selectedFoldItem: PDFOutlineItem? { foldCursorItem ?? selectedOutlineItem }
+
+    func restoreFolding(items: [PDFOutlineItem], expandedIDs: Set<String>, foldLevel: Int) {
+        rootItems = items
+        foldCursorItem = nil
+        let branches = items.flattened().filter { !$0.children.isEmpty }
+        maximumFoldLevel = branches.map { foldPath(to: $0).count }.max() ?? 0
+        self.foldLevel = min(max(0, foldLevel), maximumFoldLevel)
+        self.expandedIDs = expandedIDs.intersection(Set(branches.map(\.id)))
+        isApplyingFoldState = true
+        super.collapseItem(nil, collapseChildren: true)
+        isApplyingFoldState = false
+        applyExpansion(to: items)
+    }
+
+    override func expandItem(_ item: Any?, expandChildren: Bool) {
+        guard !isApplyingFoldState else {
+            super.expandItem(item, expandChildren: expandChildren)
+            return
+        }
+        if !isFoldingCommand { foldCursorItem = nil }
+        let items = (item as? PDFOutlineItem).map { [$0] } ?? rootItems
+        let branches = (expandChildren ? items.flattened() : items).filter { !$0.children.isEmpty }
+        expandedIDs.formUnion(branches.map(\.id))
+        applyExpansion(to: items)
+    }
+
+    override func collapseItem(_ item: Any?, collapseChildren: Bool) {
+        guard !isApplyingFoldState else {
+            super.collapseItem(item, collapseChildren: collapseChildren)
+            return
+        }
+        if !isFoldingCommand { foldCursorItem = nil }
+        let items = (item as? PDFOutlineItem).map { [$0] } ?? rootItems
+        expandedIDs.subtract((collapseChildren ? items.flattened() : items).map(\.id))
+        // AppKit also reports hidden descendants as collapsed; preserve their logical state.
+        isApplyingFoldState = true
+        super.collapseItem(item, collapseChildren: collapseChildren)
+        isApplyingFoldState = false
+    }
+
+    func recordExpansion(of item: PDFOutlineItem, expanded: Bool) {
+        guard !isApplyingFoldState else { return }
+        if !isFoldingCommand { foldCursorItem = nil }
+        if expanded {
+            expandedIDs.insert(item.id)
+            applyExpansion(to: item.children)
+        } else if row(forItem: item) >= 0 {
+            expandedIDs.remove(item.id)
+        }
+    }
+
+    func recordSelection() {
+        if !isFoldingCommand && !isApplyingFoldState { foldCursorItem = nil }
+    }
+
+    override func selectRowIndexes(_ indexes: IndexSet, byExtendingSelection extend: Bool) {
+        recordSelection()
+        super.selectRowIndexes(indexes, byExtendingSelection: extend)
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        foldCursorItem = nil
+        super.mouseDown(with: event)
+    }
+
+    func selectFoldItem(_ item: PDFOutlineItem) {
+        foldCursorItem = item
+        var visibleItem = item
+        while row(forItem: visibleItem) < 0, let parent = visibleItem.parent { visibleItem = parent }
+        let row = row(forItem: visibleItem)
+        guard row >= 0 else { return }
+        let wasFolding = isFoldingCommand
+        isFoldingCommand = true
+        selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+        scrollRowToVisible(row)
+        isFoldingCommand = wasFolding
+    }
+
+    private func applyExpansion(to items: [PDFOutlineItem]) {
+        isApplyingFoldState = true
+        for item in items { applyExpansion(to: item) }
+        isApplyingFoldState = false
+    }
+
+    private func applyExpansion(to item: PDFOutlineItem) {
+        guard !item.children.isEmpty else { return }
+        if expandedIDs.contains(item.id) {
+            super.expandItem(item, expandChildren: false)
+            for child in item.children { applyExpansion(to: child) }
+        } else {
+            super.collapseItem(item, collapseChildren: false)
+        }
+    }
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -126,8 +229,17 @@ final class PDFOutlineKeyView: NSOutlineView {
             return true
         }
 
+        if isDigit && keyState.pendingKey == "z" {
+            keyState.numericPrefix = key
+            return true
+        }
         if isDigit && keyState.handleNumericPrefixKey(key) {
-            keyState.numericPrefix = String(min(Int(keyState.numericPrefix) ?? Int.max, max(1, numberOfRows)))
+            keyState.numericPrefix = String(min(Int(keyState.numericPrefix) ?? Int.max, max(1, max(numberOfRows, maximumFoldLevel))))
+            return true
+        }
+        // Vim fold counts precede z; consume an invalid postfix command locally.
+        if keyState.pendingKey == "z", !keyState.numericPrefix.isEmpty {
+            keyState.clearPendingInput()
             return true
         }
 
@@ -143,17 +255,13 @@ final class PDFOutlineKeyView: NSOutlineView {
 
         if keyState.pendingKey == "z", ["o", "c", "r", "m"].contains(key) {
             keyState.clearPendingInput()
-            if isShifted || characters != key {
-                setBranchExpanded(key == "o" || key == "r", allBranches: key == "r" || key == "m")
-            } else if key == "o" || key == "c" {
-                setBranchExpanded(key == "o", allBranches: false, recursive: false)
-            } else {
-                changeExpansionDepth(by: key == "r" ? 1 : -1)
-            }
+            performFoldCommand(isShifted || characters != key ? key.uppercased() : key,
+                               count: min(pendingFoldCount, max(1, maximumFoldLevel)))
             return true
         }
 
         if key == "z" && !isShifted {
+            pendingFoldCount = keyState.consumeNumericPrefix() ?? 1
             keyState.clearPendingInput()
             keyState.pendingKey = "z"
             return true
@@ -230,6 +338,7 @@ final class PDFOutlineKeyView: NSOutlineView {
     }
 
     private func collapseSelectedItem() {
+        foldCursorItem = nil
         guard let item = selectedOutlineItem else { return }
 
         if isItemExpanded(item) {
@@ -244,43 +353,80 @@ final class PDFOutlineKeyView: NSOutlineView {
         scrollRowToVisible(parentRow)
     }
 
-    private func setBranchExpanded(_ expanded: Bool, allBranches: Bool, recursive: Bool = true) {
+    private func setBranchExpanded(_ expanded: Bool, allBranches: Bool) {
+        foldCursorItem = nil
         let branch = selectedOutlineItem.flatMap { $0.children.isEmpty ? $0.parent : $0 }
         guard allBranches || branch != nil else { return }
         if expanded {
-            expandItem(allBranches ? nil : branch, expandChildren: recursive)
+            expandItem(allBranches ? nil : branch, expandChildren: true)
         } else {
-            collapseItem(allBranches ? nil : branch, collapseChildren: recursive)
+            collapseItem(allBranches ? nil : branch, collapseChildren: true)
         }
     }
 
-    private func changeExpansionDepth(by delta: Int) {
-        var roots: [PDFOutlineItem] = []
-        var depth = 0
-        var selection = selectedOutlineItem
-        for row in 0..<numberOfRows {
-            guard let item = item(atRow: row) as? PDFOutlineItem else { continue }
-            let itemLevel = level(forItem: item)
-            if itemLevel == 0 { roots.append(item) }
-            if !item.children.isEmpty, isItemExpanded(item) { depth = max(depth, itemLevel + 1) }
+    private func foldPath(to item: PDFOutlineItem) -> [PDFOutlineItem] {
+        var path: [PDFOutlineItem] = []
+        var current: PDFOutlineItem? = item
+        while let item = current {
+            if !item.children.isEmpty { path.append(item) }
+            current = item.parent
         }
-        let targetDepth = max(0, depth + delta)
-        for root in roots { setExpansionDepth(targetDepth, for: root) }
-        while let item = selection, row(forItem: item) < 0 { selection = item.parent }
-        if let selection, row(forItem: selection) != selectedRow { selectRow(row(forItem: selection)) }
+        return path.reversed()
     }
 
-    private func setExpansionDepth(_ depth: Int, for item: PDFOutlineItem) {
-        guard !item.children.isEmpty else { return }
-        if depth > 0 {
-            expandItem(item)
-            for child in item.children { setExpansionDepth(depth - 1, for: child) }
-        } else {
-            collapseItem(item, collapseChildren: true)
+    private func performFoldCommand(_ command: String, count: Int) {
+        let cursor = selectedFoldItem
+        let path = cursor.map(foldPath) ?? []
+        foldCursorItem = cursor
+        isFoldingCommand = true
+        defer {
+            if let cursor { selectFoldItem(cursor) }
+            isFoldingCommand = false
         }
+        switch command {
+        case "o":
+            for _ in 0..<count {
+                guard let item = path.first(where: { !expandedIDs.contains($0.id) }) else { break }
+                expandItem(item)
+            }
+        case "c":
+            for _ in 0..<count {
+                guard let item = path.prefix(while: { expandedIDs.contains($0.id) }).last else { break }
+                collapseItem(item)
+            }
+        case "O":
+            if let item = path.first(where: { !expandedIDs.contains($0.id) }) {
+                expandItem(item, expandChildren: true)
+            }
+        case "C":
+            for item in path.reversed() { collapseItem(item) }
+        case "r":
+            let nextLevel = foldLevel + min(count, maximumFoldLevel - foldLevel)
+            guard nextLevel != foldLevel else { return }
+            foldLevel = nextLevel
+            applyFoldLevel()
+        case "m":
+            foldLevel -= min(count, foldLevel)
+            applyFoldLevel()
+        case "R":
+            foldLevel = maximumFoldLevel
+            applyFoldLevel()
+        case "M":
+            foldLevel = 0
+            applyFoldLevel()
+        default: break
+        }
+    }
+
+    private func applyFoldLevel() {
+        expandedIDs = Set(rootItems.flattened().filter {
+            !$0.children.isEmpty && foldPath(to: $0).count <= foldLevel
+        }.map(\.id))
+        applyExpansion(to: rootItems)
     }
 
     private func expandSelectedItem() {
+        foldCursorItem = nil
         guard let item = selectedOutlineItem, let child = item.children.first else { return }
         if isItemExpanded(item) {
             selectRow(row(forItem: child))
@@ -290,6 +436,7 @@ final class PDFOutlineKeyView: NSOutlineView {
     }
 
     private func activateSelectedItem() {
+        foldCursorItem = nil
         guard let item = selectedOutlineItem else { return }
 
         if let appState, item.activate(in: appState) {
