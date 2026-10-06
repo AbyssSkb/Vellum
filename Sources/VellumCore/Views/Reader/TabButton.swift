@@ -12,13 +12,6 @@ struct TabButton: View {
 
     var body: some View {
         HStack(spacing: width < 70 ? 4 : 7) {
-            if width >= 130 {
-                Image(systemName: "doc")
-                    .font(.system(size: 11, weight: .regular))
-                    .foregroundStyle(isSelected ? TokyoNight.blueColor : TokyoNight.mutedColor.opacity(0.65))
-                    .accessibilityHidden(true)
-            }
-
             ClippedTabTitle(title: tab.title, isSelected: isSelected)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .clipped()
