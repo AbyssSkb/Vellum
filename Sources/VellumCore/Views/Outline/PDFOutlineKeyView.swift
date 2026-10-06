@@ -17,7 +17,8 @@ final class PDFOutlineKeyView: NSOutlineView {
         let level = outlineLevel(forRow: row)
         let textX = 36 + CGFloat(level) * indentationPerLevel
         frame.origin.x = textX
-        frame.size.width = max(0, bounds.width - textX - 12)
+        let visibleWidth = enclosingScrollView?.contentView.bounds.width ?? bounds.width
+        frame.size.width = max(0, visibleWidth - textX - 12)
         return frame
     }
 

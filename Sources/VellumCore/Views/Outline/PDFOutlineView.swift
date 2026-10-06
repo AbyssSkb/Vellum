@@ -32,6 +32,7 @@ struct PDFOutlineView: NSViewRepresentable {
         outlineView.allowsEmptySelection = false
         outlineView.allowsMultipleSelection = false
         outlineView.indentationPerLevel = 14
+        outlineView.autoresizesOutlineColumn = false
         outlineView.intercellSpacing = NSSize(width: 0, height: 2)
         outlineView.rowHeight = 30
         outlineView.rowSizeStyle = .medium

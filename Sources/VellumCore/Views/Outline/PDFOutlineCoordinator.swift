@@ -132,7 +132,10 @@ extension PDFOutlineView {
         }
 
         func outlineView(_ outlineView: NSOutlineView, rowViewForItem item: Any) -> NSTableRowView? {
-            TokyoNightOutlineRowView()
+            let row = TokyoNightOutlineRowView()
+            row.contentIndent = CGFloat(outlineView.level(forItem: item)) * outlineView.indentationPerLevel
+            row.isBranch = (item as? PDFOutlineItem)?.children.isEmpty == false
+            return row
         }
 
         @objc func doubleClick(_ sender: NSOutlineView) {

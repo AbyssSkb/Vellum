@@ -1,11 +1,68 @@
 @preconcurrency import AppKit
 import PDFKit
+import SwiftUI
 import Testing
 @testable import VellumCore
 
 @MainActor
 @Suite("PDF outline coordinator")
 struct PDFOutlineCoordinatorTests {
+    @Test
+    func expandingNestedOutlineKeepsTitlesAndPageNumbersInPlace() async throws {
+        _ = NSApplication.shared
+        let document = PDFDocument()
+        document.insert(PDFPage(), at: 0)
+        let root = PDFOutlineItem(id: "0", title: "A long chapter name whose truncation must stay stable while expanding",
+                                  destination: PDFDestination(page: document.page(at: 0)!, at: .zero),
+                                  pageIndex: 0, parent: nil)
+        let child = PDFOutlineItem(id: "0.0", title: root.title, destination: root.destination,
+                                   pageIndex: 1233, parent: root)
+        let grandchild = PDFOutlineItem(id: "0.0.0", title: root.title, destination: root.destination,
+                                        pageIndex: 1233, parent: child)
+        grandchild.children = [PDFOutlineItem(id: "0.0.0.0", title: "Fourth level", destination: root.destination,
+                                             pageIndex: 0, parent: grandchild)]
+        child.children = [grandchild]
+        root.children = [child]
+        let host = NSHostingView(rootView: PDFOutlineView(
+            items: [root], tabID: UUID(), documentID: ObjectIdentifier(document),
+            focusGeneration: 0, appState: makeAppState(), language: .english
+        ))
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 256, height: 220),
+                              styleMask: .borderless, backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentView = host
+        window.orderFront(nil)
+        defer { window.close() }
+        host.layoutSubtreeIfNeeded()
+        try await Task.sleep(for: .milliseconds(30))
+        func descendants(_ view: NSView) -> [NSView] { [view] + view.subviews.flatMap(descendants) }
+        let outline = try #require(descendants(host).compactMap { $0 as? PDFOutlineKeyView }.first)
+        let firstCell = try #require(outline.view(atColumn: 0, row: 0, makeIfNecessary: true) as? PDFOutlineCellView)
+        host.layoutSubtreeIfNeeded()
+        let pageRight = firstCell.pageNumberField.convert(firstCell.pageNumberField.bounds, to: outline).maxX
+        let firstFrame = outline.frameOfCell(atColumn: 0, row: 0)
+
+        outline.expandItem(child)
+        outline.expandItem(grandchild)
+        try await Task.sleep(for: .milliseconds(30))
+        host.layoutSubtreeIfNeeded()
+        #expect(outline.frameOfCell(atColumn: 0, row: 0) == firstFrame)
+        #expect(firstCell.pageNumberField.convert(firstCell.pageNumberField.bounds, to: outline).maxX == pageRight)
+        let rowIndex = outline.row(forItem: grandchild)
+        outline.selectRowIndexes(IndexSet(integer: rowIndex), byExtendingSelection: false)
+        let nestedCell = try #require(outline.view(atColumn: 0, row: rowIndex, makeIfNecessary: true) as? PDFOutlineCellView)
+        let rootRow = try #require(outline.rowView(atRow: 0, makeIfNecessary: true) as? TokyoNightOutlineRowView)
+        let nestedRow = try #require(outline.rowView(atRow: rowIndex, makeIfNecessary: true) as? TokyoNightOutlineRowView)
+        host.layoutSubtreeIfNeeded()
+        nestedCell.layoutSubtreeIfNeeded()
+        #expect(nestedCell.pageNumberField.convert(nestedCell.pageNumberField.bounds, to: outline).maxX == pageRight)
+        #expect(nestedRow.roundedBackgroundRect().minX == rootRow.roundedBackgroundRect().minX + 28)
+        #expect(nestedRow.roundedBackgroundRect().maxX == rootRow.roundedBackgroundRect().maxX)
+        let leafIndex = outline.row(forItem: grandchild.children[0])
+        let leafRow = try #require(outline.rowView(atRow: leafIndex, makeIfNecessary: true) as? TokyoNightOutlineRowView)
+        #expect(leafRow.roundedBackgroundRect().minX + 4 == outline.frameOfCell(atColumn: 0, row: leafIndex).minX - 8)
+    }
+
     @Test
     func switchingDocumentsWithIdenticalOutlinesReplacesDestinations() {
         let firstDocument = PDFDocument()

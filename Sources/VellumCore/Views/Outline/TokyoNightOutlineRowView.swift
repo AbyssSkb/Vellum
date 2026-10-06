@@ -2,6 +2,8 @@
 
 final class TokyoNightOutlineRowView: NSTableRowView {
     private static let horizontalInset: CGFloat = 10
+    var contentIndent: CGFloat = 0
+    var isBranch = false
     private var mouseInside = false {
         didSet { needsDisplay = true }
     }
@@ -78,13 +80,14 @@ final class TokyoNightOutlineRowView: NSTableRowView {
         }
     }
 
-    private func roundedBackgroundRect() -> NSRect {
+    func roundedBackgroundRect() -> NSRect {
         let visibleWidth = enclosingScrollView?.contentView.bounds.width ?? bounds.width
         let width = min(bounds.width, visibleWidth)
+        let leadingInset = Self.horizontalInset + contentIndent + (isBranch ? 0 : 14)
         return NSRect(
-            x: Self.horizontalInset,
+            x: leadingInset,
             y: 2,
-            width: max(0, width - Self.horizontalInset * 2),
+            width: max(0, width - Self.horizontalInset - leadingInset),
             height: max(0, bounds.height - 4)
         )
     }
