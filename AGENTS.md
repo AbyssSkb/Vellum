@@ -4,6 +4,7 @@
 - Commit completed changes with git after packaging succeeds, unless the user explicitly asks not to commit.
 - Keep each commit focused on one theme. Bug fixes, refactors, and feature work should be committed separately.
 - When a completed change is suitable for users and packaging succeeds, proactively publish a new version at an appropriate stopping point unless the user says not to release.
+- Write public GitHub release titles and notes in English. Keep commit subjects used to generate release notes in English as well.
 
 ## UI Design Style
 

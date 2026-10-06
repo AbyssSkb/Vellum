@@ -124,6 +124,16 @@ jobs:
             fi
           } > "$NOTES_FILE"
 
+          python3 - "$NOTES_FILE" <<'PY'
+          import pathlib
+          import re
+          import sys
+
+          notes = pathlib.Path(sys.argv[1]).read_text()
+          if re.search(r"[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]", notes):
+              sys.exit("Release notes must be in English. Rewrite non-English commit subjects before publishing.")
+          PY
+
           echo "path=$NOTES_FILE" >> "$GITHUB_OUTPUT"
 
       - name: Package app
