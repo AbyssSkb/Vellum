@@ -3,8 +3,9 @@ import PDFKit
 
 extension AppState {
     func setActiveReaderController(_ controller: ReaderController?, for tabID: PDFTab.ID) {
-        guard tabID == selectedTabID else { return }
+        guard tabID == selectedTabID, activeReaderController !== controller else { return }
         activeReaderController = controller
+        (controller as? VellumPDFView)?.scheduleReadingPositionReport()
     }
 
     func snapshotForSelectedTab() -> ReaderSnapshot? {

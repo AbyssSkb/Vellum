@@ -7,16 +7,39 @@ import Testing
 @Suite("Reader outline position integration")
 struct PDFReadingPositionTests {
     @Test(arguments: [0, 90, 180, 270])
-    func readingAnchorUsesTheVisibleTopOfTheCenteredPage(rotation: Int) throws {
+    func readingAnchorUsesTheViewportCenterOnCroppedRotatedPages(rotation: Int) throws {
         let fixture = makeReader(rotation: rotation)
         defer { fixture.window.close() }
         let destination = try #require(fixture.view.readingDestination())
         #expect(destination.page === fixture.page)
         let geometry = PDFPageDisplayGeometry(page: fixture.page, box: .cropBox)
         let point = geometry.point(forPagePoint: destination.point)
-        let clip = try #require(fixture.view.pdfScrollView?.contentView)
-        let expectedY = min(geometry.bounds.maxY, geometry.bounds.midY + clip.bounds.height / (2 * fixture.view.scaleFactor))
-        #expect(abs(point.y - expectedY) < 1)
+        #expect(abs(point.x - geometry.bounds.midX) < 1)
+        #expect(abs(point.y - geometry.bounds.midY) < 1)
+    }
+
+    @Test
+    func wholePageFitRecognizesASectionWhoseHeadingIsBelowThePageMargin() throws {
+        let fixture = makeReader()
+        defer { fixture.window.close() }
+        fixture.view.applyZoomScale(try #require(fixture.view.pageFitScale(for: fixture.page)))
+        fixture.view.centerBothAxes(on: fixture.view.pageCenterDestination(for: fixture.page))
+        let items = PDFOutlineBuilder.items(for: fixture.document)
+        let destination = try #require(fixture.view.readingDestination())
+        #expect(OutlineReadingMatcher.item(for: destination, in: items) === items.first)
+    }
+
+    @Test(arguments: [CGFloat(0.75), 1, 1.5])
+    func scrollingSwitchesSectionsAtTheSameHeadingInBothDirections(scale: CGFloat) throws {
+        let fixture = makeReader()
+        defer { fixture.window.close() }
+        fixture.view.applyZoomScale(scale)
+        let items = PDFOutlineBuilder.items(for: fixture.document)
+        for (y, section) in [(CGFloat(700), 0), (660, 0), (640, 1), (660, 0), (700, 0)] {
+            fixture.view.centerBothAxes(on: PDFDestination(page: fixture.page, at: NSPoint(x: 540, y: y)))
+            let destination = try #require(fixture.view.readingDestination())
+            #expect(OutlineReadingMatcher.item(for: destination, in: items) === items[section])
+        }
     }
 
     @Test

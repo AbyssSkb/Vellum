@@ -4,15 +4,7 @@ import PDFKit
 extension VellumPDFView {
     func readingDestination() -> PDFDestination? {
         guard let document, let snapshot = snapshot(), let page = document.page(at: snapshot.pageIndex) else { return nil }
-        guard let scrollView = pdfScrollView,
-              let pageRect = viewRect(for: page.bounds(for: displayBox), on: page) else {
-            return PDFDestination(page: page, at: snapshot.pointOnPage)
-        }
-        let visibleRect = convert(scrollView.contentView.bounds, from: scrollView.contentView)
-        let paperRect = pageRect.intersection(visibleRect)
-        guard !paperRect.isEmpty else { return PDFDestination(page: page, at: snapshot.pointOnPage) }
-        let point = NSPoint(x: paperRect.midX, y: isFlipped ? paperRect.minY : paperRect.maxY)
-        return PDFDestination(page: page, at: convert(point, to: page))
+        return PDFDestination(page: page, at: snapshot.pointOnPage)
     }
 
     func readingPositionChanged(from previous: PDFDestination?) -> Bool {

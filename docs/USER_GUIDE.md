@@ -57,7 +57,7 @@ Press `t` to show or hide the contents sidebar. Opening it focuses the outline a
 
 Select an entry and press `Enter` to jump and focus the reader. In the outline, `Esc` first clears a pending count or command prefix; with no pending input, it returns focus to the reader while keeping the sidebar open. You can also click either pane to focus it.
 
-The reading-section marker and outline browsing cursor have separate roles. While the reader has focus, entering another section aligns the outline cursor with that section. While the outline has focus, its browsing cursor, scroll position, and folds stay under your control as the reading marker updates. A section inside a closed fold is marked through its nearest visible ancestor; reading never opens folds automatically.
+The reading-section marker and outline browsing cursor have separate roles. During scrolling, the current section follows the horizontal center line of the reading area, usually changing when a section heading crosses it. While the reader has focus, entering another section aligns the outline cursor with that section. While the outline has focus, its browsing cursor, scroll position, and folds stay under your control as the reading marker updates. A section inside a closed fold is marked through its nearest visible ancestor; reading never opens folds automatically.
 
 ![The contents sidebar and document tabs](images/vellum-outline-tabs.png)
 

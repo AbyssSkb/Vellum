@@ -139,6 +139,33 @@ struct ReaderFocusTests {
     }
 
     @Test
+    func reactivatingACachedReaderReportsItsPositionWithoutLayoutOrMovement() async throws {
+        let fixture = try Fixture()
+        defer { fixture.close() }
+        try await settle()
+        fixture.reader.vimGoToPage(3)
+        try await settle()
+        let expected = try #require(fixture.reader.readingDestination())
+        #expect(expected.page === fixture.tab.document?.page(at: 2))
+
+        let nextTab = PDFTab(url: nil, document: Fixture.document())
+        _ = fixture.state.tabStore.openInNewTabs([nextTab])
+        fixture.state.prepareForSelectedReaderChange()
+        try await settle()
+        _ = fixture.state.tabStore.selectTab(fixture.tab.id)
+        fixture.state.prepareForSelectedReaderChange()
+        #expect(fixture.state.outlineReadingDestination == nil)
+        fixture.reader.readingPositionReportWorkItem?.cancel()
+        fixture.reader.readingPositionReportWorkItem = nil
+
+        fixture.state.setActiveReaderController(fixture.reader, for: fixture.tab.id)
+        try await settle()
+        let reported = try #require(fixture.state.outlineReadingDestination)
+        #expect(reported.page === expected.page)
+        #expect(reported.point == expected.point)
+    }
+
+    @Test
     func onlyActiveReadingMovementClearsTheExplicitSection() async throws {
         let fixture = try Fixture()
         defer { fixture.close() }
