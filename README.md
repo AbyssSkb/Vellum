@@ -18,7 +18,7 @@ Keep several documents close with compact tabs. `T` opens a searchable tab switc
 
 ## A map when you need one
 
-Press `t` to show or hide the contents sidebar. Tap `Tab` to move keyboard focus between the page and outline, opening the sidebar if needed. Browse with `j` and `k`, fold with `h`, and expand with `l`. Press `Enter` to jump and resume reading. The outline also supports Vim's `zo`, `zc`, `zr`, `zm`, `zR`, and `zM`, including recursive folds and count prefixes. `H` and `L` switch documents while the outline stays open.
+Press `t` to show or hide the contents sidebar. Tap `Tab` to move keyboard focus between the page and outline, opening the sidebar if needed. Browse with `j` and `k`, fold with `h`, and expand with `l`. Press `Enter` to jump and resume reading. The outline also supports Vim's `zo`, `zc`, `zO`, `zC`, `zr`, `zm`, `zR`, and `zM`, including recursive folds and count prefixes. `H` and `L` switch documents while the outline stays open.
 
 ![Vellum's hierarchical contents sidebar beside the document and tabs](docs/images/vellum-outline-tabs.png)
 
@@ -65,7 +65,7 @@ Letter shortcuts apply to the focused reading surface. Search fields and convers
 
 Settings include English and Chinese UI, default file-opening behavior, initial page fit, highlight color, optional session restoration, and AI configuration. Session restoration is off by default.
 
-Sparkle handles automatic updates, with checks enabled by default. A new version downloads and prepares in the background, then Vellum offers to restart and update now or install when you normally quit. Manual checks from the Vellum menu or General settings use the same update window, with Vim-style release-note scrolling and letter shortcuts shown on its buttons. See the [update controls](docs/USER_GUIDE.md#settings-and-updates).
+Sparkle handles automatic updates, with checks enabled by default. A new version downloads and prepares in the background, then Vellum offers to restart and update now or install when you normally quit. Manual checks from the Vellum menu or General settings use the same update window, with Vim-style release-note scrolling and letter shortcuts shown on its buttons. Brief status messages use a compact window that fits its content; a green check confirms that Vellum is up to date. See the [update controls](docs/USER_GUIDE.md#settings-and-updates).
 
 ## Build from source
 

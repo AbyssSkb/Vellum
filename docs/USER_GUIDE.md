@@ -42,14 +42,14 @@ Short taps move the page; holding a scroll or zoom key continues the movement.
 | `h` / `l` | Horizontal scroll left / right |
 | `Space` / `f` | Forward one page |
 | `b` | Back one page |
-| `gg` / `G` | First / last page |
+| `gg` / `G` | First page at the document's top / last page at its bottom |
 | `[number]G` | Jump to a page, for example `12G` |
 | `Control-O` / `Control-I` | Back / forward through jump history |
 | `=` / `+` / `-` | Zoom in / out |
 | `0` | Fit the whole page |
 | `z` | Fit page width |
 
-Page jumps and outline destinations are included in jump history. Numeric page jumps use the PDF's one-based page position. General settings let you choose Fit width or Fit page when opening a file.
+Page jumps and outline destinations are included in jump history. Numeric page jumps use the PDF's one-based page position. Fitting preserves the page's proportions: `z` fills the reading width, while `0` keeps the whole page visible. General settings let you choose Fit width or Fit page when opening a file.
 
 ## Browse the contents
 
@@ -180,7 +180,7 @@ In a conversation, type a follow-up question and press `Enter` to send. `Shift-E
 
 Sparkle handles updates, with automatic checks enabled initially. New versions download and prepare in the background. Once ready, choose **Restart and Update** to install immediately, or **Later** to keep reading; a prepared update can also install when you normally quit Vellum. Manual checks in General settings or the Vellum menu use the same update window.
 
-Long release notes scroll within the window while the action buttons stay visible. Button letters work in either case and apply to the actions currently shown.
+Brief status messages use a compact window that adapts to the content; a green check means Vellum is up to date. Long release notes use a wider, constrained reading area with hidden scrollbars, while the action buttons stay visible. Button letters work in either case and apply to the actions currently shown.
 
 | Key | Action in the update window |
 | --- | --- |
