@@ -152,7 +152,8 @@ struct UpdateWindowTests {
         let button = try #require(views.compactMap { $0 as? NSButton }.first)
         #expect(abs(root.bounds.height - 232) < 0.5)
         #expect(abs(root.convert(icon.bounds, from: icon).midX - root.bounds.midX) < 0.5)
-        #expect(abs(root.convert(button.bounds, from: button).midX - root.bounds.midX) < 0.5)
+        // Native stack layout can round an odd-width button by half a point.
+        #expect(abs(root.convert(button.bounds, from: button).midX - root.bounds.midX) <= 0.5)
         #expect(views.compactMap { $0 as? NSTextField }.filter { !$0.isHidden && !$0.stringValue.isEmpty }
             .allSatisfy { $0.alignment == .center })
         send("c", to: window)
@@ -162,7 +163,7 @@ struct UpdateWindowTests {
         controller.update(result)
         root.layoutSubtreeIfNeeded()
         let restoredButton = try #require(descendants(of: root).compactMap { $0 as? NSButton }.first)
-        #expect(abs(root.convert(restoredButton.bounds, from: restoredButton).midX - root.bounds.midX) < 0.5)
+        #expect(abs(root.convert(restoredButton.bounds, from: restoredButton).midX - root.bounds.midX) <= 0.5)
         send("c", to: window)
         #expect(closes == 2)
     }
