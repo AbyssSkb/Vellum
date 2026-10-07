@@ -14,7 +14,7 @@ Vellum brings smooth Vim-style navigation, a keyboard-driven outline, and an imm
 
 Tap or hold `j` and `k` to scroll smoothly. Fit the page or its width, zoom continuously, jump to a page with `12G`, and retrace your reading with `Control-O` and `Control-I`. Select text with the mouse, then refine the selection by line or word from the keyboard.
 
-Keep several documents close with compact tabs. `T` opens a searchable tab switcher, and `X` restores the last closed file. Each file has one tab; reopening an updated PDF reloads its current contents. Long tab titles scroll once when opened, activated, or hovered.
+Keep several documents close with compact tabs. `T` opens a searchable file list with a large preview of each document's last-read page; press `Enter` to resume reading the selected file. `X` restores the last closed file. Each file has one tab; reopening an updated PDF reloads its current contents. Long tab titles scroll once when opened, activated, or hovered.
 
 ## A map when you need one
 

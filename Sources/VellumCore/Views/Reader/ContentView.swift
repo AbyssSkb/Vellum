@@ -61,8 +61,15 @@ public struct ContentView: View {
                     .background(TokyoNight.backgroundDeepColor)
                 }
 
+                .allowsHitTesting(!appState.isTabSwitcherPresented)
+                .accessibilityHidden(appState.isTabSwitcherPresented)
+
                 if appState.isTabSwitcherPresented {
                     TabSwitcherOverlay()
+                        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                        .padding(.horizontal, edgeInset)
+                        .padding(.bottom, edgeInset)
+                        .padding(.top, 38 + edgeInset)
                 }
 
                 if appState.isAIConversationHistoryPresented {

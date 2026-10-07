@@ -26,7 +26,7 @@ Each file has one tab. Opening an already open file selects its existing tab. If
 | `Command-[` / `Command-]` | Previous / next tab |
 | `T` | Open the searchable tab switcher |
 
-In the tab switcher, type part of a filename to filter the list, use `↑` / `↓` to choose a result, and press `Enter` to switch or `Esc` to cancel. Letters are search input while this overlay is open.
+In the tab switcher, type part of a filename to filter the list. Use `↑` / `↓` or click a row to preview that document's last-read page. Press `Enter`, click the selected page preview, or double-click a row to switch files. `Esc` returns to your original document and focus. Letters are search input while this overlay is open.
 
 Long tab titles scroll once when opened or selected, and can be revealed again by hovering. Enable **Restore previous tabs** in General settings to reopen your session on the next launch; it is initially off.
 

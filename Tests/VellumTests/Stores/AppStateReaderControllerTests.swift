@@ -111,6 +111,35 @@ struct AppStateReaderControllerTests {
     }
 
     @Test
+    func openingTabSwitcherRefreshesOnlyTheActiveReadingSnapshot() throws {
+        let suite = "Vellum.TabSwitcherSnapshot.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let appState = AppState(sessionDefaults: defaults)
+        let snapshot = ReaderSnapshot(
+            pageIndex: 4,
+            pointOnPage: NSPoint(x: 12, y: 34),
+            scrollOrigin: NSPoint(x: 2, y: 8),
+            scaleFactor: 1.5,
+            autoScales: false
+        )
+        let otherTab = PDFTab(url: URL(fileURLWithPath: "/tmp/other.pdf"), document: nil, snapshot: .initial)
+        let currentTab = PDFTab(url: URL(fileURLWithPath: "/tmp/current.pdf"), document: nil, snapshot: .initial)
+        let reader = RecordingReaderController(snapshot: snapshot)
+        _ = appState.tabStore.openInNewTabs([otherTab, currentTab])
+        appState.setActiveReaderController(reader, for: currentTab.id)
+
+        appState.showTabSwitcher()
+
+        #expect(appState.isTabSwitcherPresented)
+        #expect(appState.snapshotForSelectedTab() == snapshot)
+        #expect(appState.tabs.first?.snapshot == .initial)
+        #expect(appState.selectedTabID == currentTab.id)
+        #expect(appState.activeReaderController === reader)
+        #expect(reader.actions.isEmpty)
+    }
+
+    @Test
     func sessionSaveDoesNotCopyOldReaderSnapshotToNewlySelectedTab() {
         let appState = AppState()
         let firstSnapshot = ReaderSnapshot(

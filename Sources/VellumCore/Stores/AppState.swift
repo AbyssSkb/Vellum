@@ -174,6 +174,7 @@ public final class AppState: ObservableObject {
 
     func showTabSwitcher() {
         guard hasOpenTabs else { return }
+        saveActiveReaderState()
         rememberFocusBeforeSwitcher()
         isTabSwitcherPresented = true
     }
