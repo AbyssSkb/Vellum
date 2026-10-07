@@ -291,7 +291,7 @@ struct PDFZoomLayoutTests {
 
         if newZoom {
             view.vimZoom(to: target * 2)
-            #expect(!view.animationState.zoomAlignsPageTop)
+            #expect(view.animationState.zoomPageFitPhase == nil)
             for _ in 0..<60 {
                 view.animationState.lastZoomTick = Date.timeIntervalSinceReferenceDate - 1.0 / 30.0
                 view.stepZoomAnimation()
@@ -304,7 +304,7 @@ struct PDFZoomLayoutTests {
             view.vimScroll(x: 0, y: 100)
             let targetOrigin = try #require(view.animationState.scrollTargetOrigin)
             #expect(!view.animationState.hasActiveZoomTimer)
-            #expect(!view.animationState.zoomAlignsPageTop)
+            #expect(view.animationState.zoomPageFitPhase == nil)
             for _ in 0..<60 {
                 view.animationState.lastScrollTick = Date.timeIntervalSinceReferenceDate - 1.0 / 30.0
                 view.stepScrollAnimation(in: scrollView)

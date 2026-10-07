@@ -132,6 +132,24 @@ extension VellumPDFView {
         )
         animationState.lastZoomTick = now
 
+        if animationState.zoomPageFitPhase == .aligningTop {
+            guard let page = animationState.zoomAnchor?.page,
+                  let scrollView = pdfScrollView,
+                  let targetY = pageEdgeOrigin(for: page, edge: .top, in: scrollView) else {
+                stopZoomState()
+                return
+            }
+            let clipView = scrollView.contentView
+            let origin = clipView.bounds.origin
+            let finished = AnimationGeometry.isNearTarget(current: origin.y, target: targetY, threshold: 0.45)
+            let progress = AnimationGeometry.exponentialProgress(deltaTime: deltaTime, timeConstant: 0.11)
+            clipView.scroll(to: NSPoint(x: origin.x, y: finished ? targetY
+                : AnimationGeometry.nextValue(current: origin.y, target: targetY, progress: progress)))
+            scrollView.reflectScrolledClipView(clipView)
+            if finished { stopZoomState() }
+            return
+        }
+
         let current = scaleFactor
         let threshold = max(0.001, target * 0.0008)
 
@@ -139,7 +157,11 @@ extension VellumPDFView {
             applyZoomScale(target)
             // Keep one final tick so PDFKit's deferred magnification layout finishes before anchoring.
             if current != target { return }
-            stopZoomState()
+            if animationState.zoomPageFitPhase == .bottom {
+                animationState.zoomPageFitPhase = .aligningTop
+            } else {
+                stopZoomState()
+            }
             return
         }
 
@@ -156,7 +178,8 @@ extension VellumPDFView {
         }
 
         if let zoomAnchor = animationState.zoomAnchor {
-            centerBothAxes(on: zoomAnchor, alignPageTop: animationState.zoomAlignsPageTop)
+            let phase = animationState.zoomPageFitPhase
+            centerBothAxes(on: zoomAnchor, pageEdge: phase == .bottom ? .bottom : phase == .top ? .top : nil)
         }
     }
 
@@ -280,7 +303,7 @@ extension VellumPDFView {
         return PDFDestination(page: page, at: point)
     }
 
-    func centerBothAxes(on destination: PDFDestination, alignPageTop: Bool = false) {
+    func centerBothAxes(on destination: PDFDestination, pageEdge: VerticalEdge? = nil) {
         guard let page = destination.page,
               let scrollView = pdfScrollView,
               let documentView = scrollView.documentView else {
@@ -295,7 +318,7 @@ extension VellumPDFView {
         let maxX = max(0, documentSize.width - clipView.bounds.width)
         let maxY = max(0, documentSize.height - clipView.bounds.height)
         let currentOrigin = clipView.bounds.origin
-        let paper = convert(convert(page.bounds(for: displayBox), from: page), to: documentView)
+        let edgeOrigin = pageEdge.flatMap { pageEdgeOrigin(for: page, edge: $0, in: scrollView) }
         let next = NSPoint(
             x: ScrollGeometry.centeredCoordinate(
                 point: pointInDocument.x,
@@ -304,9 +327,7 @@ extension VellumPDFView {
                 viewportLength: clipView.bounds.width,
                 maxValue: maxX
             ),
-            y: alignPageTop
-                ? (documentView.isFlipped ? paper.minY : paper.maxY - clipView.bounds.height)
-                : ScrollGeometry.centeredCoordinate(
+            y: edgeOrigin ?? ScrollGeometry.centeredCoordinate(
                 point: pointInDocument.y,
                 currentOrigin: currentOrigin.y,
                 contentLength: documentSize.height,
@@ -322,6 +343,13 @@ extension VellumPDFView {
     enum VerticalEdge {
         case top
         case bottom
+    }
+
+    func pageEdgeOrigin(for page: PDFPage, edge: VerticalEdge, in scrollView: NSScrollView) -> CGFloat? {
+        guard let documentView = scrollView.documentView else { return nil }
+        let paper = convert(convert(page.bounds(for: displayBox), from: page), to: documentView)
+        return (edge == .top) == documentView.isFlipped
+            ? paper.minY : paper.maxY - scrollView.contentView.bounds.height
     }
 
     func verticalScrollRange(in scrollView: NSScrollView) -> ClosedRange<CGFloat> {
@@ -353,15 +381,12 @@ extension VellumPDFView {
 
     func scrollToDocumentEdge(_ edge: VerticalEdge) {
         guard let scrollView = pdfScrollView,
-              let documentView = scrollView.documentView,
               let document,
-              let page = document.page(at: edge == .top ? 0 : document.pageCount - 1) else { return }
+              let page = document.page(at: edge == .top ? 0 : document.pageCount - 1),
+              let nextY = pageEdgeOrigin(for: page, edge: edge, in: scrollView) else { return }
 
         let clipView = scrollView.contentView
-        let paper = convert(convert(page.bounds(for: displayBox), from: page), to: documentView)
         let currentOrigin = clipView.bounds.origin
-        let nextY = (edge == .top) == documentView.isFlipped
-            ? paper.minY : paper.maxY - clipView.bounds.height
 
         clipView.scroll(to: NSPoint(x: currentOrigin.x, y: nextY))
         scrollView.reflectScrolledClipView(clipView)

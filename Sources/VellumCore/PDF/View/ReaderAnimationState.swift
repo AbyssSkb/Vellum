@@ -3,12 +3,16 @@ import PDFKit
 
 @MainActor
 final class ReaderAnimationState {
+    enum PageFitPhase {
+        case top, bottom, aligningTop
+    }
+
     var scrollTargetOrigin: NSPoint?
     var scrollTimer: Timer?
     var lastScrollTick = Date.timeIntervalSinceReferenceDate
     var zoomTargetScale: CGFloat?
     var zoomAnchor: PDFDestination?
-    var zoomAlignsPageTop = false
+    var zoomPageFitPhase: PageFitPhase?
     var zoomTimer: Timer?
     var lastZoomTick = Date.timeIntervalSinceReferenceDate
 
@@ -31,6 +35,6 @@ final class ReaderAnimationState {
         zoomTimer = nil
         zoomTargetScale = nil
         zoomAnchor = nil
-        zoomAlignsPageTop = false
+        zoomPageFitPhase = nil
     }
 }
