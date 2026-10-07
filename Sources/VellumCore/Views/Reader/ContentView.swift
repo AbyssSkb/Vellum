@@ -35,7 +35,6 @@ public struct ContentView: View {
                         .background {
                             readerShape
                                 .fill(TokyoNight.panelColor)
-                                .shadow(color: .black.opacity(appState.hasOpenTabs ? 0 : 0.20), radius: 12, y: 4)
                         }
                         .overlay {
                             readerShape
@@ -51,7 +50,7 @@ public struct ContentView: View {
                         .padding(.trailing, 12)
                         .padding(.bottom, 12)
                         .padding(.leading, appState.isOutlineVisible && appState.hasOpenTabs ? 0 : 12)
-                        .padding(.top, appState.hasOpenTabs ? 0 : 4)
+                        .padding(.top, appState.hasOpenTabs ? 0 : 12)
                 }
                 .background(TokyoNight.backgroundDeepColor)
             }

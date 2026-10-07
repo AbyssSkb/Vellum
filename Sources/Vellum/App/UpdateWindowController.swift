@@ -37,6 +37,12 @@ final class UpdateWindowController: NSWindowController {
     private let progressTrack = NSView()
     private let progressFill = NSView()
     private let footer = NSStackView()
+    private let header = UpdateDragRegion()
+    private let footerBackground = NSView()
+    private let divider = NSView()
+    private var standardStatusConstraints: [NSLayoutConstraint] = []
+    private var compactStatusConstraints: [NSLayoutConstraint] = []
+    private var compactStatus = false
     private var progressWidth: NSLayoutConstraint?
     private var notesBottom: NSLayoutConstraint?
     private var notesCollapsedHeight: NSLayoutConstraint?
@@ -98,7 +104,8 @@ final class UpdateWindowController: NSWindowController {
         }
         titleLabel.stringValue = language.text(title)
         iconView.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
-        iconView.contentTintColor = content.phase == .error ? TokyoNight.red : TokyoNight.muted
+        iconView.contentTintColor = content.phase == .error ? TokyoNight.red
+            : content.phase == .upToDate ? TokyoNight.blue : TokyoNight.muted
         detailLabel.stringValue = content.phase == .error ? "" : content.message ?? (content.phase == .ready
             ? language.text(.updateReadyInstallDetail(current: content.currentVersion))
             : content.phase == .installing ? language.text(.installingDetail) : "")
@@ -117,21 +124,33 @@ final class UpdateWindowController: NSWindowController {
             notesScrollView.reflectScrolledClipView(notesScrollView.contentView)
         }
         let hasBody = !content.releaseNotes.isEmpty || errorMessage?.isEmpty == false
+        let wasCompact = compactStatus
+        compactStatus = !hasBody && [.checking, .upToDate].contains(content.phase)
+        if wasCompact != compactStatus {
+            NSLayoutConstraint.deactivate(compactStatus ? standardStatusConstraints : compactStatusConstraints)
+            NSLayoutConstraint.activate(compactStatus ? compactStatusConstraints : standardStatusConstraints)
+        }
+        titleLabel.alignment = compactStatus ? .center : .left
+        versionsLabel.alignment = compactStatus ? .center : .left
+        detailLabel.isHidden = compactStatus
+        header.layer?.backgroundColor = (compactStatus ? TokyoNight.background : TokyoNight.backgroundDeep).cgColor
+        footerBackground.isHidden = compactStatus
+        divider.isHidden = compactStatus
         notesTitle.isHidden = !hasBody
         notesScrollView.isHidden = !hasBody
         let hadBody = previous.map { !$0.releaseNotes.isEmpty || ($0.phase == .error && $0.message?.isEmpty == false) }
         if hadBody != hasBody {
             notesBottom?.isActive = false
             notesCollapsedHeight?.isActive = false
-            if let window {
-                let size = window.frameRect(forContentRect: NSRect(x: 0, y: 0, width: 560, height: hasBody ? 500 : 250)).size
-                if abs(window.frame.height - size.height) > 0.5 {
-                    let origin = NSPoint(x: window.frame.minX, y: window.frame.maxY - size.height)
-                    window.setFrame(NSRect(origin: origin, size: size), display: true, animate: window.isVisible)
-                }
-            }
             notesBottom?.isActive = hasBody
             notesCollapsedHeight?.isActive = !hasBody
+        }
+        if let window {
+            let size = window.frameRect(forContentRect: NSRect(x: 0, y: 0, width: 560, height: hasBody ? 500 : compactStatus ? 232 : 250)).size
+            if abs(window.frame.height - size.height) > 0.5 {
+                let origin = NSPoint(x: window.frame.minX, y: window.frame.maxY - size.height)
+                window.setFrame(NSRect(origin: origin, size: size), display: true, animate: window.isVisible)
+            }
         }
         updateProgress(content)
 
@@ -140,7 +159,7 @@ final class UpdateWindowController: NSWindowController {
                 pair.0.title == pair.1.title && pair.0.key == pair.1.key && pair.0.isPrimary == pair.1.isPrimary
             }
         } ?? false
-        if !sameActions { rebuildActions(content.actions) }
+        if !sameActions || wasCompact != compactStatus { rebuildActions(content.actions) }
         window?.contentView?.layoutSubtreeIfNeeded()
     }
 
@@ -153,13 +172,10 @@ final class UpdateWindowController: NSWindowController {
         guard let root = window?.contentView else { return }
         root.wantsLayer = true
         root.layer?.backgroundColor = TokyoNight.background.cgColor
-        let header = UpdateDragRegion()
         header.wantsLayer = true
         header.layer?.backgroundColor = TokyoNight.backgroundDeep.cgColor
-        let footerBackground = NSView()
         footerBackground.wantsLayer = true
         footerBackground.layer?.backgroundColor = TokyoNight.backgroundDeep.cgColor
-        let divider = NSView()
         divider.wantsLayer = true
         divider.layer?.backgroundColor = TokyoNight.border.withAlphaComponent(0.6).cgColor
 
@@ -218,6 +234,25 @@ final class UpdateWindowController: NSWindowController {
         footer.spacing = 10
         notesBottom = notesScrollView.bottomAnchor.constraint(equalTo: footerBackground.topAnchor, constant: -18)
         notesCollapsedHeight = notesScrollView.heightAnchor.constraint(equalToConstant: 0)
+        standardStatusConstraints = [
+            iconView.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 24),
+            iconView.topAnchor.constraint(equalTo: root.topAnchor, constant: 43),
+            iconView.widthAnchor.constraint(equalToConstant: 24),
+            iconView.heightAnchor.constraint(equalToConstant: 24),
+            titleLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 12),
+            titleLabel.topAnchor.constraint(equalTo: root.topAnchor, constant: 41),
+            versionsLabel.topAnchor.constraint(equalTo: root.topAnchor, constant: 113)
+        ]
+        compactStatusConstraints = [
+            iconView.centerXAnchor.constraint(equalTo: root.centerXAnchor),
+            iconView.topAnchor.constraint(equalTo: root.topAnchor, constant: 44),
+            iconView.widthAnchor.constraint(equalToConstant: 32),
+            iconView.heightAnchor.constraint(equalToConstant: 32),
+            titleLabel.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 24),
+            titleLabel.topAnchor.constraint(equalTo: root.topAnchor, constant: 90),
+            versionsLabel.topAnchor.constraint(equalTo: root.topAnchor, constant: 122)
+        ]
+        NSLayoutConstraint.activate(standardStatusConstraints)
 
         NSLayoutConstraint.activate([
             root.widthAnchor.constraint(equalToConstant: 560),
@@ -225,20 +260,13 @@ final class UpdateWindowController: NSWindowController {
             header.trailingAnchor.constraint(equalTo: root.trailingAnchor),
             header.topAnchor.constraint(equalTo: root.topAnchor),
             header.heightAnchor.constraint(equalToConstant: 148),
-            iconView.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 24),
-            iconView.topAnchor.constraint(equalTo: root.topAnchor, constant: 43),
-            iconView.widthAnchor.constraint(equalToConstant: 24),
-            iconView.heightAnchor.constraint(equalToConstant: 24),
-            titleLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 12),
             titleLabel.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -24),
-            titleLabel.topAnchor.constraint(equalTo: root.topAnchor, constant: 41),
             detailLabel.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
             detailLabel.trailingAnchor.constraint(equalTo: titleLabel.trailingAnchor),
             detailLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 6),
             detailLabel.heightAnchor.constraint(equalToConstant: 34),
             versionsLabel.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 24),
             versionsLabel.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -24),
-            versionsLabel.topAnchor.constraint(equalTo: root.topAnchor, constant: 113),
             progressTrack.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 24),
             progressTrack.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -24),
             progressTrack.topAnchor.constraint(equalTo: root.topAnchor, constant: 139),
@@ -330,7 +358,14 @@ final class UpdateWindowController: NSWindowController {
         }
         let spacer = NSView()
         spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        if let secondary = buttons.first, actions.first?.isPrimary == false {
+        if compactStatus {
+            footer.addArrangedSubview(spacer)
+            for button in buttons { footer.addArrangedSubview(button) }
+            let trailingSpacer = NSView()
+            trailingSpacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
+            footer.addArrangedSubview(trailingSpacer)
+            trailingSpacer.widthAnchor.constraint(equalTo: spacer.widthAnchor).isActive = true
+        } else if let secondary = buttons.first, actions.first?.isPrimary == false {
             footer.addArrangedSubview(secondary)
             footer.addArrangedSubview(spacer)
             for button in buttons.dropFirst() { footer.addArrangedSubview(button) }

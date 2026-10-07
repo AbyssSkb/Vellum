@@ -135,6 +135,39 @@ struct UpdateWindowTests {
     }
 
     @Test
+    func latestVersionUsesACenteredCompactResultAndKeepsCloseShortcut() throws {
+        _ = NSApplication.shared
+        let controller = UpdateWindowController()
+        defer { controller.dismiss() }
+        var closes = 0
+        let result = UpdateWindowContent(phase: .upToDate, currentVersion: "0.8.8", actions: [
+            UpdateWindowAction(title: "Close", key: "c", isPrimary: true) { closes += 1 }
+        ])
+        controller.update(result)
+        let window = try #require(controller.window)
+        let root = try #require(window.contentView)
+        root.layoutSubtreeIfNeeded()
+        let views = descendants(of: root)
+        let icon = try #require(views.compactMap { $0 as? NSImageView }.first)
+        let button = try #require(views.compactMap { $0 as? NSButton }.first)
+        #expect(abs(root.bounds.height - 232) < 0.5)
+        #expect(abs(root.convert(icon.bounds, from: icon).midX - root.bounds.midX) < 0.5)
+        #expect(abs(root.convert(button.bounds, from: button).midX - root.bounds.midX) < 0.5)
+        #expect(views.compactMap { $0 as? NSTextField }.filter { !$0.isHidden && !$0.stringValue.isEmpty }
+            .allSatisfy { $0.alignment == .center })
+        send("c", to: window)
+        #expect(closes == 1)
+
+        controller.update(UpdateWindowContent(phase: .ready, currentVersion: "0.8.8", updateVersion: "0.8.9", releaseNotes: longNotes()))
+        controller.update(result)
+        root.layoutSubtreeIfNeeded()
+        let restoredButton = try #require(descendants(of: root).compactMap { $0 as? NSButton }.first)
+        #expect(abs(root.convert(restoredButton.bounds, from: restoredButton).midX - root.bounds.midX) < 0.5)
+        send("c", to: window)
+        #expect(closes == 2)
+    }
+
+    @Test
     func closingNotifiesOnceAndDismissDoesNotNotify() throws {
         let controller = makeController()
         var closes = 0
