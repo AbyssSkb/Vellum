@@ -7,11 +7,15 @@ protocol KeyboardControllerDelegate: AnyObject {
     var readerWindow: NSWindow? { get }
     var hasBlockingReaderPresentation: Bool { get }
     func handleVimCommand(_ command: VimCommand)
+    func switchReadingFocus()
+    func focusReaderContent()
     func open(urls: [URL])
 }
 
 extension KeyboardControllerDelegate {
     var hasBlockingReaderPresentation: Bool { false }
+    func switchReadingFocus() {}
+    func focusReaderContent() { activeReaderController?.focus() }
 }
 
 @MainActor
@@ -38,6 +42,9 @@ final class KeyboardController {
     private weak var inputReader: ReaderController?
     private var tabPageOverviewArmed = false
     private var tabPageOverviewActive = false
+    private weak var tabPageOverviewEntryResponder: NSResponder?
+    private var cancelledTabPageOverviewRelease = false
+    private weak var cancelledTabPageOverviewWindow: NSWindow?
 
     init(
         tabPageOverviewDelay: TimeInterval = 0.35,
@@ -80,6 +87,10 @@ final class KeyboardController {
         }
 
         guard let key = event.charactersIgnoringModifiers, !key.isEmpty else { return false }
+        if key == "\t", event.modifierFlags.contains(.shift) {
+            cancelInput()
+            return false
+        }
         if event.type == .keyDown, !hasInputSequence {
             inputWindow = event.window
             inputResponder = event.window?.firstResponder
@@ -91,6 +102,13 @@ final class KeyboardController {
         }
 
         if tabPageOverviewActive {
+            return true
+        }
+
+        if key == "\u{1b}", event.type == .keyDown,
+           vimInput.state.pendingKey != nil || !vimInput.state.numericPrefix.isEmpty {
+            stopHeldKeyTimer()
+            vimInput.clearPendingInput()
             return true
         }
 
@@ -163,6 +181,23 @@ final class KeyboardController {
            (responder is NSTextView || responder is NSTextField) && !responderIsInsideAIOverlay(responder) {
             cancelInput()
             return false
+        }
+
+        if hasInputSequence, (!inputContextIsValid || window !== inputWindow) {
+            cancelInput()
+        }
+
+        if event.charactersIgnoringModifiers == "\t", event.modifierFlags.contains(.shift) {
+            cancelInput()
+            return false
+        }
+
+        let isPlainTab = event.charactersIgnoringModifiers == "\t"
+            && event.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty
+        if tabPageOverviewArmed || tabPageOverviewActive
+            || (isPlainTab && delegate?.activeReaderController?.isAIInteractionActive != true
+                && !responderIsInsideAIExplanation(window.firstResponder)) {
+            return handleKeyEvent(event)
         }
 
         if window.firstResponder is PDFOutlineKeyView {
@@ -273,22 +308,47 @@ final class KeyboardController {
     // MARK: - Tab Page Overview
 
     private func handleTabPageOverviewKey(_ key: String, event: NSEvent) -> Bool {
+        if key == "\u{1b}", event.type == .keyDown,
+           tabPageOverviewArmed || tabPageOverviewActive {
+            let window = inputWindow
+            let responder = tabPageOverviewEntryResponder
+            let canRestoreFocus = inputContextIsValid
+            cancelInput()
+            cancelledTabPageOverviewRelease = true
+            cancelledTabPageOverviewWindow = window
+            if canRestoreFocus, let responder,
+               (responder as? NSView)?.window === window {
+                window?.makeFirstResponder(responder)
+            }
+            return true
+        }
         if key == "\t" {
             switch event.type {
             case .keyDown:
+                if !event.isARepeat {
+                    cancelledTabPageOverviewRelease = false
+                    cancelledTabPageOverviewWindow = nil
+                }
                 return handleTabPageOverviewKeyDown(isRepeat: event.isARepeat)
             case .keyUp:
+                if cancelledTabPageOverviewRelease {
+                    cancelledTabPageOverviewRelease = false
+                    let ownsRelease = event.window === cancelledTabPageOverviewWindow
+                    cancelledTabPageOverviewWindow = nil
+                    return ownsRelease
+                }
                 return handleTabPageOverviewKeyUp()
             default:
                 return false
             }
         }
 
-        guard tabPageOverviewActive else { return false }
+        guard tabPageOverviewArmed || tabPageOverviewActive else { return false }
         guard let navigation = tabPageOverviewNavigation(for: key) else { return true }
 
         if event.type == .keyDown {
-            _ = inputReader?.movePageOverview(navigation)
+            if !tabPageOverviewActive { activateTabPageOverview() }
+            if tabPageOverviewActive { _ = inputReader?.movePageOverview(navigation) }
         }
         return event.type == .keyDown || event.type == .keyUp
     }
@@ -301,6 +361,7 @@ final class KeyboardController {
 
         guard !tabPageOverviewArmed, !tabPageOverviewActive else { return true }
         tabPageOverviewArmed = true
+        tabPageOverviewEntryResponder = inputResponder
 
         let timer = Timer(timeInterval: tabPageOverviewDelay, repeats: false) { [weak self] _ in
             MainActor.assumeIsolated {
@@ -320,12 +381,15 @@ final class KeyboardController {
             tabPageOverviewActive = false
             tabPageOverviewArmed = false
             inputReader?.finishPageOverview()
+            delegate?.focusReaderContent()
+            tabPageOverviewEntryResponder = nil
             return true
         }
 
         if tabPageOverviewArmed {
             tabPageOverviewArmed = false
-            delegate?.handleVimCommand(.toggleOutline)
+            delegate?.switchReadingFocus()
+            tabPageOverviewEntryResponder = nil
             return true
         }
 
@@ -333,6 +397,7 @@ final class KeyboardController {
     }
 
     private func activateTabPageOverview() {
+        tabPageOverviewTimer?.invalidate()
         tabPageOverviewTimer = nil
         guard tabPageOverviewArmed else { return }
         guard inputContextIsValid else {
@@ -341,9 +406,11 @@ final class KeyboardController {
         }
         guard inputReader?.beginPageOverview() == true else {
             tabPageOverviewArmed = false
+            tabPageOverviewEntryResponder = nil
             return
         }
         tabPageOverviewActive = true
+        inputResponder = inputWindow?.firstResponder
     }
 
     private func tabPageOverviewNavigation(for key: String) -> PageOverviewNavigation? {
@@ -418,6 +485,7 @@ final class KeyboardController {
         inputWindow = nil
         inputResponder = nil
         inputReader = nil
+        tabPageOverviewEntryResponder = nil
     }
 
     // MARK: - Vim Input Dispatch

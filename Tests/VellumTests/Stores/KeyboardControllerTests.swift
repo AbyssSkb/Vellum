@@ -9,7 +9,7 @@ struct KeyboardControllerTests {
     private let notificationCenter = NotificationCenter()
 
     @Test
-    func shortTabPressKeepsToggleOutlineBehavior() {
+    func shortTabPressSwitchesReadingFocusOnRelease() {
         let controller = KeyboardController(
             tabPageOverviewDelay: 10,
             installsKeyMonitor: false,
@@ -20,9 +20,11 @@ struct KeyboardControllerTests {
         controller.delegate = delegate
 
         #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "\t", keyCode: 48)))
+        #expect(delegate.focusSwitches == 0)
         #expect(controller.handleKeyEvent(keyEvent(.keyUp, key: "\t", keyCode: 48)))
 
-        #expect(delegate.commands == [.toggleOutline])
+        #expect(delegate.commands.isEmpty)
+        #expect(delegate.focusSwitches == 1)
         #expect(delegate.reader.actions == [])
     }
 
@@ -45,11 +47,244 @@ struct KeyboardControllerTests {
         #expect(controller.handleKeyEvent(keyEvent(.keyUp, key: "\t", keyCode: 48)))
 
         #expect(delegate.commands == [])
+        #expect(delegate.readerFocusRequests == 1)
         #expect(delegate.reader.actions == [
             .beginPageOverview,
             .movePageOverview(.next),
             .finishPageOverview
         ])
+    }
+
+    @Test(arguments: [false, true])
+    func outlineTabUsesTheSameTapAndHoldGesture(holdsTab: Bool) throws {
+        let window = makeWindow()
+        defer { window.close() }
+        let outline = PDFOutlineKeyView(frame: window.contentView!.bounds)
+        window.contentView?.addSubview(outline)
+        #expect(window.makeFirstResponder(outline))
+        let controller = KeyboardController(
+            tabPageOverviewDelay: holdsTab ? 0.001 : 10,
+            installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter
+        )
+        let delegate = RecordingKeyboardDelegate()
+        delegate.readerWindow = window
+        controller.delegate = delegate
+        let event = WindowKeyboardEvent()
+        event.targetWindow = window
+        event.key = "\t"
+        event.physicalKeyCode = 48
+        #expect(controller.routeKeyEvent(event))
+        #expect(window.firstResponder === outline)
+        #expect(delegate.focusSwitches == 0)
+        if holdsTab {
+            try waitForPageOverview(delegate.reader)
+            event.key = "l"
+            #expect(controller.routeKeyEvent(event))
+            #expect(window.firstResponder === outline)
+            #expect(delegate.reader.actions == [.beginPageOverview, .movePageOverview(.next)])
+        }
+        event.key = "\t"
+        event.eventType = .keyUp
+        #expect(controller.routeKeyEvent(event))
+        #expect(delegate.commands.isEmpty)
+        #expect(delegate.focusSwitches == (holdsTab ? 0 : 1))
+        #expect(delegate.readerFocusRequests == (holdsTab ? 1 : 0))
+        #expect(delegate.reader.actions == (holdsTab
+            ? [.beginPageOverview, .movePageOverview(.next), .finishPageOverview] : []))
+    }
+
+    @Test(arguments: [false, true], ["l", "j"])
+    func fastTabNavigationPreviewsBeforeTheHoldThreshold(startsInOutline: Bool, key: String) {
+        let window = makeWindow()
+        defer { window.close() }
+        let responder: NSView = startsInOutline
+            ? PDFOutlineKeyView(frame: window.contentView!.bounds)
+            : KeyboardFocusView(frame: window.contentView!.bounds)
+        window.contentView?.addSubview(responder)
+        #expect(window.makeFirstResponder(responder))
+        let controller = KeyboardController(
+            tabPageOverviewDelay: 10,
+            installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter
+        )
+        let delegate = RecordingKeyboardDelegate()
+        delegate.readerWindow = window
+        controller.delegate = delegate
+        let event = WindowKeyboardEvent()
+        event.targetWindow = window
+        event.key = "\t"
+        #expect(controller.routeKeyEvent(event))
+        #expect(delegate.reader.actions.isEmpty)
+        #expect(window.firstResponder === responder)
+        event.key = key
+        #expect(controller.routeKeyEvent(event))
+        #expect(delegate.reader.actions == [.beginPageOverview, .movePageOverview(key == "l" ? .next : .nextRow)])
+        #expect(delegate.commands.isEmpty)
+        #expect(window.firstResponder === responder)
+        event.eventType = .keyUp
+        #expect(controller.routeKeyEvent(event))
+        event.key = "\t"
+        #expect(controller.routeKeyEvent(event))
+        #expect(delegate.reader.actions == [
+            .beginPageOverview, .movePageOverview(key == "l" ? .next : .nextRow), .finishPageOverview
+        ])
+        #expect(delegate.focusSwitches == 0)
+        #expect(delegate.readerFocusRequests == 1)
+        #expect(delegate.commands.isEmpty)
+    }
+
+    @Test(arguments: [false, true])
+    func armedTabConsumesUnrelatedKeysWithoutMovingEitherPane(startsInOutline: Bool) {
+        let window = makeWindow()
+        defer { window.close() }
+        let responder: NSView = startsInOutline
+            ? PDFOutlineKeyView(frame: window.contentView!.bounds)
+            : KeyboardFocusView(frame: window.contentView!.bounds)
+        window.contentView?.addSubview(responder)
+        #expect(window.makeFirstResponder(responder))
+        let controller = KeyboardController(
+            tabPageOverviewDelay: 10,
+            installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter
+        )
+        let delegate = RecordingKeyboardDelegate()
+        delegate.readerWindow = window
+        controller.delegate = delegate
+        let event = WindowKeyboardEvent()
+        event.targetWindow = window
+        event.key = "\t"
+        #expect(controller.routeKeyEvent(event))
+        for key in ["/", "t", "g", "3"] {
+            event.key = key
+            event.eventType = .keyDown
+            #expect(controller.routeKeyEvent(event))
+            event.eventType = .keyUp
+            #expect(controller.routeKeyEvent(event))
+        }
+        #expect(delegate.reader.actions.isEmpty)
+        #expect(delegate.commands.isEmpty)
+        #expect(window.firstResponder === responder)
+        event.key = "\t"
+        #expect(controller.routeKeyEvent(event))
+        #expect(delegate.focusSwitches == 1)
+        #expect(delegate.readerFocusRequests == 0)
+    }
+
+    @Test(arguments: [false, true])
+    func escapeCancelsTabGestureAndConsumesItsRelease(active: Bool) throws {
+        let window = makeWindow()
+        defer { window.close() }
+        let outline = PDFOutlineKeyView(frame: window.contentView!.bounds)
+        window.contentView?.addSubview(outline)
+        #expect(window.makeFirstResponder(outline))
+        let controller = KeyboardController(
+            tabPageOverviewDelay: active ? 0.001 : 10,
+            installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter
+        )
+        let delegate = RecordingKeyboardDelegate()
+        delegate.readerWindow = window
+        controller.delegate = delegate
+        let event = WindowKeyboardEvent()
+        event.targetWindow = window
+        event.key = "\t"
+        #expect(controller.routeKeyEvent(event))
+        if active { try waitForPageOverview(delegate.reader) }
+        event.key = "\u{1b}"
+        #expect(controller.routeKeyEvent(event))
+        #expect(window.firstResponder === outline)
+        // An intervening outline movement must not turn the release into a tap.
+        event.key = "j"
+        #expect(!controller.routeKeyEvent(event))
+        event.key = "\t"
+        event.eventType = .keyUp
+        #expect(controller.routeKeyEvent(event))
+        #expect(delegate.commands.isEmpty)
+        #expect(delegate.focusSwitches == 0)
+        #expect(delegate.readerFocusRequests == 0)
+        #expect(delegate.reader.actions == (active ? [.beginPageOverview, .cancelPageOverview] : []))
+        event.eventType = .keyDown
+        #expect(controller.routeKeyEvent(event))
+        event.eventType = .keyUp
+        #expect(controller.routeKeyEvent(event))
+        #expect(delegate.focusSwitches == 1)
+    }
+
+    @Test
+    func galleryEntryResponderChangeRetainsGestureOwnershipAndEscapeRestoresOutline() throws {
+        let window = makeWindow()
+        defer { window.close() }
+        let outline = PDFOutlineKeyView(frame: window.contentView!.bounds)
+        let readerView = KeyboardFocusView(frame: window.contentView!.bounds)
+        window.contentView?.addSubview(outline)
+        window.contentView?.addSubview(readerView)
+        #expect(window.makeFirstResponder(outline))
+        let controller = KeyboardController(
+            tabPageOverviewDelay: 0.001,
+            installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter
+        )
+        let delegate = RecordingKeyboardDelegate()
+        delegate.readerWindow = window
+        delegate.reader.onBeginPageOverview = { _ = window.makeFirstResponder(readerView) }
+        controller.delegate = delegate
+        let event = WindowKeyboardEvent()
+        event.targetWindow = window
+        event.key = "\t"
+        #expect(controller.routeKeyEvent(event))
+        try waitForPageOverview(delegate.reader)
+        #expect(window.firstResponder === readerView)
+        event.key = "l"
+        #expect(controller.routeKeyEvent(event))
+        event.key = "\u{1b}"
+        #expect(controller.routeKeyEvent(event))
+        #expect(window.firstResponder === outline)
+        event.key = "\t"
+        event.eventType = .keyUp
+        #expect(controller.routeKeyEvent(event))
+        #expect(delegate.reader.actions == [.beginPageOverview, .movePageOverview(.next), .cancelPageOverview])
+        #expect(delegate.focusSwitches == 0)
+    }
+
+    @Test
+    func tabPreservesTextInputSettingsAndShiftTab() {
+        let window = makeWindow()
+        let settingsWindow = makeWindow()
+        defer { window.close(); settingsWindow.close() }
+        let editor = NSTextView()
+        window.contentView?.addSubview(editor)
+        #expect(window.makeFirstResponder(editor))
+        let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
+        let delegate = RecordingKeyboardDelegate()
+        delegate.readerWindow = window
+        controller.delegate = delegate
+        let event = WindowKeyboardEvent()
+        event.key = "\t"
+        event.physicalKeyCode = 48
+        for type: NSEvent.EventType in [.keyDown, .keyUp] {
+            event.eventType = type
+            event.targetWindow = window
+            #expect(!controller.routeKeyEvent(event))
+            event.targetWindow = settingsWindow
+            #expect(!controller.routeKeyEvent(event))
+        }
+        #expect(window.makeFirstResponder(nil))
+        event.targetWindow = window
+        event.eventType = .keyDown
+        event.flags = [.shift]
+        #expect(!controller.routeKeyEvent(event))
+        #expect(delegate.commands.isEmpty)
+        #expect(delegate.focusSwitches == 0)
+        #expect(delegate.reader.actions.isEmpty)
+    }
+
+    @Test(arguments: ["g", "2"])
+    func escapeClearsReaderPrefixesBeforeTextActions(prefix: String) {
+        let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
+        let delegate = RecordingKeyboardDelegate()
+        controller.delegate = delegate
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: prefix, keyCode: 0)))
+        delegate.reader.textSelectionKeyResult = true
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "\u{1b}", keyCode: 53)))
+        delegate.reader.textSelectionKeyResult = false
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "G", keyCode: 5)))
+        #expect(delegate.commands == [.lastPage])
     }
 
     @Test
@@ -720,6 +955,8 @@ private final class RecordingKeyboardDelegate: KeyboardControllerDelegate {
     var hasActiveReader = true
     var readerWindow: NSWindow?
     var hasBlockingReaderPresentation = false
+    private(set) var focusSwitches = 0
+    private(set) var readerFocusRequests = 0
     private(set) var commands: [VimCommand] = []
     private(set) var openedURLs: [URL] = []
 
@@ -730,6 +967,10 @@ private final class RecordingKeyboardDelegate: KeyboardControllerDelegate {
     func handleVimCommand(_ command: VimCommand) {
         commands.append(command)
     }
+
+    func switchReadingFocus() { focusSwitches += 1 }
+
+    func focusReaderContent() { readerFocusRequests += 1 }
 
     func open(urls: [URL]) {
         openedURLs.append(contentsOf: urls)
@@ -745,6 +986,7 @@ private final class RecordingKeyboardReaderController: ReaderController {
     var deleteHighlightsResult = false
     var aiKeyResult = false
     var textSelectionKeyResult = false
+    var onBeginPageOverview: (() -> Void)?
     private(set) var actions: [Action] = []
 
     func snapshot() -> ReaderSnapshot? { nil }
@@ -754,6 +996,7 @@ private final class RecordingKeyboardReaderController: ReaderController {
     func beginPageOverview() -> Bool {
         actions.append(.beginPageOverview)
         isPageOverviewActive = true
+        onBeginPageOverview?()
         return true
     }
 
@@ -835,4 +1078,9 @@ private final class RecordingKeyboardReaderController: ReaderController {
         case deleteHighlights
         case aiKey
     }
+}
+
+@MainActor
+private final class KeyboardFocusView: NSView {
+    override var acceptsFirstResponder: Bool { true }
 }

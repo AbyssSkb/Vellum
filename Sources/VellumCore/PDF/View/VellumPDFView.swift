@@ -59,6 +59,9 @@ final class VellumPDFView: PDFView {
     weak var observedScrollClipView: NSClipView?
     weak var configuredPDFScrollView: NSScrollView?
     var readerStateSaveWorkItem: DispatchWorkItem?
+    var readingPositionReportWorkItem: DispatchWorkItem?
+    var pendingReadingNavigation = false
+    var observedReadingScrollOrigin: NSPoint?
     var pendingDoubleClickTextSelectionPoint: NSPoint?
     var pendingClickHorizontalOrigin: CGFloat?
     var didHandleDoubleClickTextSelectionMouseDown = false
@@ -70,6 +73,7 @@ final class VellumPDFView: PDFView {
     private var mouseTextSelectionCacheDocumentID: ObjectIdentifier?
     private var mouseTextSelectionLineCache: [MouseTextSelectionLineCacheKey: [VimTextLine]] = [:]
     var pageOverviewController: PageOverviewController?
+    var finishingPageOverviewGeneration: Int?
     var searchController: PDFSearchController?
 
     override var acceptsFirstResponder: Bool { true }
@@ -79,6 +83,7 @@ final class VellumPDFView: PDFView {
             NotificationCenter.default.removeObserver(scrollBoundsObserver)
         }
         readerStateSaveWorkItem?.cancel()
+        readingPositionReportWorkItem?.cancel()
     }
 
     var isAIInteractionActive: Bool {
@@ -146,7 +151,9 @@ final class VellumPDFView: PDFView {
             cancelPendingRestore()
             stopScrollAnimation()
             stopZoomState()
+            let previous = readingDestination()
             _ = vimNavigateTextSelection(key)
+            scheduleReadingPositionReport(userNavigated: readingPositionChanged(from: previous))
             return true
         case .keyUp:
             return true
@@ -178,6 +185,7 @@ final class VellumPDFView: PDFView {
         }
         DispatchQueue.main.async { [weak self] in
             self?.configurePDFScrollers()
+            self?.scheduleReadingPositionReport()
         }
     }
 
@@ -185,6 +193,7 @@ final class VellumPDFView: PDFView {
         super.layout()
         configurePDFScrollersIfNeeded()
         updateAIFloatingOverlayFrames()
+        scheduleReadingPositionReport()
     }
 
     override func updateTrackingAreas() {
@@ -194,8 +203,9 @@ final class VellumPDFView: PDFView {
 
     func focus() {
         guard appState == nil || appState?.activeReaderController === self,
-              appState?.hasBlockingReaderPresentation != true else { return }
-        window?.makeFirstResponder(self)
+              appState?.hasBlockingReaderPresentation != true, let window else { return }
+        appState?.recordReadingFocusIntent(outline: false)
+        window.makeFirstResponder(self)
     }
 
     override func resignFirstResponder() -> Bool {
@@ -253,7 +263,9 @@ final class VellumPDFView: PDFView {
         searchController?.markReaderNavigated()
         textSelectionNavigationState = nil
         hideAIExplanationPopover()
-        if recordJumpSourceIfNeededForLinkClick(with: event) {
+        let navigationLink = linkAnnotation(at: convert(event.locationInWindow, from: nil))
+        let clickedInternalLink = recordJumpSourceIfNeededForLinkClick(with: event)
+        if clickedInternalLink {
             cancelPendingRestore()
         }
         if handleDoubleClickTextSelectionMouseDown(with: event) {
@@ -262,8 +274,16 @@ final class VellumPDFView: PDFView {
         if trackMouseTextSelection(from: event) {
             return
         }
+        let previous = readingDestination()
         super.mouseDown(with: event)
         restoreHorizontalOrigin(pendingClickHorizontalOrigin)
+        if clickedInternalLink, let navigationLink {
+            let generation = restoreGeneration
+            DispatchQueue.main.async { [weak self, weak navigationLink] in
+                guard let self, let navigationLink else { return }
+                self.reportInternalLinkNavigation(navigationLink, from: previous, generation: generation)
+            }
+        }
     }
 
     override func mouseDragged(with event: NSEvent) {
@@ -319,15 +339,19 @@ final class VellumPDFView: PDFView {
     }
 
     override func scrollWheel(with event: NSEvent) {
+        guard !isPageOverviewActive else { return }
         completePendingRestoreBeforeUserInteraction()
         cancelPendingRestore()
         stopScrollAnimation()
         stopZoomState()
         searchController?.markReaderNavigated()
+        let previous = readingDestination()
         super.scrollWheel(with: event)
+        scheduleReadingPositionReport(userNavigated: readingPositionChanged(from: previous))
     }
 
     override func magnify(with event: NSEvent) {
+        guard !isPageOverviewActive else { return }
         completePendingRestoreBeforeUserInteraction()
         cancelPendingRestore()
         stopScrollAnimation()
@@ -337,6 +361,7 @@ final class VellumPDFView: PDFView {
     }
 
     override func smartMagnify(with event: NSEvent) {
+        guard !isPageOverviewActive else { return }
         completePendingRestoreBeforeUserInteraction()
         cancelPendingRestore()
         stopScrollAnimation()
@@ -453,15 +478,33 @@ final class VellumPDFView: PDFView {
         }
 
         observedScrollClipView = clipView
+        observedReadingScrollOrigin = clipView.bounds.origin
         clipView.postsBoundsChangedNotifications = true
         scrollBoundsObserver = NotificationCenter.default.addObserver(
             forName: NSView.boundsDidChangeNotification,
             object: clipView,
             queue: .main
-        ) { [weak self] _ in
+        ) { [weak self, weak clipView] _ in
             MainActor.assumeIsolated {
-                self?.searchController?.refreshVisibleMatches()
-                self?.scheduleReaderStateSave()
+                guard let self, let clipView else { return }
+                let moved = self.observedReadingScrollOrigin != clipView.bounds.origin
+                self.observedReadingScrollOrigin = clipView.bounds.origin
+                let event = NSApp?.currentEvent
+                var scrollHit: NSView?
+                if event?.type == .leftMouseDragged, let event, let scrollView = self.pdfScrollView {
+                    let point = scrollView.superview?.convert(event.locationInWindow, from: nil) ?? event.locationInWindow
+                    scrollHit = scrollView.hitTest(point)
+                    while let hit = scrollHit, !(hit is NSScroller) { scrollHit = hit.superview }
+                }
+                let draggingContent = event?.type == .leftMouseDragged
+                    && ((self.isMouseSelectingText && self.didDragDuringCurrentMouseSequence) || scrollHit is NSScroller)
+                let userScrolling = self.window?.inLiveResize != true && self.pendingRestoreAction == nil
+                    && self.animationState.zoomTargetScale == nil
+                    && (self.animationState.scrollTargetOrigin != nil
+                        || event?.type == .scrollWheel || draggingContent)
+                self.searchController?.refreshVisibleMatches()
+                self.scheduleReaderStateSave()
+                self.scheduleReadingPositionReport(userNavigated: moved && userScrolling)
             }
         }
     }
@@ -821,6 +864,7 @@ final class VellumPDFView: PDFView {
         scrollView.scrollWheel(with: event)
         if clipView.bounds.origin != originBeforeScroll {
             scheduleReaderStateSave()
+            scheduleReadingPositionReport(userNavigated: true)
         }
     }
 

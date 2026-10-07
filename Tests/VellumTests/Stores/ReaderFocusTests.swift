@@ -93,7 +93,65 @@ struct ReaderFocusTests {
         fixture.state.setActiveReaderController(newReader, for: secondTab.id)
         try await settle()
         #expect(fixture.state.selectedTabID == secondTab.id)
-        fixture.expectFocus(try fixture.outline())
+        fixture.expectFocus(newReader)
+    }
+
+    @Test
+    func focusSwitchPreservesSidebarAndCannotBeOverriddenByAnOlderRequest() async throws {
+        let fixture = try Fixture()
+        defer { fixture.close() }
+        try await settle()
+        let outline = try fixture.outline()
+        #expect(fixture.window.makeFirstResponder(fixture.reader))
+        fixture.state.switchReadingFocus()
+        try await settle()
+        fixture.expectFocus(outline)
+        fixture.state.switchReadingFocus()
+        try await settle()
+        fixture.expectFocus(fixture.reader)
+        #expect(fixture.state.isOutlineVisible)
+
+        fixture.state.focusOutlineSidebar()
+        fixture.reader.focus()
+        try await settle()
+        fixture.expectFocus(fixture.reader)
+        #expect(fixture.state.isOutlineVisible)
+    }
+
+    @Test(arguments: [false, true])
+    func switchingFilesPreservesTheFocusedPane(outlineFocused: Bool) async throws {
+        let fixture = try Fixture()
+        defer { fixture.close() }
+        try await settle()
+        let outline = try fixture.outline()
+        #expect(fixture.window.makeFirstResponder(outlineFocused ? outline : fixture.reader))
+        let nextTab = PDFTab(url: nil, document: Fixture.document())
+        _ = fixture.state.tabStore.openInNewTabs([nextTab])
+        fixture.state.prepareForSelectedReaderChange()
+        fixture.host.rootView = AnyView(OutlineSidebar(tab: nextTab).environmentObject(fixture.state))
+        let nextReader = VellumPDFView(frame: fixture.reader.frame)
+        nextReader.appState = fixture.state
+        nextReader.document = nextTab.document
+        fixture.window.contentView?.addSubview(nextReader)
+        fixture.state.setActiveReaderController(nextReader, for: nextTab.id)
+        try await settle()
+        fixture.expectFocus(outlineFocused ? try fixture.outline() : nextReader)
+    }
+
+    @Test
+    func onlyActiveReadingMovementClearsTheExplicitSection() async throws {
+        let fixture = try Fixture()
+        defer { fixture.close() }
+        let page = try #require(fixture.tab.document?.page(at: 0))
+        let destination = PDFDestination(page: page, at: NSPoint(x: 40, y: 500))
+        fixture.state.outlineReadingItemID = "section"
+        fixture.state.updateOutlineReadingPosition(destination, from: fixture.reader)
+        #expect(fixture.state.outlineReadingItemID == "section")
+        let staleReader = VellumPDFView()
+        fixture.state.updateOutlineReadingPosition(destination, from: staleReader, userNavigated: true)
+        #expect(fixture.state.outlineReadingItemID == "section")
+        fixture.state.updateOutlineReadingPosition(destination, from: fixture.reader, userNavigated: true)
+        #expect(fixture.state.outlineReadingItemID == nil)
     }
 
     @Test(arguments: ["g", "1"])

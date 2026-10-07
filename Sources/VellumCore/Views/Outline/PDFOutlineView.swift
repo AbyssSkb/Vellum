@@ -59,6 +59,7 @@ struct PDFOutlineView: NSViewRepresentable {
 
         outlineView.reloadData()
         context.coordinator.restoreState(in: outlineView)
+        appState.activeOutlineView = outlineView
 
         return scrollView
     }
@@ -68,14 +69,20 @@ struct PDFOutlineView: NSViewRepresentable {
 
         context.coordinator.appState = appState
         outlineView.appState = appState
+        appState.activeOutlineView = outlineView
 
         context.coordinator.updateItemsIfNeeded(
             items, tabID: tabID, documentID: documentID, language: language, in: outlineView
         )
+        context.coordinator.syncReadingPosition(in: outlineView)
 
         if context.coordinator.lastFocusGeneration != focusGeneration {
             context.coordinator.lastFocusGeneration = focusGeneration
-            outlineView.requestFocus(tabID: tabID, documentID: documentID, generation: focusGeneration)
+            if appState.requestsOutlineFocus {
+                outlineView.requestFocus(tabID: tabID, documentID: documentID, generation: focusGeneration)
+            } else {
+                outlineView.cancelPendingFocus()
+            }
         }
     }
 
@@ -83,5 +90,8 @@ struct PDFOutlineView: NSViewRepresentable {
         guard let outlineView = scrollView.documentView as? PDFOutlineKeyView else { return }
         outlineView.cancelPendingFocus()
         coordinator.saveState(in: outlineView)
+        if coordinator.appState.activeOutlineView === outlineView {
+            coordinator.appState.activeOutlineView = nil
+        }
     }
 }

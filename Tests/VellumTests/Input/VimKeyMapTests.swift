@@ -4,6 +4,12 @@ import Testing
 @Suite("Vim key map")
 struct VimKeyMapTests {
     @Test
+    func tabGestureDoesNotShareTheSidebarToggleCommand() {
+        #expect(VimKeyMap.command(for: "\t") == nil)
+        #expect(VimKeyMap.command(for: "t") == .toggleOutline)
+    }
+
+    @Test
     func plusNormalizesToZoomInContinuousKey() {
         #expect(VimKeyMap.normalizedContinuousKey("+") == "=")
         #expect(VimKeyMap.isContinuousKey("+"))

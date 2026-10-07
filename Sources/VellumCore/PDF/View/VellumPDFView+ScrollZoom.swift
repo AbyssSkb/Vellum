@@ -37,6 +37,7 @@ extension VellumPDFView {
         guard let document,
               let pageState = currentPageState(),
               let targetPage = document.page(at: pageState.pageIndex + delta) else { return }
+        let previous = readingDestination()
 
         searchController?.markReaderNavigated()
         cancelPendingRestore()
@@ -60,6 +61,7 @@ extension VellumPDFView {
         DispatchQueue.main.async { [weak self] in
             guard let self, self.restoreGeneration == generation else { return }
             self.centerBothAxes(on: destination)
+            self.scheduleReadingPositionReport(userNavigated: self.readingPositionChanged(from: previous))
         }
     }
 }

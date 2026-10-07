@@ -7,6 +7,7 @@ extension VellumPDFView {
 
     func beginPageOverview() -> Bool {
         guard let document, document.pageCount > 0 else { return false }
+        pendingReadingNavigation = false
 
         stopScrollAnimation()
         stopZoomState()
@@ -51,8 +52,13 @@ extension VellumPDFView {
         cancelPendingRestore()
         if selectedIndex != originalIndex { vimGoToPage(selectedIndex + 1) }
         let generation = restoreGeneration
+        finishingPageOverviewGeneration = generation
         // PDFKit repeats page navigation on the next turn; measure its settled position.
         DispatchQueue.main.async { [weak self] in
+            if self?.finishingPageOverviewGeneration == generation {
+                self?.finishingPageOverviewGeneration = nil
+                self?.scheduleReadingPositionReport()
+            }
             guard let self, overlay.superview === self, self.document === document,
                   self.restoreGeneration == generation else {
                 overlay.dismiss(animated: false)
@@ -63,11 +69,14 @@ extension VellumPDFView {
                 self.viewRect(for: $0.bounds(for: self.displayBox), on: $0)
             }
             overlay.dismiss(to: rect)
+            self.scheduleReadingPositionReport(userNavigated: selectedIndex != originalIndex)
         }
     }
 
     func cancelPageOverview() {
         pageOverviewController = nil
+        finishingPageOverviewGeneration = nil
+        pendingReadingNavigation = false
         for overlay in subviews.compactMap({ $0 as? PageOverviewOverlayView }) {
             overlay.dismiss(animated: false)
         }

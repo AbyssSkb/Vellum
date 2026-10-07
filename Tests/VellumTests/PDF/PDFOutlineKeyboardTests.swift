@@ -688,34 +688,78 @@ struct PDFOutlineKeyboardTests {
             #expect(fixture.reader.currentPage === fixture.document.page(at: 0))
             fixture.send("j")
         }
-        #expect(fixture.outline.selectedRow == 13)
+        #expect(fixture.outline.selectedRow == 11)
     }
 
     @Test
-    func enterNavigatesAndRetainsOutlineFocus() {
+    func enterNavigatesAndReturnsToReaderWithOutlineVisible() async throws {
         let fixture = Fixture()
         defer { fixture.window.close() }
         fixture.outline.selectRowIndexes(IndexSet(integer: 1), byExtendingSelection: false)
 
         fixture.send("\r", keyCode: 36)
-        RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+        try await Task.sleep(for: .milliseconds(30))
 
         #expect(fixture.reader.currentPage === fixture.document.page(at: 1))
         #expect(fixture.appState.isOutlineVisible)
-        #expect(fixture.window.firstResponder === fixture.outline)
+        #expect(fixture.window.firstResponder === fixture.reader)
     }
 
-    @Test(arguments: [("\u{1b}", UInt16(53)), ("\t", 48), ("t", 17)])
-    func dismissingOutlineReturnsFocusToReader(key: String, keyCode: UInt16) async throws {
+    @Test
+    func tClosesOutlineAndReturnsFocusToReader() async throws {
         let fixture = Fixture()
         defer { fixture.window.close() }
 
-        fixture.send(key, keyCode: keyCode)
+        fixture.send("t", keyCode: 17)
         try await Task.sleep(for: .milliseconds(20))
 
         #expect(!fixture.appState.isOutlineVisible)
         let readerIsFocused = fixture.window.firstResponder === fixture.reader
         #expect(readerIsFocused)
+    }
+
+    @Test
+    func escapeReturnsToReaderAndKeepsOutlineAndCursor() async throws {
+        let fixture = Fixture()
+        defer { fixture.window.close() }
+        fixture.outline.selectRowIndexes(IndexSet(integer: 5), byExtendingSelection: false)
+        fixture.send("\u{1b}", keyCode: 53)
+        try await Task.sleep(for: .milliseconds(20))
+        #expect(fixture.appState.isOutlineVisible)
+        #expect(fixture.window.firstResponder === fixture.reader)
+        #expect(fixture.outline.selectedRow == 5)
+    }
+
+    @Test(arguments: ["4", "g", "z"])
+    func escapeFirstCancelsOutlinePrefixThenReturnsToReader(prefix: String) async throws {
+        let fixture = Fixture()
+        defer { fixture.window.close() }
+        fixture.send(prefix)
+        fixture.send("\u{1b}", keyCode: 53)
+        try await Task.sleep(for: .milliseconds(20))
+        #expect(fixture.appState.isOutlineVisible)
+        #expect(fixture.window.firstResponder === fixture.outline)
+        fixture.send("j")
+        #expect(fixture.outline.selectedRow == 1)
+        fixture.send("\u{1b}", keyCode: 53)
+        try await Task.sleep(for: .milliseconds(20))
+        #expect(fixture.window.firstResponder === fixture.reader)
+        #expect(fixture.appState.isOutlineVisible)
+    }
+
+    @Test
+    func tabWaitsForReleaseAndTransfersFocusWithoutClosingOutline() async throws {
+        let fixture = Fixture()
+        defer { fixture.window.close() }
+        fixture.outline.selectRowIndexes(IndexSet(integer: 5), byExtendingSelection: false)
+        fixture.send("\t", keyCode: 48)
+        #expect(fixture.window.firstResponder === fixture.outline)
+        #expect(fixture.appState.isOutlineVisible)
+        fixture.send("\t", keyCode: 48, type: .keyUp)
+        try await Task.sleep(for: .milliseconds(20))
+        #expect(fixture.window.firstResponder === fixture.reader)
+        #expect(fixture.appState.isOutlineVisible)
+        #expect(fixture.outline.selectedRow == 5)
     }
 
     private func deepTree() -> [PDFOutlineItem] {
@@ -811,13 +855,16 @@ struct PDFOutlineKeyboardTests {
 
         func send(
             _ key: String, keyCode: UInt16 = 0,
-            modifiers: NSEvent.ModifierFlags = [], repeating: Bool = false
+            modifiers: NSEvent.ModifierFlags = [], repeating: Bool = false,
+            type: NSEvent.EventType = .keyDown
         ) {
-            outline.keyDown(with: NSEvent.keyEvent(
-                with: .keyDown, location: .zero, modifierFlags: modifiers, timestamp: 0,
+            let event = NSEvent.keyEvent(
+                with: type, location: .zero, modifierFlags: modifiers, timestamp: 0,
                 windowNumber: window.windowNumber, context: nil,
                 characters: key, charactersIgnoringModifiers: key, isARepeat: repeating, keyCode: keyCode
-            )!)
+            )!
+            if type == .keyDown { outline.keyDown(with: event) }
+            else { outline.keyUp(with: event) }
         }
 
         func sendKeys(_ keys: String) {

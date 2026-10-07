@@ -31,9 +31,9 @@ final class PDFOutlineItem: NSObject {
     @discardableResult
     func activate(in appState: AppState) -> Bool {
         if let action {
-            appState.jumpToOutlineAction(action)
+            appState.jumpToOutlineAction(action, itemID: id)
         } else if let destination {
-            appState.jumpToOutlineDestination(destination)
+            appState.jumpToOutlineDestination(destination, itemID: id)
         } else {
             return false
         }
@@ -58,7 +58,7 @@ enum PDFOutlineBuilder {
             guard let child = outline.child(at: index) else { return nil }
 
             let itemPath = path.isEmpty ? "\(index)" : "\(path).\(index)"
-            let destination = child.destination
+            let destination = child.destination ?? (child.action as? PDFActionGoTo)?.destination
             let pageIndex = destination?.page.map { document.index(for: $0) }
             let fallbackTitle = pageIndex.map { language.text(.outlinePage($0 + 1)) } ?? language.text(.untitled)
             let title = child.label?

@@ -80,6 +80,8 @@ final class PDFOutlineKeyView: NSOutlineView {
 
     override func mouseDown(with event: NSEvent) {
         cancelPendingFocus()
+        (delegate as? PDFOutlineView.Coordinator)?.cancelPendingReadingAlignment()
+        appState?.recordReadingFocusIntent(outline: true)
         keyState.clearPendingInput()
         foldCursorItem = nil
         super.mouseDown(with: event)
@@ -212,11 +214,26 @@ final class PDFOutlineKeyView: NSOutlineView {
         window?.makeFirstResponder(self)
     }
 
+    override func becomeFirstResponder() -> Bool {
+        let became = super.becomeFirstResponder()
+        if became { refreshFocusAppearanceSoon() }
+        return became
+    }
+
+    private func refreshFocusAppearanceSoon() {
+        let sourceWindow = window
+        DispatchQueue.main.async { [weak self, weak sourceWindow] in
+            guard let self, self.window === sourceWindow else { return }
+            (self.delegate as? PDFOutlineView.Coordinator)?.refreshRowAppearance(in: self)
+        }
+    }
+
     override func resignFirstResponder() -> Bool {
         let resigned = super.resignFirstResponder()
         if resigned {
             cancelPendingFocus()
             keyState.clearPendingInput()
+            refreshFocusAppearanceSoon()
         }
         return resigned
     }
@@ -233,6 +250,10 @@ final class PDFOutlineKeyView: NSOutlineView {
     }
 
     override func keyDown(with event: NSEvent) {
+        if appState?.keyboardController.routeKeyEvent(event) == true {
+            keyState.clearPendingInput()
+            return
+        }
         if handleOutlineKey(event) {
             return
         }
@@ -256,6 +277,7 @@ final class PDFOutlineKeyView: NSOutlineView {
         if event.type == .keyDown, event.modifierFlags.contains(.option),
            event.modifierFlags.intersection([.command, .control]).isEmpty,
            event.keyCode == 123 || event.keyCode == 124 {
+            (delegate as? PDFOutlineView.Coordinator)?.cancelPendingReadingAlignment()
             keyState.clearPendingInput()
             if !event.isARepeat {
                 setBranchExpanded(event.keyCode == 124, allBranches: event.modifierFlags.contains(.shift))
@@ -273,11 +295,11 @@ final class PDFOutlineKeyView: NSOutlineView {
         let key = characters.lowercased()
         let isShifted = event.modifierFlags.contains(.shift) || characters != key
         let isDigit = !isShifted && key.count == 1 && "0123456789".contains(key)
-        let hidesSidebar = event.keyCode == 48 || event.keyCode == 53
-            || key == "\t" || key == "\u{1b}" || (key == "t" && !isShifted)
+        let hidesSidebar = key == "t" && !isShifted
+        let returnsToReader = event.keyCode == 53 || key == "\u{1b}"
         let activatesItem = event.keyCode == 36 || event.keyCode == 76
 
-        if event.isARepeat && (isDigit || key == "g" || key == "z" || hidesSidebar || activatesItem) {
+        if event.isARepeat && (isDigit || key == "g" || key == "z" || hidesSidebar || returnsToReader || activatesItem) {
             return true
         }
 
@@ -286,16 +308,27 @@ final class PDFOutlineKeyView: NSOutlineView {
             if appState?.isOutlineVisible == true {
                 appState?.toggleOutlineSidebar()
             } else {
-                appState?.focusReaderSoon()
+                appState?.focusReaderContent()
             }
+            return true
+        }
+
+        if returnsToReader {
+            let hasPendingInput = keyState.pendingKey != nil || !keyState.numericPrefix.isEmpty
+            keyState.clearPendingInput()
+            if !hasPendingInput { appState?.focusReaderContent() }
             return true
         }
 
         if activatesItem {
             keyState.clearPendingInput()
-            activateSelectedItem()
-            focus()
+            if activateSelectedItem() { appState?.focusReaderContent() }
             return true
+        }
+
+        if isDigit || ["j", "k", "h", "l", "g", "z", "d", "u", "f", "b", " "].contains(key)
+            || [123, 124, 125, 126, 115, 119, 116, 121].contains(event.keyCode) {
+            (delegate as? PDFOutlineView.Coordinator)?.cancelPendingReadingAlignment()
         }
 
         if isDigit && keyState.pendingKey == "z" {
@@ -495,15 +528,16 @@ final class PDFOutlineKeyView: NSOutlineView {
         }
     }
 
-    private func activateSelectedItem() {
+    private func activateSelectedItem() -> Bool {
         foldCursorItem = nil
-        guard let item = selectedOutlineItem else { return }
+        guard let item = selectedOutlineItem else { return false }
 
         if let appState, item.activate(in: appState) {
-            return
+            return true
         } else if !item.children.isEmpty {
             isItemExpanded(item) ? collapseItem(item) : expandItem(item)
         }
+        return false
     }
 
     private var selectedOutlineItem: PDFOutlineItem? {

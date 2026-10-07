@@ -13,13 +13,14 @@ enum ShortcutCatalog {
             title: "Files and Tabs",
             systemImage: "doc.on.doc",
             items: [
-                ShortcutItem(keys: ["o"], action: "Open PDF in current tab"),
+                ShortcutItem(keys: ["o"], action: "Open PDF using default open mode"),
                 ShortcutItem(keys: ["O"], action: "Open PDFs in new tabs"),
                 ShortcutItem(keys: ["x"], action: "Close current tab"),
                 ShortcutItem(keys: ["X"], action: "Restore closed PDF"),
                 ShortcutItem(keys: ["[", "]"], action: "Switch tabs"),
                 ShortcutItem(keys: ["H", "L"], action: "Switch tabs"),
-                ShortcutItem(keys: ["gt", "gT"], action: "Switch tabs"),
+                ShortcutItem(keys: ["gt", "gT"], action: "Switch tabs from reader"),
+                ShortcutItem(keys: ["T"], action: "Search open tabs"),
                 ShortcutItem(keys: ["Cmd O", "Cmd W"], action: "Open PDF or close tab"),
                 ShortcutItem(keys: ["Cmd [", "Cmd ]"], action: "Switch tabs")
             ]
@@ -57,18 +58,20 @@ enum ShortcutCatalog {
                 ShortcutItem(keys: ["=", "+", "-"], action: "Smooth zoom"),
                 ShortcutItem(keys: ["z"], action: "Fit width"),
                 ShortcutItem(keys: ["0"], action: "Fit page"),
-                ShortcutItem(keys: ["Tab", "t"], action: "Toggle contents"),
-                ShortcutItem(keys: ["Hold Tab"], action: "Open page overview")
+                ShortcutItem(keys: ["t"], action: "Show or hide contents"),
+                ShortcutItem(keys: ["Tab"], action: "Switch reader and contents focus; open contents if hidden"),
+                ShortcutItem(keys: ["Hold Tab"], action: "Open gallery from reader or contents")
             ]
         ),
         ShortcutGroup(
-            title: "Page Overview",
+            title: "Page Gallery",
             systemImage: "square.grid.3x3",
             items: [
-                ShortcutItem(keys: ["Hold Tab"], action: "Enter page overview"),
+                ShortcutItem(keys: ["Hold Tab"], action: "Enter page gallery"),
                 ShortcutItem(keys: ["h", "l"], action: "Move to previous or next page"),
-                ShortcutItem(keys: ["k", "j"], action: "Move to previous or next row"),
-                ShortcutItem(keys: ["Release Tab"], action: "Close overview at selected page")
+                ShortcutItem(keys: ["k", "j"], action: "Move backward or forward three pages"),
+                ShortcutItem(keys: ["Release Tab"], action: "Commit selected page and focus reader"),
+                ShortcutItem(keys: ["Esc"], action: "Cancel gallery; restore original position and focus")
             ]
         ),
         ShortcutGroup(
@@ -131,8 +134,11 @@ enum ShortcutCatalog {
                 ShortcutItem(keys: ["zR", "zM"], action: "Open or close all folds"),
                 ShortcutItem(keys: ["Option →", "Option ←"], action: "Expand or collapse entire branch (leaf: parent)"),
                 ShortcutItem(keys: ["Option Shift →", "Option Shift ←"], action: "Expand or collapse all branches"),
-                ShortcutItem(keys: ["Enter"], action: "Jump to selected item"),
-                ShortcutItem(keys: ["Esc", "Tab", "t"], action: "Hide contents and focus reader")
+                ShortcutItem(keys: ["Enter"], action: "Jump to selected item and focus reader"),
+                ShortcutItem(keys: ["Tab"], action: "Focus reader, keeping contents open"),
+                ShortcutItem(keys: ["Esc"], action: "Clear pending input; otherwise focus reader"),
+                ShortcutItem(keys: ["t"], action: "Hide contents and focus reader"),
+                ShortcutItem(keys: ["H", "L", "[", "]"], action: "Switch files from contents")
             ]
         )
     ]
@@ -142,13 +148,14 @@ enum ShortcutCatalog {
             title: "文件与标签页",
             systemImage: "doc.on.doc",
             items: [
-                ShortcutItem(keys: ["o"], action: "在当前标签页打开 PDF"),
+                ShortcutItem(keys: ["o"], action: "按默认打开方式打开 PDF"),
                 ShortcutItem(keys: ["O"], action: "在新标签页打开 PDF"),
                 ShortcutItem(keys: ["x"], action: "关闭当前标签页"),
                 ShortcutItem(keys: ["X"], action: "恢复已关闭的 PDF"),
                 ShortcutItem(keys: ["[", "]"], action: "切换标签页"),
                 ShortcutItem(keys: ["H", "L"], action: "切换标签页"),
-                ShortcutItem(keys: ["gt", "gT"], action: "切换标签页"),
+                ShortcutItem(keys: ["gt", "gT"], action: "从阅读区切换标签页"),
+                ShortcutItem(keys: ["T"], action: "搜索已打开的标签页"),
                 ShortcutItem(keys: ["Cmd O", "Cmd W"], action: "打开 PDF 或关闭标签页"),
                 ShortcutItem(keys: ["Cmd [", "Cmd ]"], action: "切换标签页")
             ]
@@ -186,18 +193,20 @@ enum ShortcutCatalog {
                 ShortcutItem(keys: ["=", "+", "-"], action: "平滑缩放"),
                 ShortcutItem(keys: ["z"], action: "适合宽度"),
                 ShortcutItem(keys: ["0"], action: "适合整页"),
-                ShortcutItem(keys: ["Tab", "t"], action: "切换目录"),
-                ShortcutItem(keys: ["Hold Tab"], action: "打开页面概览")
+                ShortcutItem(keys: ["t"], action: "显示或隐藏目录"),
+                ShortcutItem(keys: ["Tab"], action: "切换正文与目录焦点，目录隐藏时先打开"),
+                ShortcutItem(keys: ["Hold Tab"], action: "从正文或目录打开画廊")
             ]
         ),
         ShortcutGroup(
-            title: "页面概览",
+            title: "沉浸画廊",
             systemImage: "square.grid.3x3",
             items: [
-                ShortcutItem(keys: ["Hold Tab"], action: "进入页面概览"),
+                ShortcutItem(keys: ["Hold Tab"], action: "进入沉浸画廊"),
                 ShortcutItem(keys: ["h", "l"], action: "移动到上一页或下一页"),
-                ShortcutItem(keys: ["k", "j"], action: "移动到上一行或下一行"),
-                ShortcutItem(keys: ["Release Tab"], action: "在选中页关闭概览")
+                ShortcutItem(keys: ["k", "j"], action: "向前或向后移动三页"),
+                ShortcutItem(keys: ["Release Tab"], action: "确认选中页并聚焦正文"),
+                ShortcutItem(keys: ["Esc"], action: "取消画廊，恢复原阅读位置和焦点")
             ]
         ),
         ShortcutGroup(
@@ -209,7 +218,9 @@ enum ShortcutCatalog {
                 ShortcutItem(keys: ["c"], action: "切换高亮颜色"),
                 ShortcutItem(keys: ["d"], action: "删除选中位置下的高亮"),
                 ShortcutItem(keys: ["a"], action: "解释选中文本或高亮"),
-                ShortcutItem(keys: ["i"], action: "围绕选中文本进行 AI 对话")
+                ShortcutItem(keys: ["A"], action: "搜索 AI 解释历史"),
+                ShortcutItem(keys: ["i"], action: "围绕选中文本进行 AI 对话"),
+                ShortcutItem(keys: ["I"], action: "搜索 AI 对话历史")
             ]
         ),
         ShortcutGroup(
@@ -227,7 +238,8 @@ enum ShortcutCatalog {
             systemImage: "bubble.left.and.bubble.right",
             items: [
                 ShortcutItem(keys: ["i"], action: "为选中文本打开对话"),
-                ShortcutItem(keys: ["Cmd Enter"], action: "发送消息"),
+                ShortcutItem(keys: ["Enter"], action: "发送消息"),
+                ShortcutItem(keys: ["Shift Enter"], action: "换行"),
                 ShortcutItem(keys: ["Esc"], action: "关闭对话")
             ]
         ),
@@ -257,8 +269,11 @@ enum ShortcutCatalog {
                 ShortcutItem(keys: ["zR", "zM"], action: "展开或折叠全部目录"),
                 ShortcutItem(keys: ["Option →", "Option ←"], action: "展开或折叠整个分支（叶子条目作用于父项）"),
                 ShortcutItem(keys: ["Option Shift →", "Option Shift ←"], action: "展开或折叠全部分支"),
-                ShortcutItem(keys: ["Enter"], action: "跳到选中的条目"),
-                ShortcutItem(keys: ["Esc", "Tab", "t"], action: "隐藏目录并聚焦阅读器")
+                ShortcutItem(keys: ["Enter"], action: "跳到选中的条目并聚焦正文"),
+                ShortcutItem(keys: ["Tab"], action: "聚焦正文，保留目录显示"),
+                ShortcutItem(keys: ["Esc"], action: "清除待完成输入，否则聚焦正文"),
+                ShortcutItem(keys: ["t"], action: "隐藏目录并聚焦正文"),
+                ShortcutItem(keys: ["H", "L", "[", "]"], action: "从目录切换文件")
             ]
         )
     ]

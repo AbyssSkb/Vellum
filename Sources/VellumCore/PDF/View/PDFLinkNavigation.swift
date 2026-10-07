@@ -32,6 +32,7 @@ extension VellumPDFView {
         }
 
         searchController?.markReaderNavigated()
+        let previous = readingDestination()
         cancelPendingRestore()
         stopScrollAnimation()
         stopZoomState()
@@ -39,5 +40,22 @@ extension VellumPDFView {
             recordJumpSource()
         }
         perform(action)
+        if PDFLinkNavigation.shouldRecordJumpSource(for: action) {
+            let generation = restoreGeneration
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.restoreGeneration == generation else { return }
+                self.scheduleReadingPositionReport(userNavigated: self.readingPositionChanged(from: previous))
+            }
+        }
+    }
+
+    func reportInternalLinkNavigation(_ annotation: PDFAnnotation, from previous: PDFDestination?, generation: Int) {
+        guard generation == restoreGeneration, PDFLinkNavigation.shouldRecordJumpSource(for: annotation) else { return }
+        if let destination = annotation.destination ?? (annotation.action as? PDFActionGoTo)?.destination,
+           destination.page?.document === document {
+            pinReadingSection(at: destination)
+        } else {
+            scheduleReadingPositionReport(userNavigated: readingPositionChanged(from: previous))
+        }
     }
 }

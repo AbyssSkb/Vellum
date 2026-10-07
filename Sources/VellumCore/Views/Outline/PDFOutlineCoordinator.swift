@@ -19,6 +19,8 @@ extension PDFOutlineView {
         private var tabID: PDFTab.ID
         private var documentID: ObjectIdentifier
         private var language: AppUILanguage
+        private(set) var readingItem: PDFOutlineItem?
+        private var awaitsReadingAlignment = false
 
         init(
             items: [PDFOutlineItem],
@@ -49,6 +51,7 @@ extension PDFOutlineView {
                 return false
             }
 
+            let readerChanged = nextTabID != tabID || nextDocumentID != documentID
             saveState(in: outlineView)
             items = nextItems
             itemSignature = nextSignature
@@ -57,7 +60,7 @@ extension PDFOutlineView {
             language = nextLanguage
             outlineView.deselectAll(nil)
             outlineView.reloadData()
-            restoreState(in: outlineView)
+            restoreState(in: outlineView, alignReadingPosition: readerChanged)
             return true
         }
 
@@ -73,7 +76,7 @@ extension PDFOutlineView {
             )
         }
 
-        func restoreState(in outlineView: PDFOutlineKeyView) {
+        func restoreState(in outlineView: PDFOutlineKeyView, alignReadingPosition: Bool = true) {
             if let state = appState.outlineStates[tabID], state.documentID == documentID {
                 outlineView.restoreFolding(items: items, expandedIDs: state.expandedIDs, foldLevel: state.foldLevel)
                 restoreSelection(state.selectedID, in: outlineView)
@@ -82,6 +85,59 @@ extension PDFOutlineView {
                 outlineView.restoreFolding(items: items, expandedIDs: expandedIDs, foldLevel: 1)
                 selectInitialRow(in: outlineView)
             }
+            syncReadingPosition(in: outlineView, alignSelection: alignReadingPosition)
+        }
+
+        func syncReadingPosition(in outlineView: PDFOutlineKeyView, alignSelection: Bool = false) {
+            let nextItem: PDFOutlineItem?
+            let hasReadingPosition: Bool
+            if let destination = appState.outlineReadingDestination,
+               destination.page?.document.map(ObjectIdentifier.init) == documentID {
+                hasReadingPosition = true
+                nextItem = OutlineReadingMatcher.item(
+                    for: destination, in: items, preferredID: appState.outlineReadingItemID
+                )
+            } else {
+                hasReadingPosition = false
+                nextItem = nil
+            }
+            if alignSelection { awaitsReadingAlignment = !hasReadingPosition }
+            let shouldAlign = alignSelection || awaitsReadingAlignment
+            if hasReadingPosition { awaitsReadingAlignment = false }
+            let sectionChanged = nextItem?.id != readingItem?.id
+            readingItem = nextItem
+            if let nextItem, shouldAlign || (sectionChanged && readerIsFocused(in: outlineView.window)) {
+                outlineView.selectFoldItem(nextItem)
+            }
+            refreshRowAppearance(in: outlineView)
+        }
+
+        func cancelPendingReadingAlignment() {
+            awaitsReadingAlignment = false
+        }
+
+        func refreshRowAppearance(in outlineView: PDFOutlineKeyView) {
+            var visibleReadingItem = readingItem
+            while let item = visibleReadingItem, outlineView.row(forItem: item) < 0 {
+                visibleReadingItem = item.parent
+            }
+            let readingRow = visibleReadingItem.map { outlineView.row(forItem: $0) }
+            let keyboardFocused = outlineView.window?.firstResponder === outlineView
+            outlineView.enumerateAvailableRowViews { row, index in
+                guard let row = row as? TokyoNightOutlineRowView else { return }
+                row.keyboardFocused = keyboardFocused
+                row.isReadingSection = index == readingRow
+                row.needsDisplay = true
+            }
+        }
+
+        private func readerIsFocused(in window: NSWindow?) -> Bool {
+            var responderView = window?.firstResponder as? NSView
+            while let view = responderView {
+                if view is VellumPDFView { return true }
+                responderView = view.superview
+            }
+            return false
         }
 
         func selectInitialRow(in outlineView: NSOutlineView) {
@@ -138,31 +194,44 @@ extension PDFOutlineView {
             row.contentIndent = CGFloat(row.hierarchyLevel) * row.levelIndent
             row.isBranch = (item as? PDFOutlineItem)?.children.isEmpty == false
             row.outlineItem = item as? PDFOutlineItem
+            row.keyboardFocused = outlineView.window?.firstResponder === outlineView
+            var visibleReadingItem = readingItem
+            while let reading = visibleReadingItem, outlineView.row(forItem: reading) < 0 {
+                visibleReadingItem = reading.parent
+            }
+            row.isReadingSection = (item as? PDFOutlineItem)?.id == visibleReadingItem?.id
             return row
         }
 
         func outlineViewItemDidExpand(_ notification: Notification) {
+            cancelPendingReadingAlignment()
             guard let outlineView = notification.object as? PDFOutlineKeyView else { return }
             if let item = notification.userInfo?["NSObject"] as? PDFOutlineItem {
                 outlineView.recordExpansion(of: item, expanded: true)
             }
-            outlineView.enumerateAvailableRowViews { row, _ in row.needsDisplay = true }
+            refreshRowAppearance(in: outlineView)
         }
 
         func outlineViewItemDidCollapse(_ notification: Notification) {
+            cancelPendingReadingAlignment()
             guard let outlineView = notification.object as? PDFOutlineKeyView else { return }
             if let item = notification.userInfo?["NSObject"] as? PDFOutlineItem {
                 outlineView.recordExpansion(of: item, expanded: false)
             }
-            outlineView.enumerateAvailableRowViews { row, _ in row.needsDisplay = true }
+            refreshRowAppearance(in: outlineView)
         }
 
         func outlineViewSelectionDidChange(_ notification: Notification) {
-            (notification.object as? PDFOutlineKeyView)?.recordSelection()
+            cancelPendingReadingAlignment()
+            guard let outlineView = notification.object as? PDFOutlineKeyView else { return }
+            outlineView.recordSelection()
+            refreshRowAppearance(in: outlineView)
         }
 
         @objc func doubleClick(_ sender: NSOutlineView) {
-            selectedItem(in: sender)?.activate(in: appState)
+            if selectedItem(in: sender)?.activate(in: appState) == true {
+                appState.focusReaderContent()
+            }
         }
 
         private func makeCell() -> PDFOutlineCellView {
@@ -227,7 +296,7 @@ extension PDFOutlineView {
                 .map { item in
                     let documentID = (item.destination?.page?.document).map(ObjectIdentifier.init)
                     let action = (item.action as? PDFActionNamed).map { "Named:\($0.name.rawValue)" } ?? ""
-                    return "\(String(describing: documentID))|\(item.id)|\(item.title)|\(item.pageIndex ?? -1)|\(action)"
+                    return "\(String(describing: documentID))|\(item.id)|\(item.title)|\(item.pageIndex ?? -1)|\(String(describing: item.destination?.point))|\(action)"
                 }
                 .joined(separator: "\n")
         }

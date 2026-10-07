@@ -546,6 +546,7 @@ final class PDFSearchController {
             NSSound.beep()
             return
         }
+        let previous = pdfView.readingDestination()
 
         pdfView.cancelPendingRestore()
         if recordJump, shouldRecordJumpCheckpoint() {
@@ -564,6 +565,16 @@ final class PDFSearchController {
                   pdfView.restoreGeneration == restoreGeneration else { return }
             pdfView.go(to: selection)
             self.shouldAnchorNextMove = false
+            if recordJump, let page = selection.pages.first {
+                let geometry = PDFPageDisplayGeometry(page: page, box: pdfView.displayBox)
+                let bounds = geometry.rect(forPageRect: selection.bounds(for: page))
+                let target = PDFDestination(page: page, at: geometry.pagePoint(forDisplayPoint: NSPoint(
+                    x: bounds.midX, y: bounds.maxY
+                )))
+                pdfView.pinReadingSection(at: target)
+            } else {
+                pdfView.scheduleReadingPositionReport(userNavigated: pdfView.readingPositionChanged(from: previous))
+            }
         }
     }
 

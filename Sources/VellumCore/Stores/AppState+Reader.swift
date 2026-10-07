@@ -1,4 +1,5 @@
 @preconcurrency import AppKit
+import PDFKit
 
 extension AppState {
     func setActiveReaderController(_ controller: ReaderController?, for tabID: PDFTab.ID) {
@@ -23,9 +24,34 @@ extension AppState {
     }
 
     func prepareForSelectedReaderChange() {
+        recordReadingFocusIntent(outline: isOutlineVisible && readerWindow?.firstResponder is PDFOutlineKeyView)
         activeReaderController = nil
+        outlineReadingDestination = nil
+        outlineReadingItemID = nil
         keyboardController.cancelInput()
         focusActiveReaderSoon()
+    }
+
+    func updateOutlineReadingPosition(
+        _ destination: PDFDestination, from reader: VellumPDFView,
+        userNavigated: Bool = false, pinSection: Bool = false
+    ) {
+        guard reader === activeReaderController, !reader.isPageOverviewActive,
+              let document = selectedTab?.document, destination.page?.document === document else { return }
+        if userNavigated, outlineReadingItemID != nil { outlineReadingItemID = nil }
+        if pinSection {
+            outlineReadingItemID = OutlineReadingMatcher.item(
+                for: destination, in: PDFOutlineBuilder.items(for: document)
+            )?.id
+        }
+        if outlineReadingDestination?.page !== destination.page
+            || outlineReadingDestination?.point != destination.point {
+            outlineReadingDestination = destination
+        }
+        if let outline = activeOutlineView,
+           let coordinator = outline.delegate as? PDFOutlineView.Coordinator {
+            coordinator.syncReadingPosition(in: outline)
+        }
     }
 
     var hasBlockingReaderPresentation: Bool {
@@ -63,6 +89,7 @@ extension AppState {
         let generation = outlineFocusGeneration
         let sourceWindow = readerWindow
         let initiatingResponder = sourceWindow?.firstResponder
+        let prefersOutline = isOutlineVisible && (responder ?? initiatingResponder) is PDFOutlineKeyView
         DispatchQueue.main.async { [weak self, weak responder, weak sourceWindow, weak initiatingResponder] in
             guard let self, self.selectedTabID == tabID,
                   self.selectedTab?.document.map(ObjectIdentifier.init) == documentID,
@@ -79,10 +106,10 @@ extension AppState {
                window.makeFirstResponder(view) {
                 return
             }
-            if self.isOutlineVisible {
+            if prefersOutline, self.isOutlineVisible {
                 self.focusOutlineSidebar()
             } else {
-                self.activeReaderController?.focus()
+                self.focusReaderContent()
             }
         }
     }
@@ -98,7 +125,7 @@ extension AppState {
                   self.selectedTab?.document.map(ObjectIdentifier.init) == documentID,
                   self.readerWindow === sourceWindow,
                   self.outlineFocusGeneration == generation,
-                  !self.isOutlineVisible, self.canFocusReaderContent else { return }
+                  self.canFocusReaderContent else { return }
             if let current = sourceWindow?.firstResponder as? NSView,
                current !== initiatingResponder, current.window === sourceWindow {
                 return

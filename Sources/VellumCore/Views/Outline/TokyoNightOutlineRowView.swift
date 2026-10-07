@@ -7,6 +7,12 @@ final class TokyoNightOutlineRowView: NSTableRowView {
     var hierarchyLevel = 0
     var levelIndent: CGFloat = 14
     weak var outlineItem: PDFOutlineItem?
+    var keyboardFocused = false {
+        didSet { updateTextAppearance(); needsDisplay = true }
+    }
+    var isReadingSection = false {
+        didSet { updateTextAppearance(); needsDisplay = true }
+    }
     private var mouseInside = false {
         didSet { needsDisplay = true }
     }
@@ -51,7 +57,7 @@ final class TokyoNightOutlineRowView: NSTableRowView {
 
     override func drawBackground(in dirtyRect: NSRect) {
         NSGraphicsContext.saveGraphicsState()
-        if isSelected {
+        if isSelected && keyboardFocused {
             let clip = NSBezierPath(rect: bounds)
             clip.append(NSBezierPath(roundedRect: roundedBackgroundRect(), xRadius: 5, yRadius: 5))
             clip.windingRule = .evenOdd
@@ -66,6 +72,14 @@ final class TokyoNightOutlineRowView: NSTableRowView {
         TokyoNight.border.withAlphaComponent(0.65).setStroke()
         guides.stroke()
         NSGraphicsContext.restoreGraphicsState()
+        if isReadingSection && !(isSelected && keyboardFocused) {
+            let rect = roundedBackgroundRect()
+            TokyoNight.blue.withAlphaComponent(0.07).setFill()
+            NSBezierPath(roundedRect: rect, xRadius: 5, yRadius: 5).fill()
+            TokyoNight.blue.withAlphaComponent(0.5).setFill()
+            NSBezierPath(roundedRect: NSRect(x: rect.minX + 4, y: rect.midY - 3,
+                                           width: 2, height: 6), xRadius: 1, yRadius: 1).fill()
+        }
         if mouseInside && !isSelected {
             let hoverRect = roundedBackgroundRect()
             let path = NSBezierPath(roundedRect: hoverRect, xRadius: 5, yRadius: 5)
@@ -108,7 +122,7 @@ final class TokyoNightOutlineRowView: NSTableRowView {
     }
 
     override func drawSelection(in dirtyRect: NSRect) {
-        guard isSelected else { return }
+        guard isSelected && keyboardFocused else { return }
 
         let selectionRect = roundedBackgroundRect()
         let path = NSBezierPath(roundedRect: selectionRect, xRadius: 5, yRadius: 5)
@@ -126,13 +140,15 @@ final class TokyoNightOutlineRowView: NSTableRowView {
     private func updateTextAppearance() {
         for case let cell as NSTableCellView in subviews {
             let isRoot = hierarchyLevel == 0
+            let isKeyboardSelection = isSelected && keyboardFocused
             cell.textField?.font = .systemFont(ofSize: isRoot ? 13 : 12.5,
-                                              weight: isSelected || isRoot || isBranch ? .medium : .regular)
-            cell.textField?.textColor = isSelected ? TokyoNight.foreground : isRoot
+                                              weight: isKeyboardSelection || isReadingSection || isRoot || isBranch ? .medium : .regular)
+            cell.textField?.textColor = isKeyboardSelection ? TokyoNight.foreground : isReadingSection
+                ? TokyoNight.foreground.withAlphaComponent(0.95) : isRoot
                 ? TokyoNight.foreground.withAlphaComponent(0.9) : isBranch
                 ? TokyoNight.foreground.withAlphaComponent(0.8) : TokyoNight.muted
-            (cell as? PDFOutlineCellView)?.titleView.isSelected = isSelected
-            (cell as? PDFOutlineCellView)?.pageNumberField.textColor = isSelected
+            (cell as? PDFOutlineCellView)?.titleView.isSelected = isKeyboardSelection
+            (cell as? PDFOutlineCellView)?.pageNumberField.textColor = isKeyboardSelection
                 ? TokyoNight.foreground.withAlphaComponent(0.75) : TokyoNight.muted.withAlphaComponent(0.8)
         }
     }

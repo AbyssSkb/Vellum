@@ -2,6 +2,50 @@
 import PDFKit
 
 extension VellumPDFView {
+    func readingDestination() -> PDFDestination? {
+        guard let document, let snapshot = snapshot(), let page = document.page(at: snapshot.pageIndex) else { return nil }
+        guard let scrollView = pdfScrollView,
+              let pageRect = viewRect(for: page.bounds(for: displayBox), on: page) else {
+            return PDFDestination(page: page, at: snapshot.pointOnPage)
+        }
+        let visibleRect = convert(scrollView.contentView.bounds, from: scrollView.contentView)
+        let paperRect = pageRect.intersection(visibleRect)
+        guard !paperRect.isEmpty else { return PDFDestination(page: page, at: snapshot.pointOnPage) }
+        let point = NSPoint(x: paperRect.midX, y: isFlipped ? paperRect.minY : paperRect.maxY)
+        return PDFDestination(page: page, at: convert(point, to: page))
+    }
+
+    func readingPositionChanged(from previous: PDFDestination?) -> Bool {
+        guard let previous, let current = readingDestination() else { return false }
+        return current.page !== previous.page || abs(current.point.x - previous.point.x) > 0.5
+            || abs(current.point.y - previous.point.y) > 0.5
+    }
+
+    func pinReadingSection(at destination: PDFDestination) {
+        pendingReadingNavigation = false
+        appState?.updateOutlineReadingPosition(destination, from: self, userNavigated: true, pinSection: true)
+        scheduleReadingPositionReport()
+    }
+
+    func scheduleReadingPositionReport(userNavigated: Bool = false) {
+        guard let document else { return }
+        pendingReadingNavigation = pendingReadingNavigation || userNavigated
+        readingPositionReportWorkItem?.cancel()
+        let workItem = DispatchWorkItem { [weak self, weak document] in
+            MainActor.assumeIsolated {
+                guard let self, let document, self.document === document,
+                      !self.isPageOverviewActive, self.finishingPageOverviewGeneration == nil,
+                      self.pendingRestoreAction == nil,
+                      let destination = self.readingDestination() else { return }
+                let userNavigated = self.pendingReadingNavigation
+                self.pendingReadingNavigation = false
+                self.appState?.updateOutlineReadingPosition(destination, from: self, userNavigated: userNavigated)
+            }
+        }
+        readingPositionReportWorkItem = workItem
+        DispatchQueue.main.async(execute: workItem)
+    }
+
     func snapshot() -> ReaderSnapshot? {
         guard let document else { return nil }
 
@@ -34,6 +78,7 @@ extension VellumPDFView {
     }
 
     func restore(_ snapshot: ReaderSnapshot?) {
+        pendingReadingNavigation = false
         restoreGeneration += 1
         let generation = restoreGeneration
         pendingRestoreAction = nil
@@ -48,6 +93,7 @@ extension VellumPDFView {
 
         guard let snapshot, let document, let page = document.page(at: snapshot.pageIndex) else {
             _ = applyWidthFitScaleNow()
+            scheduleReadingPositionReport()
             return
         }
 
@@ -147,6 +193,7 @@ extension VellumPDFView {
     func clearPendingRestoreAction(generation: Int) {
         guard pendingRestoreAction?.generation == generation else { return }
         pendingRestoreAction = nil
+        scheduleReadingPositionReport()
     }
 
     @discardableResult

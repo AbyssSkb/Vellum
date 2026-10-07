@@ -12,6 +12,8 @@ public final class AppState: ObservableObject {
     @Published var aiConversationHistory: [AIConversationHistoryItem] = []
     @Published var aiExplanationHistory: [AIExplanationHistoryItem] = []
     @Published var outlineFocusGeneration = 0
+    var outlineReadingDestination: PDFDestination?
+    @Published var outlineReadingItemID: String?
     @Published private(set) var selectedHighlightColor: HighlightColor
     var outlineStates: [PDFTab.ID: PDFOutlineView.State] = [:]
 
@@ -26,6 +28,8 @@ public final class AppState: ObservableObject {
     var unresolvedSession: PersistedAppSession?
 
     weak var activeReaderController: ReaderController?
+    weak var activeOutlineView: PDFOutlineKeyView?
+    var requestsOutlineFocus = true
     weak var readerWindow: NSWindow?
     weak var responderBeforeSwitcher: NSResponder?
     var tabBeforeSwitcher: PDFTab.ID?
@@ -101,23 +105,52 @@ public final class AppState: ObservableObject {
 
         isOutlineVisible.toggle()
         if isOutlineVisible {
-            outlineFocusGeneration += 1
+            focusOutlineSidebar()
         } else {
-            focusReaderSoon()
+            focusReaderContent()
         }
     }
 
     func focusOutlineSidebar() {
         guard isOutlineVisible else { return }
         keyboardController.cancelInput()
-        outlineFocusGeneration += 1
+        recordReadingFocusIntent(outline: true)
     }
 
-    func jumpToOutlineDestination(_ destination: PDFDestination) {
+    func switchReadingFocus() {
+        guard hasOpenTabs, canFocusReaderContent else { return }
+        if !isOutlineVisible {
+            toggleOutlineSidebar()
+        } else if readerWindow?.firstResponder is PDFOutlineKeyView {
+            focusReaderContent()
+        } else {
+            focusOutlineSidebar()
+        }
+    }
+
+    func focusReaderContent() {
+        keyboardController.cancelInput()
+        recordReadingFocusIntent(outline: false)
+        focusReaderSoon()
+    }
+
+    func recordReadingFocusIntent(outline: Bool) {
+        requestsOutlineFocus = outline
+        outlineFocusGeneration += 1
+        activeOutlineView?.cancelPendingFocus()
+    }
+
+    func jumpToOutlineDestination(_ destination: PDFDestination, itemID: String? = nil) {
+        outlineReadingItemID = itemID
+        outlineReadingDestination = destination
         activeReaderController?.vimGoToDestination(destination)
     }
 
-    func jumpToOutlineAction(_ action: PDFAction) {
+    func jumpToOutlineAction(_ action: PDFAction, itemID: String? = nil) {
+        if let action = action as? PDFActionGoTo {
+            outlineReadingItemID = itemID
+            outlineReadingDestination = action.destination
+        }
         activeReaderController?.vimPerformPDFAction(action)
     }
 
