@@ -65,7 +65,7 @@ Letter shortcuts apply to the focused reading surface. Search fields and convers
 
 Settings include English and Chinese UI, default file-opening behavior, initial page fit, highlight color, optional session restoration, and AI configuration. Session restoration is off by default.
 
-Automatic update checks are enabled by default. A new version downloads in the background; Vellum asks before installing and restarting. You can also check manually from the Vellum menu or General settings.
+Sparkle handles automatic updates, with checks enabled by default. A new version downloads and prepares in the background, then Vellum offers to restart and update now or install when you normally quit. Manual checks from the Vellum menu or General settings use the same update window, with Vim-style release-note scrolling and letter shortcuts shown on its buttons. See the [update controls](docs/USER_GUIDE.md#settings-and-updates).
 
 ## Build from source
 

@@ -129,6 +129,7 @@ public enum AppText {
     case cancel
     case checkNow
     case checkForUpdatesMenu
+    case checkingForUpdates
     case checkingCodex
     case checkingEndpoint
     case chooseFile
@@ -155,6 +156,8 @@ public enum AppText {
     case downloadAndInstall
     case downloadedBytes(String)
     case downloadingVersion(String)
+    case downloadUpdate
+    case extractingUpdate
     case endpoint
     case executable
     case fetchModels
@@ -254,6 +257,11 @@ public enum AppText {
     case updateReadyTitle(String)
     case updateReadyInstallDetail(current: String)
     case restartAndUpdate
+    case closeUpdate
+    case retryUpdate
+    case updateError
+    case updateDetails
+    case updateNewVersion
     case updateWindowTitle
     case updates
     case useCodexDefault
@@ -366,6 +374,7 @@ public extension AppText {
         case .cancel: return "Cancel"
         case .checkNow: return "Check Now"
         case .checkForUpdatesMenu: return "Check for Updates..."
+        case .checkingForUpdates: return "Checking for updates"
         case .checkingCodex: return "Checking Codex..."
         case .checkingEndpoint: return "Checking endpoint..."
         case .chooseFile: return "Choose File"
@@ -392,6 +401,8 @@ public extension AppText {
         case .downloadAndInstall: return "Download and Install"
         case .downloadedBytes(let bytes): return "\(bytes) downloaded"
         case .downloadingVersion(let version): return "Downloading Vellum \(version)"
+        case .downloadUpdate: return "Download Update"
+        case .extractingUpdate: return "Preparing the update"
         case .endpoint: return "Endpoint"
         case .executable: return "Executable"
         case .fetchModels: return "Fetch Models"
@@ -489,8 +500,13 @@ public extension AppText {
         case .updateAvailableInstallDetail(let current): return "You are currently using Vellum \(current). Download and install the latest version now."
         case .updateAvailableGitHubDetail(let current): return "You are currently using Vellum \(current). Open GitHub to download the latest version."
         case .updateReadyTitle(let version): return "Vellum \(version) is ready"
-        case .updateReadyInstallDetail(let current): return "You are using Vellum \(current). The update is downloaded. Restart to install it."
+        case .updateReadyInstallDetail: return "The update is downloaded. Restart now, or it will install when you quit Vellum."
         case .restartAndUpdate: return "Restart and Update"
+        case .closeUpdate: return "Close"
+        case .retryUpdate: return "Try Again"
+        case .updateError: return "Update interrupted"
+        case .updateDetails: return "Details"
+        case .updateNewVersion: return "New version"
         case .updateWindowTitle: return "Vellum Update"
         case .updates: return "Updates"
         case .useCodexDefault: return "Use Codex default"
@@ -594,6 +610,7 @@ public extension AppText {
         case .cancel: return "取消"
         case .checkNow: return "立即检查"
         case .checkForUpdatesMenu: return "检查更新..."
+        case .checkingForUpdates: return "正在检查更新"
         case .checkingCodex: return "正在检查 Codex..."
         case .checkingEndpoint: return "正在检查端点..."
         case .chooseFile: return "选择文件"
@@ -620,6 +637,8 @@ public extension AppText {
         case .downloadAndInstall: return "下载并安装"
         case .downloadedBytes(let bytes): return "已下载 \(bytes)"
         case .downloadingVersion(let version): return "正在下载 Vellum \(version)"
+        case .downloadUpdate: return "下载更新"
+        case .extractingUpdate: return "正在准备更新"
         case .endpoint: return "端点"
         case .executable: return "可执行文件"
         case .fetchModels: return "获取模型"
@@ -717,8 +736,13 @@ public extension AppText {
         case .updateAvailableInstallDetail(let current): return "你当前正在使用 Vellum \(current)。现在可以下载并安装最新版本。"
         case .updateAvailableGitHubDetail(let current): return "你当前正在使用 Vellum \(current)。请打开 GitHub 下载最新版本。"
         case .updateReadyTitle(let version): return "Vellum \(version) 已下载"
-        case .updateReadyInstallDetail(let current): return "你当前正在使用 Vellum \(current)。更新已下载，确认后将安装并重新启动。"
+        case .updateReadyInstallDetail: return "更新已下载。现在重启即可安装；也会在正常退出 Vellum 时自动安装。"
         case .restartAndUpdate: return "重启并更新"
+        case .closeUpdate: return "关闭"
+        case .retryUpdate: return "重试"
+        case .updateError: return "更新已中断"
+        case .updateDetails: return "详细信息"
+        case .updateNewVersion: return "新版本"
         case .updateWindowTitle: return "Vellum 更新"
         case .updates: return "更新"
         case .useCodexDefault: return "使用 Codex 默认值"

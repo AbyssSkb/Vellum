@@ -11,6 +11,9 @@ let package = Package(
         .executable(name: "Vellum", targets: ["Vellum"]),
         .library(name: "VellumCore", targets: ["VellumCore"])
     ],
+    dependencies: [
+        .package(url: "https://github.com/sparkle-project/Sparkle", exact: "2.10.0")
+    ],
     targets: [
         .target(
             name: "VellumCore",
@@ -18,8 +21,9 @@ let package = Package(
         ),
         .executableTarget(
             name: "Vellum",
-            dependencies: ["VellumCore"],
-            path: "Sources/Vellum"
+            dependencies: ["VellumCore", .product(name: "Sparkle", package: "Sparkle")],
+            path: "Sources/Vellum",
+            linkerSettings: [.unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks"])]
         ),
         .testTarget(
             name: "VellumTests",
@@ -28,7 +32,7 @@ let package = Package(
         ),
         .testTarget(
             name: "VellumAppTests",
-            dependencies: ["Vellum", "VellumCore"],
+            dependencies: ["Vellum", "VellumCore", .product(name: "Sparkle", package: "Sparkle")],
             path: "Tests/VellumAppTests"
         )
     ]

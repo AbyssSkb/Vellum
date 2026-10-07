@@ -819,6 +819,31 @@ struct KeyboardControllerTests {
     }
 
     @Test
+    func standaloneUpdateWindowKeysRemainAvailableToItsOwnHandler() {
+        let readerWindow = makeWindow()
+        let updateWindow = makeWindow()
+        defer { readerWindow.close(); updateWindow.close() }
+        let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
+        let delegate = RecordingKeyboardDelegate()
+        controller.delegate = delegate
+        delegate.readerWindow = readerWindow
+        let event = WindowKeyboardEvent()
+        event.targetWindow = updateWindow
+
+        for key in ["j", "k", "\t", "\u{1b}", "r", "u", "o", "l", "c"] {
+            event.key = key
+            for type: NSEvent.EventType in [.keyDown, .keyUp] {
+                event.eventType = type
+                #expect(!controller.routeKeyEvent(event))
+            }
+        }
+        #expect(delegate.commands.isEmpty)
+        #expect(delegate.reader.actions.isEmpty)
+        #expect(delegate.focusSwitches == 0)
+        #expect(delegate.readerFocusRequests == 0)
+    }
+
+    @Test
     func readerWindowAndTextInputOwnershipAreCheckedBeforeAI() {
         let readerWindow = makeWindow()
         let settingsWindow = makeWindow()

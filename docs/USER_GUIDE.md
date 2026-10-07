@@ -178,7 +178,23 @@ In a conversation, type a follow-up question and press `Enter` to send. `Shift-E
 
 **General** contains the interface language, tab restoration, default open mode, initial page fit, default highlight color, double-click translation, update checks, and AI logs. **AI Providers**, **AI Explanation**, and **AI Conversation** configure AI. **Shortcuts** contains an in-app key reference.
 
-Automatic update checks are enabled initially. When an update is found, Vellum downloads it in the background, then asks you to restart and install. Choosing Later postpones installation and suppresses further automatic prompts for that version. You can also check manually in General settings or the Vellum menu.
+Sparkle handles updates, with automatic checks enabled initially. New versions download and prepare in the background. Once ready, choose **Restart and Update** to install immediately, or **Later** to keep reading; a prepared update can also install when you normally quit Vellum. Manual checks in General settings or the Vellum menu use the same update window.
+
+Long release notes scroll within the window while the action buttons stay visible. Button letters work in either case and apply to the actions currently shown.
+
+| Key | Action in the update window |
+| --- | --- |
+| `j` / `k` | Scroll down / up; counts work, for example `10j` |
+| `gg` / `G` | Beginning / end of the release notes |
+| `Control-D` / `Control-U` | Scroll down / up half a viewport |
+| `Control-F` / `Control-B` | Scroll down / up one viewport |
+| `U` | Download the update |
+| `R` | Restart and update, or retry after an error |
+| `L` | Later |
+| `C` | Cancel or close, as shown on the button |
+| `O` | Open the release page |
+| `Tab` / `Shift-Tab` | Focus the next / previous button |
+| `Enter` | Activate the focused button, or the primary action if none is focused |
 
 AI diagnostics are stored at `~/Library/Application Support/Vellum/Logs/ai-requests.jsonl`. Use **Open Log** or **Clear Log** in General settings. Logs include request / response excerpts and can contain document text; credential headers are redacted. Review the contents before sharing a log with a bug report.
 

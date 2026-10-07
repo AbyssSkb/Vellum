@@ -30,6 +30,15 @@ jobs:
         with:
           xcode-version: latest-stable
 
+      - name: Validate Sparkle signing configuration
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          if [[ -z "$SPARKLE_PRIVATE_KEY" ]]; then
+            echo "::error::Configure SPARKLE_PRIVATE_KEY to publish signed Sparkle updates. See docs/RELEASING.md."
+            exit 1
+          fi
+
       - name: Configure Developer ID signing
         id: signing
         shell: bash
@@ -90,20 +99,16 @@ jobs:
             VERSION="${TAG#v}"
           fi
 
-          BUILD_NUMBER="${GITHUB_RUN_NUMBER}"
           ARCHIVE_NAME="Vellum-${VERSION}-macOS"
 
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
-          echo "build_number=${BUILD_NUMBER}" >> "$GITHUB_OUTPUT"
           echo "archive_name=${ARCHIVE_NAME}" >> "$GITHUB_OUTPUT"
 
       - name: Run tests
         run: |
           # AppKit/PDFKit fixtures share the application, focus, and main run loop.
           swift test --no-parallel
-          swiftc Sources/Vellum/App/AppUpdateInstaller.swift Sources/Vellum/App/UpdateCancellation.swift Tests/InstallerTests/main.swift -o "$RUNNER_TEMP/vellum-installer-tests"
-          "$RUNNER_TEMP/vellum-installer-tests"
 
       - name: Build release notes
         id: release_notes
@@ -129,7 +134,6 @@ jobs:
       - name: Package app
         env:
           APP_VERSION: ${{ steps.version.outputs.version }}
-          BUILD_NUMBER: ${{ steps.version.outputs.build_number }}
           CODE_SIGN_IDENTITY: ${{ steps.signing.outputs.identity }}
         run: scripts/package-app.sh
 
@@ -175,6 +179,15 @@ jobs:
       - name: Generate final disk image checksum
         run: shasum -a 256 "dist/${{ steps.version.outputs.archive_name }}.dmg" > "dist/${{ steps.version.outputs.archive_name }}.dmg.sha256"
 
+      - name: Generate signed Sparkle appcast
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          scripts/generate-appcast.sh \
+            "dist/${{ steps.version.outputs.archive_name }}.dmg" \
+            "${{ steps.release_notes.outputs.path }}" \
+            "${{ steps.version.outputs.tag }}"
+
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v3.0.0
         with:
@@ -185,6 +198,7 @@ jobs:
           files: |
             dist/${{ steps.version.outputs.archive_name }}.dmg
             dist/${{ steps.version.outputs.archive_name }}.dmg.sha256
+            dist/appcast.xml
 
       - name: Delete signing keychain
         if: always() && steps.signing.outputs.available == 'true'

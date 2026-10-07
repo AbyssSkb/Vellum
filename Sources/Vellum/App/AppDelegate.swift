@@ -4,7 +4,7 @@ import VellumCore
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     weak var appState: AppState?
-    private lazy var updateChecker = GitHubUpdateChecker(prepareToTerminate: { [weak self] in
+    private lazy var updateChecker = SparkleUpdateController(prepareToTerminate: { [weak self] in
         self?.appState?.prepareToTerminate() ?? true
     })
     private var settingsWindowController: SettingsWindowController?
@@ -22,9 +22,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.checkForUpdates()
             }
         }
-        if AppPreferences.automaticallyChecksForUpdates() {
-            updateChecker.checkAutomaticallySoon()
-        }
+        updateChecker.start()
         DispatchQueue.main.async {
             self.closeDuplicateMainWindows()
         }
@@ -64,7 +62,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc func checkForUpdates() {
-        updateChecker.checkForUpdates(.manual)
+        updateChecker.checkForUpdates()
     }
 
     func openSettings() {
