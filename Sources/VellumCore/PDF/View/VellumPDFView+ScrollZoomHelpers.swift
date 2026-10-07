@@ -320,18 +320,25 @@ extension VellumPDFView {
     }
 
     func scrollToDocumentEdge(_ edge: VerticalEdge) {
-        guard let scrollView = pdfScrollView else { return }
+        guard let scrollView = pdfScrollView,
+              let documentView = scrollView.documentView else { return }
 
         let clipView = scrollView.contentView
-        let documentSize = scrollView.documentView?.bounds.size ?? .zero
+        let documentSize = documentView.bounds.size
         let maxY = max(0, documentSize.height - clipView.bounds.height)
         let currentOrigin = clipView.bounds.origin
         let geometryEdge: ScrollGeometry.VerticalEdge = edge == .top ? .top : .bottom
-        let nextY = ScrollGeometry.verticalEdgeCoordinate(
+        var nextY = ScrollGeometry.verticalEdgeCoordinate(
             edge: geometryEdge,
-            isFlipped: scrollView.documentView?.isFlipped == true,
+            isFlipped: documentView.isFlipped,
             maxValue: maxY
         )
+        if edge == .top, documentSize.height > clipView.bounds.height,
+           let page = document?.page(at: 0) {
+            let paper = convert(convert(page.bounds(for: displayBox), from: page), to: documentView)
+            let paperTop = documentView.isFlipped ? paper.minY : paper.maxY - clipView.bounds.height
+            nextY = min(max(paperTop, 0), maxY)
+        }
 
         clipView.scroll(to: NSPoint(x: currentOrigin.x, y: nextY))
         scrollView.reflectScrolledClipView(clipView)
