@@ -178,15 +178,22 @@ final class PageOverviewOverlayView: NSView {
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
 
-        NSColor.black.withAlphaComponent(0.58).setFill()
+        TokyoNight.backgroundDeep.withAlphaComponent(0.90).setFill()
         bounds.fill()
 
         let panelRect = gridPanelRect()
         let panelPath = NSBezierPath(roundedRect: panelRect, xRadius: 8, yRadius: 8)
-        TokyoNight.backgroundDeep.withAlphaComponent(0.92).setFill()
+        NSGraphicsContext.saveGraphicsState()
+        let shadow = NSShadow()
+        shadow.shadowColor = NSColor.black.withAlphaComponent(0.34)
+        shadow.shadowBlurRadius = 24
+        shadow.shadowOffset = NSSize(width: 0, height: -8)
+        shadow.set()
+        TokyoNight.panelElevated.setFill()
         panelPath.fill()
-        TokyoNight.border.withAlphaComponent(0.72).setStroke()
-        panelPath.lineWidth = 1
+        NSGraphicsContext.restoreGraphicsState()
+        TokyoNight.foreground.withAlphaComponent(0.14).setStroke()
+        panelPath.lineWidth = 0.5
         panelPath.stroke()
 
         drawHeader(in: panelRect)
@@ -229,8 +236,8 @@ final class PageOverviewOverlayView: NSView {
     }
 
     private func gridPanelRect() -> NSRect {
-        let width = min(bounds.width - 24, 1800)
-        let height = min(bounds.height - 24, fittedPanelHeight(for: width))
+        let width = max(1, min(bounds.width - 48, 980))
+        let height = max(1, min(bounds.height - 48, fittedPanelHeight(for: width)))
         return NSRect(
             x: bounds.midX - width / 2,
             y: bounds.midY - height / 2,
@@ -240,10 +247,10 @@ final class PageOverviewOverlayView: NSView {
     }
 
     private func fittedPanelHeight(for width: CGFloat) -> CGFloat {
-        let spacing: CGFloat = 12
-        let horizontalInset: CGFloat = 16
+        let spacing: CGFloat = 18
+        let horizontalInset: CGFloat = 20
         let bottomInset: CGFloat = 16
-        let headerHeight: CGFloat = 46
+        let headerHeight: CGFloat = 44
         let labelHeight: CGFloat = 26
         let padding: CGFloat = 6
         let gridWidth = width - horizontalInset * 2
@@ -254,10 +261,10 @@ final class PageOverviewOverlayView: NSView {
     }
 
     private func cellRect(at position: Int, panelRect: NSRect) -> NSRect {
-        let spacing: CGFloat = 12
-        let horizontalInset: CGFloat = 16
+        let spacing: CGFloat = 18
+        let horizontalInset: CGFloat = 20
         let bottomInset: CGFloat = 16
-        let headerHeight: CGFloat = 46
+        let headerHeight: CGFloat = 44
         let rows = max(1, Int(ceil(Double(visibleCount) / Double(columns))))
         let gridWidth = panelRect.width - horizontalInset * 2
         let gridHeight = panelRect.height - headerHeight - bottomInset
@@ -278,26 +285,24 @@ final class PageOverviewOverlayView: NSView {
     private func drawHeader(in panelRect: NSRect) {
         let title = AppUILanguage.saved().text(.pageOverviewPosition(selectedIndex + 1, document.pageCount))
         let attributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 13, weight: .medium),
-            .foregroundColor: TokyoNight.foreground
+            .font: NSFont.systemFont(ofSize: 12, weight: .medium),
+            .foregroundColor: TokyoNight.muted
         ]
         title.draw(
-            at: NSPoint(x: panelRect.minX + 22, y: panelRect.maxY - 34),
+            at: NSPoint(x: panelRect.minX + 26, y: panelRect.maxY - 28),
             withAttributes: attributes
         )
+        let divider = NSBezierPath()
+        divider.move(to: NSPoint(x: panelRect.minX + 20, y: panelRect.maxY - 38))
+        divider.line(to: NSPoint(x: panelRect.maxX - 20, y: panelRect.maxY - 38))
+        divider.lineWidth = 0.5
+        TokyoNight.foreground.withAlphaComponent(0.07).setStroke()
+        divider.stroke()
     }
 
     private func drawCell(pageIndex: Int, in slotRect: NSRect) {
         let rect = fittedCellRect(for: pageIndex, in: slotRect)
         let isSelected = pageIndex == selectedIndex
-        let path = NSBezierPath(roundedRect: rect, xRadius: 8, yRadius: 8)
-        (isSelected ? TokyoNight.selection : TokyoNight.panel).withAlphaComponent(isSelected ? 0.95 : 0.88).setFill()
-        path.fill()
-
-        (isSelected ? TokyoNight.blue : TokyoNight.border).withAlphaComponent(isSelected ? 1 : 0.65).setStroke()
-        path.lineWidth = isSelected ? 1.5 : 1
-        path.stroke()
-
         let labelHeight: CGFloat = 26
         let imageRect = NSRect(
             x: rect.minX + 6,
@@ -306,19 +311,39 @@ final class PageOverviewOverlayView: NSView {
             height: rect.height - labelHeight - 12
         )
 
+        let paper = NSBezierPath(roundedRect: imageRect, xRadius: 3, yRadius: 3)
+        NSGraphicsContext.saveGraphicsState()
+        let shadow = NSShadow()
+        shadow.shadowColor = NSColor.black.withAlphaComponent(isSelected ? 0.34 : 0.20)
+        shadow.shadowBlurRadius = isSelected ? 14 : 8
+        shadow.shadowOffset = NSSize(width: 0, height: isSelected ? -5 : -3)
+        shadow.set()
+        NSColor.white.setFill()
+        paper.fill()
+        NSGraphicsContext.restoreGraphicsState()
+
+        if isSelected {
+            let outline = NSBezierPath(roundedRect: imageRect.insetBy(dx: -3, dy: -3), xRadius: 5, yRadius: 5)
+            TokyoNight.blue.withAlphaComponent(0.95).setStroke()
+            outline.lineWidth = 1.5
+            outline.stroke()
+        }
+
         if let image = thumbnails.images[pageIndex] {
             drawImage(image, in: imageRect)
         }
 
-        drawPageNumber(pageIndex + 1, in: NSRect(x: rect.minX, y: rect.minY + 8, width: rect.width, height: labelHeight))
+        drawPageNumber(pageIndex + 1, selected: isSelected,
+                       in: NSRect(x: rect.minX, y: rect.minY, width: rect.width, height: labelHeight))
     }
 
     private func fittedCellRect(for pageIndex: Int, in slotRect: NSRect) -> NSRect {
         let labelHeight: CGFloat = 26
         let padding: CGFloat = 6
         let aspectRatio = pageAspectRatio(for: pageIndex)
-        let maxImageWidth = max(1, slotRect.width - padding * 2)
-        let maxImageHeight = max(1, slotRect.height - labelHeight - padding * 2)
+        let previewScale: CGFloat = pageIndex == selectedIndex ? 1 : 0.96
+        let maxImageWidth = max(1, slotRect.width - padding * 2) * previewScale
+        let maxImageHeight = max(1, slotRect.height - labelHeight - padding * 2) * previewScale
 
         var imageWidth = maxImageWidth
         var imageHeight = imageWidth / aspectRatio
@@ -331,7 +356,7 @@ final class PageOverviewOverlayView: NSView {
         let cardHeight = imageHeight + labelHeight + padding * 2
         return NSRect(
             x: slotRect.midX - cardWidth / 2,
-            y: slotRect.midY - cardHeight / 2,
+            y: slotRect.minY,
             width: cardWidth,
             height: cardHeight
         )
@@ -350,23 +375,28 @@ final class PageOverviewOverlayView: NSView {
             height: fittedSize.height
         )
 
-        NSColor.white.withAlphaComponent(0.96).setFill()
-        NSBezierPath(roundedRect: fittedRect.insetBy(dx: -1, dy: -1), xRadius: 4, yRadius: 4).fill()
         NSGraphicsContext.saveGraphicsState()
+        NSBezierPath(roundedRect: fittedRect, xRadius: 3, yRadius: 3).addClip()
         NSGraphicsContext.current?.imageInterpolation = .high
         image.draw(in: fittedRect, from: .zero, operation: .sourceOver, fraction: 1)
         NSGraphicsContext.restoreGraphicsState()
     }
 
-    private func drawPageNumber(_ pageNumber: Int, in rect: NSRect) {
+    private func drawPageNumber(_ pageNumber: Int, selected: Bool, in rect: NSRect) {
         let text = "\(pageNumber)"
         let attributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .semibold),
-            .foregroundColor: TokyoNight.foreground
+            .font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: selected ? .semibold : .regular),
+            .foregroundColor: selected ? TokyoNight.foreground : TokyoNight.muted
         ]
         let size = text.size(withAttributes: attributes)
+        if selected {
+            let badge = NSRect(x: rect.midX - max(32, size.width + 18) / 2,
+                               y: rect.midY - 10, width: max(32, size.width + 18), height: 20)
+            TokyoNight.blue.withAlphaComponent(0.16).setFill()
+            NSBezierPath(roundedRect: badge, xRadius: 5, yRadius: 5).fill()
+        }
         text.draw(
-            at: NSPoint(x: rect.midX - size.width / 2, y: rect.minY + 5),
+            at: NSPoint(x: rect.midX - size.width / 2, y: rect.midY - size.height / 2),
             withAttributes: attributes
         )
     }
