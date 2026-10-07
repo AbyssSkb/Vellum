@@ -6,8 +6,18 @@ struct ClippedTabTitle: NSViewRepresentable {
     let isSelected: Bool
     var isHovered = false
 
+    @MainActor
+    final class Coordinator {
+        var title: String?
+        var isSelected = false
+        var isHovered = false
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
     func makeNSView(context: Context) -> PDFOutlineTitleView {
         let view = PDFOutlineTitleView()
+        view.repeatsMarquee = false
         let textField = view.textField
         textField.alignment = .left
         textField.isSelectable = false
@@ -25,10 +35,18 @@ struct ClippedTabTitle: NSViewRepresentable {
             ? TokyoNight.foreground
             : TokyoNight.muted
         view.invalidateIntrinsicContentSize()
-        // Preserve the shared marquee's progress across unrelated reader updates.
+        let previous = context.coordinator
+        let activated = isSelected && (!previous.isSelected || previous.title != title)
+        let hoverEntered = isHovered && !previous.isHovered
+        let hoverLeft = !isHovered && previous.isHovered
+        let deselected = !isSelected && previous.isSelected && !isHovered
+        previous.title = title
+        previous.isSelected = isSelected
+        previous.isHovered = isHovered
+
         if view.title != title { view.title = title }
-        let shouldScroll = isSelected || isHovered
-        if view.isSelected != shouldScroll { view.isSelected = shouldScroll }
+        if hoverLeft || deselected { view.stopMarquee() }
+        if activated || hoverEntered { view.playMarqueeOnce() }
         view.needsLayout = true
     }
 }

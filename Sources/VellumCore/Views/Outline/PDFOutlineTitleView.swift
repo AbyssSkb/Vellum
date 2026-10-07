@@ -1,7 +1,7 @@
 @preconcurrency import AppKit
 import QuartzCore
 
-final class PDFOutlineTitleView: NSView {
+final class PDFOutlineTitleView: NSView, CAAnimationDelegate {
     let textField = NSTextField(labelWithString: "")
     var title = "" {
         didSet {
@@ -18,10 +18,13 @@ final class PDFOutlineTitleView: NSView {
             updatePresentation(reset: true)
         }
     }
+    var repeatsMarquee = true
 
     private let marqueeLayer = CATextLayer()
     private weak var observedClipView: NSClipView?
     private var animationDistance: CGFloat?
+    private var singlePlaybackPending = false
+    private var singlePlaybackGeneration = 0
     private static let animationKey = "outlineTitleScroll"
 
     override init(frame frameRect: NSRect) {
@@ -52,6 +55,31 @@ final class PDFOutlineTitleView: NSView {
 
     override var intrinsicContentSize: NSSize { textField.intrinsicContentSize }
 
+    func playMarqueeOnce() {
+        singlePlaybackPending = true
+        singlePlaybackGeneration += 1
+        if isSelected {
+            updatePresentation(reset: true)
+        } else {
+            isSelected = true
+        }
+    }
+
+    func stopMarquee() {
+        singlePlaybackPending = false
+        singlePlaybackGeneration += 1
+        isSelected = false
+    }
+
+    nonisolated func animationDidStop(_ animation: CAAnimation, finished: Bool) {
+        guard finished else { return }
+        let generation = animation.value(forKey: "singlePlaybackGeneration") as? Int
+        MainActor.assumeIsolated {
+            guard !repeatsMarquee, generation == singlePlaybackGeneration else { return }
+            stopMarquee()
+        }
+    }
+
     override func layout() {
         super.layout()
         updatePresentation()
@@ -60,7 +88,7 @@ final class PDFOutlineTitleView: NSView {
     override func setFrameSize(_ newSize: NSSize) {
         let changed = newSize != frame.size
         super.setFrameSize(newSize)
-        if changed { updatePresentation(reset: true) }
+        if changed { updatePresentation(reset: repeatsMarquee) }
     }
 
     override func viewDidMoveToWindow() {
@@ -104,9 +132,12 @@ final class PDFOutlineTitleView: NSView {
     private func updatePresentation(reset: Bool = false) {
         let size = textField.intrinsicContentSize
         let overflow = ceil(size.width) - bounds.width
+        let reducesMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        if reducesMotion || (bounds.width > 0 && overflow <= 0) { singlePlaybackPending = false }
+        let continuingSinglePlayback = animationDistance == overflow && !reset
         let shouldAnimate = isSelected && overflow > 0 && bounds.width > 0
             && window?.isVisible == true && !isHiddenOrHasHiddenAncestor && !visibleRect.isEmpty
-            && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+            && !reducesMotion && (repeatsMarquee || singlePlaybackPending || continuingSinglePlayback)
         let nextDistance = shouldAnimate ? overflow : nil
 
         CATransaction.begin()
@@ -142,7 +173,12 @@ final class PDFOutlineTitleView: NSView {
                 animation.calculationMode = .linear
                 animation.timingFunction = CAMediaTimingFunction(name: .linear)
                 animation.duration = duration
-                animation.repeatCount = .infinity
+                animation.repeatCount = repeatsMarquee ? .infinity : 0
+                if !repeatsMarquee {
+                    singlePlaybackPending = false
+                    animation.setValue(singlePlaybackGeneration, forKey: "singlePlaybackGeneration")
+                    animation.delegate = self
+                }
                 marqueeLayer.add(animation, forKey: Self.animationKey)
             }
         }
