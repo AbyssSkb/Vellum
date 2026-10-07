@@ -43,6 +43,7 @@ final class UpdateWindowController: NSWindowController {
     private var standardStatusConstraints: [NSLayoutConstraint] = []
     private var compactStatusConstraints: [NSLayoutConstraint] = []
     private var compactStatus = false
+    private var contentWidth: NSLayoutConstraint?
     private var progressWidth: NSLayoutConstraint?
     private var notesBottom: NSLayoutConstraint?
     private var notesCollapsedHeight: NSLayoutConstraint?
@@ -105,7 +106,7 @@ final class UpdateWindowController: NSWindowController {
         titleLabel.stringValue = language.text(title)
         iconView.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
         iconView.contentTintColor = content.phase == .error ? TokyoNight.red
-            : content.phase == .upToDate ? TokyoNight.blue : TokyoNight.muted
+            : content.phase == .upToDate ? .systemGreen : TokyoNight.muted
         detailLabel.stringValue = content.phase == .error ? "" : content.message ?? (content.phase == .ready
             ? language.text(.updateReadyInstallDetail(current: content.currentVersion))
             : content.phase == .installing ? language.text(.installingDetail) : "")
@@ -145,21 +146,27 @@ final class UpdateWindowController: NSWindowController {
             notesBottom?.isActive = hasBody
             notesCollapsedHeight?.isActive = !hasBody
         }
-        if let window {
-            let size = window.frameRect(forContentRect: NSRect(x: 0, y: 0, width: 560, height: hasBody ? 500 : compactStatus ? 232 : 250)).size
-            if abs(window.frame.height - size.height) > 0.5 {
-                let origin = NSPoint(x: window.frame.minX, y: window.frame.maxY - size.height)
-                window.setFrame(NSRect(origin: origin, size: size), display: true, animate: window.isVisible)
-            }
-        }
-        updateProgress(content)
-
         let sameActions = previous.map { old in
             old.actions.count == content.actions.count && zip(old.actions, content.actions).allSatisfy { pair in
                 pair.0.title == pair.1.title && pair.0.key == pair.1.key && pair.0.isPrimary == pair.1.isPrimary
             }
         } ?? false
         if !sameActions || wasCompact != compactStatus { rebuildActions(content.actions) }
+        let buttonWidth = buttons.reduce(CGFloat(0)) { $0 + $1.fittingSize.width }
+            + CGFloat(max(0, footer.arrangedSubviews.count - 1)) * footer.spacing
+        let labelWidth = max(titleLabel.intrinsicContentSize.width + (compactStatus ? 0 : 36),
+                             versionsLabel.intrinsicContentSize.width)
+        let width = hasBody ? 560 : min(560, max(320, ceil(max(labelWidth, buttonWidth)) + 48))
+        if contentWidth?.constant != width { progressFill.layer?.removeAnimation(forKey: "preparing") }
+        contentWidth?.constant = width
+        if let window {
+            let size = window.frameRect(forContentRect: NSRect(x: 0, y: 0, width: width, height: hasBody ? 500 : compactStatus ? 232 : 250)).size
+            if abs(window.frame.width - size.width) > 0.5 || abs(window.frame.height - size.height) > 0.5 {
+                let origin = NSPoint(x: window.frame.midX - size.width / 2, y: window.frame.maxY - size.height)
+                window.setFrame(NSRect(origin: origin, size: size), display: true, animate: window.isVisible)
+            }
+        }
+        updateProgress(content)
         window?.contentView?.layoutSubtreeIfNeeded()
     }
 
@@ -254,8 +261,9 @@ final class UpdateWindowController: NSWindowController {
         ]
         NSLayoutConstraint.activate(standardStatusConstraints)
 
+        contentWidth = root.widthAnchor.constraint(equalToConstant: 560)
         NSLayoutConstraint.activate([
-            root.widthAnchor.constraint(equalToConstant: 560),
+            contentWidth!,
             header.leadingAnchor.constraint(equalTo: root.leadingAnchor),
             header.trailingAnchor.constraint(equalTo: root.trailingAnchor),
             header.topAnchor.constraint(equalTo: root.topAnchor),
@@ -328,15 +336,16 @@ final class UpdateWindowController: NSWindowController {
         let inProgress = [.checking, .downloading, .extracting, .installing].contains(content.phase)
         progressTrack.isHidden = !inProgress
         guard inProgress else { progressFill.layer?.removeAnimation(forKey: "preparing"); return }
+        let trackWidth = (contentWidth?.constant ?? 560) - 48
         if let progress = content.progress {
             progressFill.layer?.removeAnimation(forKey: "preparing")
-            progressWidth?.constant = 512 * min(1, max(0, progress))
+            progressWidth?.constant = trackWidth * min(1, max(0, progress))
         } else {
-            progressWidth?.constant = 170
+            progressWidth?.constant = trackWidth / 3
             if inProgress, progressFill.layer?.animation(forKey: "preparing") == nil {
                 let animation = CABasicAnimation(keyPath: "transform.translation.x")
-                animation.fromValue = -170
-                animation.toValue = 512
+                animation.fromValue = -trackWidth / 3
+                animation.toValue = trackWidth
                 animation.duration = 1.6
                 animation.repeatCount = .infinity
                 progressFill.layer?.add(animation, forKey: "preparing")

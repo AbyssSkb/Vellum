@@ -123,15 +123,18 @@ struct UpdateWindowTests {
         let window = try #require(controller.window)
         let compactHeight = window.frame.height
         let top = window.frame.maxY
-        let left = window.frame.minX
+        let center = window.frame.midX
+        let compactWidth = window.frame.width
         controller.update(UpdateWindowContent(phase: .available, currentVersion: "0.8.7", updateVersion: "0.8.8", releaseNotes: longNotes()))
         #expect(window.frame.height > compactHeight)
         #expect(window.frame.maxY == top)
-        #expect(window.frame.minX == left)
+        #expect(window.frame.midX == center)
+        #expect(window.frame.width > compactWidth)
         controller.update(UpdateWindowContent(phase: .upToDate, currentVersion: "0.8.7"))
         #expect(window.frame.height == compactHeight)
         #expect(window.frame.maxY == top)
-        #expect(window.frame.minX == left)
+        #expect(window.frame.midX == center)
+        #expect(window.frame.width == compactWidth)
     }
 
     @Test
@@ -151,6 +154,8 @@ struct UpdateWindowTests {
         let icon = try #require(views.compactMap { $0 as? NSImageView }.first)
         let button = try #require(views.compactMap { $0 as? NSButton }.first)
         #expect(abs(root.bounds.height - 232) < 0.5)
+        #expect(root.bounds.width < 560)
+        #expect(icon.contentTintColor == .systemGreen)
         #expect(abs(root.convert(icon.bounds, from: icon).midX - root.bounds.midX) < 0.5)
         // Native stack layout can round an odd-width button by half a point.
         #expect(abs(root.convert(button.bounds, from: button).midX - root.bounds.midX) <= 0.5)
@@ -166,6 +171,46 @@ struct UpdateWindowTests {
         #expect(abs(root.convert(restoredButton.bounds, from: restoredButton).midX - root.bounds.midX) <= 0.5)
         send("c", to: window)
         #expect(closes == 2)
+    }
+
+    @Test
+    func statusWidthFitsLocalizedLabelsAndActionsAndScalesProgress() throws {
+        _ = NSApplication.shared
+        let preference = AppPreferenceKeys.appLanguage
+        let previous = UserDefaults.standard.object(forKey: preference)
+        defer { UserDefaults.standard.set(previous, forKey: preference) }
+        let controller = UpdateWindowController()
+        defer { controller.dismiss() }
+        for language in AppUILanguage.allCases {
+            UserDefaults.standard.set(language.rawValue, forKey: preference)
+            controller.update(UpdateWindowContent(phase: .upToDate, currentVersion: "0.8.9", actions: [
+                UpdateWindowAction(title: language.text(.closeUpdate), key: "c", isPrimary: true) {}
+            ]))
+            let root = try #require(controller.window?.contentView)
+            let compactWidth = root.bounds.width
+            #expect(compactWidth >= 320 && compactWidth < 560)
+            controller.update(UpdateWindowContent(phase: .checking, currentVersion: "0.8.9", progress: 1, actions: [
+                UpdateWindowAction(title: "Cancel This Update Check and Return to Reading", key: "c") {}
+            ]))
+            #expect(root.bounds.width > compactWidth && root.bounds.width <= 560)
+            let views = descendants(of: root)
+            for button in views.compactMap({ $0 as? NSButton }) {
+                #expect(root.bounds.contains(root.convert(button.bounds, from: button)))
+            }
+            for label in views.compactMap({ $0 as? NSTextField }).filter({ !$0.isHidden && !$0.stringValue.isEmpty }) {
+                #expect(label.frame.width >= label.intrinsicContentSize.width)
+            }
+            let fill = try #require(views.first { $0.layer?.backgroundColor == TokyoNight.blue.cgColor })
+            #expect(abs(fill.bounds.width - root.bounds.width + 48) < 0.5)
+            controller.update(UpdateWindowContent(phase: .checking, currentVersion: "0.8.9"))
+            let compactAnimation = try #require(fill.layer?.animation(forKey: "preparing") as? CABasicAnimation)
+            #expect((compactAnimation.toValue as? NSNumber)?.doubleValue == Double(root.bounds.width - 48))
+            controller.update(UpdateWindowContent(phase: .checking, currentVersion: "0.8.9", releaseNotes: longNotes()))
+            let expandedAnimation = try #require(fill.layer?.animation(forKey: "preparing") as? CABasicAnimation)
+            #expect((expandedAnimation.toValue as? NSNumber)?.doubleValue == 512)
+            controller.update(UpdateWindowContent(phase: .upToDate, currentVersion: "0.8.9"))
+            #expect(root.bounds.width == compactWidth)
+        }
     }
 
     @Test
