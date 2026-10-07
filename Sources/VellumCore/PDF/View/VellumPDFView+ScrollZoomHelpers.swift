@@ -165,6 +165,9 @@ extension VellumPDFView {
     func cancelPendingRestore() {
         restoreGeneration += 1
         pendingRestoreAction = nil
+        for overlay in subviews.compactMap({ $0 as? PageOverviewOverlayView }) where overlay.dismissed {
+            overlay.dismiss(animated: false)
+        }
     }
 
     @discardableResult

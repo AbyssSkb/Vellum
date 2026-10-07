@@ -138,6 +138,124 @@ struct PageOverviewGalleryTests {
     }
 
     @Test
+    func exitReturnsOpaquePaperToItsReaderGeometryBeforeRemovingTheOverlay() async throws {
+        guard !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else { return }
+        _ = NSApplication.shared
+        let document = PDFDocument()
+        for index in 0..<3 {
+            let page = PDFPage()
+            page.setBounds(NSRect(x: 0, y: 0, width: 612, height: 792), for: .mediaBox)
+            document.insert(page, at: index)
+        }
+        let loader = PageOverviewThumbnailLoader()
+        let overlay = PageOverviewOverlayView(document: document, selectedIndex: 1, columns: 3,
+                                              thumbnailLoader: loader)
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1000, height: 700),
+                              styleMask: .borderless, backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        let host = NSView(frame: window.contentView!.bounds)
+        window.contentView = host
+        overlay.frame = host.bounds
+        host.addSubview(overlay)
+        window.orderFront(nil)
+        defer { overlay.dismiss(animated: false); window.contentView = nil; window.close() }
+        for _ in 0..<100 {
+            if loader.images.count == 3 { break }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(loader.images.count == 3)
+        let selected = try #require(overlay.layer?.sublayers?.first { $0.name == "page-1" })
+        let neighbor = try #require(overlay.layer?.sublayers?.first { $0.name == "page-0" })
+        let backdrop = try #require(overlay.layer?.sublayers?.first { $0.zPosition == -1 })
+        let target = NSRect(x: -40, y: -180, width: 800, height: 800 * 792 / 612)
+        let scale = target.width / overlay.paperSize(for: 1).width
+
+        overlay.dismiss(to: target)
+
+        #expect(abs(selected.position.x - target.midX) < 0.001)
+        #expect(abs(selected.position.y - (target.midY - 14 * scale)) < 0.001)
+        #expect(abs(selected.transform.m11 - scale) < 0.001)
+        #expect(selected.opacity == 1)
+        #expect(neighbor.opacity == 0)
+        #expect(backdrop.opacity == 1)
+        let movement = try #require(selected.animation(forKey: "galleryTransition") as? CAAnimationGroup)
+        #expect(abs(movement.duration - 0.28) < 0.001)
+        let fade = try #require(overlay.layer?.animation(forKey: "galleryExitFade") as? CAKeyframeAnimation)
+        #expect(fade.keyPath == "opacity")
+        #expect(fade.values?.compactMap { ($0 as? NSNumber)?.doubleValue } == [1, 1, 0])
+        #expect(fade.keyTimes?.map(\.doubleValue) == [0, 0.28 / (0.28 + 0.06), 1])
+        #expect(abs(fade.duration - 0.34) < 0.001)
+        let remainsMounted = overlay.superview === host
+        #expect(remainsMounted)
+        try await Task.sleep(for: .milliseconds(450))
+        #expect(overlay.superview == nil)
+    }
+
+    @Test
+    func rapidReopenAndCancellationRemoveAnExitingGalleryImmediately() async throws {
+        _ = NSApplication.shared
+        let document = PDFDocument()
+        let page = PDFPage()
+        page.setBounds(NSRect(x: 0, y: 0, width: 612, height: 792), for: .mediaBox)
+        document.insert(page, at: 0)
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1000, height: 700),
+                              styleMask: .borderless, backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        let reader = VellumPDFView(frame: window.contentView!.bounds)
+        window.contentView = reader
+        reader.displayMode = .singlePageContinuous
+        reader.document = document
+        reader.autoScales = false
+        reader.scaleFactor = 1
+        reader.layoutDocumentView()
+        reader.centerBothAxes(on: reader.pageCenterDestination(for: page))
+        window.orderFront(nil)
+        defer { reader.cancelPageOverview(); window.contentView = nil; window.close() }
+        #expect(reader.beginPageOverview())
+        let original = try #require(reader.pageOverviewController?.overlay)
+        for _ in 0..<100 {
+            if original.alphaValue == 1 { break }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(original.alphaValue == 1)
+        reader.finishPageOverview()
+        #expect(reader.beginPageOverview())
+        let replacement = try #require(reader.pageOverviewController?.overlay)
+        #expect(original.superview == nil)
+        try await Task.sleep(for: .milliseconds(450))
+        let replacementRemainsMounted = replacement.superview === reader
+        #expect(replacementRemainsMounted)
+
+        reader.finishPageOverview()
+        reader.cancelPageOverview()
+        #expect(replacement.superview == nil)
+        #expect(reader.subviews.compactMap { $0 as? PageOverviewOverlayView }.isEmpty)
+
+        for resizes in [false, true] {
+            #expect(reader.beginPageOverview())
+            let exiting = try #require(reader.pageOverviewController?.overlay)
+            for _ in 0..<100 {
+                if exiting.alphaValue == 1 { break }
+                try await Task.sleep(for: .milliseconds(10))
+            }
+            #expect(exiting.alphaValue == 1)
+            reader.finishPageOverview()
+            for _ in 0..<20 {
+                if exiting.dismissed { break }
+                try await Task.sleep(for: .milliseconds(5))
+            }
+            #expect(exiting.dismissed)
+            if resizes {
+                exiting.setFrameSize(NSSize(width: exiting.frame.width - 100, height: exiting.frame.height))
+            } else {
+                reader.vimScroll(x: 0, y: 30)
+                reader.stopScrollAnimation()
+            }
+            #expect(exiting.superview == nil)
+        }
+    }
+
+    @Test
     func rapidRowNavigationRetainsDepartingPaperAndPointerSelectionUsesController() async throws {
         _ = NSApplication.shared
         let document = PDFDocument()

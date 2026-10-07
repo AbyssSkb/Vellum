@@ -11,6 +11,7 @@ extension VellumPDFView {
         stopScrollAnimation()
         stopZoomState()
         hideAIExplanationPopover()
+        cancelPageOverview()
 
         let pageIndex = currentVisiblePageIndex(in: document)
         let overlay = PageOverviewOverlayView(
@@ -24,7 +25,6 @@ extension VellumPDFView {
         overlay.frame = bounds
         overlay.autoresizingMask = [.width, .height]
 
-        pageOverviewController?.dismiss(animated: false)
         addSubview(overlay)
         pageOverviewController = PageOverviewController(
             overlay: overlay,
@@ -43,21 +43,34 @@ extension VellumPDFView {
     }
 
     func finishPageOverview() {
-        guard let pageOverviewController else { return }
+        guard let pageOverviewController, let document else { return }
         let selectedIndex = pageOverviewController.selectedIndex
         let originalIndex = pageOverviewController.originalIndex
-
-        pageOverviewController.dismiss()
+        let overlay = pageOverviewController.overlay
         self.pageOverviewController = nil
-
-        guard selectedIndex != originalIndex else { return }
-
-        vimGoToPage(selectedIndex + 1)
+        cancelPendingRestore()
+        if selectedIndex != originalIndex { vimGoToPage(selectedIndex + 1) }
+        let generation = restoreGeneration
+        // PDFKit repeats page navigation on the next turn; measure its settled position.
+        DispatchQueue.main.async { [weak self] in
+            guard let self, overlay.superview === self, self.document === document,
+                  self.restoreGeneration == generation else {
+                overlay.dismiss(animated: false)
+                return
+            }
+            self.layoutSubtreeIfNeeded()
+            let rect = document.page(at: selectedIndex).flatMap {
+                self.viewRect(for: $0.bounds(for: self.displayBox), on: $0)
+            }
+            overlay.dismiss(to: rect)
+        }
     }
 
     func cancelPageOverview() {
-        pageOverviewController?.dismiss(animated: false)
         pageOverviewController = nil
+        for overlay in subviews.compactMap({ $0 as? PageOverviewOverlayView }) {
+            overlay.dismiss(animated: false)
+        }
     }
 
     private func currentVisiblePageIndex(in document: PDFDocument) -> Int {
@@ -124,9 +137,6 @@ final class PageOverviewController {
         overlay.update(selectedIndex: selectedIndex)
     }
 
-    func dismiss(animated: Bool = true) {
-        overlay.dismiss(animated: animated)
-    }
 }
 
 @MainActor
@@ -145,7 +155,7 @@ final class PageOverviewOverlayView: NSView {
     private let positionLabel = NSTextField(labelWithString: "")
     private let previousButton = NSButton()
     private let nextButton = NSButton()
-    private var dismissed = false
+    private(set) var dismissed = false
     private var transitionGeneration = 0
     private static let transitionKey = "galleryTransition"
     private var reducesMotion: Bool { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
@@ -205,23 +215,94 @@ final class PageOverviewOverlayView: NSView {
         updateThumbnails()
     }
 
-    func dismiss(animated: Bool = true) {
-        guard !dismissed else { return }
-        dismissed = true
-        thumbnails.cancel()
-        guard animated, presented, !reducesMotion, window != nil else {
+    func dismiss(animated: Bool = true, to pageRect: NSRect? = nil) {
+        if !animated {
+            dismissed = true
+            thumbnails.cancel()
             removeFromSuperview()
             return
         }
+        guard !dismissed else { return }
+        dismissed = true
+        thumbnails.cancel()
+        guard presented, !reducesMotion, window?.isVisible == true else {
+            removeFromSuperview()
+            return
+        }
+        guard let pageRect, !pageRect.isEmpty, let selectedPaper = papers[selectedIndex],
+              selectedPaper.sublayers?.first?.contents != nil,
+              paperSize(for: selectedIndex).width > 0 else {
+            NSAnimationContext.runAnimationGroup({ context in
+                context.duration = 0.2
+                animator().alphaValue = 0
+            }, completionHandler: { [weak self] in
+                MainActor.assumeIsolated { self?.removeFromSuperview() }
+            })
+            return
+        }
+
+        let movementDuration = 0.28
+        let duration = movementDuration + 0.06
+        let scale = pageRect.width / paperSize(for: selectedIndex).width
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        for (index, paper) in papers {
+            let current = paper.presentation() ?? paper
+            let fromPosition = current.position
+            let fromTransform = current.transform
+            let fromOpacity = current.opacity
+            let fromShadow = current.shadowRadius
+            paper.position = fromPosition
+            paper.transform = fromTransform
+            paper.removeAnimation(forKey: Self.transitionKey)
+            if index == selectedIndex {
+                paper.position = CGPoint(x: pageRect.midX, y: pageRect.midY - 14 * scale)
+                paper.transform = CATransform3DMakeScale(scale, scale, 1)
+                paper.opacity = 1
+                paper.shadowRadius = 4
+                paper.zPosition = 3
+                addTransition(to: paper, values: [
+                    ("position", NSValue(point: fromPosition), NSValue(point: paper.position)),
+                    ("transform", NSValue(caTransform3D: fromTransform), NSValue(caTransform3D: paper.transform)),
+                    ("opacity", fromOpacity, paper.opacity),
+                    ("shadowRadius", fromShadow, paper.shadowRadius)
+                ], duration: movementDuration, entering: true)
+            } else {
+                paper.opacity = 0
+                addTransition(to: paper, values: [("opacity", fromOpacity, Float(0))], duration: 0.18)
+            }
+            let number = paper.sublayers![1]
+            let shade = paper.sublayers![0].sublayers![0]
+            for detail in [number, shade] {
+                let from = detail.presentation()?.opacity ?? detail.opacity
+                detail.opacity = 0
+                addTransition(to: detail, values: [("opacity", from, Float(0))], duration: 0.14)
+            }
+        }
+        let fromBackdrop = backdrop.presentation()?.opacity ?? backdrop.opacity
+        backdrop.opacity = 1
+        addTransition(to: backdrop, values: [("opacity", fromBackdrop, Float(1))], duration: 0.08)
+        // Hand the matching paper back to PDFKit only at the end of its expansion.
+        let fade = CAKeyframeAnimation(keyPath: "opacity")
+        fade.values = [1, 1, 0]
+        fade.keyTimes = [0, NSNumber(value: movementDuration / duration), 1]
+        fade.duration = duration
+        layer?.opacity = 0
+        layer?.add(fade, forKey: "galleryExitFade")
+        CATransaction.commit()
         NSAnimationContext.runAnimationGroup({ context in
-            context.duration = 0.12
-            animator().alphaValue = 0
-        }, completionHandler: { [weak self] in
-            MainActor.assumeIsolated { self?.removeFromSuperview() }
+            context.duration = 0.14
+            positionLabel.animator().alphaValue = 0
+            previousButton.animator().alphaValue = 0
+            nextButton.animator().alphaValue = 0
         })
+        DispatchQueue.main.asyncAfter(deadline: .now() + duration) { [weak self] in
+            self?.removeFromSuperview()
+        }
     }
 
     override func setFrameSize(_ newSize: NSSize) {
+        if dismissed, newSize != frame.size { dismiss(animated: false) }
         if window != nil, newSize != frame.size { entryPageRect = nil }
         super.setFrameSize(newSize)
         layoutPapers(animated: false)
@@ -437,6 +518,7 @@ final class PageOverviewOverlayView: NSView {
     }
 
     private func removeDepartedPapers(completedThrough generation: Int = .max) {
+        guard !dismissed else { return }
         guard thumbnails.images[selectedIndex] != nil else { return }
         for index in Array(papers.keys) where !visibleIndexes.contains(index) {
             let animation = papers[index]?.animation(forKey: Self.transitionKey)
