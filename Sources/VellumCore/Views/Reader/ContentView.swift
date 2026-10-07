@@ -209,7 +209,7 @@ struct WindowChromeConfigurator: NSViewRepresentable {
 
             let targetCenterFromTop: CGFloat = hasOpenTabs ? 23 : emptyLayout.inset + 23
             let leftInset: CGFloat = hasOpenTabs ? 22 : emptyLayout.inset + 16
-            let y = round(containerHeight - targetCenterFromTop - referenceButton.frame.height / 2)
+            let y = containerHeight - targetCenterFromTop - referenceButton.frame.height / 2
 
             for index in buttons.indices {
                 let origin = NSPoint(x: leftInset + CGFloat(index) * 20, y: y)

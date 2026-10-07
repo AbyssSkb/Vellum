@@ -2,7 +2,7 @@ import SwiftUI
 
 struct EmptyReaderLayout {
     let scale: CGFloat
-    var inset: CGFloat { (8 * scale).rounded() }
+    var inset: CGFloat { 8 * scale }
     var cornerRadius: CGFloat { 14 - inset }
 
     init(size: CGSize) {
@@ -42,6 +42,7 @@ struct ReaderStack: View {
 
 struct EmptyReader: View {
     @Environment(\.appUILanguage) private var language
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @EnvironmentObject private var appState: AppState
     @State private var isOpenHovered = false
     let scale: CGFloat
@@ -83,6 +84,7 @@ struct EmptyReader: View {
             .onHover { isOpenHovered = $0 }
         }
         .scaleEffect(scale)
+        .animation(reduceMotion ? nil : .smooth(duration: 0.18), value: scale)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(TokyoNight.panelColor)
         .background(KeyboardCapture(appState: appState))

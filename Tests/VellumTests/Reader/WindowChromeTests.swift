@@ -6,6 +6,14 @@ import Testing
 @Suite("Window chrome")
 struct WindowChromeTests {
     @Test
+    func smallWindowResizesKeepTheEmptyReaderInsetContinuous() {
+        let before = EmptyReaderLayout(size: CGSize(width: 1100, height: 690.5))
+        let after = EmptyReaderLayout(size: CGSize(width: 1100, height: 690.75))
+        #expect(after.inset > before.inset)
+        #expect(after.inset - before.inset < 0.01)
+    }
+
+    @Test
     func trafficLightsStayInsideTheEmptyPanelAndRestoreTheReaderTitlebar() async throws {
         _ = NSApplication.shared
         let window = NSWindow(
@@ -38,8 +46,8 @@ struct WindowChromeTests {
             for index in buttons.indices {
                 let button = buttons[index]
                 let center = button.convert(NSPoint(x: button.bounds.midX, y: button.bounds.midY), to: nil)
-                #expect(frameView.bounds.maxY - center.y == centerFromTop)
-                #expect(button.frame.minX == leftInset + CGFloat(index) * 20)
+                #expect(abs(frameView.bounds.maxY - center.y - centerFromTop) < 0.001)
+                #expect(abs(button.frame.minX - leftInset - CGFloat(index) * 20) < 0.001)
                 #expect(frameView.hitTest(center) === button)
             }
         }
@@ -54,10 +62,11 @@ struct WindowChromeTests {
             }
             chrome.configureWindow()
             try await Task.sleep(for: .milliseconds(30))
-            for size in [NSSize(width: 640, height: 480), NSSize(width: 900, height: 650), NSSize(width: 1400, height: 950)] {
+            for size in [NSSize(width: 640, height: 480), NSSize(width: 900, height: 650),
+                         NSSize(width: 1100, height: 690.5), NSSize(width: 1400, height: 950)] {
                 window.setFrame(NSRect(origin: .zero, size: size), display: true)
                 try await Task.sleep(for: .milliseconds(30))
-                let layout = EmptyReaderLayout(size: size)
+                let layout = EmptyReaderLayout(size: window.contentView!.bounds.size)
                 checkPlacement(centerFromTop: hasTabs ? 23 : layout.inset + 23,
                                leftInset: hasTabs ? 22 : layout.inset + 16)
                 #expect(titlebar.frame.height == (hasTabs ? originalTitlebarHeight : 46))
