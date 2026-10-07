@@ -42,56 +42,49 @@ struct ReaderStack: View {
 
 struct EmptyReader: View {
     @Environment(\.appUILanguage) private var language
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @EnvironmentObject private var appState: AppState
     @State private var isOpenHovered = false
     let scale: CGFloat
 
     var body: some View {
-        GeometryReader { geometry in
-            VStack(spacing: 20) {
-                Image(systemName: "doc.text")
-                    .font(.system(size: 40, weight: .light))
-                    .foregroundStyle(TokyoNight.mutedColor.opacity(0.8))
-                    .accessibilityHidden(true)
+        VStack(spacing: 20) {
+            Image(systemName: "doc.text")
+                .font(.system(size: 40, weight: .light))
+                .foregroundStyle(TokyoNight.mutedColor.opacity(0.8))
+                .accessibilityHidden(true)
 
-                Button {
-                    appState.openPanel(mode: AppPreferences.defaultPDFOpenMode())
-                } label: {
-                    HStack(spacing: 14) {
-                        Text(language.text(.openPDF))
-                            .font(.system(size: 12.5, weight: .medium))
-                        Text("O")
-                            .font(.system(size: 10, weight: .medium, design: .monospaced))
-                            .foregroundStyle(TokyoNight.mutedColor)
-                            .frame(width: 18, height: 18)
-                            .background(TokyoNight.foregroundColor.opacity(0.045),
-                                        in: RoundedRectangle(cornerRadius: 4))
-                            .accessibilityHidden(true)
-                    }
-                    .foregroundStyle(TokyoNight.foregroundColor.opacity(0.92))
-                    .padding(.horizontal, 14)
-                    .frame(height: 34)
-                    .background(isOpenHovered ? TokyoNight.panelElevatedColor : TokyoNight.backgroundColor,
-                                in: RoundedRectangle(cornerRadius: 7, style: .continuous))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 7, style: .continuous)
-                            .strokeBorder(isOpenHovered ? TokyoNight.blueColor.opacity(0.55)
-                                          : TokyoNight.borderColor, lineWidth: 1)
-                    }
-                    .contentShape(RoundedRectangle(cornerRadius: 7))
+            Button {
+                appState.openPanel(mode: AppPreferences.defaultPDFOpenMode())
+            } label: {
+                HStack(spacing: 14) {
+                    Text(language.text(.openPDF))
+                        .font(.system(size: 12.5, weight: .medium))
+                    Text("O")
+                        .font(.system(size: 10, weight: .medium, design: .monospaced))
+                        .foregroundStyle(TokyoNight.mutedColor)
+                        .frame(width: 18, height: 18)
+                        .background(TokyoNight.foregroundColor.opacity(0.045),
+                                    in: RoundedRectangle(cornerRadius: 4))
+                        .accessibilityHidden(true)
                 }
-                .buttonStyle(.plain)
-                .onHover { isOpenHovered = $0 }
+                .foregroundStyle(TokyoNight.foregroundColor.opacity(0.92))
+                .padding(.horizontal, 14)
+                .frame(height: 34)
+                .background(isOpenHovered ? TokyoNight.panelElevatedColor : TokyoNight.backgroundColor,
+                            in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .strokeBorder(isOpenHovered ? TokyoNight.blueColor.opacity(0.55)
+                                      : TokyoNight.borderColor, lineWidth: 1)
+                }
+                .contentShape(RoundedRectangle(cornerRadius: 7))
             }
-            .geometryGroup()
-            .scaleEffect(scale)
-            .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
-            .animation(
-                reduceMotion || appState.readerWindow?.inLiveResize == true ? nil : .smooth(duration: 0.18),
-                value: geometry.size
-            )
+            .buttonStyle(.plain)
+            .onHover { isOpenHovered = $0 }
         }
+        // Follow native window resizing without a second animation trailing its frame.
+        .scaleEffect(scale)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(TokyoNight.panelColor)
         .background(KeyboardCapture(appState: appState))
     }
