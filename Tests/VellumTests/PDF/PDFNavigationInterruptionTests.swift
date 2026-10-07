@@ -27,7 +27,8 @@ struct PDFNavigationInterruptionTests {
         view.document = document
         let firstPage = try #require(document.page(at: 0))
         #expect(view.applyWidthFitScaleNow(for: firstPage))
-        let clipView = try #require(view.pdfScrollView?.contentView)
+        let scrollView = try #require(view.pdfScrollView)
+        let clipView = scrollView.contentView
         let margins = view.pageBreakMargins
 
         view.vimGoToLastPage()
@@ -41,6 +42,26 @@ struct PDFNavigationInterruptionTests {
         #expect(abs(gap) < 0.5)
         #expect(view.pageBreakMargins.top == margins.top)
         #expect(view.pageBreakMargins.bottom == margins.bottom)
+
+        let topOrigin = clipView.bounds.origin
+        let documentView = try #require(scrollView.documentView)
+        let upward: CGFloat = documentView.isFlipped ? -1 : 1
+        func scroll(_ delta: CGFloat) {
+            view.vimScroll(x: 0, y: delta)
+            for _ in 0..<60 {
+                view.animationState.lastScrollTick = Date.timeIntervalSinceReferenceDate - 1.0 / 30.0
+                view.stepScrollAnimation(in: scrollView)
+            }
+        }
+        for distance in [CGFloat(60), clipView.bounds.height / 2, clipView.bounds.height] {
+            scroll(upward * distance)
+            #expect(abs(clipView.bounds.origin.y - topOrigin.y) < 0.001)
+            #expect(abs(clipView.bounds.origin.x - topOrigin.x) < 0.001)
+        }
+        scroll(-upward * 60)
+        #expect(abs(clipView.bounds.origin.y - topOrigin.y) > 50)
+        scroll(upward * clipView.bounds.height / 2)
+        #expect(abs(clipView.bounds.origin.y - topOrigin.y) < 0.001)
     }
 
     @Test

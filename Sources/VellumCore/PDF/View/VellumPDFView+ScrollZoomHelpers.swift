@@ -58,6 +58,7 @@ extension VellumPDFView {
 
         let clipView = scrollView.contentView
         let documentBounds = scrollView.documentView?.bounds ?? .zero
+        let verticalRange = verticalScrollRange(in: scrollView)
         func constrainedOrigin(_ proposed: NSPoint) -> NSPoint {
             let native = clipView.constrainBoundsRect(NSRect(origin: proposed, size: clipView.bounds.size)).origin
             // Native constraints round to pixels, which can stall an animation short of a fractional target.
@@ -65,7 +66,7 @@ extension VellumPDFView {
                 x: documentBounds.width > clipView.bounds.width
                     ? min(max(proposed.x, documentBounds.minX), documentBounds.maxX - clipView.bounds.width) : native.x,
                 y: documentBounds.height > clipView.bounds.height
-                    ? min(max(proposed.y, documentBounds.minY), documentBounds.maxY - clipView.bounds.height) : native.y
+                    ? min(max(proposed.y, verticalRange.lowerBound), verticalRange.upperBound) : native.y
             )
         }
         let target = constrainedOrigin(requestedTarget)
@@ -319,26 +320,34 @@ extension VellumPDFView {
         case bottom
     }
 
+    func verticalScrollRange(in scrollView: NSScrollView) -> ClosedRange<CGFloat> {
+        let clipView = scrollView.contentView
+        let documentBounds = scrollView.documentView?.bounds ?? .zero
+        let minimum = documentBounds.minY
+        let maximum = max(minimum, documentBounds.maxY - clipView.bounds.height)
+        guard documentBounds.height > clipView.bounds.height,
+              let documentView = scrollView.documentView,
+              let page = document?.page(at: 0) else { return minimum...maximum }
+
+        let paper = convert(convert(page.bounds(for: displayBox), from: page), to: documentView)
+        let paperTop = documentView.isFlipped ? paper.minY : paper.maxY - clipView.bounds.height
+        let top = min(max(paperTop, minimum), maximum)
+        return documentView.isFlipped ? top...maximum : minimum...top
+    }
+
     func scrollToDocumentEdge(_ edge: VerticalEdge) {
         guard let scrollView = pdfScrollView,
               let documentView = scrollView.documentView else { return }
 
         let clipView = scrollView.contentView
-        let documentSize = documentView.bounds.size
-        let maxY = max(0, documentSize.height - clipView.bounds.height)
+        let verticalRange = verticalScrollRange(in: scrollView)
         let currentOrigin = clipView.bounds.origin
         let geometryEdge: ScrollGeometry.VerticalEdge = edge == .top ? .top : .bottom
-        var nextY = ScrollGeometry.verticalEdgeCoordinate(
+        let nextY = max(verticalRange.lowerBound, ScrollGeometry.verticalEdgeCoordinate(
             edge: geometryEdge,
             isFlipped: documentView.isFlipped,
-            maxValue: maxY
-        )
-        if edge == .top, documentSize.height > clipView.bounds.height,
-           let page = document?.page(at: 0) {
-            let paper = convert(convert(page.bounds(for: displayBox), from: page), to: documentView)
-            let paperTop = documentView.isFlipped ? paper.minY : paper.maxY - clipView.bounds.height
-            nextY = min(max(paperTop, 0), maxY)
-        }
+            maxValue: verticalRange.upperBound
+        ))
 
         clipView.scroll(to: NSPoint(x: currentOrigin.x, y: nextY))
         scrollView.reflectScrolledClipView(clipView)
