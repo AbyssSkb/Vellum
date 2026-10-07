@@ -3,7 +3,7 @@
 - After making code or project file changes, run `scripts/package-app.sh`.
 - Commit completed changes with git after packaging succeeds, unless the user explicitly asks not to commit.
 - Keep each commit focused on one theme. Bug fixes, refactors, and feature work should be committed separately.
-- When a completed change is suitable for users and packaging succeeds, proactively publish a new version at an appropriate stopping point unless the user says not to release.
+- After packaging succeeds, provide the local app for the user to test. Publish a new version after the user confirms that local testing passed.
 - Write public GitHub release titles and notes in English. Keep commit subjects used to generate release notes in English as well.
 - Use the 0.8.x release series, starting with v0.8.0.
 - Express language and presentation preferences as positive desired outcomes in AI project instructions.
