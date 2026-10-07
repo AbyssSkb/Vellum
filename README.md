@@ -1,61 +1,85 @@
 # Vellum
 
-[简体中文](README.zh-CN.md) | English
+English | [简体中文](README.zh-CN.md)
 
-Vellum is a native macOS PDF reader shaped around fast, keyboard-first reading. It combines Vim-style navigation, lightweight tabs, outline browsing, search, highlights, and optional AI explanations for selected text.
+**A native macOS PDF reader for staying with the page.**
 
-![Vellum reader screenshot placeholder](docs/images/vellum-reader.png)
+Vellum brings smooth Vim-style navigation, a keyboard-driven outline, and an immersive page gallery to a quiet, compact reading interface. Built with SwiftUI, AppKit, and PDFKit.
 
-## Highlights
+[Download for macOS](https://github.com/AbyssSkb/Vellum/releases/latest) · [User guide](docs/USER_GUIDE.md) · [Report an issue](https://github.com/AbyssSkb/Vellum/issues)
 
-- Read PDFs with smooth Vim-style movement, paging, jumping, zooming, and tab switching.
-- Browse document outlines from the keyboard and include outline jumps in back/forward history.
-- Search inside PDFs, jump between matches, and turn a match into a selectable text range.
-- Highlight selected passages, switch highlight colors, copy text, and delete existing highlights.
-- Ask an OpenAI-compatible model to explain selected text or saved highlights.
-- Keep several PDFs open with compact tabs and restore the last closed PDF.
+![Vellum's reading canvas with compact document tabs and highlight colors](docs/images/vellum-reader.jpg)
 
-## Quick Start
+## Read at your own pace
 
-[Download the latest release](https://github.com/AbyssSkb/Vellum/releases/latest), open the DMG, and launch Vellum.
+Tap or hold `j` and `k` to scroll smoothly. Fit the page or its width, zoom continuously, jump to a page with `12G`, and retrace your reading with `Control-O` and `Control-I`. Select text with the mouse, then refine the selection by line or word from the keyboard.
 
-Open a PDF, then use the reading keys:
+Keep several documents close with compact tabs. `T` opens a searchable tab switcher, and `X` restores the last closed file. Each file has one tab; reopening an updated PDF reloads its current contents. Long tab titles scroll once when opened, activated, or hovered.
+
+## A map when you need one
+
+Tap `Tab` or press `t` to open the contents sidebar. Browse with `j` and `k`, fold with `h`, and expand with `l`. The outline also supports Vim's `zo`, `zc`, `zr`, `zm`, `zR`, and `zM`, including recursive folds and count prefixes. `H` and `L` switch documents while the outline stays open.
+
+![Vellum's hierarchical contents sidebar beside the document and tabs](docs/images/vellum-outline-tabs.jpg)
+
+## See the pages around you
+
+Hold `Tab` in the reader to enter the immersive gallery. A large current-page preview sits between its neighbors, keeping the document's layout easy to recognize. Use `h` / `l` to move one page or `k` / `j` to move three pages. Release `Tab` to return to the selected page with a continuous transition back to the reading canvas.
+
+![Immersive page gallery showing the current page and its neighboring pages](docs/images/vellum-gallery.jpg)
+
+## Keep the useful parts
+
+Search with `/`, move through matches with `n` and `N`, and press `v` to select a match. Copy with `y` or highlight with `m`; five highlight colors are available. Annotations save back to the PDF automatically, with recovery options if the file cannot be saved or has changed on disk.
+
+![Search matches with a compact query field and result counter](docs/images/vellum-search.jpg)
+
+*Screenshots show the current native interface with a sample PDF.*
+
+## Experimental AI
+
+AI assistance is an optional experiment. Its workflow and output quality are still being explored and refined, so it is not part of Vellum's core feature showcase. Existing in-app tools remain available for those who want to try them; configuration and current behavior are covered in the [user guide](docs/USER_GUIDE.md#experimental-ai).
+
+## Get started
+
+1. Download the latest DMG from [Releases](https://github.com/AbyssSkb/Vellum/releases/latest), then drag Vellum into Applications.
+2. Open a PDF with `o` or `Command-O`. Use `O` to open files in new tabs.
+3. Press `z` to fit the width or `0` to fit the whole page, then move with `j` and `k`.
 
 | Key | Action |
 | --- | --- |
-| `o` / `O` | Open a PDF in the current tab / new tabs |
-| `j` / `k` | Scroll down / up |
-| `d` / `u` | Large scroll down / up |
-| `D` / `U` | Extra large scroll down / up |
-| `Space` / `f` / `b` | Page forward / backward |
-| `gg` / `G` / `[num]G` | First page / last page / page number |
-| `/` / `n` / `N` | Search / next match / previous match |
-| `Tab` / `t` | Toggle contents |
-| `m` / `y` / `a` | Highlight / copy / explain selected text |
-| `=` / `-` / `0` / `z` | Zoom in / out / fit page / fit width |
+| `j` / `k`, `d` / `u` | Scroll down / up; larger steps with `d` / `u` |
+| `Space` / `f`, `b` | Next / previous page |
+| `gg`, `G`, `12G` | First page, last page, page 12 |
+| `=` / `-`, `0`, `z` | Zoom in / out, fit page, fit width |
+| `t` / tap `Tab` | Toggle the contents sidebar |
+| Hold `Tab` | Open the page gallery |
+| `H` / `L`, `T` | Previous / next tab; searchable tab switcher |
+| `/`, `n` / `N` | Search; next / previous match |
+| `m`, `c`, `y` | Highlight, change highlight color, copy |
 
-## Documentation
+Letter shortcuts apply to the focused reading surface. Search fields and conversation inputs accept normal typing. The [user guide](docs/USER_GUIDE.md) covers selection, outline folds, focus behavior, and the full shortcut set.
 
-Read the full guide:
+## Preferences and updates
 
-- [User Guide](docs/USER_GUIDE.md)
+Settings include English and Chinese UI, default file-opening behavior, initial page fit, highlight color, optional session restoration, and AI configuration. Session restoration is off by default.
+
+Automatic update checks are enabled by default. A new version downloads in the background; Vellum asks before installing and restarting. You can also check manually from the Vellum menu or General settings.
+
+## Build from source
+
+Requires macOS 14 or later and a Swift 6.2 toolchain. Release downloads support Apple silicon and Intel Macs.
+
+```sh
+git clone https://github.com/AbyssSkb/Vellum.git
+cd Vellum
+swift test --no-parallel
+scripts/package-app.sh
+open dist/Vellum.app
+```
+
+The packaging script builds a universal macOS app in `dist/Vellum.app`.
 
 ## Feedback
 
-If you run into any problem while using Vellum, please feel welcome to send feedback through [GitHub Issues](https://github.com/AbyssSkb/Vellum/issues).
-
-## Screenshots
-
-![Outline and tabs screenshot placeholder](docs/images/vellum-outline-tabs.png)
-
-![AI explanation screenshot placeholder](docs/images/vellum-ai-explanation.png)
-
-## Requirements
-
-- macOS 14 or newer
-- A PDF file to read
-- Optional: an OpenAI-compatible API provider for AI explanations
-
-## Note
-
-Vellum is a personal reader made through vibe coding: guided by taste, iteration, and the momentum of building with AI.
+Report bugs or suggest improvements through [GitHub Issues](https://github.com/AbyssSkb/Vellum/issues). For rendering or navigation problems, include the macOS version, steps to reproduce, and a sample PDF you can share.

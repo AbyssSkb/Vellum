@@ -1,197 +1,186 @@
 # Vellum User Guide
 
-[简体中文](USER_GUIDE.zh-CN.md) | English
+[简体中文](USER_GUIDE.zh-CN.md) | English · [README](../README.md)
 
-Vellum is designed for people who spend real time inside PDFs: papers, manuals, references, and long documents. The main idea is simple: keep your hands on the keyboard, keep the page moving smoothly, and keep useful reading actions close.
+Vellum is a native macOS PDF reader with keyboard navigation, an immersive page gallery, searchable tabs, outlines, and highlights. It requires macOS 14 or later and runs on Apple silicon and Intel Macs.
 
-![Vellum reader screenshot placeholder](images/vellum-reader.png)
+![The Vellum reader](images/vellum-reader.jpg)
 
-## 1. Start Reading
+## Open files and manage tabs
 
-Open Vellum and choose a PDF from the empty reader screen, or press `o` to open a file in the current tab.
+Download the app from [GitHub Releases](https://github.com/AbyssSkb/Vellum/releases/latest), open the disk image, and drag Vellum to Applications. Launch it and open a PDF from the empty reader or the file picker.
 
-You can also open multiple PDFs at once with `O`. Each selected file opens in its own tab.
+`o` and `Command-O` follow **Settings → General → Default open mode**. The initial default replaces the current tab; choose New tabs if that better suits your workflow. `O` always opens the selected PDFs in new tabs and supports selecting several files at once. Files opened through Finder also open in new tabs.
 
-Each file has one tab. Opening it again selects that tab and keeps its reading position. Restoring a closed tab reloads the latest file from disk.
-
-Common file and tab keys:
+Each file has one tab. Opening an already open file selects its existing tab. If it has changed on disk, reopening reloads its current contents after protecting any unsaved annotations. `X` restores the most recently closed PDF from disk.
 
 | Key | Action |
 | --- | --- |
-| `o` | Open a PDF in the current tab |
+| `o` / `Command-O` | Open using the configured default mode |
 | `O` | Open PDFs in new tabs |
-| `x` | Close the current tab |
+| `x` / `Command-W` | Close the current tab |
 | `X` | Restore the last closed PDF |
-| `]` / `[` | Next / previous tab |
-| `L` / `H` | Next / previous tab |
-| `gt` / `gT` | Next / previous tab |
-| `Command-O` | Open PDF |
-| `Command-W` | Close tab |
-| `Command-]` / `Command-[` | Next / previous tab |
+| `H` / `L` | Previous / next tab |
+| `[` / `]` | Previous / next tab |
+| `gT` / `gt` | Previous / next tab from the reader |
+| `Command-[` / `Command-]` | Previous / next tab |
+| `T` | Open the searchable tab switcher |
 
-## 2. Move Around the PDF
+In the tab switcher, type part of a filename to filter the list, use `↑` / `↓` to choose a result, and press `Enter` to switch or `Esc` to cancel. Letters are search input while this overlay is open.
 
-Vellum uses Vim-style movement for reading. Short taps move a little; holding movement keys keeps the page moving smoothly.
+Long tab titles scroll once when opened or selected, and can be revealed again by hovering. Enable **Restore previous tabs** in General settings to reopen your session on the next launch; it is initially off.
 
-| Key | Action |
+## Navigate and zoom
+
+Short taps move the page; holding a scroll or zoom key continues the movement.
+
+| Key | Action in the reader |
 | --- | --- |
 | `j` / `k` | Smooth scroll down / up |
-| `d` / `u` | Large smooth scroll down / up |
-| `D` / `U` | Extra large smooth scroll down / up |
+| `d` / `u` | Larger scroll down / up |
+| `D` / `U` | Extra-large scroll down / up |
 | `h` / `l` | Horizontal scroll left / right |
-| `Space` / `f` | Move forward one page |
-| `b` | Move back one page |
-| `gg` | Jump to the first page |
-| `G` | Jump to the last page |
-| `[num]G` | Jump to a page number, for example `12G` |
-| `Control-O` | Jump back |
-| `Control-I` | Jump forward |
-
-The jump history includes regular page navigation and outline jumps, so you can explore a document and quickly return.
-
-## 3. Zoom and Fit
-
-Use zoom keys when a PDF is too small, too wide, or better read page by page.
-
-| Key | Action |
-| --- | --- |
-| `=` / `+` | Zoom in |
-| `-` | Zoom out |
+| `Space` / `f` | Forward one page |
+| `b` | Back one page |
+| `gg` / `G` | First / last page |
+| `[number]G` | Jump to a page, for example `12G` |
+| `Control-O` / `Control-I` | Back / forward through jump history |
+| `=` / `+` / `-` | Zoom in / out |
 | `0` | Fit the whole page |
-| `z` | Fit width |
+| `z` | Fit page width |
 
-Holding `=` or `-` zooms continuously.
+Page jumps and outline destinations are included in jump history. Numeric page jumps use the PDF's one-based page position. General settings let you choose Fit width or Fit page when opening a file.
 
-## 4. Use the Contents Sidebar
+## Browse the contents
 
-Press `Tab` or `t` to show or hide the contents sidebar. When the sidebar has focus, it has its own keyboard behavior.
+Tap `Tab` or press `t` to open the contents sidebar. Opening it gives the outline keyboard focus. Select an entry and press `Enter` to jump; focus stays in the outline so you can continue browsing. Click the PDF to return keyboard focus to the reader, or use `Esc`, `t`, or `Tab` to close the sidebar.
 
-![Outline screenshot placeholder](images/vellum-outline-tabs.png)
+![The contents sidebar and document tabs](images/vellum-outline-tabs.jpg)
 
-| Key | Action in contents |
+| Key | Action with outline focus |
 | --- | --- |
-| `j` / `k` | Move the selected outline item down / up |
-| `h` | Collapse the selected item, or move to its parent |
-| `l` | Expand the selected item |
+| `j` / `k` or `↓` / `↑` | Next / previous visible entry |
+| `h` or `←` | Close one fold containing the cursor, like `zc` |
+| `l` or `→` | Open one closed fold containing the cursor; otherwise move down one entry |
+| `gg` / `G` or `Home` / `End` | First / last visible entry |
+| `[number]G` / `[number]gg` | Select that visible entry |
+| `d` / `u` | Move down / up half a sidebar viewport |
+| `D` / `U`, `f` / `b`, `Page Down` / `Page Up` | Move down / up one viewport |
+| `Space` | Move down one viewport |
 | `Enter` | Jump to the selected destination |
-| `Tab` | Hide the contents sidebar |
+| `H` / `L` or `[` / `]` | Previous / next file |
+| `Control-O` / `Control-I` | Back / forward through PDF jump history |
+| `Esc` / `t` / `Tab` | Close the sidebar and focus the reader |
 
-Tip: after jumping from the outline, use `Control-O` to return to the previous reading position.
+Counts apply to outline movement: `10j` moves down ten visible entries; `10G` selects the tenth visible entry regardless of your current position. The page number printed beside an entry is its PDF destination, not its position in the outline list.
 
-## 5. Page Overview
+### Fold the outline
 
-Hold `Tab` briefly to open the page overview. While holding `Tab`, use movement keys to choose a nearby page, then release `Tab` to finish.
+Vellum uses Vim's fold commands. Type the keys in sequence; uppercase letters matter.
 
-| Key | Action in page overview |
+| Command | Action |
 | --- | --- |
-| Hold `Tab` | Open page overview |
-| `h` / `l` | Move to previous / next page |
-| `k` / `j` | Move to previous / next row |
-| Release `Tab` | Close page overview at the selected page |
+| `zo` | Open one closed fold containing the cursor |
+| `zc` | Close the innermost open fold containing the cursor |
+| `zO` | Open the first closed fold containing the cursor and all its descendants |
+| `zC` | Close all folds containing the cursor |
+| `zr` / `zm` | Increase / decrease the global visible fold level |
+| `zR` / `zM` | Open / close all folds |
 
-## 6. Search
+Put counts **before** `z`: `2zo` opens up to two containing folds, `2zc` closes up to two, and `2zr` / `2zm` adjusts the global level by two. `zO`, `zC`, `zR`, and `zM` already operate recursively or globally; a count does not extend their action.
 
-Press `/` to open search. Type a query and press `Enter` to commit. Search matches stay visible as highlights, and Vellum keeps track of the active match.
+Closing a containing fold keeps the logical cursor at its original entry, even if an ancestor becomes the visible selection. A following `zo` can reveal that entry again. `zc` also works on a leaf by closing its containing branch. Local fold changes preserve hidden descendant states; `zr`, `zm`, `zR`, and `zM` apply a level to the whole outline. Each open tab remembers its outline state while you switch files.
+
+As another set of fold shortcuts, `Option-→` / `Option-←` recursively opens / closes the selected branch. On a leaf, it uses the parent branch. Add `Shift` to apply this to the entire outline.
+
+## Use the immersive page gallery
+
+With keyboard focus in the reader, hold `Tab` to open the gallery. It presents a large selected page with its neighbors, preserving the visual connection to the reading page.
+
+![The immersive page gallery](images/vellum-gallery.jpg)
+
+| Key | Action while holding `Tab` |
+| --- | --- |
+| `h` / `l` | Previous / next page |
+| `k` / `j` | Back / forward three pages |
+| Release `Tab` | Return to the reader at the selected page |
+
+A quick tap on `Tab` toggles the outline instead. If the outline has focus, `Tab` closes it; click the PDF or close the sidebar before holding `Tab` for the gallery.
+
+## Search and select text
+
+Press `/`, type a query, and press `Enter`. Matches stay highlighted after leaving the search field.
+
+![PDF search with match highlighting and a result counter](images/vellum-search.jpg)
 
 | Key | Action |
 | --- | --- |
-| `/` | Start search |
-| `Enter` | Commit the query |
-| `Esc` | Cancel search or clear visible search state |
-| `n` | Jump to the next match |
-| `N` | Jump to the previous match |
+| `/` | Open the search field |
+| `Enter` | Confirm the query |
+| `n` / `N` | Next / previous match |
 | `v` | Turn the active match into a text selection |
-| `y` | Copy the active search match when available |
+| `y` | Copy selected text or the active search match |
+| `Esc` | Leave search or clear its visible state |
 
-Use `v` when you want to highlight, copy, or explain a search result as normal selected text.
+Select text with the pointer, or use `v` on a search result. With text selected, `h` / `l` adjusts the selection endpoint horizontally, `j` / `k` moves it by visual line, and `w` / `b` / `e` moves it by word. Press `Esc` to clear the selection and resume normal page movement.
 
-## 7. Select Text
+## Highlight and save
 
-You can select text with the pointer, then refine the selection from the keyboard.
-
-When text is selected, several movement keys switch from page movement to selection movement:
-
-| Key | Action with selected text |
-| --- | --- |
-| `h` / `l` | Move the selection endpoint left / right |
-| `j` / `k` | Move the selection endpoint down / up by visual line |
-| `w` / `b` / `e` | Move the endpoint by word |
-| `Esc` | Clear the text selection |
-
-This mode is useful for tightening a selection before highlighting, copying, or asking AI to explain it.
-
-## 8. Highlight and Copy
-
-The highlight toolbar in the tab bar lets you choose the current highlight color. Keyboard commands use the selected color.
+Choose a color from the circular swatches in the tab bar, or press `c` to cycle through yellow, green, cyan, purple, and pink.
 
 | Key | Action |
 | --- | --- |
-| `m` | Highlight selected text |
+| `m` | Highlight the selected text |
 | `c` | Cycle highlight color |
-| `y` | Copy selected text |
-| `d` | Delete the selected highlight when a text selection intersects it |
+| `y` | Copy the selection |
+| `d` | Delete highlights intersecting the text selection |
 
-Available highlight colors are yellow, green, cyan, purple, and pink.
+Annotations save automatically to the PDF in the background. If saving fails or the file changes on disk, Vellum preserves the in-memory annotations and offers **Retry** or **Save a Copy**. Closing the tab or quitting waits for pending changes to be saved or copied.
 
-Annotations save automatically in the background. If saving fails or the PDF changes on disk, Vellum keeps the annotations open and offers Retry or Save a Copy. Closing the tab or quitting waits until the changes are saved or copied.
+## Experimental AI
 
-## 9. AI Explanations
+AI is experimental and still under active exploration. The workflow and response quality are being evaluated and refined. It is optional; the following instructions describe the current implementation as a technical reference.
 
-AI explanations are optional. Configure an OpenAI-compatible provider in Settings before using them.
+Reading, searching, and highlighting work without AI. Open Settings with `Command-,` to configure a provider.
 
-![AI explanation screenshot placeholder](images/vellum-ai-explanation.png)
+1. In **AI Providers**, select a preset or a custom OpenAI-compatible endpoint. HTTP providers use a Base URL and API key; Anthropic uses its Messages API format.
+2. For **Local Codex**, supply the executable path of an installed, authenticated Codex CLI. An optional profile selects its configuration. This uses Codex's existing authentication rather than an HTTP API key entered in Vellum.
+3. In **AI Explanation** and **AI Conversation**, choose the provider and model independently. Use Fetch Models where supported and Test Endpoint (HTTP) or Test Codex to check the configuration. The Codex model field can be empty to use its configured default.
+4. Choose the target output language and, optionally, customize each prompt template. Output language is independent of Vellum's English / Chinese interface setting.
 
-To configure AI:
+AI requests include the selection and extracted nearby context, such as its page, outline heading, and surrounding paragraphs. They are sent to the configured provider. Local Codex describes the local integration; its selected model may still use a remote service.
 
-1. Open Vellum Settings.
-2. Go to the AI tab.
-3. Enter a Base URL, API Key, and Model.
-4. Use Fetch Models if your provider supports model listing.
-5. Use Test Connection to confirm the chat endpoint works.
+### Commands and saved answers
 
-To use AI while reading:
-
-| Key | Action |
+| Key | Action from the reader |
 | --- | --- |
-| `a` | Explain selected text or selected highlight |
-| `j` / `k` | Scroll inside the AI explanation |
-| `m` | Save the explained text as a highlight |
-| `c` | Cycle highlight color while the explanation is active |
-| `Esc` | Dismiss the explanation |
+| `a` | Explain selected text or a selected highlight |
+| `i` | Start a conversation about the selected text or highlight |
+| `A` | Browse explanation history for the current PDF |
+| `I` | Browse conversation history for the current PDF |
 
-Saved AI explanations are attached to highlights. Hover an AI-backed highlight to reveal its explanation again.
+Double-clicking text can trigger an explanation or translation; this is enabled by default and can be changed in General settings. A middle click on selected text is another explanation trigger.
 
-## 10. Settings and Shortcut Reference
+In an explanation, use `j` / `k` to scroll, `c` to choose a highlight color, and `m` to save the passage and answer together as a PDF highlight. `Esc` dismisses the explanation. Hover a highlight with a saved explanation to reopen its answer.
 
-Open Settings to access:
+For a word or short term, the explanation can include pronunciation and translation. AI Explanation settings provide optional automatic pronunciation with American or British English voices.
 
-- AI provider configuration.
-- Connection diagnostics.
-- The built-in shortcut reference.
+In a conversation, type a follow-up question and press `Enter` to send. `Shift-Enter` inserts a newline; `Esc` closes the conversation. Conversations and unsaved explanations are kept for the current app session. Answers saved to highlights are embedded in the PDF and remain available when it is reopened.
 
-The shortcut reference is the fastest way to refresh your memory while using the app.
+## Settings and updates
 
-## 11. Suggested Reading Flow
+**General** contains the interface language, tab restoration, default open mode, initial page fit, default highlight color, double-click translation, update checks, and AI logs. **AI Providers**, **AI Explanation**, and **AI Conversation** configure AI. **Shortcuts** contains an in-app key reference.
 
-1. Open a PDF with `o`.
-2. Press `z` for fit-width reading.
-3. Move with `j`, `k`, `d`, and `u`.
-4. Use `Tab` to browse the contents when the document has an outline.
-5. Search with `/`, then use `n` and `N` to move between matches.
-6. Use `v` on an active search match if you want to treat it as selected text.
-7. Highlight important passages with `m`, copy with `y`, or explain with `a`.
-8. Use `Control-O` and `Control-I` to move through your reading history.
+Automatic update checks are enabled initially. When an update is found, Vellum downloads it in the background, then asks you to restart and install. Choosing Later postpones installation and suppresses further automatic prompts for that version. You can also check manually in General settings or the Vellum menu.
 
-## 12. Troubleshooting
+AI diagnostics are stored at `~/Library/Application Support/Vellum/Logs/ai-requests.jsonl`. Use **Open Log** or **Clear Log** in General settings. Logs include request / response excerpts and can contain document text; credential headers are redacted. Review the contents before sharing a log with a bug report.
 
-If letter keys do not move the PDF, check whether focus is inside search, settings, the contents sidebar, or an AI explanation. Those areas intentionally use their own keyboard behavior.
+## Troubleshooting
 
-If AI explanations fail, check the Base URL, API key, model name, and Test Connection result in Settings.
+- **Keys move the wrong area:** keyboard actions follow focus. Click the PDF to navigate it, click the outline to navigate entries, and use `Esc` to dismiss transient overlays. While typing in a search or chat field, letters are text input.
+- **An externally edited PDF still looks old:** reopen it using the file picker or Finder. Resolve any pending annotation-save prompt so the latest disk contents can be loaded.
+- **No contents entries:** the PDF may not contain an embedded outline.
+- **Search or selection misses text:** a scanned page or unusual text encoding may prevent PDFKit from extracting it. Vellum's search and AI selection features depend on extractable text.
+- **AI requests fail:** check the selected provider, endpoint / executable, authentication, and model with Test Endpoint or Test Codex; inspect the diagnostic log for the failure.
 
-If a PDF has no contents sidebar entries, the file likely does not include an outline.
-
-If search does not find expected text, the PDF may contain scanned pages or text encoded in a way that PDFKit cannot extract reliably.
-
-## 13. Project Note
-
-Vellum is a personal reader made through vibe coding: guided by taste, iteration, and the momentum of building with AI.
+For bugs and feature requests, use [GitHub Issues](https://github.com/AbyssSkb/Vellum/issues). Include the steps to reproduce, macOS version, Vellum version, and a shareable sample PDF when relevant.
