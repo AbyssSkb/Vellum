@@ -336,23 +336,32 @@ extension VellumPDFView {
 
         let firstPaper = convert(convert(firstPage.bounds(for: displayBox), from: firstPage), to: documentView)
         let lastPaper = convert(convert(lastPage.bounds(for: displayBox), from: lastPage), to: documentView)
-        // A fitted final page can align its top beyond the native document-bottom limit.
-        if documentView.isFlipped {
-            return firstPaper.minY...max(firstPaper.minY, maximum, lastPaper.minY)
+        let top = documentView.isFlipped ? firstPaper.minY : firstPaper.maxY - clipView.bounds.height
+        let bottom = documentView.isFlipped ? lastPaper.maxY - clipView.bounds.height : lastPaper.minY
+        let origin = clipView.bounds.origin.y
+        // A document shorter than the viewport is already fully visible.
+        guard documentView.isFlipped ? top < bottom : bottom < top else {
+            let pinned = min(max(origin, min(top, bottom)), max(top, bottom))
+            return pinned...pinned
         }
-        let top = firstPaper.maxY - clipView.bounds.height
-        return min(minimum, lastPaper.maxY - clipView.bounds.height)...top
+        // Preserve a fitted final page's top alignment without permitting any further overscroll.
+        if lastPaper.minY >= origin - 0.5, lastPaper.maxY <= origin + clipView.bounds.height + 0.5 {
+            return documentView.isFlipped ? top...max(bottom, origin) : min(bottom, origin)...top
+        }
+        return min(top, bottom)...max(top, bottom)
     }
 
     func scrollToDocumentEdge(_ edge: VerticalEdge) {
         guard let scrollView = pdfScrollView,
-              let documentView = scrollView.documentView else { return }
+              let documentView = scrollView.documentView,
+              let document,
+              let page = document.page(at: edge == .top ? 0 : document.pageCount - 1) else { return }
 
         let clipView = scrollView.contentView
-        let verticalRange = verticalScrollRange(in: scrollView)
+        let paper = convert(convert(page.bounds(for: displayBox), from: page), to: documentView)
         let currentOrigin = clipView.bounds.origin
         let nextY = (edge == .top) == documentView.isFlipped
-            ? verticalRange.lowerBound : verticalRange.upperBound
+            ? paper.minY : paper.maxY - clipView.bounds.height
 
         clipView.scroll(to: NSPoint(x: currentOrigin.x, y: nextY))
         scrollView.reflectScrolledClipView(clipView)

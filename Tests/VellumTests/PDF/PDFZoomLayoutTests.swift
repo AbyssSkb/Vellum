@@ -93,7 +93,7 @@ struct PDFZoomLayoutTests {
         let pageSize = try #require(view.displaySize(for: page))
         let viewport = try #require(view.fitViewportSize())
         let expectedScale = fitPage
-            ? min(viewport.width / pageSize.width, viewport.height / pageSize.height) * ZoomGeometry.fitMargin
+            ? min(viewport.width / pageSize.width, viewport.height / pageSize.height)
             : viewport.width / pageSize.width
         #expect(abs(target - expectedScale) < 0.001)
         view.applyZoomScale(target)
@@ -164,6 +164,7 @@ struct PDFZoomLayoutTests {
                 #expect(abs(paper.midX - viewport.midX) < 0.5)
                 #expect(paper.minX >= viewport.minX - 0.5 && paper.maxX <= viewport.maxX + 0.5)
                 #expect(paper.minY >= viewport.minY - 0.5 && paper.maxY <= viewport.maxY + 0.5)
+                #expect(abs(min(viewport.width - paper.width, viewport.height - paper.height)) < 0.5)
             }
             expectWholePaperAtTop()
 
@@ -179,6 +180,84 @@ struct PDFZoomLayoutTests {
                     }
                     #expect(abs(clipView.bounds.origin.y - origin.y) < 0.001)
                     expectWholePaperAtTop()
+                }
+            }
+        }
+    }
+
+    @Test(arguments: [0, 90, 180, 270], [1, 3]) @MainActor
+    func documentEdgesAlignPaperAndPreventFurtherOutwardScrolling(rotation: Int, pageCount: Int) async throws {
+        _ = NSApplication.shared
+        let document = PDFDocument()
+        for index in 0..<pageCount {
+            let page = PDFPage()
+            page.setBounds(NSRect(x: 0, y: 0, width: 800, height: 1_100), for: .mediaBox)
+            page.setBounds(NSRect(x: 40, y: 60, width: 600, height: 900), for: .cropBox)
+            page.rotation = rotation
+            document.insert(page, at: index)
+        }
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),
+                              styleMask: .borderless, backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        let view = VellumPDFView(frame: window.contentView!.bounds)
+        window.contentView = view
+        defer { view.stopZoomState(); view.stopScrollAnimation(); window.close() }
+        view.displayMode = .singlePageContinuous
+        view.document = document
+        let scrollView = try #require(view.pdfScrollView)
+        let clipView = scrollView.contentView
+        let documentView = try #require(scrollView.documentView)
+        let firstPage = try #require(document.page(at: 0))
+        let lastPage = try #require(document.page(at: pageCount - 1))
+
+        for fit in 0..<3 {
+            for edge in [VellumPDFView.VerticalEdge.top, .bottom] {
+                view.autoScales = false
+                view.scaleFactor = 1.2
+                view.layoutDocumentView()
+                view.centerBothAxes(on: view.pageCenterDestination(for: firstPage))
+                if fit == 1 { view.vimZoomToFit() } else { view.vimZoomToPageFit() }
+                let target = try #require(view.animationState.zoomTargetScale)
+                if fit == 2 {
+                    view.applyZoomScale(target * 1.0005)
+                    view.stepZoomAnimation()
+                    #expect(view.animationState.hasActiveZoomTimer)
+                } else {
+                    for _ in 0..<60 {
+                        view.animationState.lastZoomTick = Date.timeIntervalSinceReferenceDate - 1.0 / 30.0
+                        view.stepZoomAnimation()
+                    }
+                    try await Task.sleep(for: .milliseconds(30))
+                }
+                if edge == .top { view.vimGoToFirstPage() } else { view.vimGoToLastPage() }
+                await withCheckedContinuation { continuation in
+                    DispatchQueue.main.async { continuation.resume() }
+                }
+                let page = edge == .top ? firstPage : lastPage
+                let paper = view.convert(page.bounds(for: view.displayBox), from: page)
+                let viewport = view.convert(clipView.bounds, from: clipView)
+                let gap = (edge == .top) == view.isFlipped
+                    ? paper.minY - viewport.minY : viewport.maxY - paper.maxY
+                #expect(abs(gap) < 0.5)
+
+                let origin = clipView.bounds.origin
+                let outward: CGFloat = (edge == .top) == documentView.isFlipped ? -1 : 1
+                for distance in [CGFloat(60), clipView.bounds.height / 2, clipView.bounds.height] {
+                    view.vimScroll(x: 0, y: outward * distance)
+                    for _ in 0..<60 {
+                        view.animationState.lastScrollTick = Date.timeIntervalSinceReferenceDate - 1.0 / 30.0
+                        view.stepScrollAnimation(in: scrollView)
+                    }
+                    #expect(abs(clipView.bounds.origin.y - origin.y) < 0.001)
+                }
+                if paper.height >= viewport.height - 0.5 {
+                    clipView.scroll(to: NSPoint(x: origin.x, y: origin.y + outward * 30))
+                    view.vimScroll(x: 0, y: outward * 60)
+                    for _ in 0..<60 {
+                        view.animationState.lastScrollTick = Date.timeIntervalSinceReferenceDate - 1.0 / 30.0
+                        view.stepScrollAnimation(in: scrollView)
+                    }
+                    #expect(abs(clipView.bounds.origin.y - origin.y) < 0.001)
                 }
             }
         }

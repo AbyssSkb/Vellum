@@ -1,8 +1,6 @@
 import AppKit
 
 enum ZoomGeometry {
-    static let fitMargin: CGFloat = 0.985
-
     static func clampedScale(_ scale: CGFloat, minimum: CGFloat, maximum: CGFloat) -> CGFloat {
         min(max(scale, minimum), maximum)
     }
@@ -40,8 +38,8 @@ enum ZoomGeometry {
               pageSize.width > 0,
               pageSize.height > 0 else { return nil }
 
-        let widthScale = (viewportSize.width * fitMargin) / pageSize.width
-        let heightScale = (viewportSize.height * fitMargin) / pageSize.height
+        let widthScale = viewportSize.width / pageSize.width
+        let heightScale = viewportSize.height / pageSize.height
         return clampedScale(min(widthScale, heightScale), minimum: minimum, maximum: maximum)
     }
 

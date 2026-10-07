@@ -41,7 +41,7 @@ struct ZoomGeometryTests {
             maximum: 8
         )
 
-        #expect(scale == 0.6566666666666666)
+        #expect(scale == 600.0 / 900.0)
     }
 
     @Test
