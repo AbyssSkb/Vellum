@@ -8,9 +8,9 @@ Vellum is a native macOS PDF reader with keyboard navigation, an immersive page 
 
 ## Open files and manage tabs
 
-Download the app from [GitHub Releases](https://github.com/AbyssSkb/Vellum/releases/latest), open the disk image, and drag Vellum to Applications. Launch it and open a PDF from the empty reader or the file picker.
+Download the app from [GitHub Releases](https://github.com/AbyssSkb/Vellum/releases/latest), open the disk image, and drag Vellum to Applications. Launch it and press `o` to open a PDF.
 
-`o` and `Command-O` follow **Settings → General → Default open mode**. The initial default replaces the current tab; choose New tabs if that better suits your workflow. `O` always opens the selected PDFs in new tabs and supports selecting several files at once. Files opened through Finder also open in new tabs.
+`o` and `Command-O` follow **Settings → General → Default open mode**, initially set to replace the current tab. `O` opens PDFs in new tabs and supports selecting several files at once. Files opened through Finder also open in new tabs.
 
 Each file has one tab. Opening an already open file selects its existing tab. If it has changed on disk, reopening reloads its current contents after protecting any unsaved annotations. `X` restores the most recently closed PDF from disk.
 
@@ -57,7 +57,7 @@ Press `t` to show or hide the contents sidebar. Opening it focuses the outline a
 
 Select an entry and press `Enter` to jump and focus the reader. In the outline, `Esc` first clears a pending count or command prefix; with no pending input, it returns focus to the reader while keeping the sidebar open. You can also click either pane to focus it.
 
-The reading-section marker and outline browsing cursor have separate roles. During scrolling, the current section follows the horizontal center line of the reading area, usually changing when a section heading crosses it. While the reader has focus, entering another section aligns the outline cursor with that section. While the outline has focus, its browsing cursor, scroll position, and folds stay under your control as the reading marker updates. A section inside a closed fold is marked through its nearest visible ancestor; reading never opens folds automatically.
+The reading-section marker and outline browsing cursor have separate roles. During scrolling, the current section follows the horizontal center line of the reading area, usually changing when a section heading crosses it. While the reader has focus, entering another section aligns the outline cursor with that section. While the outline has focus, its browsing cursor, scroll position, and folds stay under your control as the reading marker updates. A section inside a closed fold is marked through its nearest visible ancestor, preserving the fold state.
 
 ![The contents sidebar and document tabs](images/vellum-outline-tabs.png)
 
@@ -78,7 +78,7 @@ The reading-section marker and outline browsing cursor have separate roles. Duri
 | `Esc` | Clear a pending count or prefix; otherwise focus the reader |
 | `t` | Close the sidebar and focus the reader |
 
-Counts apply to outline movement: `10j` moves down ten visible entries; `10G` selects the tenth visible entry regardless of your current position. The page number printed beside an entry is its PDF destination, not its position in the outline list.
+Counts apply to outline movement: `10j` moves down ten visible entries; `10G` selects the tenth visible entry. The page number beside an entry identifies its destination in the PDF.
 
 ### Fold the outline
 
@@ -97,11 +97,11 @@ Put counts **before** `z`: `2zo` opens up to two containing folds, `2zc` closes 
 
 Closing a containing fold keeps the logical cursor at its original entry, even if an ancestor becomes the visible selection. A following `zo` can reveal that entry again. `zc` also works on a leaf by closing its containing branch. Local fold changes preserve hidden descendant states; `zr`, `zm`, `zR`, and `zM` apply a level to the whole outline. Each open tab remembers its outline state while you switch files.
 
-As another set of fold shortcuts, `Option-→` / `Option-←` recursively opens / closes the selected branch. On a leaf, it uses the parent branch. Add `Shift` to apply this to the entire outline.
+`Option-→` / `Option-←` recursively opens / closes the selected branch. On a leaf, it uses the parent branch. Add `Shift` to apply this to the entire outline.
 
 ## Use the immersive page gallery
 
-Hold plain `Tab` from the reader or outline to open the gallery. It presents a large selected page with its neighbors, preserving the visual connection to the reading page.
+Hold plain `Tab` from the reader or outline to preview the selected page and its neighbors in the gallery.
 
 ![The immersive page gallery](images/vellum-gallery.png)
 
@@ -146,16 +146,14 @@ Annotations save automatically to the PDF in the background. If saving fails or 
 
 ## Experimental AI
 
-AI is experimental and still under active exploration. The workflow and response quality are being evaluated and refined. It is optional; the following instructions describe the current implementation as a technical reference.
+AI is an optional experimental feature. To configure a provider, open Settings with `Command-,`.
 
-Reading, searching, and highlighting work without AI. Open Settings with `Command-,` to configure a provider.
-
-1. In **AI Providers**, select a preset or a custom OpenAI-compatible endpoint. HTTP providers use a Base URL and API key; Anthropic uses its Messages API format.
-2. For the **Codex** preset, supply the executable path of an installed, authenticated Codex CLI. An optional profile selects its configuration. This local integration uses Codex's existing authentication rather than an HTTP API key entered in Vellum.
+1. In **AI Providers**, select a preset or a custom OpenAI-compatible endpoint. HTTP providers use a Base URL and API key.
+2. For the **Codex** preset, supply the executable path of an installed, authenticated Codex CLI. An optional profile selects its configuration. The integration uses the CLI's existing authentication.
 3. In **AI Explanation** and **AI Conversation**, choose the provider and model independently. Use Fetch Models where supported and Test Endpoint (HTTP) or Test Codex to check the configuration. The Codex model field can be empty to use its configured default.
 4. Choose the target output language and, optionally, customize each prompt template. Output language is independent of Vellum's English / Chinese interface setting.
 
-AI requests include the selection and extracted nearby context, such as its page, outline heading, and surrounding paragraphs. They are sent to the configured provider. Local Codex describes the local integration; its selected model may still use a remote service.
+AI requests send the selection and extracted nearby context, such as its page, outline heading, and surrounding paragraphs, to the configured provider. Models accessed through the local Codex CLI may use a remote service.
 
 ### Commands and saved answers
 
@@ -180,7 +178,7 @@ In a conversation, type a follow-up question and press `Enter` to send. `Shift-E
 
 Sparkle handles updates, with automatic checks enabled initially. New versions download and prepare in the background. Once ready, choose **Restart and Update** to install immediately, or **Later** to keep reading; a prepared update can also install when you normally quit Vellum. Manual checks in General settings or the Vellum menu use the same update window.
 
-Brief status messages use a compact window that adapts to the content; a green check means Vellum is up to date. Long release notes use a wider, constrained reading area with hidden scrollbars, while the action buttons stay visible. Button letters work in either case and apply to the actions currently shown.
+A green check means Vellum is up to date. Scroll long release notes with the keys below; the action buttons stay visible. Press a letter shown on a button to activate it; lowercase and uppercase both work.
 
 | Key | Action in the update window |
 | --- | --- |

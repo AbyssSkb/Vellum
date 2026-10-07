@@ -11,9 +11,9 @@ scripts/package-app.sh
 open "dist/Vellum Preview $preview_id.app"
 ```
 
-This creates a separate app with independent preferences and update identity. Keep the user's current Vellum running while opening the preview.
+Keep the user's current Vellum running while opening the preview.
 
-For end-to-end updater tests, sign local fixtures with a temporary Ed25519 key and embed its public key only in the isolated preview. This keeps local tests independent of the production signing key in the Keychain.
+For end-to-end updater tests, sign local fixtures with a temporary Ed25519 key and embed its public key in the isolated preview.
 
 Publish the release after the user confirms that local testing passed. Production releases use the default app name and bundle identifier. Release titles, notes, and commit subjects are written in English.
 
@@ -23,11 +23,11 @@ The release workflow packages a universal macOS app, creates the DMG, and publis
 
 `https://github.com/AbyssSkb/Vellum/releases/latest/download/appcast.xml`
 
-The DMG remains available to users of earlier versions that check GitHub Releases directly. Sparkle versions verify the update archive before extraction and verify the appcast using the public key embedded in the app.
+Sparkle verifies the update archive before extraction and the appcast using the public key embedded in the app.
 
 Automatic checks and background downloads are enabled by default. Once an update is ready, users can confirm installation and restart immediately, or continue reading and let Sparkle install it when they normally quit the app.
 
-The app's `CFBundleVersion` and `CFBundleShortVersionString` both use the release version, so local packages and CI releases share the same ordering.
+The app's `CFBundleVersion` and `CFBundleShortVersionString` both use the release version.
 
 ## Sparkle signing key
 

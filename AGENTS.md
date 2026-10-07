@@ -10,6 +10,7 @@
 - Write public GitHub release titles and notes in English. Keep commit subjects used to generate release notes in English as well.
 - Continue the 0.8.x release series, choosing the next version after the latest published release.
 - Express language and presentation preferences as positive desired outcomes in AI project instructions.
+- Write documentation as direct feature descriptions and actionable instructions; include limitations when they affect a user's decision.
 - Keep README, user guides, and GitHub About aligned with the shipped features. Present AI assistance as an optional experiment, with configuration covered in the user guide.
 - Use the original PDF in `docs/samples/` for feature screenshots. Capture native macOS windows with clean corners and the pointer outside the image, showing the English UI for the primary README.
 
@@ -17,7 +18,7 @@
 
 Vellum uses a compact, subtly cool ink-black macOS interface with restrained Linear-inspired component hierarchy. New pages, panels, and overlays should feel like they belong to the existing reader, settings, search, and tab-switcher surfaces.
 
-- Use the shared `TokyoNight` palette from `Sources/VellumCore/Support/TokyoNight.swift`. Prefer `background`, `backgroundDeep`, `panel`, `panelElevated`, `selection`, `border`, `foreground`, `muted`, `blue`, `cyan`, `purple`, and `red` instead of introducing new color families.
+- Use the shared `TokyoNight` palette from `Sources/VellumCore/Support/TokyoNight.swift`: `background`, `backgroundDeep`, `panel`, `panelElevated`, `selection`, `border`, `foreground`, `muted`, `blue`, `cyan`, `purple`, and `red`.
 - The palette keeps its existing API name. Use subtly cool surfaces and soft white text for ordinary chrome, and the muted steel-blue `blue` for focus and selected controls. Keep `cyan`, `purple`, and `red` values stable because PDF highlight colors depend on them.
 - Use a native semantic green for successful update status and `red` for errors.
 - Keep the app dark, calm, and reading-focused, with restrained typography, shallow surfaces, and subtle tonal differences.
@@ -27,7 +28,7 @@ Vellum uses a compact, subtly cool ink-black macOS interface with restrained Lin
 - Keep corner radii restrained: 8 px for panels, overlays, tabs, and header icon wells; 7 px for rows and inputs; 5-6 px for keycaps, pills, and small choices. Follow the shared adaptive reader geometry for the main canvas.
 - Prefer full-width bands, split panes, and direct tool layouts. Use a single surface for repeated items or contained settings groups.
 - Use SF Symbols/lucide-like icon semantics consistently: small icons inside headers, rows, and buttons should communicate the action or category. Keep familiar controls concise and self-explanatory.
-- Use custom-styled controls that match the app instead of raw Apple defaults when building visible settings controls: Tokyo Night backgrounds, subtle borders, explicit hover/focus/selected states, and generous hit targets.
+- Use custom-styled settings controls with Tokyo Night backgrounds, subtle borders, explicit hover/focus/selected states, and generous hit targets.
 - Hit targets should feel easy with a mouse: rows and buttons should use `.contentShape(Rectangle())` or an equivalent AppKit hit area; small icon buttons need hover feedback and a generous clickable area.
 - Hover states should be subtle but visible: increase panel/row opacity, strengthen the border, or tint the icon/text with `cyan`/`blue`; destructive hover states may use `red` sparingly.
 - Search, switcher, and transient command UI should pair HUD-like material blur with an opaque Tokyo Night tint that keeps controls clearly readable against the document.

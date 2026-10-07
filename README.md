@@ -24,7 +24,7 @@ Press `t` to show or hide the contents sidebar. Tap `Tab` to move keyboard focus
 
 ## See the pages around you
 
-Hold `Tab` to enter the immersive gallery. A large current-page preview sits between its neighbors, keeping the document's layout easy to recognize. Use `h` / `l` to move one page or `k` / `j` to move three pages. Release `Tab` to return to the selected page with a continuous transition back to the reading canvas, or press `Esc` to return to where you started.
+Hold `Tab` to enter the immersive gallery, with a large current-page preview between its neighbors. Use `h` / `l` to move one page or `k` / `j` to move three pages. Release `Tab` to read the selected page, or press `Esc` to return to where you started.
 
 ![Immersive page gallery showing the current page and its neighboring pages](docs/images/vellum-gallery.png)
 
@@ -34,11 +34,11 @@ Search with `/`, move through matches with `n` and `N`, and press `v` to select 
 
 ![Search matches with a compact query field and result counter](docs/images/vellum-search.png)
 
-*Screenshots show the current native interface with an original [sample PDF](docs/samples/the-shape-of-attention.pdf).*
+*Screenshots use this [sample PDF](docs/samples/the-shape-of-attention.pdf).*
 
 ## Experimental AI
 
-AI assistance is an optional experiment. Its workflow and output quality are still being explored and refined, so it is not part of Vellum's core feature showcase. Existing in-app tools remain available for those who want to try them; configuration and current behavior are covered in the [user guide](docs/USER_GUIDE.md#experimental-ai).
+AI assistance is optional and experimental. See the [user guide](docs/USER_GUIDE.md#experimental-ai) for configuration and usage.
 
 ## Get started
 
@@ -59,13 +59,13 @@ AI assistance is an optional experiment. Its workflow and output quality are sti
 | `/`, `n` / `N` | Search; next / previous match |
 | `m`, `c`, `y` | Highlight, change highlight color, copy |
 
-Letter shortcuts apply to the focused reading surface. Search fields and conversation inputs accept normal typing. The [user guide](docs/USER_GUIDE.md) covers selection, outline folds, focus behavior, and the full shortcut set.
+Letter shortcuts apply to the focused reading surface. The [user guide](docs/USER_GUIDE.md) covers selection, outline folds, focus behavior, and the full shortcut set.
 
 ## Preferences and updates
 
 Settings include English and Chinese UI, default file-opening behavior, initial page fit, highlight color, optional session restoration, and AI configuration. Session restoration is off by default.
 
-Sparkle handles automatic updates, with checks enabled by default. A new version downloads and prepares in the background, then Vellum offers to restart and update now or install when you normally quit. Manual checks from the Vellum menu or General settings use the same update window, with Vim-style release-note scrolling and letter shortcuts shown on its buttons. Brief status messages use a compact window that fits its content; a green check confirms that Vellum is up to date. See the [update controls](docs/USER_GUIDE.md#settings-and-updates).
+Sparkle handles automatic updates, with checks enabled by default. A new version downloads and prepares in the background, then Vellum offers to restart and update now or install when you normally quit. Manual checks from the Vellum menu or General settings use the same update window, with Vim-style release-note scrolling and letter shortcuts shown on its buttons. See the [update controls](docs/USER_GUIDE.md#settings-and-updates).
 
 ## Build from source
 
