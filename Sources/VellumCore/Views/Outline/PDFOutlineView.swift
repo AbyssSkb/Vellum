@@ -36,7 +36,8 @@ struct PDFOutlineView: NSViewRepresentable {
         outlineView.autoresizesOutlineColumn = false
         outlineView.intercellSpacing = NSSize(width: 0, height: 2)
         outlineView.rowHeight = 30
-        outlineView.rowSizeStyle = .medium
+        // Preserve the custom title fonts and cell geometry from the first draw.
+        outlineView.rowSizeStyle = .custom
         outlineView.gridStyleMask = []
         if #available(macOS 11.0, *) {
             outlineView.style = .plain

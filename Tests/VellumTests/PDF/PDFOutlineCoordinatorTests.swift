@@ -8,6 +8,44 @@ import Testing
 @Suite("PDF outline coordinator")
 struct PDFOutlineCoordinatorTests {
     @Test
+    func openingAndFocusingOutlineKeepsShortRootTitleInPlace() async throws {
+        _ = NSApplication.shared
+        let document = PDFDocument()
+        let root = PDFOutlineItem(id: "0", title: "Scales and relationships", destination: nil,
+                                  pageIndex: 3, parent: nil)
+        root.children = [PDFOutlineItem(id: "0.0", title: "Detail", destination: nil,
+                                        pageIndex: 3, parent: root)]
+        let host = NSHostingView(rootView: PDFOutlineView(
+            items: [root], tabID: UUID(), documentID: ObjectIdentifier(document),
+            focusGeneration: 0, appState: makeAppState(), language: .english
+        ))
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 256, height: 220),
+                              styleMask: .borderless, backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentView = host
+        window.orderFront(nil)
+        defer { window.close() }
+        host.layoutSubtreeIfNeeded()
+        func descendants(_ view: NSView) -> [NSView] { [view] + view.subviews.flatMap(descendants) }
+        let outline = try #require(descendants(host).compactMap { $0 as? PDFOutlineKeyView }.first)
+        let cell = try #require(outline.view(atColumn: 0, row: 0, makeIfNecessary: true) as? PDFOutlineCellView)
+        try await Task.sleep(for: .milliseconds(30))
+        host.layoutSubtreeIfNeeded()
+        let titleFrame = cell.titleView.convert(cell.titleView.bounds, to: outline)
+        let textField = try #require(cell.textField)
+        let textFrame = textField.convert(textField.bounds, to: outline)
+        let font = NSFont.systemFont(ofSize: 13, weight: .medium)
+        #expect(textField.font == font)
+        #expect(cell.titleView.bounds.width > cell.titleView.intrinsicContentSize.width)
+        window.makeFirstResponder(outline)
+        try await Task.sleep(for: .milliseconds(30))
+        host.layoutSubtreeIfNeeded()
+        #expect(textField.font == font)
+        #expect(cell.titleView.convert(cell.titleView.bounds, to: outline) == titleFrame)
+        #expect(textField.convert(textField.bounds, to: outline) == textFrame)
+    }
+
+    @Test
     func expandingNestedOutlineKeepsTitlesAndPageNumbersInPlace() async throws {
         _ = NSApplication.shared
         let document = PDFDocument()

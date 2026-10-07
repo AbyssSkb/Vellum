@@ -6,6 +6,44 @@ import Testing
 @MainActor
 @Suite("PDF outline title")
 struct PDFOutlineTitleViewTests {
+    @Test(arguments: [false, true])
+    func selectionKeepsTheRenderedTextOrigin(clipped: Bool) throws {
+        guard !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else { return }
+        _ = NSApplication.shared
+        let view = PDFOutlineTitleView(frame: NSRect(x: 0, y: 0, width: 100, height: 20))
+        view.textField.font = .systemFont(ofSize: 12.5, weight: .medium)
+        view.textField.textColor = .white
+        view.title = clipped ? "Introduction and chapter navigation" : "Introduction"
+        let window = NSWindow(contentRect: view.frame, styleMask: .borderless, backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentView = view
+        window.orderFront(nil)
+        defer { window.close() }
+
+        func firstInkColumn() throws -> Int {
+            view.layoutSubtreeIfNeeded()
+            window.displayIfNeeded()
+            let bitmap = try #require(NSBitmapImageRep(
+                bitmapDataPlanes: nil, pixelsWide: 200, pixelsHigh: 40, bitsPerSample: 8,
+                samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
+                bytesPerRow: 0, bitsPerPixel: 0
+            ))
+            let context = try #require(NSGraphicsContext(bitmapImageRep: bitmap)?.cgContext)
+            context.clear(CGRect(x: 0, y: 0, width: 200, height: 40))
+            context.scaleBy(x: 2, y: 2)
+            try #require(view.layer).render(in: context)
+            return try #require((0..<24).first { x in
+                (0..<40).contains { y in (bitmap.colorAt(x: x, y: y)?.alphaComponent ?? 0) > 0.1 }
+            })
+        }
+
+        let origin = try firstInkColumn()
+        view.isSelected = true
+        #expect(try firstInkColumn() == origin)
+        view.isSelected = false
+        #expect(try firstInkColumn() == origin)
+    }
+
     @Test(arguments: [15.0, 180.0])
     func shortAndLongOverflowsMoveAtTheSameSpeed(overflow: Double) throws {
         guard !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else { return }
@@ -22,7 +60,7 @@ struct PDFOutlineTitleViewTests {
         window.orderFront(nil)
         defer { window.close() }
         view.isSelected = true
-        let marqueeLayer = try #require(view.layer?.sublayers?.compactMap { $0 as? CATextLayer }.first)
+        let marqueeLayer = try #require(view.textField.layer)
         let key = try #require(marqueeLayer.animationKeys()?.first)
         let animation = try #require(marqueeLayer.animation(forKey: key) as? CAKeyframeAnimation)
         let times = try #require(animation.keyTimes).map(\.doubleValue)
@@ -57,11 +95,11 @@ struct PDFOutlineTitleViewTests {
         window.contentView = view
         window.orderFront(nil)
         defer { window.close() }
-        let marqueeLayer = try #require(view.layer?.sublayers?.compactMap { $0 as? CATextLayer }.first)
+        let marqueeLayer = try #require(view.textField.layer)
 
         #expect(view.textField.lineBreakMode == .byTruncatingTail)
         #expect(marqueeLayer.animationKeys()?.isEmpty != false)
-        #expect(marqueeLayer.isHidden)
+        #expect(view.textField.frame.width == view.bounds.width)
         view.isSelected = true
         if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
             #expect(marqueeLayer.animationKeys()?.isEmpty != false)
@@ -72,17 +110,18 @@ struct PDFOutlineTitleViewTests {
             let animation = try #require(marqueeLayer.animation(forKey: key) as? CAKeyframeAnimation)
             #expect(animation.keyPath == "transform.translation.x")
             #expect(animation.repeatCount == .infinity)
-            #expect((marqueeLayer.string as? NSAttributedString)?.string == view.title)
-            #expect(marqueeLayer.frame.width > view.bounds.width)
+            #expect(view.textField.stringValue == view.title)
+            #expect(view.textField.frame.width == ceil(view.intrinsicContentSize.width))
+            #expect(view.textField.frame.width > view.bounds.width)
             #expect(!marqueeLayer.isHidden)
-            #expect(view.textField.layer?.opacity == 0)
+            #expect(view.textField.layer?.opacity == 1)
             #expect(!view.textField.isHidden)
             #expect(view.layer?.masksToBounds == true)
         }
 
         view.isSelected = false
         #expect(marqueeLayer.animationKeys()?.isEmpty != false)
-        #expect(marqueeLayer.isHidden)
+        #expect(!marqueeLayer.isHidden)
         #expect(view.textField.layer?.opacity == 1)
         #expect(view.textField.lineBreakMode == .byTruncatingTail)
         #expect(view.textField.frame.width == view.bounds.width)
@@ -92,7 +131,7 @@ struct PDFOutlineTitleViewTests {
         window.setContentSize(NSSize(width: view.intrinsicContentSize.width + 20, height: 20))
         view.layoutSubtreeIfNeeded()
         #expect(marqueeLayer.animationKeys()?.isEmpty != false)
-        #expect(marqueeLayer.isHidden)
+        #expect(!marqueeLayer.isHidden)
         #expect(view.textField.layer?.opacity == 1)
         #expect(view.textField.lineBreakMode == .byTruncatingTail)
         #expect(view.textField.frame.width == view.bounds.width)

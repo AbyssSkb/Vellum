@@ -24,7 +24,7 @@ struct ClippedTabTitleTests {
         window.contentView = container
         window.orderFront(nil)
         defer { window.close() }
-        let layer = try #require(view.layer?.sublayers?.compactMap { $0 as? CATextLayer }.first)
+        let layer = try #require(view.textField.layer)
         let key = "outlineTitleScroll"
         #expect(layer.animation(forKey: key) == nil)
 
@@ -42,7 +42,7 @@ struct ClippedTabTitleTests {
         view.setFrameSize(NSSize(width: 100, height: 20))
         view.layoutSubtreeIfNeeded()
         #expect(layer.animation(forKey: key) == nil)
-        #expect(layer.isHidden)
+        #expect(!layer.isHidden)
     }
 
     @Test
@@ -71,7 +71,7 @@ struct ClippedTabTitleTests {
 
         try await update(selected: true, hovered: false)
         let view = try #require(descendants(host).compactMap { $0 as? PDFOutlineTitleView }.first)
-        let layer = try #require(view.layer?.sublayers?.compactMap { $0 as? CATextLayer }.first)
+        let layer = try #require(view.textField.layer)
         let animationKey = "outlineTitleScroll"
         #expect(view.bounds.width == 100)
         #expect(view.textField.lineBreakMode == .byTruncatingTail)
@@ -81,7 +81,7 @@ struct ClippedTabTitleTests {
         #expect(!view.repeatsMarquee)
 
         if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
-            #expect(layer.isHidden)
+            #expect(!layer.isHidden)
             #expect(layer.animation(forKey: animationKey) == nil)
             return
         }
@@ -91,7 +91,7 @@ struct ClippedTabTitleTests {
         }
         func finishPlayback() throws {
             view.animationDidStop(try animation(), finished: true)
-            #expect(layer.isHidden)
+            #expect(!layer.isHidden)
             #expect(layer.animation(forKey: animationKey) == nil)
             #expect(view.textField.layer?.opacity == 1)
             #expect(CATransform3DIsIdentity(layer.transform))
@@ -114,7 +114,7 @@ struct ClippedTabTitleTests {
             #expect(view.toolTip == title)
             let currentAnimation = try animation()
             #expect(!layer.isHidden)
-            #expect((layer.string as? NSAttributedString)?.string == title)
+            #expect(view.textField.stringValue == title)
             #expect(currentAnimation.repeatCount == 0)
             let beginTime = CACurrentMediaTime() - 2
             currentAnimation.beginTime = beginTime
@@ -135,7 +135,7 @@ struct ClippedTabTitleTests {
         view.animationDidStop(stoppedAnimation, finished: true)
         #expect(try animation().repeatCount == 0)
         try await update(selected: false, hovered: false)
-        #expect(layer.isHidden)
+        #expect(!layer.isHidden)
         #expect(layer.animation(forKey: animationKey) == nil)
         #expect(view.textField.layer?.opacity == 1)
         #expect(CATransform3DIsIdentity(layer.transform))
@@ -152,7 +152,7 @@ struct ClippedTabTitleTests {
 
         try await update(selected: true, hovered: false, name: "Short.pdf")
         #expect(view.title == "Short.pdf")
-        #expect(layer.isHidden)
+        #expect(!layer.isHidden)
         #expect(layer.animation(forKey: animationKey) == nil)
         #expect(view.textField.layer?.opacity == 1)
         view.setFrameSize(NSSize(width: 10, height: 20))

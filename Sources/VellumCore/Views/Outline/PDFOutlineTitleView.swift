@@ -20,7 +20,6 @@ final class PDFOutlineTitleView: NSView, CAAnimationDelegate {
     }
     var repeatsMarquee = true
 
-    private let marqueeLayer = CATextLayer()
     private weak var observedClipView: NSClipView?
     private var animationDistance: CGFloat?
     private var singlePlaybackPending = false
@@ -37,8 +36,6 @@ final class PDFOutlineTitleView: NSView, CAAnimationDelegate {
         textField.lineBreakMode = .byTruncatingTail
         textField.font = .systemFont(ofSize: 13)
         addSubview(textField)
-        marqueeLayer.isHidden = true
-        layer?.addSublayer(marqueeLayer)
         NSWorkspace.shared.notificationCenter.addObserver(
             self, selector: #selector(presentationChanged),
             name: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification, object: nil
@@ -53,7 +50,9 @@ final class PDFOutlineTitleView: NSView, CAAnimationDelegate {
         fatalError("init(coder:) has not been implemented")
     }
 
-    override var intrinsicContentSize: NSSize { textField.intrinsicContentSize }
+    override var intrinsicContentSize: NSSize {
+        textField.frame(forAlignmentRect: NSRect(origin: .zero, size: textField.intrinsicContentSize)).size
+    }
 
     func playMarqueeOnce() {
         singlePlaybackPending = true
@@ -130,7 +129,7 @@ final class PDFOutlineTitleView: NSView, CAAnimationDelegate {
     }
 
     private func updatePresentation(reset: Bool = false) {
-        let size = textField.intrinsicContentSize
+        let size = intrinsicContentSize
         let overflow = ceil(size.width) - bounds.width
         let reducesMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         if reducesMotion || (bounds.width > 0 && overflow <= 0) { singlePlaybackPending = false }
@@ -144,23 +143,11 @@ final class PDFOutlineTitleView: NSView, CAAnimationDelegate {
         CATransaction.setDisableActions(true)
         textField.frame = NSRect(
             x: 0, y: floor((bounds.height - size.height) / 2),
-            width: bounds.width, height: size.height
+            width: shouldAnimate ? ceil(size.width) : bounds.width, height: size.height
         )
-        textField.layer?.opacity = shouldAnimate ? 0 : 1
-        marqueeLayer.isHidden = !shouldAnimate
-        marqueeLayer.contentsScale = window?.backingScaleFactor ?? 2
-        if shouldAnimate {
-            marqueeLayer.string = NSAttributedString(string: title, attributes: [
-                .font: textField.font ?? .systemFont(ofSize: 13),
-                .foregroundColor: textField.textColor ?? .labelColor
-            ])
-            marqueeLayer.frame = NSRect(
-                x: 0, y: textField.frame.minY, width: ceil(size.width), height: size.height
-            )
-        }
         if reset || nextDistance != animationDistance {
-            marqueeLayer.removeAnimation(forKey: Self.animationKey)
-            marqueeLayer.transform = CATransform3DIdentity
+            textField.layer?.removeAnimation(forKey: Self.animationKey)
+            textField.layer?.transform = CATransform3DIdentity
             animationDistance = nextDistance
             if let nextDistance {
                 let pause = 1.5
@@ -179,7 +166,7 @@ final class PDFOutlineTitleView: NSView, CAAnimationDelegate {
                     animation.setValue(singlePlaybackGeneration, forKey: "singlePlaybackGeneration")
                     animation.delegate = self
                 }
-                marqueeLayer.add(animation, forKey: Self.animationKey)
+                textField.layer?.add(animation, forKey: Self.animationKey)
             }
         }
         CATransaction.commit()
