@@ -26,7 +26,7 @@ enum ZoomGeometry {
     ) -> CGFloat? {
         guard viewportSize.width > 0, pageSize.width > 0 else { return nil }
 
-        return clampedScale((viewportSize.width * fitMargin) / pageSize.width, minimum: minimum, maximum: maximum)
+        return clampedScale(viewportSize.width / pageSize.width, minimum: minimum, maximum: maximum)
     }
 
     static func pageFitScale(

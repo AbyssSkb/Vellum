@@ -21,6 +21,10 @@ struct PDFReader: NSViewRepresentable {
         view.displayMode = .singlePageContinuous
         view.displayDirection = .vertical
         view.displaysPageBreaks = true
+        var pageBreakMargins = view.pageBreakMargins
+        pageBreakMargins.left = 0
+        pageBreakMargins.right = 0
+        view.pageBreakMargins = pageBreakMargins
         view.document = document
         PDFAnnotationPersistence.state(for: document)?.onPrepareToClose = { [weak view] in
             view?.hideAIExplanationPopover()

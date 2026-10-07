@@ -1,10 +1,49 @@
 import AppKit
 import PDFKit
+import SwiftUI
 import Testing
 @testable import VellumCore
 
 @Suite("PDF zoom layout")
 struct PDFZoomLayoutTests {
+    @Test @MainActor
+    func widthFitInReaderLeavesNoHorizontalScrollForUniformPages() throws {
+        _ = NSApplication.shared
+        let document = PDFDocument()
+        for index in 0..<3 {
+            let page = PDFPage()
+            page.setBounds(NSRect(x: 0, y: 0, width: 600, height: 900), for: .mediaBox)
+            document.insert(page, at: index)
+        }
+        let defaults = try #require(UserDefaults(suiteName: "WidthFitTests.\(UUID().uuidString)"))
+        let appState = AppState(sessionDefaults: defaults, keyboardController: KeyboardController(
+            installsKeyMonitor: false, installsOpenURLObserver: false
+        ))
+        let tab = PDFTab(url: URL(fileURLWithPath: "/tmp/width-fit-test.pdf"), document: document)
+        _ = appState.tabStore.openInNewTabs([tab])
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),
+                              styleMask: .borderless, backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        defer { window.close() }
+        let hostingView = NSHostingView(rootView: PDFReader(
+            tabID: tab.id, document: document, snapshot: nil, isActive: true
+        ).environmentObject(appState))
+        window.contentView = hostingView
+        hostingView.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        let view = try #require(appState.activeReaderController as? VellumPDFView)
+        defer { view.stopZoomState() }
+        view.vimZoomToFit()
+        view.applyZoomScale(try #require(view.animationState.zoomTargetScale))
+        let scrollView = try #require(view.pdfScrollView)
+        let documentView = try #require(scrollView.documentView)
+        #expect(abs(documentView.bounds.width - scrollView.contentView.bounds.width) < 0.5)
+        let page = try #require(document.page(at: 0))
+        let paper = view.convert(page.bounds(for: view.displayBox), from: page)
+        #expect(abs(paper.minX - view.bounds.minX) < 0.5)
+        #expect(abs(paper.maxX - view.bounds.maxX) < 0.5)
+    }
+
     @Test @MainActor
     func unchangedZoomKeepsExistingPageViews() throws {
         let (window, view, _) = try makeReader()
@@ -55,7 +94,7 @@ struct PDFZoomLayoutTests {
         let viewport = try #require(view.fitViewportSize())
         let expectedScale = fitPage
             ? min(viewport.width / pageSize.width, viewport.height / pageSize.height) * ZoomGeometry.fitMargin
-            : viewport.width / pageSize.width * ZoomGeometry.fitMargin
+            : viewport.width / pageSize.width
         #expect(abs(target - expectedScale) < 0.001)
         view.applyZoomScale(target)
 
@@ -66,6 +105,10 @@ struct PDFZoomLayoutTests {
         } else {
             let point = view.convert(anchor.point, from: page)
             #expect(abs(point.y - view.bounds.midY) < 1)
+            let paper = view.convert(page.bounds(for: view.displayBox), from: page)
+            let viewportRect = view.convert(clipView.bounds, from: clipView)
+            #expect(abs(paper.minX - viewportRect.minX) < 0.5)
+            #expect(abs(paper.maxX - viewportRect.maxX) < 0.5)
         }
     }
 

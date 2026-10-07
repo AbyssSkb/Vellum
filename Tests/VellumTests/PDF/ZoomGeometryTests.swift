@@ -21,7 +21,7 @@ struct ZoomGeometryTests {
     }
 
     @Test
-    func widthFitScaleUsesViewportWidthAndMargin() {
+    func widthFitScaleFillsViewportWidth() {
         let scale = ZoomGeometry.widthFitScale(
             viewportSize: NSSize(width: 800, height: 600),
             pageSize: NSSize(width: 400, height: 900),
@@ -29,7 +29,7 @@ struct ZoomGeometryTests {
             maximum: 8
         )
 
-        #expect(scale == 1.97)
+        #expect(scale == 2)
     }
 
     @Test
