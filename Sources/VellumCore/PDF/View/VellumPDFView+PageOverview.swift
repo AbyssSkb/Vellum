@@ -16,7 +16,10 @@ extension VellumPDFView {
         let overlay = PageOverviewOverlayView(
             document: document,
             selectedIndex: pageIndex,
-            columns: Self.pageOverviewColumns
+            columns: Self.pageOverviewColumns,
+            entryPageRect: document.page(at: pageIndex).flatMap {
+                viewRect(for: $0.bounds(for: displayBox), on: $0)
+            }
         )
         overlay.frame = bounds
         overlay.autoresizingMask = [.width, .height]
@@ -134,7 +137,10 @@ final class PageOverviewOverlayView: NSView {
     private let visibleCount: Int
     private var selectedIndex: Int
     private var visibleIndexes: [Int] = []
-    private let thumbnails = PageOverviewThumbnailLoader()
+    private let thumbnails: PageOverviewThumbnailLoader
+    private let backdrop = CALayer()
+    private var entryPageRect: NSRect?
+    private var presented = false
     private var papers: [Int: CALayer] = [:]
     private let positionLabel = NSTextField(labelWithString: "")
     private let previousButton = NSButton()
@@ -144,19 +150,27 @@ final class PageOverviewOverlayView: NSView {
     private static let transitionKey = "galleryTransition"
     private var reducesMotion: Bool { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
 
-    init(document: PDFDocument, selectedIndex: Int, columns: Int) {
+    init(document: PDFDocument, selectedIndex: Int, columns: Int, entryPageRect: NSRect? = nil,
+         thumbnailLoader: PageOverviewThumbnailLoader? = nil) {
         self.document = document
         self.selectedIndex = selectedIndex
         self.visibleCount = columns
+        self.entryPageRect = entryPageRect
+        self.thumbnails = thumbnailLoader ?? PageOverviewThumbnailLoader()
         super.init(frame: .zero)
         wantsLayer = true
-        layer?.backgroundColor = TokyoNight.panel.cgColor
+        alphaValue = 0
+        backdrop.backgroundColor = TokyoNight.panel.cgColor
+        backdrop.opacity = 0
+        backdrop.zPosition = -1
+        layer?.addSublayer(backdrop)
         layer?.masksToBounds = true
         setAccessibilityRole(.group)
         setAccessibilityLabel(AppUILanguage.saved().text(.pageOverview))
         positionLabel.font = .monospacedDigitSystemFont(ofSize: 12, weight: .medium)
         positionLabel.textColor = TokyoNight.muted
         positionLabel.alignment = .center
+        positionLabel.alphaValue = 0
         addSubview(positionLabel)
         for (button, symbol, action) in [
             (previousButton, "chevron.left", #selector(previousPage)),
@@ -169,6 +183,7 @@ final class PageOverviewOverlayView: NSView {
             button.contentTintColor = TokyoNight.muted
             button.target = self
             button.action = action
+            button.alphaValue = 0
             addSubview(button)
         }
         NSWorkspace.shared.notificationCenter.addObserver(
@@ -183,6 +198,7 @@ final class PageOverviewOverlayView: NSView {
     func update(selectedIndex: Int) {
         guard !dismissed else { return }
         let previousIndex = self.selectedIndex
+        if !presented { entryPageRect = nil }
         self.selectedIndex = selectedIndex
         updateVisibleIndexes()
         layoutPapers(animated: true, enteringFrom: previousIndex)
@@ -193,7 +209,7 @@ final class PageOverviewOverlayView: NSView {
         guard !dismissed else { return }
         dismissed = true
         thumbnails.cancel()
-        guard animated, !reducesMotion, window != nil else {
+        guard animated, presented, !reducesMotion, window != nil else {
             removeFromSuperview()
             return
         }
@@ -206,6 +222,7 @@ final class PageOverviewOverlayView: NSView {
     }
 
     override func setFrameSize(_ newSize: NSSize) {
+        if window != nil, newSize != frame.size { entryPageRect = nil }
         super.setFrameSize(newSize)
         layoutPapers(animated: false)
         updateThumbnails()
@@ -216,12 +233,6 @@ final class PageOverviewOverlayView: NSView {
         guard window != nil, !dismissed else { return }
         layoutPapers(animated: false)
         updateThumbnails()
-        guard !reducesMotion else { return }
-        alphaValue = 0
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.14
-            animator().alphaValue = 1
-        }
     }
 
     override func viewDidChangeBackingProperties() {
@@ -276,6 +287,10 @@ final class PageOverviewOverlayView: NSView {
         image.cornerRadius = 2
         image.masksToBounds = true
         image.contentsGravity = .resizeAspect
+        let shade = CALayer()
+        shade.name = "shade"
+        shade.backgroundColor = TokyoNight.panel.cgColor
+        image.addSublayer(shade)
         paper.addSublayer(image)
         let number = CATextLayer()
         number.string = "\(index + 1)"
@@ -290,11 +305,32 @@ final class PageOverviewOverlayView: NSView {
 
     private func layoutPapers(animated: Bool, enteringFrom previousIndex: Int? = nil) {
         guard !dismissed, bounds.width > 24, bounds.height > 24 else { return }
+        // Keep the previous paper in place until the requested page can replace it.
+        guard !presented || thumbnails.images[selectedIndex] != nil else { return }
         transitionGeneration += 1
         let generation = transitionGeneration
-        let animate = animated && !reducesMotion && window?.isVisible == true
+        let startsEntry = !presented && thumbnails.images[selectedIndex] != nil
+        let sourceRect = startsEntry ? entryPageRect : nil
+        let duration = sourceRect == nil ? 0.26 : 0.34
+        let animate = (animated || startsEntry) && !reducesMotion && window?.isVisible == true
         CATransaction.begin()
         CATransaction.setDisableActions(true)
+        backdrop.frame = bounds
+        if startsEntry {
+            presented = true
+            entryPageRect = nil
+            alphaValue = 1
+            backdrop.opacity = 1
+            if animate {
+                addTransition(to: backdrop, values: [("opacity", Float(0), Float(1))], duration: 0.16)
+            }
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = animate ? 0.24 : 0
+                positionLabel.animator().alphaValue = 1
+                previousButton.animator().alphaValue = 1
+                nextButton.animator().alphaValue = 1
+            }
+        }
         for index in visibleIndexes where papers[index] == nil {
             let paper = makePaper(index: index)
             paper.position = position(for: index, selectedIndex: previousIndex ?? selectedIndex)
@@ -307,11 +343,21 @@ final class PageOverviewOverlayView: NSView {
             let size = paperSize(for: index)
             let image = paper.sublayers![0]
             let number = paper.sublayers![1]
-            let current = paper.presentation() ?? paper
+            let shade = image.sublayers![0]
+            if let sourceRect, index == selectedIndex, size.width > 0 {
+                let scale = sourceRect.width / size.width
+                paper.position = CGPoint(x: sourceRect.midX, y: sourceRect.midY - 14 * scale)
+                paper.transform = CATransform3DMakeScale(scale, scale, 1)
+                paper.opacity = 1
+                paper.shadowRadius = 4
+            }
+            let current = sourceRect != nil && index == selectedIndex ? paper : (paper.presentation() ?? paper)
             let fromPosition = current.position
             let fromTransform = current.transform
             let fromOpacity = current.opacity
-            let fromZ = current.zPosition
+            let fromShadow = current.shadowRadius
+            let fromNumberOpacity = number.presentation()?.opacity ?? number.opacity
+            let fromShadeOpacity = shade.presentation()?.opacity ?? shade.opacity
             paper.bounds = CGRect(origin: .zero, size: NSSize(width: size.width, height: size.height + 28))
             image.frame = CGRect(x: 0, y: 28, width: size.width, height: size.height)
             image.contentsScale = window?.backingScaleFactor ?? 2
@@ -320,15 +366,22 @@ final class PageOverviewOverlayView: NSView {
             }
             number.frame = CGRect(x: 0, y: 2, width: size.width, height: 20)
             number.contentsScale = image.contentsScale
-            number.opacity = index == selectedIndex ? 0 : 1
+            let numberOpacity: Float = index == selectedIndex ? 0 : 1
+            let shadeOpacity: Float = index == selectedIndex ? 0 : 0.13
+            let shadowRadius: CGFloat = index == selectedIndex ? 22 : 16
+            let detailChanged = number.opacity != numberOpacity || shade.opacity != shadeOpacity
+                || paper.shadowRadius != shadowRadius
+            number.opacity = numberOpacity
+            shade.frame = image.bounds
+            shade.opacity = shadeOpacity
             paper.shadowPath = CGPath(roundedRect: image.frame, cornerWidth: 2, cornerHeight: 2, transform: nil)
-            paper.shadowRadius = index == selectedIndex ? 22 : 16
+            paper.shadowRadius = shadowRadius
             let targetPosition = position(for: index, selectedIndex: selectedIndex)
             let targetTransform = transform(for: index, selectedIndex: selectedIndex)
-            let targetOpacity: Float = visible && image.contents != nil ? (index == selectedIndex ? 1 : 0.87) : 0
+            let targetOpacity: Float = visible && image.contents != nil ? 1 : 0
             let targetZ: CGFloat = index == selectedIndex ? 3 : 1
             let changed = paper.position != targetPosition || !CATransform3DEqualToTransform(paper.transform, targetTransform)
-                || paper.opacity != targetOpacity || paper.zPosition != targetZ
+                || paper.opacity != targetOpacity || detailChanged
             paper.position = targetPosition
             paper.transform = targetTransform
             paper.opacity = targetOpacity
@@ -338,21 +391,15 @@ final class PageOverviewOverlayView: NSView {
                     ("position", NSValue(point: fromPosition), NSValue(point: paper.position)),
                     ("transform", NSValue(caTransform3D: fromTransform), NSValue(caTransform3D: paper.transform)),
                     ("opacity", fromOpacity, paper.opacity),
-                    ("zPosition", fromZ, paper.zPosition)
+                    ("shadowRadius", fromShadow, paper.shadowRadius)
                 ]
-                let group = CAAnimationGroup()
-                group.animations = values.map { key, from, to in
-                    let animation = CABasicAnimation(keyPath: key)
-                    animation.fromValue = from
-                    animation.toValue = to
-                    return animation
-                }
-                group.setValue(generation, forKey: "galleryGeneration")
-                group.duration = 0.22
-                group.timingFunction = CAMediaTimingFunction(name: .easeOut)
-                paper.add(group, forKey: Self.transitionKey)
+                addTransition(to: paper, values: values, duration: duration, entering: sourceRect != nil)
+                addTransition(to: number, values: [("opacity", fromNumberOpacity, number.opacity)], duration: duration, entering: sourceRect != nil)
+                addTransition(to: shade, values: [("opacity", fromShadeOpacity, shade.opacity)], duration: duration, entering: sourceRect != nil)
             } else if !animate {
                 paper.removeAnimation(forKey: Self.transitionKey)
+                number.removeAnimation(forKey: Self.transitionKey)
+                shade.removeAnimation(forKey: Self.transitionKey)
             }
         }
         positionLabel.stringValue = "\(selectedIndex + 1)  /  \(document.pageCount)"
@@ -366,7 +413,7 @@ final class PageOverviewOverlayView: NSView {
         nextButton.setAccessibilityLabel(AppUILanguage.saved().text(.pageOverviewPosition(min(document.pageCount, selectedIndex + 2), document.pageCount)))
         CATransaction.commit()
         if animate {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.24) { [weak self] in
+            DispatchQueue.main.asyncAfter(deadline: .now() + duration + 0.02) { [weak self] in
                 self?.removeDepartedPapers(completedThrough: generation)
             }
         } else {
@@ -374,7 +421,23 @@ final class PageOverviewOverlayView: NSView {
         }
     }
 
+    private func addTransition(to layer: CALayer, values: [(String, Any, Any)], duration: TimeInterval, entering: Bool = false) {
+        let group = CAAnimationGroup()
+        group.animations = values.map { key, from, to in
+            let animation = CABasicAnimation(keyPath: key)
+            animation.fromValue = from
+            animation.toValue = to
+            return animation
+        }
+        group.setValue(transitionGeneration, forKey: "galleryGeneration")
+        group.duration = duration
+        group.timingFunction = entering ? CAMediaTimingFunction(name: .easeInEaseOut)
+            : CAMediaTimingFunction(controlPoints: 0.22, 0.7, 0.22, 1)
+        layer.add(group, forKey: Self.transitionKey)
+    }
+
     private func removeDepartedPapers(completedThrough generation: Int = .max) {
+        guard thumbnails.images[selectedIndex] != nil else { return }
         for index in Array(papers.keys) where !visibleIndexes.contains(index) {
             let animation = papers[index]?.animation(forKey: Self.transitionKey)
             guard (animation?.value(forKey: "galleryGeneration") as? Int ?? 0) <= generation else { continue }
@@ -396,7 +459,12 @@ final class PageOverviewOverlayView: NSView {
 
     private func updateThumbnails() {
         guard !dismissed, let window, bounds.width > 24, bounds.height > 24 else { return }
-        let sizes = visibleIndexes.map { paperSize(for: $0) }
+        var sizes = visibleIndexes.map { paperSize(for: $0) }
+        if let entryPageRect {
+            // ponytail: cap the entry raster at two viewports; use tiles for deeper zoom detail.
+            let limit = max(bounds.width, bounds.height) * 2
+            sizes.append(NSSize(width: min(entryPageRect.width, limit), height: min(entryPageRect.height, limit)))
+        }
         let scale = window.backingScaleFactor
         thumbnails.update(
             document: document,
