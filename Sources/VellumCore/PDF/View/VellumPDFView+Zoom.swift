@@ -12,6 +12,7 @@ extension VellumPDFView {
         completePendingRestoreBeforeUserInteraction()
         cancelPendingRestore()
         stopScrollAnimation()
+        animationState.zoomAlignsPageTop = false
         autoScales = false
         prepareZoomAnchor()
         animationState.zoomTargetScale = min(max(targetScale, minimumZoomScale), maximumZoomScale)
@@ -22,6 +23,7 @@ extension VellumPDFView {
         completePendingRestoreBeforeUserInteraction()
         cancelPendingRestore()
         stopScrollAnimation()
+        animationState.zoomAlignsPageTop = false
         guard let anchor = centerDestination() ?? currentDestination,
               let page = anchor.page,
               let fitScale = widthFitScale(for: page) else { return }
@@ -42,6 +44,7 @@ extension VellumPDFView {
               let pageFitScale = pageFitScale(for: pageState.page) else { return }
 
         animationState.zoomAnchor = pageCenterDestination(for: pageState.page)
+        animationState.zoomAlignsPageTop = true
         animationState.zoomTargetScale = min(max(pageFitScale, minimumZoomScale), maximumZoomScale)
         ensureZoomAnimation()
     }

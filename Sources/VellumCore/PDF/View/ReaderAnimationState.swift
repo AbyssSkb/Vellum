@@ -8,6 +8,7 @@ final class ReaderAnimationState {
     var lastScrollTick = Date.timeIntervalSinceReferenceDate
     var zoomTargetScale: CGFloat?
     var zoomAnchor: PDFDestination?
+    var zoomAlignsPageTop = false
     var zoomTimer: Timer?
     var lastZoomTick = Date.timeIntervalSinceReferenceDate
 
@@ -30,5 +31,6 @@ final class ReaderAnimationState {
         zoomTimer = nil
         zoomTargetScale = nil
         zoomAnchor = nil
+        zoomAlignsPageTop = false
     }
 }
