@@ -14,7 +14,7 @@ struct WindowChromeTests {
     }
 
     @Test
-    func trafficLightsStayInsideTheEmptyPanelAndRestoreTheReaderTitlebar() async throws {
+    func trafficLightsKeepTheReaderPlacementWithAndWithoutOpenTabs() async throws {
         _ = NSApplication.shared
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 640, height: 480),
@@ -66,11 +66,9 @@ struct WindowChromeTests {
                          NSSize(width: 1100, height: 690.5), NSSize(width: 1400, height: 950)] {
                 window.setFrame(NSRect(origin: .zero, size: size), display: true)
                 try await Task.sleep(for: .milliseconds(30))
-                let layout = EmptyReaderLayout(size: window.contentView!.bounds.size)
-                checkPlacement(centerFromTop: hasTabs ? 23 : layout.inset + 23,
-                               leftInset: hasTabs ? 22 : layout.inset + 16)
-                #expect(titlebar.frame.height == (hasTabs ? originalTitlebarHeight : 46))
-                #expect(container.frame.height == (hasTabs ? originalContainerHeight : 46))
+                checkPlacement(centerFromTop: 23, leftInset: 22)
+                #expect(titlebar.frame.height == originalTitlebarHeight)
+                #expect(container.frame.height == originalContainerHeight)
 
                 let unchangedFrame = window.frame
                 window.titleVisibility = .visible
@@ -78,10 +76,9 @@ struct WindowChromeTests {
                 #expect(window.frame == unchangedFrame)
                 #expect(buttons[0].frame.minX == 7)
                 try await Task.sleep(for: .milliseconds(30))
-                checkPlacement(centerFromTop: hasTabs ? 23 : layout.inset + 23,
-                               leftInset: hasTabs ? 22 : layout.inset + 16)
-                #expect(titlebar.frame.height == (hasTabs ? originalTitlebarHeight : 46))
-                #expect(container.frame.height == (hasTabs ? originalContainerHeight : 46))
+                checkPlacement(centerFromTop: 23, leftInset: 22)
+                #expect(titlebar.frame.height == originalTitlebarHeight)
+                #expect(container.frame.height == originalContainerHeight)
             }
         }
 

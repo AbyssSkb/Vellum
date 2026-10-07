@@ -3,6 +3,7 @@ import SwiftUI
 struct TabStrip: View {
     @Environment(\.appUILanguage) private var language
     @EnvironmentObject private var appState: AppState
+    let edgeInset: CGFloat
     private let preferredTabWidth: CGFloat = 220
 
     var body: some View {
@@ -42,14 +43,14 @@ struct TabStrip: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
             }
-            .frame(height: 46)
-            .padding(.leading, appState.isOutlineVisible ? 122 : 0)
+            .frame(height: 38 + edgeInset)
+            .padding(.leading, appState.isOutlineVisible ? 122 + edgeInset : 0)
             .layoutPriority(1)
 
             HighlightToolbar()
-                .padding(.trailing, 10)
+                .padding(.trailing, edgeInset)
         }
-        .frame(height: 46)
+        .frame(height: 38 + edgeInset)
         .background(TokyoNight.backgroundDeepColor)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(language.text(.filesAndTabs))

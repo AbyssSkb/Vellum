@@ -12,8 +12,8 @@ public struct ContentView: View {
             let emptyLayout = EmptyReaderLayout(size: geometry.size)
             let joinsLeadingTab = appState.hasOpenTabs && appState.isOutlineVisible
                 && appState.tabs.first?.id == appState.selectedTabID
-            let edgeInset: CGFloat = appState.hasOpenTabs ? 12 : emptyLayout.inset
-            let cornerRadius: CGFloat = appState.hasOpenTabs ? 8 : emptyLayout.cornerRadius
+            let edgeInset = emptyLayout.inset
+            let cornerRadius = emptyLayout.cornerRadius
             let readerShape = UnevenRoundedRectangle(
                 topLeadingRadius: joinsLeadingTab ? 0 : cornerRadius,
                 bottomLeadingRadius: cornerRadius,
@@ -25,13 +25,15 @@ public struct ContentView: View {
             ZStack {
                 VStack(spacing: 0) {
                     if appState.hasOpenTabs {
-                        TabStrip()
+                        TabStrip(edgeInset: edgeInset)
                     }
 
                     HStack(spacing: 0) {
                         if appState.isOutlineVisible, appState.hasOpenTabs {
                             OutlineSidebar(tab: appState.selectedTab)
                                 .frame(width: 256)
+                                .padding(.leading, edgeInset)
+                                .padding(.bottom, edgeInset)
                         }
 
                         ReaderStack(emptyScale: emptyLayout.scale)
@@ -73,7 +75,7 @@ public struct ContentView: View {
             }
             .overlay(alignment: .top) {
                 TitlebarDragRegion(hasOpenTabs: appState.hasOpenTabs)
-                    .frame(height: 46)
+                    .frame(height: appState.hasOpenTabs ? 38 + edgeInset : 46)
             }
             .foregroundStyle(TokyoNight.foregroundColor)
             .tint(TokyoNight.blueColor)
@@ -109,9 +111,6 @@ struct WindowChromeConfigurator: NSViewRepresentable {
 
     class ChromeView: NSView {
         weak var appState: AppState?
-        private weak var titlebarContainer: NSView?
-        private var originalTitlebarHeight: CGFloat = 0
-        private var originalContainerHeight: CGFloat = 0
         private var observedTrafficLightViews: [(view: NSView, postsChanges: Bool)] = []
         private var isTrafficLightLayoutScheduled = false
 
@@ -172,8 +171,6 @@ struct WindowChromeConfigurator: NSViewRepresentable {
                 window.standardWindowButton(.zoomButton)
             ].compactMap { $0 }
             guard let referenceButton = buttons.first else { return }
-            let hasOpenTabs = appState?.hasOpenTabs ?? false
-            let emptyLayout = EmptyReaderLayout(size: window.contentView?.bounds.size ?? window.frame.size)
             if let titlebar = referenceButton.superview, let container = titlebar.superview {
                 let views = [titlebar, container] + buttons
                 if !observedTrafficLightViews.map(\.view).elementsEqual(views, by: { $0 === $1 }) {
@@ -187,28 +184,11 @@ struct WindowChromeConfigurator: NSViewRepresentable {
                         )
                     }
                 }
-                if titlebarContainer !== container {
-                    titlebarContainer = container
-                    originalTitlebarHeight = titlebar.frame.height
-                    originalContainerHeight = container.frame.height
-                }
-                let containerHeight = hasOpenTabs ? originalContainerHeight : 46
-                let frame = container.frame
-                let containerFrame = NSRect(x: frame.minX, y: frame.maxY - containerHeight,
-                                            width: frame.width, height: containerHeight)
-                if frame != containerFrame {
-                    container.frame = containerFrame
-                }
-                let titlebarSize = NSSize(width: titlebar.frame.width,
-                                          height: hasOpenTabs ? originalTitlebarHeight : 46)
-                if titlebar.frame.size != titlebarSize {
-                    titlebar.setFrameSize(titlebarSize)
-                }
             }
             let containerHeight = referenceButton.superview?.bounds.height ?? referenceButton.frame.maxY
 
-            let targetCenterFromTop: CGFloat = hasOpenTabs ? 23 : emptyLayout.inset + 23
-            let leftInset: CGFloat = hasOpenTabs ? 22 : emptyLayout.inset + 16
+            let targetCenterFromTop: CGFloat = 23
+            let leftInset: CGFloat = 22
             let y = containerHeight - targetCenterFromTop - referenceButton.frame.height / 2
 
             for index in buttons.indices {
