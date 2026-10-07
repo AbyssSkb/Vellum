@@ -8,7 +8,7 @@ Vellum brings smooth Vim-style navigation, a keyboard-driven outline, and an imm
 
 [Download for macOS](https://github.com/AbyssSkb/Vellum/releases/latest) · [User guide](docs/USER_GUIDE.md) · [Report an issue](https://github.com/AbyssSkb/Vellum/issues)
 
-![Vellum's reading canvas with compact document tabs and highlight colors](docs/images/vellum-reader.jpg)
+![Vellum's reading canvas with compact document tabs and highlight colors](docs/images/vellum-reader.png)
 
 ## Read at your own pace
 
@@ -18,23 +18,23 @@ Keep several documents close with compact tabs. `T` opens a searchable tab switc
 
 ## A map when you need one
 
-Tap `Tab` or press `t` to open the contents sidebar. Browse with `j` and `k`, fold with `h`, and expand with `l`. The outline also supports Vim's `zo`, `zc`, `zr`, `zm`, `zR`, and `zM`, including recursive folds and count prefixes. `H` and `L` switch documents while the outline stays open.
+Press `t` to show or hide the contents sidebar. Tap `Tab` to move keyboard focus between the page and outline, opening the sidebar if needed. Browse with `j` and `k`, fold with `h`, and expand with `l`. Press `Enter` to jump and resume reading. The outline also supports Vim's `zo`, `zc`, `zr`, `zm`, `zR`, and `zM`, including recursive folds and count prefixes. `H` and `L` switch documents while the outline stays open.
 
-![Vellum's hierarchical contents sidebar beside the document and tabs](docs/images/vellum-outline-tabs.jpg)
+![Vellum's hierarchical contents sidebar beside the document and tabs](docs/images/vellum-outline-tabs.png)
 
 ## See the pages around you
 
-Hold `Tab` in the reader to enter the immersive gallery. A large current-page preview sits between its neighbors, keeping the document's layout easy to recognize. Use `h` / `l` to move one page or `k` / `j` to move three pages. Release `Tab` to return to the selected page with a continuous transition back to the reading canvas.
+Hold `Tab` to enter the immersive gallery. A large current-page preview sits between its neighbors, keeping the document's layout easy to recognize. Use `h` / `l` to move one page or `k` / `j` to move three pages. Release `Tab` to return to the selected page with a continuous transition back to the reading canvas, or press `Esc` to return to where you started.
 
-![Immersive page gallery showing the current page and its neighboring pages](docs/images/vellum-gallery.jpg)
+![Immersive page gallery showing the current page and its neighboring pages](docs/images/vellum-gallery.png)
 
 ## Keep the useful parts
 
 Search with `/`, move through matches with `n` and `N`, and press `v` to select a match. Copy with `y` or highlight with `m`; five highlight colors are available. Annotations save back to the PDF automatically, with recovery options if the file cannot be saved or has changed on disk.
 
-![Search matches with a compact query field and result counter](docs/images/vellum-search.jpg)
+![Search matches with a compact query field and result counter](docs/images/vellum-search.png)
 
-*Screenshots show the current native interface with a sample PDF.*
+*Screenshots show the current native interface with an original [sample PDF](docs/samples/the-shape-of-attention.pdf).*
 
 ## Experimental AI
 
@@ -52,7 +52,8 @@ AI assistance is an optional experiment. Its workflow and output quality are sti
 | `Space` / `f`, `b` | Next / previous page |
 | `gg`, `G`, `12G` | First page, last page, page 12 |
 | `=` / `-`, `0`, `z` | Zoom in / out, fit page, fit width |
-| `t` / tap `Tab` | Toggle the contents sidebar |
+| `t` | Show / hide the contents sidebar |
+| Tap `Tab` | Switch focus between the reader and contents |
 | Hold `Tab` | Open the page gallery |
 | `H` / `L`, `T` | Previous / next tab; searchable tab switcher |
 | `/`, `n` / `N` | Search; next / previous match |

@@ -8,7 +8,7 @@ Vellum 将平滑的 Vim 风格导航、键盘目录与沉浸画廊放进安静�
 
 [下载 macOS 版本](https://github.com/AbyssSkb/Vellum/releases/latest) · [使用指南](docs/USER_GUIDE.zh-CN.md) · [反馈问题](https://github.com/AbyssSkb/Vellum/issues)
 
-![Vellum 阅读画布、紧凑标签栏与标注颜色选择](docs/images/vellum-reader.jpg)
+![Vellum 阅读画布、紧凑标签栏与标注颜色选择](docs/images/vellum-reader.png)
 
 ## 按自己的节奏阅读
 
@@ -18,23 +18,23 @@ Vellum 将平滑的 Vim 风格导航、键盘目录与沉浸画廊放进安静�
 
 ## 需要时，打开文档地图
 
-短按 `Tab` 或按 `t` 打开目录。通过 `j`、`k` 浏览，`h` 折叠，`l` 展开。目录还支持 Vim 的 `zo`、`zc`、`zr`、`zm`、`zR`、`zM`，以及递归折叠与数字前缀。目录打开时也能使用 `H`、`L` 切换文件。
+按 `t` 显示或隐藏目录。短按 `Tab` 在正文与目录之间切换键盘焦点，目录隐藏时会先打开它。通过 `j`、`k` 浏览，`h` 折叠，`l` 展开，按 `Enter` 跳转并回到正文阅读。目录还支持 Vim 的 `zo`、`zc`、`zr`、`zm`、`zR`、`zM`，以及递归折叠与数字前缀。目录打开时也能使用 `H`、`L` 切换文件。
 
-![Vellum 的多级目录、阅读页面与标签栏](docs/images/vellum-outline-tabs.jpg)
+![Vellum 的多级目录、阅读页面与标签栏](docs/images/vellum-outline-tabs.png)
 
 ## 看见前后页面
 
-在阅读器中长按 `Tab` 进入沉浸画廊。当前页以大幅预览呈现，前后页面分列两侧，便于辨认文档结构。使用 `h` / `l` 前后移动一页，`k` / `j` 前后移动三页。松开 `Tab`，选中页会自然过渡回阅读画布。
+长按 `Tab` 进入沉浸画廊。当前页以大幅预览呈现，前后页面分列两侧，便于辨认文档结构。使用 `h` / `l` 前后移动一页，`k` / `j` 前后移动三页。松开 `Tab`，选中页会自然过渡回阅读画布；按 `Esc` 则返回进入前的位置。
 
-![沉浸画廊中的当前页与相邻页面](docs/images/vellum-gallery.jpg)
+![沉浸画廊中的当前页与相邻页面](docs/images/vellum-gallery.png)
 
 ## 留下有用的内容
 
 使用 `/` 搜索，`n`、`N` 切换结果，`v` 将结果转为选区。`y` 复制，`m` 高亮，共有五种标注颜色。标注自动保存到 PDF；文件无法保存或已被外部修改时，应用提供恢复选项。
 
-![PDF 搜索、匹配高亮与结果计数](docs/images/vellum-search.jpg)
+![PDF 搜索、匹配高亮与结果计数](docs/images/vellum-search.png)
 
-*截图来自当前原生界面，使用示例 PDF。*
+*截图来自当前原生界面，使用原创排版的[示例 PDF](docs/samples/the-shape-of-attention.pdf)。*
 
 ## 实验性 AI
 
@@ -52,7 +52,8 @@ AI 辅助是一个可选的实验功能，交互方式与输出质量仍在探�
 | `Space` / `f`、`b` | 下一页 / 上一页 |
 | `gg`、`G`、`12G` | 首页、末页、第 12 页 |
 | `=` / `-`、`0`、`z` | 放大 / 缩小、适合整页、适合宽度 |
-| `t` / 短按 `Tab` | 显示或隐藏目录 |
+| `t` | 显示或隐藏目录 |
+| 短按 `Tab` | 在正文与目录之间切换焦点 |
 | 长按 `Tab` | 打开沉浸画廊 |
 | `H` / `L`、`T` | 上一个 / 下一个标签；可搜索的标签切换器 |
 | `/`、`n` / `N` | 搜索；下一个 / 上一个结果 |

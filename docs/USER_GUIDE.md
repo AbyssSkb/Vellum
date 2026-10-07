@@ -4,7 +4,7 @@
 
 Vellum is a native macOS PDF reader with keyboard navigation, an immersive page gallery, searchable tabs, outlines, and highlights. It requires macOS 14 or later and runs on Apple silicon and Intel Macs.
 
-![The Vellum reader](images/vellum-reader.jpg)
+![The Vellum reader](images/vellum-reader.png)
 
 ## Open files and manage tabs
 
@@ -53,9 +53,13 @@ Page jumps and outline destinations are included in jump history. Numeric page j
 
 ## Browse the contents
 
-Tap `Tab` or press `t` to open the contents sidebar. Opening it gives the outline keyboard focus. Select an entry and press `Enter` to jump; focus stays in the outline so you can continue browsing. Click the PDF to return keyboard focus to the reader, or use `Esc`, `t`, or `Tab` to close the sidebar.
+Press `t` to show or hide the contents sidebar. Opening it focuses the outline and aligns its cursor with the current reading section; closing it focuses the reader. A quick tap on plain `Tab` switches focus between the reader and outline, opening the sidebar if it is hidden. These focus switches keep the sidebar visible and preserve the browsing cursor.
 
-![The contents sidebar and document tabs](images/vellum-outline-tabs.jpg)
+Select an entry and press `Enter` to jump and focus the reader. In the outline, `Esc` first clears a pending count or command prefix; with no pending input, it returns focus to the reader while keeping the sidebar open. You can also click either pane to focus it.
+
+The reading-section marker and outline browsing cursor have separate roles. While the reader has focus, entering another section aligns the outline cursor with that section. While the outline has focus, its browsing cursor, scroll position, and folds stay under your control as the reading marker updates. A section inside a closed fold is marked through its nearest visible ancestor; reading never opens folds automatically.
+
+![The contents sidebar and document tabs](images/vellum-outline-tabs.png)
 
 | Key | Action with outline focus |
 | --- | --- |
@@ -67,10 +71,12 @@ Tap `Tab` or press `t` to open the contents sidebar. Opening it gives the outlin
 | `d` / `u` | Move down / up half a sidebar viewport |
 | `D` / `U`, `f` / `b`, `Page Down` / `Page Up` | Move down / up one viewport |
 | `Space` | Move down one viewport |
-| `Enter` | Jump to the selected destination |
+| `Enter` | Jump to the selected destination and focus the reader |
 | `H` / `L` or `[` / `]` | Previous / next file |
 | `Control-O` / `Control-I` | Back / forward through PDF jump history |
-| `Esc` / `t` / `Tab` | Close the sidebar and focus the reader |
+| `Tab` | Focus the reader, keeping the sidebar open |
+| `Esc` | Clear a pending count or prefix; otherwise focus the reader |
+| `t` | Close the sidebar and focus the reader |
 
 Counts apply to outline movement: `10j` moves down ten visible entries; `10G` selects the tenth visible entry regardless of your current position. The page number printed beside an entry is its PDF destination, not its position in the outline list.
 
@@ -95,23 +101,24 @@ As another set of fold shortcuts, `Option-→` / `Option-←` recursively opens 
 
 ## Use the immersive page gallery
 
-With keyboard focus in the reader, hold `Tab` to open the gallery. It presents a large selected page with its neighbors, preserving the visual connection to the reading page.
+Hold plain `Tab` from the reader or outline to open the gallery. It presents a large selected page with its neighbors, preserving the visual connection to the reading page.
 
-![The immersive page gallery](images/vellum-gallery.jpg)
+![The immersive page gallery](images/vellum-gallery.png)
 
 | Key | Action while holding `Tab` |
 | --- | --- |
 | `h` / `l` | Previous / next page |
 | `k` / `j` | Back / forward three pages |
-| Release `Tab` | Return to the reader at the selected page |
+| Release `Tab` | Commit the selected page and focus the reader |
+| `Esc` | Cancel and restore the original reading position and focus |
 
-A quick tap on `Tab` toggles the outline instead. If the outline has focus, `Tab` closes it; click the PDF or close the sidebar before holding `Tab` for the gallery.
+A quick tap on plain `Tab` switches pane focus instead. Leaving the gallery preserves whether the sidebar was visible. `Shift-Tab` and Tab inside text controls retain their native behavior.
 
 ## Search and select text
 
 Press `/`, type a query, and press `Enter`. Matches stay highlighted after leaving the search field.
 
-![PDF search with match highlighting and a result counter](images/vellum-search.jpg)
+![PDF search with match highlighting and a result counter](images/vellum-search.png)
 
 | Key | Action |
 | --- | --- |
@@ -144,7 +151,7 @@ AI is experimental and still under active exploration. The workflow and response
 Reading, searching, and highlighting work without AI. Open Settings with `Command-,` to configure a provider.
 
 1. In **AI Providers**, select a preset or a custom OpenAI-compatible endpoint. HTTP providers use a Base URL and API key; Anthropic uses its Messages API format.
-2. For **Local Codex**, supply the executable path of an installed, authenticated Codex CLI. An optional profile selects its configuration. This uses Codex's existing authentication rather than an HTTP API key entered in Vellum.
+2. For the **Codex** preset, supply the executable path of an installed, authenticated Codex CLI. An optional profile selects its configuration. This local integration uses Codex's existing authentication rather than an HTTP API key entered in Vellum.
 3. In **AI Explanation** and **AI Conversation**, choose the provider and model independently. Use Fetch Models where supported and Test Endpoint (HTTP) or Test Codex to check the configuration. The Codex model field can be empty to use its configured default.
 4. Choose the target output language and, optionally, customize each prompt template. Output language is independent of Vellum's English / Chinese interface setting.
 
