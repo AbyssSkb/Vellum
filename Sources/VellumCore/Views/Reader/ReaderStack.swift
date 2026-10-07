@@ -1,12 +1,23 @@
 import SwiftUI
 
+struct EmptyReaderLayout {
+    let scale: CGFloat
+    var inset: CGFloat { (8 * scale).rounded() }
+    var cornerRadius: CGFloat { 14 - inset }
+
+    init(size: CGSize) {
+        scale = min(max(min(size.width / 900, size.height / 650), 0.9), 1.2)
+    }
+}
+
 struct ReaderStack: View {
     @EnvironmentObject private var appState: AppState
+    let emptyScale: CGFloat
 
     var body: some View {
         ZStack {
             if appState.tabs.isEmpty {
-                EmptyReader()
+                EmptyReader(scale: emptyScale)
             } else {
                 ForEach(appState.tabs) { tab in
                     let isSelected = tab.id == appState.selectedTabID
@@ -33,41 +44,45 @@ struct EmptyReader: View {
     @Environment(\.appUILanguage) private var language
     @EnvironmentObject private var appState: AppState
     @State private var isOpenHovered = false
+    let scale: CGFloat
 
     var body: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: 20) {
             Image(systemName: "doc.text")
-                .font(.system(size: 48, weight: .light))
+                .font(.system(size: 40, weight: .light))
                 .foregroundStyle(TokyoNight.mutedColor.opacity(0.8))
                 .accessibilityHidden(true)
 
             Button {
                 appState.openPanel(mode: AppPreferences.defaultPDFOpenMode())
             } label: {
-                HStack(spacing: 24) {
+                HStack(spacing: 14) {
                     Text(language.text(.openPDF))
-                        .font(.system(size: 13, weight: .medium))
-                    Text("⌘O")
-                        .font(.system(size: 11, weight: .medium, design: .monospaced))
-                        .foregroundStyle(TokyoNight.backgroundDeepColor.opacity(0.6))
+                        .font(.system(size: 12.5, weight: .medium))
+                    Text("O")
+                        .font(.system(size: 10, weight: .medium, design: .monospaced))
+                        .foregroundStyle(TokyoNight.mutedColor)
+                        .frame(width: 18, height: 18)
+                        .background(TokyoNight.foregroundColor.opacity(0.045),
+                                    in: RoundedRectangle(cornerRadius: 4))
                         .accessibilityHidden(true)
                 }
-                .foregroundStyle(TokyoNight.backgroundDeepColor)
-                .padding(.horizontal, 18)
-                .frame(height: 40)
-                .background(TokyoNight.foregroundColor.opacity(isOpenHovered ? 1 : 0.92),
+                .foregroundStyle(TokyoNight.foregroundColor.opacity(0.92))
+                .padding(.horizontal, 14)
+                .frame(height: 34)
+                .background(isOpenHovered ? TokyoNight.panelElevatedColor : TokyoNight.backgroundColor,
                             in: RoundedRectangle(cornerRadius: 7, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 7, style: .continuous)
-                        .strokeBorder(TokyoNight.blueColor.opacity(isOpenHovered ? 0.9 : 0.25), lineWidth: 1)
+                        .strokeBorder(isOpenHovered ? TokyoNight.blueColor.opacity(0.55)
+                                      : TokyoNight.borderColor, lineWidth: 1)
                 }
-                .shadow(color: .black.opacity(0.15), radius: 8, y: 3)
                 .contentShape(RoundedRectangle(cornerRadius: 7))
             }
             .buttonStyle(.plain)
-            .keyboardShortcut("o", modifiers: [.command])
             .onHover { isOpenHovered = $0 }
         }
+        .scaleEffect(scale)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(TokyoNight.panelColor)
         .background(KeyboardCapture(appState: appState))

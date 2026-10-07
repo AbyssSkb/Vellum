@@ -8,75 +8,80 @@ public struct ContentView: View {
     public init() {}
 
     public var body: some View {
-        let joinsLeadingTab = appState.hasOpenTabs && appState.isOutlineVisible
-            && appState.tabs.first?.id == appState.selectedTabID
-        let readerShape = UnevenRoundedRectangle(
-            topLeadingRadius: joinsLeadingTab ? 0 : 8,
-            bottomLeadingRadius: 8,
-            bottomTrailingRadius: 8,
-            topTrailingRadius: 8,
-            style: .continuous
-        )
+        GeometryReader { geometry in
+            let emptyLayout = EmptyReaderLayout(size: geometry.size)
+            let joinsLeadingTab = appState.hasOpenTabs && appState.isOutlineVisible
+                && appState.tabs.first?.id == appState.selectedTabID
+            let edgeInset: CGFloat = appState.hasOpenTabs ? 12 : emptyLayout.inset
+            let cornerRadius: CGFloat = appState.hasOpenTabs ? 8 : emptyLayout.cornerRadius
+            let readerShape = UnevenRoundedRectangle(
+                topLeadingRadius: joinsLeadingTab ? 0 : cornerRadius,
+                bottomLeadingRadius: cornerRadius,
+                bottomTrailingRadius: cornerRadius,
+                topTrailingRadius: cornerRadius,
+                style: appState.hasOpenTabs ? .continuous : .circular
+            )
 
-        ZStack {
-            VStack(spacing: 0) {
-                if appState.hasOpenTabs {
-                    TabStrip()
-                }
-
-                HStack(spacing: 0) {
-                    if appState.isOutlineVisible, appState.hasOpenTabs {
-                        OutlineSidebar(tab: appState.selectedTab)
-                            .frame(width: 256)
+            ZStack {
+                VStack(spacing: 0) {
+                    if appState.hasOpenTabs {
+                        TabStrip()
                     }
 
-                    ReaderStack()
-                        .clipShape(readerShape)
-                        .background {
-                            readerShape
-                                .fill(TokyoNight.panelColor)
+                    HStack(spacing: 0) {
+                        if appState.isOutlineVisible, appState.hasOpenTabs {
+                            OutlineSidebar(tab: appState.selectedTab)
+                                .frame(width: 256)
                         }
-                        .overlay {
-                            readerShape
-                                .strokeBorder(
-                                    LinearGradient(colors: [TokyoNight.foregroundColor.opacity(0.10),
-                                                            TokyoNight.foregroundColor.opacity(0.025)],
-                                                   startPoint: .top, endPoint: .bottom),
-                                    lineWidth: 0.5
-                                )
-                                .mask(Rectangle().padding(.top, appState.hasOpenTabs ? 1 : 0))
-                                .allowsHitTesting(false)
-                        }
-                        .padding(.trailing, 12)
-                        .padding(.bottom, 12)
-                        .padding(.leading, appState.isOutlineVisible && appState.hasOpenTabs ? 0 : 12)
-                        .padding(.top, appState.hasOpenTabs ? 0 : 12)
+
+                        ReaderStack(emptyScale: emptyLayout.scale)
+                            .clipShape(readerShape)
+                            .background {
+                                readerShape
+                                    .fill(TokyoNight.panelColor)
+                            }
+                            .overlay {
+                                readerShape
+                                    .strokeBorder(
+                                        LinearGradient(colors: [TokyoNight.foregroundColor.opacity(0.10),
+                                                                TokyoNight.foregroundColor.opacity(0.025)],
+                                                       startPoint: .top, endPoint: .bottom),
+                                        lineWidth: 0.5
+                                    )
+                                    .mask(Rectangle().padding(.top, appState.hasOpenTabs ? 1 : 0))
+                                    .allowsHitTesting(false)
+                            }
+                            .padding(.trailing, edgeInset)
+                            .padding(.bottom, edgeInset)
+                            .padding(.leading, appState.isOutlineVisible && appState.hasOpenTabs ? 0 : edgeInset)
+                            .padding(.top, appState.hasOpenTabs ? 0 : edgeInset)
+                    }
+                    .background(TokyoNight.backgroundDeepColor)
                 }
-                .background(TokyoNight.backgroundDeepColor)
-            }
 
-            if appState.isTabSwitcherPresented {
-                TabSwitcherOverlay()
-            }
+                if appState.isTabSwitcherPresented {
+                    TabSwitcherOverlay()
+                }
 
-            if appState.isAIConversationHistoryPresented {
-                AIConversationHistorySwitcherOverlay()
-            }
+                if appState.isAIConversationHistoryPresented {
+                    AIConversationHistorySwitcherOverlay()
+                }
 
-            if appState.isAIExplanationHistoryPresented {
-                AIExplanationHistorySwitcherOverlay()
+                if appState.isAIExplanationHistoryPresented {
+                    AIExplanationHistorySwitcherOverlay()
+                }
             }
+            .overlay(alignment: .top) {
+                TitlebarDragRegion(hasOpenTabs: appState.hasOpenTabs)
+                    .frame(height: 46)
+            }
+            .foregroundStyle(TokyoNight.foregroundColor)
+            .tint(TokyoNight.blueColor)
+            .background(TokyoNight.backgroundColor)
+            .preferredColorScheme(.dark)
+            .environment(\.appUILanguage, AppUILanguage.saved(rawValue: appLanguage))
+            .background(WindowChromeConfigurator(appState: appState))
         }
-        .overlay(alignment: .top) {
-            TitlebarDragRegion(hasOpenTabs: appState.hasOpenTabs)
-                .frame(height: 46)
-        }
-        .foregroundStyle(TokyoNight.foregroundColor)
-        .tint(TokyoNight.blueColor)
-        .background(TokyoNight.backgroundColor)
-        .preferredColorScheme(.dark)
-        .environment(\.appUILanguage, AppUILanguage.saved(rawValue: appLanguage))
-        .background(WindowChromeConfigurator(appState: appState))
         .ignoresSafeArea(.container, edges: .top)
         .onOpenURL { url in
             guard url.isFileURL else { return }
@@ -85,7 +90,7 @@ public struct ContentView: View {
         .onAppear {
             appState.restorePreviousTabsIfNeeded()
         }
-}
+    }
 }
 
 struct WindowChromeConfigurator: NSViewRepresentable {
@@ -104,9 +109,15 @@ struct WindowChromeConfigurator: NSViewRepresentable {
 
     class ChromeView: NSView {
         weak var appState: AppState?
+        private weak var titlebarContainer: NSView?
+        private var originalTitlebarHeight: CGFloat = 0
+        private var originalContainerHeight: CGFloat = 0
+        private var observedTrafficLightViews: [(view: NSView, postsChanges: Bool)] = []
+        private var isTrafficLightLayoutScheduled = false
 
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
+            stopObservingTrafficLightFrames()
             configureWindow()
         }
 
@@ -127,10 +138,31 @@ struct WindowChromeConfigurator: NSViewRepresentable {
             window.isMovableByWindowBackground = false
             window.isOpaque = false
             window.backgroundColor = .clear
-            DispatchQueue.main.async { [weak window] in
-                guard let window else { return }
+            scheduleTrafficLightLayout()
+        }
+
+        @objc private func trafficLightFrameDidChange(_ notification: Notification) {
+            scheduleTrafficLightLayout()
+        }
+
+        private func scheduleTrafficLightLayout() {
+            // Native titlebar controls can reflow without the window being resized.
+            guard !isTrafficLightLayoutScheduled else { return }
+            isTrafficLightLayoutScheduled = true
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.isTrafficLightLayoutScheduled = false
+                guard let window = self.window else { return }
                 self.centerTrafficLights(in: window)
             }
+        }
+
+        private func stopObservingTrafficLightFrames() {
+            for (view, postsChanges) in observedTrafficLightViews {
+                NotificationCenter.default.removeObserver(self, name: NSView.frameDidChangeNotification, object: view)
+                view.postsFrameChangedNotifications = postsChanges
+            }
+            observedTrafficLightViews.removeAll()
         }
 
         private func centerTrafficLights(in window: NSWindow) {
@@ -140,20 +172,50 @@ struct WindowChromeConfigurator: NSViewRepresentable {
                 window.standardWindowButton(.zoomButton)
             ].compactMap { $0 }
             guard let referenceButton = buttons.first else { return }
+            let hasOpenTabs = appState?.hasOpenTabs ?? false
+            let emptyLayout = EmptyReaderLayout(size: window.contentView?.bounds.size ?? window.frame.size)
+            if let titlebar = referenceButton.superview, let container = titlebar.superview {
+                let views = [titlebar, container] + buttons
+                if !observedTrafficLightViews.map(\.view).elementsEqual(views, by: { $0 === $1 }) {
+                    stopObservingTrafficLightFrames()
+                    for view in views {
+                        observedTrafficLightViews.append((view, view.postsFrameChangedNotifications))
+                        view.postsFrameChangedNotifications = true
+                        NotificationCenter.default.addObserver(
+                            self, selector: #selector(trafficLightFrameDidChange),
+                            name: NSView.frameDidChangeNotification, object: view
+                        )
+                    }
+                }
+                if titlebarContainer !== container {
+                    titlebarContainer = container
+                    originalTitlebarHeight = titlebar.frame.height
+                    originalContainerHeight = container.frame.height
+                }
+                let containerHeight = hasOpenTabs ? originalContainerHeight : 46
+                let frame = container.frame
+                let containerFrame = NSRect(x: frame.minX, y: frame.maxY - containerHeight,
+                                            width: frame.width, height: containerHeight)
+                if frame != containerFrame {
+                    container.frame = containerFrame
+                }
+                let titlebarSize = NSSize(width: titlebar.frame.width,
+                                          height: hasOpenTabs ? originalTitlebarHeight : 46)
+                if titlebar.frame.size != titlebarSize {
+                    titlebar.setFrameSize(titlebarSize)
+                }
+            }
             let containerHeight = referenceButton.superview?.bounds.height ?? referenceButton.frame.maxY
 
-            let targetCenterFromTop: CGFloat = 23
-            let leftInset: CGFloat = 22
+            let targetCenterFromTop: CGFloat = hasOpenTabs ? 23 : emptyLayout.inset + 23
+            let leftInset: CGFloat = hasOpenTabs ? 22 : emptyLayout.inset + 16
             let y = round(containerHeight - targetCenterFromTop - referenceButton.frame.height / 2)
 
-            var x = leftInset
             for index in buttons.indices {
-                if index > 0 {
-                    let previous = buttons[index - 1]
-                    let current = buttons[index]
-                    x += max(18, current.frame.minX - previous.frame.minX)
+                let origin = NSPoint(x: leftInset + CGFloat(index) * 20, y: y)
+                if buttons[index].frame.origin != origin {
+                    buttons[index].setFrameOrigin(origin)
                 }
-                buttons[index].setFrameOrigin(NSPoint(x: x, y: y))
             }
         }
     }
