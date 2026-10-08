@@ -45,7 +45,11 @@ struct TabSwitcherInteractionTests {
         #expect(fixture.state.selectedTabID == fixture.tabs[0].id)
 
         #expect(field.delegate?.control?(field, textView: editor, doCommandBy: #selector(NSResponder.cancelOperation(_:))) == true)
-        try await Task.sleep(for: .milliseconds(250))
+        let deadline = ContinuousClock.now + .seconds(2)
+        while fixture.state.isTabSwitcherPresented || fixture.window.firstResponder !== fixture.originalFocus {
+            guard ContinuousClock.now < deadline else { break }
+            try await Task.sleep(for: .milliseconds(20))
+        }
         #expect(!fixture.state.isTabSwitcherPresented)
         #expect(fixture.state.selectedTabID == fixture.tabs[0].id)
         let restoredFocus = fixture.window.firstResponder === fixture.originalFocus
