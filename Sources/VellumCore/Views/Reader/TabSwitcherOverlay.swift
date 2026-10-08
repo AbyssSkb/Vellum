@@ -226,10 +226,10 @@ private struct TabSwitcherLayout {
     init(size: CGSize) {
         padding = min(max(size.width * 0.036, 26), 40)
         let width = max(0, size.width - padding * 2)
-        listWidth = max(0, width - 26) * 0.64
-        let paperWidth = min(246, max(0, width - listWidth - 26 - 52))
+        listWidth = min(360, max(0, width - 26) * 0.44)
+        let paperWidth = max(0, width - listWidth - 26 - 40)
         paperBox = CGSize(width: paperWidth,
-                          height: min(paperWidth * 792 / 612, max(0, size.height - padding * 2 - 104)))
+                          height: max(0, size.height - padding * 2 - 104))
     }
 
     func paperSize(for tab: PDFTab) -> CGSize {
