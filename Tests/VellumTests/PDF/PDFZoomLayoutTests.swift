@@ -210,6 +210,15 @@ struct PDFZoomLayoutTests {
         let firstPage = try #require(document.page(at: 0))
         let lastPage = try #require(document.page(at: pageCount - 1))
 
+        func nativeScroll(_ delta: Int32) throws {
+            let cgEvent = try #require(CGEvent(
+                scrollWheelEvent2Source: nil, units: .pixel,
+                wheelCount: 1, wheel1: delta, wheel2: 0, wheel3: 0
+            ))
+            let event = try #require(NSEvent(cgEvent: cgEvent))
+            scrollView.scrollWheel(with: event)
+        }
+
         for fit in 0..<3 {
             for edge in [VellumPDFView.VerticalEdge.top, .bottom] {
                 view.autoScales = false
@@ -257,6 +266,15 @@ struct PDFZoomLayoutTests {
                         view.animationState.lastScrollTick = Date.timeIntervalSinceReferenceDate - 1.0 / 30.0
                         view.stepScrollAnimation(in: scrollView)
                     }
+                    #expect(abs(clipView.bounds.origin.y - origin.y) < 0.001)
+                }
+                let wheelDirection: Int32 = edge == .top ? 60 : -60
+                try nativeScroll(wheelDirection)
+                #expect(abs(clipView.bounds.origin.y - origin.y) < 0.001)
+                if edge == .top, paper.height > viewport.height + 0.5 {
+                    try nativeScroll(-wheelDirection)
+                    #expect(abs(clipView.bounds.origin.y - origin.y) > 1)
+                    try nativeScroll(wheelDirection * 2)
                     #expect(abs(clipView.bounds.origin.y - origin.y) < 0.001)
                 }
             }

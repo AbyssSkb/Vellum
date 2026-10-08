@@ -352,7 +352,7 @@ extension VellumPDFView {
             ? paper.minY : paper.maxY - scrollView.contentView.bounds.height
     }
 
-    func verticalScrollRange(in scrollView: NSScrollView) -> ClosedRange<CGFloat> {
+    func verticalScrollRange(in scrollView: NSScrollView, referenceOriginY: CGFloat? = nil) -> ClosedRange<CGFloat> {
         let clipView = scrollView.contentView
         let documentBounds = scrollView.documentView?.bounds ?? .zero
         let minimum = documentBounds.minY
@@ -366,7 +366,7 @@ extension VellumPDFView {
         let lastPaper = convert(convert(lastPage.bounds(for: displayBox), from: lastPage), to: documentView)
         let top = documentView.isFlipped ? firstPaper.minY : firstPaper.maxY - clipView.bounds.height
         let bottom = documentView.isFlipped ? lastPaper.maxY - clipView.bounds.height : lastPaper.minY
-        let origin = clipView.bounds.origin.y
+        let origin = referenceOriginY ?? clipView.bounds.origin.y
         // A document shorter than the viewport is already fully visible.
         guard documentView.isFlipped ? top < bottom : bottom < top else {
             let pinned = min(max(origin, min(top, bottom)), max(top, bottom))
@@ -377,6 +377,20 @@ extension VellumPDFView {
             return documentView.isFlipped ? top...max(bottom, origin) : min(bottom, origin)...top
         }
         return min(top, bottom)...max(top, bottom)
+    }
+
+    func constrainNativeVerticalScroll(in scrollView: NSScrollView, from originY: CGFloat) {
+        let clipView = scrollView.contentView
+        let range = verticalScrollRange(in: scrollView, referenceOriginY: originY)
+        let origin = clipView.bounds.origin
+        let constrainedY = min(max(origin.y, range.lowerBound), range.upperBound)
+        // Ignore rounding at fractional paper edges so native notifications cannot retrigger the correction.
+        guard abs(origin.y - constrainedY) > 0.001 else { return }
+
+        let constrained = NSPoint(x: origin.x, y: constrainedY)
+        observedReadingScrollOrigin = constrained
+        clipView.scroll(to: constrained)
+        scrollView.reflectScrolledClipView(clipView)
     }
 
     func scrollToDocumentEdge(_ edge: VerticalEdge) {

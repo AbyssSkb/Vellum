@@ -56,12 +56,14 @@ final class VellumPDFView: PDFView {
     let aiInteraction = AIInteractionState()
     var isMouseSelectingText = false
     var scrollBoundsObserver: NSObjectProtocol?
+    var nativeScrollObserver: NSObjectProtocol?
     weak var observedScrollClipView: NSClipView?
     weak var configuredPDFScrollView: NSScrollView?
     var readerStateSaveWorkItem: DispatchWorkItem?
     var readingPositionReportWorkItem: DispatchWorkItem?
     var pendingReadingNavigation = false
     var observedReadingScrollOrigin: NSPoint?
+    var nativeScrollOriginBeforeUpdate: NSPoint?
     var pendingDoubleClickTextSelectionPoint: NSPoint?
     var pendingClickHorizontalOrigin: CGFloat?
     var didHandleDoubleClickTextSelectionMouseDown = false
@@ -81,6 +83,9 @@ final class VellumPDFView: PDFView {
     deinit {
         if let scrollBoundsObserver {
             NotificationCenter.default.removeObserver(scrollBoundsObserver)
+        }
+        if let nativeScrollObserver {
+            NotificationCenter.default.removeObserver(nativeScrollObserver)
         }
         readerStateSaveWorkItem?.cancel()
         readingPositionReportWorkItem?.cancel()
@@ -456,6 +461,7 @@ final class VellumPDFView: PDFView {
         if scrollView.backgroundColor != .clear {
             scrollView.backgroundColor = .clear
         }
+        scrollView.verticalScrollElasticity = .none
         configuredPDFScrollView = scrollView
         configureReaderStatePersistence(for: scrollView)
     }
@@ -476,9 +482,13 @@ final class VellumPDFView: PDFView {
         if let scrollBoundsObserver {
             NotificationCenter.default.removeObserver(scrollBoundsObserver)
         }
+        if let nativeScrollObserver {
+            NotificationCenter.default.removeObserver(nativeScrollObserver)
+        }
 
         observedScrollClipView = clipView
         observedReadingScrollOrigin = clipView.bounds.origin
+        nativeScrollOriginBeforeUpdate = nil
         clipView.postsBoundsChangedNotifications = true
         scrollBoundsObserver = NotificationCenter.default.addObserver(
             forName: NSView.boundsDidChangeNotification,
@@ -487,7 +497,9 @@ final class VellumPDFView: PDFView {
         ) { [weak self, weak clipView] _ in
             MainActor.assumeIsolated {
                 guard let self, let clipView else { return }
-                let moved = self.observedReadingScrollOrigin != clipView.bounds.origin
+                let previousOrigin = self.observedReadingScrollOrigin ?? clipView.bounds.origin
+                self.nativeScrollOriginBeforeUpdate = previousOrigin
+                let moved = previousOrigin != clipView.bounds.origin
                 self.observedReadingScrollOrigin = clipView.bounds.origin
                 let event = NSApp?.currentEvent
                 var scrollHit: NSView?
@@ -505,6 +517,20 @@ final class VellumPDFView: PDFView {
                 self.searchController?.refreshVisibleMatches()
                 self.scheduleReaderStateSave()
                 self.scheduleReadingPositionReport(userNavigated: moved && userScrolling)
+            }
+        }
+        nativeScrollObserver = NotificationCenter.default.addObserver(
+            forName: NSScrollView.didLiveScrollNotification,
+            object: scrollView,
+            queue: .main
+        ) { [weak self, weak scrollView] _ in
+            MainActor.assumeIsolated {
+                guard let self, let scrollView else { return }
+                let previousOrigin = self.nativeScrollOriginBeforeUpdate ?? scrollView.contentView.bounds.origin
+                self.constrainNativeVerticalScroll(in: scrollView, from: previousOrigin.y)
+                self.nativeScrollOriginBeforeUpdate = nil
+                self.scheduleReaderStateSave()
+                self.scheduleReadingPositionReport(userNavigated: previousOrigin != scrollView.contentView.bounds.origin)
             }
         }
     }
