@@ -80,10 +80,8 @@ final class UpdateWindowController: NSWindowController {
         if window?.isVisible != true { window?.center() }
         if activate {
             NSApp.activate(ignoringOtherApps: true)
-            window?.makeKeyAndOrderFront(nil)
-        } else {
-            window?.orderFront(nil)
         }
+        window?.makeKeyAndOrderFront(nil)
     }
 
     func update(_ content: UpdateWindowContent) {

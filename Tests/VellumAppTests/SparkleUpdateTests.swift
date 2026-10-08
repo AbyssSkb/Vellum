@@ -79,6 +79,29 @@ struct SparkleUpdateTests {
     }
 
     @Test
+    func backgroundReadyRequestsKeyFocusAndAcceptsRestartWithoutAClick() throws {
+        let driver = makeDriver()
+        defer { driver.windowController.dismiss() }
+        let eventWindow = try #require(driver.windowController.window)
+        let window = FocusRecordingWindow(contentRect: .zero, styleMask: .titled,
+                                          backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        driver.windowController.window = window
+        defer { window.close() }
+        let wasActive = NSApp.isActive
+        var installations = 0
+
+        driver.showAutomaticUpdateReady(try item()) { installations += 1 }
+        #expect(window.keyPresentationCount == 1)
+        #expect(NSApp.isActive == wasActive)
+        let event = try #require(NSEvent.keyEvent(with: .keyDown, location: .zero,
+            modifierFlags: [], timestamp: 0, windowNumber: eventWindow.windowNumber, context: nil,
+            characters: "r", charactersIgnoringModifiers: "r", isARepeat: false, keyCode: 15))
+        eventWindow.sendEvent(event)
+        #expect(installations == 1)
+    }
+
+    @Test
     func aStaleConfirmationCannotInstallAReplacementUpdate() throws {
         var installed: [String] = []
         let driver = makeDriver()
@@ -151,6 +174,12 @@ struct SparkleUpdateTests {
     private func makeDriver(prepare: @escaping () -> Bool = { true }) -> VellumUpdateUserDriver {
         _ = NSApplication.shared
         return VellumUpdateUserDriver(currentVersion: "0.8.8", prepareToTerminate: prepare, openURL: { _ in })
+    }
+
+    private final class FocusRecordingWindow: NSWindow {
+        var keyPresentationCount = 0
+        override func makeKeyAndOrderFront(_ sender: Any?) { keyPresentationCount += 1 }
+        override func orderFront(_ sender: Any?) {}
     }
 
     private func item(_ version: String = "0.8.9") throws -> SUAppcastItem {
