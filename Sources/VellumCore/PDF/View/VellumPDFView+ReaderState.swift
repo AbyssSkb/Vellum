@@ -70,6 +70,9 @@ extension VellumPDFView {
     }
 
     func restore(_ snapshot: ReaderSnapshot?) {
+        if let scrollView = pdfScrollView {
+            PDFNativeScrollBoundsConstraint.cancel(in: scrollView)
+        }
         pendingReadingNavigation = false
         restoreGeneration += 1
         let generation = restoreGeneration

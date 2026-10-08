@@ -3,96 +3,130 @@ import ObjectiveC.runtime
 
 @MainActor
 enum PDFNativeScrollBoundsConstraint {
-    private static let constrainedClassPrefix = "VellumNativeScrollBoundsConstrained_"
     private static var contextKey: UInt8 = 0
 
-    private final class Context {
+    @MainActor private final class Context {
         weak var pdfView: VellumPDFView?
-        var activeRange: ClosedRange<CGFloat>?
+        weak var clipView: NSClipView?
+        var range: ClosedRange<CGFloat>?
+        var viewportSize = NSSize.zero
+        var scaleFactor: CGFloat = 0
+        var phaseActive = false
+        var liveScrollActive = false
+        var settleWorkItem: DispatchWorkItem?
+        var generation = 0
 
-        init(pdfView: VellumPDFView) {
-            self.pdfView = pdfView
+        func cancelSettle() {
+            settleWorkItem?.cancel()
+            settleWorkItem = nil
+            generation += 1
+        }
+
+        func clear() {
+            cancelSettle()
+            range = nil
+            phaseActive = false
+            liveScrollActive = false
         }
     }
 
     static func install(on scrollView: NSScrollView, for pdfView: VellumPDFView) {
-        let context = context(for: scrollView) ?? Context(pdfView: pdfView)
+        let context = context(for: scrollView) ?? Context()
+        if context.pdfView !== pdfView || context.clipView !== scrollView.contentView {
+            context.clear()
+        }
         context.pdfView = pdfView
-        let clipView = scrollView.contentView
+        context.clipView = scrollView.contentView
         objc_setAssociatedObject(scrollView, &contextKey, context, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
-        objc_setAssociatedObject(clipView, &contextKey, context, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
-
-        guard let currentClass = object_getClass(clipView),
-              !NSStringFromClass(currentClass).hasPrefix(constrainedClassPrefix),
-              let constrainedClass = constrainedSubclass(for: currentClass) else { return }
-        object_setClass(clipView, constrainedClass)
     }
 
-    static func withNativeScroll(on scrollView: NSScrollView, operation: () -> Void) {
-        guard let context = context(for: scrollView), let pdfView = context.pdfView else {
+    static func withNativeScroll(on scrollView: NSScrollView, event: NSEvent, operation: () -> Void) {
+        guard let context = prepare(in: scrollView) else {
             operation()
             return
         }
-        let previousRange = context.activeRange
-        context.activeRange = pdfView.verticalScrollRange(in: scrollView)
-        defer { context.activeRange = previousRange }
+        let phase = event.momentumPhase.isEmpty ? event.phase : event.momentumPhase
+        context.phaseActive = !phase.isEmpty && phase.intersection([.ended, .cancelled]).isEmpty
         operation()
+        scheduleSettle(in: scrollView)
     }
 
-    static func nativeDragRange(in clipView: NSClipView, event: NSEvent?) -> ClosedRange<CGFloat>? {
-        guard let event, event.type == .leftMouseDragged,
-              let pdfView = context(for: clipView)?.pdfView,
-              let scrollView = clipView.enclosingScrollView,
-              event.window === scrollView.window,
-              scrollView.verticalScroller?.hitPart == .knob,
+    static func beginLiveScroll(in scrollView: NSScrollView) {
+        prepare(in: scrollView)?.liveScrollActive = true
+    }
+
+    static func endLiveScroll(in scrollView: NSScrollView) {
+        context(for: scrollView)?.liveScrollActive = false
+        scheduleSettle(in: scrollView)
+    }
+
+    static func boundsDidChange(in scrollView: NSScrollView) {
+        guard let context = context(for: scrollView), context.range != nil else { return }
+        guard isValid(context, in: scrollView) else {
+            context.clear()
+            return
+        }
+        scheduleSettle(in: scrollView)
+    }
+
+    static func cancel(in scrollView: NSScrollView) {
+        context(for: scrollView)?.clear()
+    }
+
+    private static func context(for scrollView: NSScrollView) -> Context? {
+        objc_getAssociatedObject(scrollView, &contextKey) as? Context
+    }
+
+    private static func prepare(in scrollView: NSScrollView) -> Context? {
+        guard let context = context(for: scrollView), let pdfView = context.pdfView,
               pdfView.window?.inLiveResize != true,
               pdfView.pendingRestoreAction == nil,
               pdfView.animationState.scrollTargetOrigin == nil,
               pdfView.animationState.zoomTargetScale == nil else { return nil }
-        return pdfView.verticalScrollRange(in: scrollView)
+        if context.range != nil, !isValid(context, in: scrollView) { context.clear() }
+        context.cancelSettle()
+        if context.range == nil {
+            context.clipView = scrollView.contentView
+            context.viewportSize = scrollView.contentView.bounds.size
+            context.scaleFactor = pdfView.scaleFactor
+            context.range = pdfView.verticalScrollRange(in: scrollView)
+        }
+        return context
     }
 
-    private static func context(for object: AnyObject) -> Context? {
-        objc_getAssociatedObject(object, &contextKey) as? Context
+    private static func isValid(_ context: Context, in scrollView: NSScrollView) -> Bool {
+        guard let pdfView = context.pdfView else { return false }
+        return context.clipView === scrollView.contentView
+            && ZoomGeometry.isSameViewportSize(context.viewportSize, scrollView.contentView.bounds.size)
+            && context.scaleFactor == pdfView.scaleFactor
+            && pdfView.window != nil && pdfView.window?.inLiveResize != true
+            && pdfView.pendingRestoreAction == nil
+            && pdfView.animationState.scrollTargetOrigin == nil
+            && pdfView.animationState.zoomTargetScale == nil
     }
 
-    private static func constrainedSubclass(for originalClass: AnyClass) -> AnyClass? {
-        let originalName = NSStringFromClass(originalClass).map { character in
-            character.isLetter || character.isNumber || character == "_" ? character : "_"
-        }
-        let subclassName = constrainedClassPrefix + String(originalName)
-        if let existingClass = NSClassFromString(subclassName) { return existingClass }
-        guard let subclass = objc_allocateClassPair(originalClass, subclassName, 0) else {
-            return NSClassFromString(subclassName)
-        }
-
-        let selector = #selector(NSClipView.constrainBoundsRect(_:))
-        guard let method = class_getInstanceMethod(originalClass, selector) else {
-            objc_disposeClassPair(subclass)
-            return nil
-        }
-        typealias ConstrainBounds = @convention(c) (AnyObject, Selector, NSRect) -> NSRect
-        let originalConstrainBounds = unsafeBitCast(method_getImplementation(method), to: ConstrainBounds.self)
-        let constrainedBounds: @convention(block) (NSClipView, NSRect) -> NSRect = { clipView, proposed in
-            var result = originalConstrainBounds(clipView, selector, proposed)
-            return MainActor.assumeIsolated {
-                if let range = context(for: clipView)?.activeRange
-                    ?? nativeDragRange(in: clipView, event: NSApp?.currentEvent) {
-                    result.origin.y = min(max(result.origin.y, range.lowerBound), range.upperBound)
+    private static func scheduleSettle(in scrollView: NSScrollView) {
+        guard let context = context(for: scrollView), let range = context.range else { return }
+        context.cancelSettle()
+        guard !context.phaseActive, !context.liveScrollActive else { return }
+        let generation = context.generation
+        let workItem = DispatchWorkItem { [weak context, weak scrollView] in
+            MainActor.assumeIsolated {
+                guard let context, let scrollView, context.generation == generation else { return }
+                guard isValid(context, in: scrollView) else {
+                    context.clear()
+                    return
                 }
-                return result
+                context.clear()
+                let clipView = scrollView.contentView
+                let origin = clipView.bounds.origin
+                let y = min(max(origin.y, range.lowerBound), range.upperBound)
+                guard abs(origin.y - y) > 0.001 else { return }
+                clipView.scroll(to: NSPoint(x: origin.x, y: y))
+                scrollView.reflectScrolledClipView(clipView)
             }
         }
-        guard class_addMethod(
-            subclass,
-            selector,
-            imp_implementationWithBlock(constrainedBounds),
-            method_getTypeEncoding(method)
-        ) else {
-            objc_disposeClassPair(subclass)
-            return nil
-        }
-        objc_registerClassPair(subclass)
-        return subclass
+        context.settleWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: workItem)
     }
 }

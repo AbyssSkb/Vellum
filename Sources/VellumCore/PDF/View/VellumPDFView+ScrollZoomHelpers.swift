@@ -187,7 +187,10 @@ extension VellumPDFView {
         animationState.clearZoom()
     }
 
-    func cancelPendingRestore() {
+    func cancelPendingRestore(cancelNativeScroll: Bool = true) {
+        if cancelNativeScroll, let scrollView = pdfScrollView {
+            PDFNativeScrollBoundsConstraint.cancel(in: scrollView)
+        }
         restoreGeneration += 1
         pendingRestoreAction = nil
         for overlay in subviews.compactMap({ $0 as? PageOverviewOverlayView }) where overlay.dismissed {

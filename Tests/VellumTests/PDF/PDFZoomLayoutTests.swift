@@ -274,28 +274,28 @@ struct PDFZoomLayoutTests {
                     #expect(abs(clipView.bounds.origin.y - origin.y) < 0.001)
                 }
                 let wheelDirection: Int32 = edge == .top ? 60 : -60
-                do {
-                    let observer = NotificationCenter.default.addObserver(
-                        forName: NSView.boundsDidChangeNotification, object: clipView, queue: .main
-                    ) { _ in
-                        MainActor.assumeIsolated {
-                            #expect(abs(clipView.bounds.origin.y - origin.y) < 0.001)
-                        }
-                    }
-                    defer { NotificationCenter.default.removeObserver(observer) }
-                    try nativeScroll(wheelDirection, phase: .began)
-                    for _ in 0..<8 { try nativeScroll(wheelDirection, phase: .changed) }
-                    try nativeScroll(0, phase: .ended)
-                    try nativeScroll(wheelDirection, momentum: .begin)
-                    for _ in 0..<8 { try nativeScroll(wheelDirection, momentum: .continuous) }
-                    try nativeScroll(0, momentum: .end)
+                try nativeScroll(wheelDirection, phase: .began)
+                for _ in 0..<8 { try nativeScroll(wheelDirection, phase: .changed) }
+                try nativeScroll(0, phase: .ended)
+                try nativeScroll(wheelDirection, momentum: .begin)
+                for _ in 0..<8 { try nativeScroll(wheelDirection, momentum: .continuous) }
+                try nativeScroll(0, momentum: .end)
+                await withCheckedContinuation { continuation in
+                    DispatchQueue.main.async { continuation.resume() }
                 }
+                let deferredBounds = clipView.constrainBoundsRect(NSRect(
+                    origin: NSPoint(x: origin.x, y: origin.y + outward * 30), size: clipView.bounds.size
+                ))
+                clipView.scroll(to: deferredBounds.origin)
+                scrollView.reflectScrolledClipView(clipView)
+                try await Task.sleep(for: .milliseconds(200))
                 #expect(abs(clipView.bounds.origin.y - origin.y) < 0.001)
                 if edge == .top, paper.height > viewport.height + 0.5 {
                     try nativeScroll(-wheelDirection, phase: .began)
                     #expect(abs(clipView.bounds.origin.y - origin.y) > 1)
                     try nativeScroll(wheelDirection * 2, phase: .changed)
                     try nativeScroll(0, phase: .ended)
+                    try await Task.sleep(for: .milliseconds(200))
                     #expect(abs(clipView.bounds.origin.y - origin.y) < 0.001)
                 }
             }
@@ -303,7 +303,7 @@ struct PDFZoomLayoutTests {
     }
 
     @Test @MainActor
-    func legacyWheelMovesInwardAndKeepsEveryOutwardPositionAtPaperTop() throws {
+    func legacyWheelMovesInwardAndSettlesAtPaperTop() async throws {
         let (window, view, _) = try makeReader()
         defer { view.stopZoomState(); view.stopScrollAnimation(); window.close() }
         let firstPage = try #require(view.document?.page(at: 0))
@@ -323,37 +323,42 @@ struct PDFZoomLayoutTests {
         try nativeScroll(-60)
         #expect(abs(clipView.bounds.origin.y - origin.y) > 1)
         try nativeScroll(120)
+        try await Task.sleep(for: .milliseconds(200))
         #expect(abs(clipView.bounds.origin.y - origin.y) < 0.001)
-        let observer = NotificationCenter.default.addObserver(
-            forName: NSView.boundsDidChangeNotification, object: clipView, queue: .main
-        ) { _ in
-            MainActor.assumeIsolated {
-                #expect(abs(clipView.bounds.origin.y - origin.y) < 0.001)
-            }
-        }
-        defer { NotificationCenter.default.removeObserver(observer) }
         for _ in 0..<8 { try nativeScroll(60) }
+        try await Task.sleep(for: .milliseconds(200))
         #expect(abs(clipView.bounds.origin.y - origin.y) < 0.001)
     }
 
     @Test @MainActor
-    func scrollbarDragConstraintsRequireKnobInSameReaderWindow() throws {
+    func nativeDragSettlesAtPaperTopAndPreservesNewNavigation() async throws {
         let (window, view, _) = try makeReader()
-        defer { view.stopZoomState(); window.close() }
+        defer { view.stopZoomState(); view.stopScrollAnimation(); window.close() }
+        let firstPage = try #require(view.document?.page(at: 0))
+        #expect(view.applyWidthFitScaleNow(for: firstPage))
+        view.scrollToDocumentEdge(.top)
         let scrollView = try #require(view.pdfScrollView)
-        let scroller = DragRangeScroller(frame: NSRect(x: 0, y: 0, width: 12, height: 600))
-        scrollView.verticalScroller = scroller
-        view.configurePDFScrollers()
         let clipView = scrollView.contentView
+        let origin = clipView.bounds.origin
+        let documentView = try #require(scrollView.documentView)
+        let outward: CGFloat = documentView.isFlipped ? -1 : 1
 
-        let event = try #require(NSEvent.mouseEvent(
-            with: .leftMouseDragged, location: .zero, modifierFlags: [], timestamp: 0,
-            windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1
-        ))
-        #expect(PDFNativeScrollBoundsConstraint.nativeDragRange(in: clipView, event: event)
-            == view.verticalScrollRange(in: scrollView))
-        scroller.part = .knobSlot
-        #expect(PDFNativeScrollBoundsConstraint.nativeDragRange(in: clipView, event: event) == nil)
+        func dragOutward() {
+            PDFNativeScrollBoundsConstraint.beginLiveScroll(in: scrollView)
+            let bounds = clipView.constrainBoundsRect(NSRect(
+                origin: NSPoint(x: origin.x, y: origin.y + outward * 30), size: clipView.bounds.size
+            ))
+            clipView.scroll(to: bounds.origin)
+            scrollView.reflectScrolledClipView(clipView)
+            PDFNativeScrollBoundsConstraint.endLiveScroll(in: scrollView)
+        }
+        dragOutward()
+        try await Task.sleep(for: .milliseconds(200))
+        #expect(abs(clipView.bounds.origin.y - origin.y) < 0.001)
+        dragOutward()
+        view.vimGoToPage(2)
+        try await Task.sleep(for: .milliseconds(200))
+        #expect(view.currentPageState()?.pageIndex == 1)
     }
 
     @Test @MainActor
@@ -434,10 +439,4 @@ struct PDFZoomLayoutTests {
         view.centerBothAxes(on: view.pageCenterDestination(for: page))
         return (window, view, page)
     }
-}
-
-@MainActor
-private final class DragRangeScroller: NSScroller {
-    var part: NSScroller.Part = .knob
-    override var hitPart: NSScroller.Part { part }
 }
