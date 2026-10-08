@@ -435,6 +435,7 @@ final class UpdateWindowController: NSWindowController {
         }
         if let digit = key.first, key.count == 1, digit.isASCII, digit.isNumber,
            digit != "0" || !count.isEmpty {
+            guard !event.isARepeat else { return true }
             if count.count < 3 { count.append(digit) }
             pendingG = false
             return true
@@ -443,6 +444,7 @@ final class UpdateWindowController: NSWindowController {
         case "j": clearPendingInput(); scrollNotes(by: 26 * multiplier); return true
         case "k": clearPendingInput(); scrollNotes(by: -26 * multiplier); return true
         case "g":
+            guard !event.isARepeat else { return true }
             if pendingG { clearPendingInput(); scrollNotes(to: 0) }
             else { pendingG = true }
             return true
@@ -484,6 +486,10 @@ final class UpdateWindowController: NSWindowController {
 }
 
 extension UpdateWindowController: NSWindowDelegate {
+    nonisolated func windowDidResignKey(_ notification: Notification) {
+        MainActor.assumeIsolated { clearPendingInput() }
+    }
+
     nonisolated func windowShouldClose(_ sender: NSWindow) -> Bool {
         MainActor.assumeIsolated { requestClose(); return false }
     }

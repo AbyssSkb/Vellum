@@ -42,6 +42,42 @@ struct UpdateWindowTests {
     }
 
     @Test
+    func prefixesIgnoreRepeatsAndResetWhenWindowLosesFocus() throws {
+        let controller = makeController()
+        defer { controller.dismiss() }
+        let window = try #require(controller.window)
+        let scroll = try #require(descendants(of: window.contentView!).compactMap { $0 as? NSScrollView }.first)
+        window.makeKey()
+
+        send("2", to: window)
+        send("2", repeating: true, to: window)
+        send("j", to: window)
+        #expect(abs(scroll.contentView.bounds.minY - 52) < 1)
+        send("j", repeating: true, to: window)
+        #expect(abs(scroll.contentView.bounds.minY - 78) < 1)
+        send("k", repeating: true, to: window)
+        #expect(abs(scroll.contentView.bounds.minY - 52) < 1)
+        send("g", to: window)
+        send("g", repeating: true, to: window)
+        #expect(abs(scroll.contentView.bounds.minY - 52) < 1)
+        send("g", to: window)
+        #expect(scroll.contentView.bounds.minY == 0)
+
+        send("3", to: window)
+        window.resignKey()
+        window.makeKey()
+        send("j", to: window)
+        #expect(abs(scroll.contentView.bounds.minY - 26) < 1)
+        send("g", to: window)
+        window.resignKey()
+        window.makeKey()
+        send("g", to: window)
+        #expect(abs(scroll.contentView.bounds.minY - 26) < 1)
+        send("g", to: window)
+        #expect(scroll.contentView.bounds.minY == 0)
+    }
+
+    @Test
     func actionLettersDoNotCollideWithPendingVimInputOrRepeat() throws {
         var invocations = 0
         let action = UpdateWindowAction(title: "Restart and Update", key: "r", isPrimary: true) { invocations += 1 }

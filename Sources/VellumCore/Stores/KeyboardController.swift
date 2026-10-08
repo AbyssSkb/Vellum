@@ -158,7 +158,10 @@ final class KeyboardController {
     // MARK: - Routing
 
     func routeKeyEvent(_ event: NSEvent) -> Bool {
-        routeKeyEvent(event, allowsOutlineGlobalCommands: false)
+        let outline = event.window?.firstResponder as? PDFOutlineKeyView
+        let handled = routeKeyEvent(event, allowsOutlineGlobalCommands: false)
+        if handled { outline?.clearPendingInput() }
+        return handled
     }
 
     func routeOutlineGlobalKeyEvent(_ event: NSEvent) -> Bool {
@@ -258,7 +261,8 @@ final class KeyboardController {
         let command: VimCommand
         switch event.charactersIgnoringModifiers?.lowercased() ?? "" {
         case "o", "\u{000F}": command = .jumpBack
-        case "i", "\t": command = .jumpForward
+        case "i": command = .jumpForward
+        case "\t" where event.keyCode != 48: command = .jumpForward
         case "":
             switch event.keyCode {
             case 31: command = .jumpBack
@@ -279,7 +283,7 @@ final class KeyboardController {
 
         let hasNavigableTextSelection = delegate?.activeReaderController?.hasNavigableTextSelection == true
 
-        if hasNavigableTextSelection,
+        if !isRepeat, hasNavigableTextSelection,
            key == "d",
            delegate?.activeReaderController?.vimDeleteHighlightsForSelection() == true {
             stopHeldKeyTimer()

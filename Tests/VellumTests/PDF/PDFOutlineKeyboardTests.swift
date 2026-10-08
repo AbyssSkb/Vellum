@@ -692,6 +692,25 @@ struct PDFOutlineKeyboardTests {
     }
 
     @Test
+    func holdingRecursiveOpenDoesNotDispatchGlobalOpenCommand() {
+        let items = deepTree()
+        let fixture = Fixture(items: items)
+        defer { fixture.window.close() }
+        let delegate = RecordingKeyboardDelegate(appState: fixture.appState)
+        fixture.appState.keyboardController.delegate = delegate
+        fixture.outline.collapseItem(nil, collapseChildren: true)
+
+        fixture.send("z")
+        fixture.send("O", modifiers: .shift)
+        fixture.send("O", modifiers: .shift, repeating: true)
+
+        #expect(fixture.outline.isItemExpanded(items[0]))
+        #expect(fixture.outline.isItemExpanded(items[0].children[0].children[0]))
+        #expect(delegate.commands.isEmpty)
+        #expect(fixture.window.firstResponder === fixture.outline)
+    }
+
+    @Test
     func enterNavigatesAndReturnsToReaderWithOutlineVisible() async throws {
         let fixture = Fixture()
         defer { fixture.window.close() }
@@ -760,6 +779,37 @@ struct PDFOutlineKeyboardTests {
         #expect(fixture.window.firstResponder === fixture.reader)
         #expect(fixture.appState.isOutlineVisible)
         #expect(fixture.outline.selectedRow == 5)
+    }
+
+    @Test(arguments: ["3", "g", "z"])
+    func monitorConsumedTabCancellationDiscardsOutlinePrefix(prefix: String) {
+        let items = deepTree()
+        let fixture = Fixture(items: items)
+        defer { fixture.window.close() }
+        fixture.sendKeys("zR")
+        let leaf = items[0].children[0].children[0].children[0]
+        let startingRow = fixture.outline.row(forItem: leaf)
+        fixture.outline.selectRowIndexes(IndexSet(integer: startingRow), byExtendingSelection: false)
+        let expandedIDs = fixture.outline.expandedIDs
+
+        fixture.send(prefix, throughMonitor: true)
+        fixture.send("\t", keyCode: 48, throughMonitor: true)
+        fixture.send("\u{1b}", keyCode: 53, throughMonitor: true)
+        fixture.send("\t", keyCode: 48, type: .keyUp, throughMonitor: true)
+        #expect(fixture.window.firstResponder === fixture.outline)
+
+        switch prefix {
+        case "3":
+            fixture.send("j", throughMonitor: true)
+            #expect(fixture.outline.selectedRow == startingRow + 1)
+        case "g":
+            fixture.send("g", throughMonitor: true)
+            #expect(fixture.outline.selectedRow == startingRow)
+        default:
+            fixture.send("M", modifiers: .shift, throughMonitor: true)
+            #expect(fixture.outline.expandedIDs == expandedIDs)
+            #expect(fixture.outline.foldLevel == 3)
+        }
     }
 
     private func deepTree() -> [PDFOutlineItem] {
@@ -856,13 +906,14 @@ struct PDFOutlineKeyboardTests {
         func send(
             _ key: String, keyCode: UInt16 = 0,
             modifiers: NSEvent.ModifierFlags = [], repeating: Bool = false,
-            type: NSEvent.EventType = .keyDown
+            type: NSEvent.EventType = .keyDown, throughMonitor: Bool = false
         ) {
             let event = NSEvent.keyEvent(
                 with: type, location: .zero, modifierFlags: modifiers, timestamp: 0,
                 windowNumber: window.windowNumber, context: nil,
                 characters: key, charactersIgnoringModifiers: key, isARepeat: repeating, keyCode: keyCode
             )!
+            if throughMonitor && appState.keyboardController.routeKeyEvent(event) { return }
             if type == .keyDown { outline.keyDown(with: event) }
             else { outline.keyUp(with: event) }
         }
@@ -870,6 +921,18 @@ struct PDFOutlineKeyboardTests {
         func sendKeys(_ keys: String) {
             for key in keys { send(String(key)) }
         }
+    }
+
+    @MainActor
+    private final class RecordingKeyboardDelegate: KeyboardControllerDelegate {
+        let appState: AppState
+        var commands: [VimCommand] = []
+        var activeReaderController: ReaderController? { appState.activeReaderController }
+        var readerWindow: NSWindow? { appState.readerWindow }
+
+        init(appState: AppState) { self.appState = appState }
+        func handleVimCommand(_ command: VimCommand) { commands.append(command) }
+        func open(urls: [URL]) {}
     }
 }
 

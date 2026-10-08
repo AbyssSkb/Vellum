@@ -23,6 +23,9 @@ struct VimInputController {
         hasNavigableTextSelection: Bool,
         hasTextActionTarget: Bool
     ) -> VimInputAction {
+        if isRepeat, ["G", "H", "L", "X", "O"].contains(key) {
+            return .handled
+        }
         if let action = handleUppercaseCommand(key) {
             state.clearPendingInput()
             return action

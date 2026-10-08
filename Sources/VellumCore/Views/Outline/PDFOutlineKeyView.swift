@@ -243,6 +243,10 @@ final class PDFOutlineKeyView: NSOutlineView {
         super.reloadData()
     }
 
+    func clearPendingInput() {
+        keyState.clearPendingInput()
+    }
+
     override func scrollRowToVisible(_ row: Int) {
         // AppKit can normalize the top inset even when the row is already visible.
         guard !visibleRect.contains(rect(ofRow: row)) else { return }
@@ -251,7 +255,7 @@ final class PDFOutlineKeyView: NSOutlineView {
 
     override func keyDown(with event: NSEvent) {
         if appState?.keyboardController.routeKeyEvent(event) == true {
-            keyState.clearPendingInput()
+            clearPendingInput()
             return
         }
         if handleOutlineKey(event) {

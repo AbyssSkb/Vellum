@@ -21,18 +21,7 @@ enum VimKeyMap {
 
     static func isReleaseForHeldContinuousKey(_ releasedKey: String, heldKey: String) -> Bool {
         let normalizedReleasedKey = normalizedContinuousKey(releasedKey)
-        if normalizedReleasedKey == heldKey {
-            return true
-        }
-
-        switch heldKey {
-        case "D":
-            return releasedKey.lowercased() == "d"
-        case "U":
-            return releasedKey.lowercased() == "u"
-        default:
-            return false
-        }
+        return normalizedReleasedKey.lowercased() == heldKey.lowercased()
     }
 
     static func isHandledKey(

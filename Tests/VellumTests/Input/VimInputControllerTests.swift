@@ -87,6 +87,13 @@ struct VimInputControllerTests {
         #expect(input.handleKeyDown("g", isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .command(.firstPage))
     }
 
+    @Test(arguments: ["G", "H", "L", "X", "O"])
+    func uppercaseCommandsIgnoreNativeRepeats(key: String) {
+        var input = VimInputController()
+
+        #expect(input.handleKeyDown(key, isRepeat: true, hasNavigableTextSelection: false, hasTextActionTarget: false) == .handled)
+    }
+
     @Test
     func continuousKeyStartsRepeatsAndStops() {
         var input = VimInputController()
@@ -119,6 +126,15 @@ struct VimInputControllerTests {
 
         #expect(input.handleKeyDown("U", isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .continuousKey("U"))
         #expect(input.handleKeyUp("u") == .stopContinuousKey)
+        #expect(input.heldKey == nil)
+    }
+
+    @Test(arguments: [("d", "D"), ("u", "U")])
+    func lowercaseContinuousScrollStopsWhenReleasedWithShift(key: String, releasedKey: String) {
+        var input = VimInputController()
+
+        #expect(input.handleKeyDown(key, isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .continuousKey(key))
+        #expect(input.handleKeyUp(releasedKey) == .stopContinuousKey)
         #expect(input.heldKey == nil)
     }
 

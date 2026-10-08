@@ -340,7 +340,7 @@ struct KeyboardControllerTests {
     }
 
     @Test
-    func dDeletesHighlightWhenTextSelectionExists() {
+    func dDeletesHighlightOnceWhileHeldWhenTextSelectionExists() {
         let controller = KeyboardController(
             installsKeyMonitor: false,
             installsOpenURLObserver: false,
@@ -352,6 +352,8 @@ struct KeyboardControllerTests {
         controller.delegate = delegate
 
         #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "d", keyCode: 2)))
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "d", keyCode: 2, isRepeat: true)))
+        #expect(controller.handleKeyEvent(keyEvent(.keyUp, key: "d", keyCode: 2)))
 
         #expect(delegate.commands == [])
         #expect(delegate.reader.actions == [.deleteHighlights])
@@ -678,6 +680,7 @@ struct KeyboardControllerTests {
         ("i", 34, .jumpForward),
         ("O", 34, .jumpBack),
         ("\u{000F}", 0, .jumpBack),
+        ("\t", 34, .jumpForward),
         ("\t", 31, .jumpForward),
         ("", 31, .jumpBack)
     ])
@@ -703,6 +706,20 @@ struct KeyboardControllerTests {
         event.eventType = .keyUp
         #expect(!controller.routeOutlineGlobalKeyEvent(event))
         #expect(delegate.commands == [command])
+    }
+
+    @Test(arguments: [false, true])
+    func controlTabPreservesItsNativeShortcut(shifted: Bool) {
+        let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
+        let delegate = RecordingKeyboardDelegate()
+        controller.delegate = delegate
+        let flags: NSEvent.ModifierFlags = shifted ? [.control, .shift] : [.control]
+
+        #expect(!controller.handleKeyEvent(keyEvent(.keyDown, key: "\t", keyCode: 48, modifierFlags: flags)))
+        #expect(!controller.handleKeyEvent(keyEvent(.keyUp, key: "\t", keyCode: 48, modifierFlags: flags)))
+        #expect(delegate.commands.isEmpty)
+        #expect(delegate.focusSwitches == 0)
+        #expect(delegate.reader.actions.isEmpty)
     }
 
     @Test(arguments: ["p", "щ", "ы", "\u{0010}", "\u{0003}"])
@@ -766,7 +783,7 @@ struct KeyboardControllerTests {
         #expect(delegate.reader.actions.isEmpty)
         event.repeats = true
         #expect(controller.routeOutlineGlobalKeyEvent(event))
-        let commands = ["H", "L", "X", "O", "n", "N"].contains(key) ? [command, command] : [command]
+        let commands = ["n", "N"].contains(key) ? [command, command] : [command]
         #expect(delegate.commands == commands)
         event.eventType = .keyUp
         #expect(!controller.routeOutlineGlobalKeyEvent(event))
