@@ -10,10 +10,7 @@ struct TabSwitcherOverlay: View {
     @State private var selectedIndex = 0
     @State private var isVisible = false
     @State private var isClosing = false
-    @State private var didEnter = false
-    @State private var coordinates: NSView?
-    @State private var flightImage: NSImage?
-    @State private var flightRect = CGRect.zero
+    @State private var isCancelHovered = false
     @State private var transitionTask: Task<Void, Never>?
 
     private var matches: [PDFTab] {
@@ -32,48 +29,28 @@ struct TabSwitcherOverlay: View {
     var body: some View {
         GeometryReader { geometry in
             let layout = TabSwitcherLayout(size: geometry.size)
-            ZStack(alignment: .topLeading) {
-                TokyoNight.backgroundColor.opacity(isVisible ? 1 : 0)
-
-                VStack(spacing: 22) {
-                    searchHeader
+            VStack(spacing: 20) {
+                searchHeader
+                HStack(spacing: 26) {
                     tabList
+                        .frame(width: layout.listWidth)
+                    pagePreview(layout: layout)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .overlay(alignment: .leading) {
+                            Rectangle().fill(TokyoNight.borderColor.opacity(0.45)).frame(width: 1)
+                        }
                 }
-                .frame(width: layout.listWidth, height: layout.contentHeight)
-                .position(x: layout.padding + layout.listWidth / 2, y: geometry.size.height / 2)
-                .opacity(isVisible ? 1 : 0)
-                .offset(x: isVisible || reduceMotion ? 0 : -8)
-
-                if let tab = selectedTab {
-                    paperStack(tab: tab, layout: layout)
-                        .opacity(isVisible ? 1 : 0)
-                    previewCaption(tab: tab)
-                        .frame(width: layout.previewRegion.width, height: 52)
-                        .position(x: layout.previewRegion.midX, y: layout.previewRegion.maxY + 34)
-                        .opacity(isVisible ? 1 : 0)
-                }
-
-                if let flightImage {
-                    paperImage(flightImage)
-                        .frame(width: flightRect.width, height: flightRect.height)
-                        .position(x: flightRect.midX, y: flightRect.midY)
-                        .allowsHitTesting(false)
-                        .accessibilityHidden(true)
-                }
+                .frame(maxHeight: .infinity)
             }
-            .background(TabSwitcherCoordinates { view in
-                coordinates = view
-                beginEntry(layout: layout)
-            })
+            .padding(layout.padding)
+            .frame(width: geometry.size.width, height: geometry.size.height)
+            .background(TokyoNight.backgroundColor)
+            .opacity(isVisible ? 1 : 0)
+            .allowsHitTesting(!isClosing)
             .onAppear {
                 selectedIndex = appState.tabs.firstIndex { $0.id == appState.selectedTabID } ?? 0
                 updatePreviews(layout: layout)
-                transitionTask = Task { @MainActor in
-                    try? await Task.sleep(for: .milliseconds(180))
-                    guard !Task.isCancelled, !didEnter else { return }
-                    didEnter = true
-                    withAnimation(.easeOut(duration: 0.2)) { isVisible = true }
-                }
+                withAnimation(.easeOut(duration: 0.15)) { isVisible = true }
             }
             .onChange(of: query) { _, _ in
                 select(0)
@@ -88,14 +65,8 @@ struct TabSwitcherOverlay: View {
                 if !isClosing { appState.hideTabSwitcher() }
             }
             .onChange(of: geometry.size) { _, _ in
-                transitionTask?.cancel()
-                flightImage = nil
-                didEnter = true
-                isVisible = true
-                if isClosing { appState.hideTabSwitcher() }
-                else { updatePreviews(layout: layout) }
+                if !isClosing { updatePreviews(layout: layout) }
             }
-            .onChange(of: previews.images) { _, _ in beginEntry(layout: layout) }
         }
         .onDisappear {
             transitionTask?.cancel()
@@ -106,8 +77,8 @@ struct TabSwitcherOverlay: View {
     private var searchHeader: some View {
         HStack(spacing: 12) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 18, weight: .regular))
-                .foregroundStyle(TokyoNight.blueColor)
+                .font(.system(size: 17, weight: .regular))
+                .foregroundStyle(TokyoNight.mutedColor)
                 .accessibilityHidden(true)
             TabSwitcherSearchField(
                 text: $query, language: language,
@@ -124,32 +95,34 @@ struct TabSwitcherOverlay: View {
             Button { dismiss(committing: nil) } label: {
                 Text("Esc")
                     .font(.system(size: 10, design: .monospaced))
-                    .foregroundStyle(TokyoNight.mutedColor)
+                    .foregroundStyle(isCancelHovered ? TokyoNight.foregroundColor : TokyoNight.mutedColor)
                     .frame(width: 32, height: 28)
-                    .background(TokyoNight.panelColor, in: RoundedRectangle(cornerRadius: 5))
+                    .background(isCancelHovered ? TokyoNight.panelElevatedColor : TokyoNight.panelColor,
+                                in: RoundedRectangle(cornerRadius: 5))
                     .overlay(RoundedRectangle(cornerRadius: 5).strokeBorder(TokyoNight.borderColor, lineWidth: 1))
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .onHover { isCancelHovered = $0 }
             .help(language.text(.cancel))
             .accessibilityLabel(language.text(.cancel))
         }
         .padding(.bottom, 16)
         .overlay(alignment: .bottom) {
-            Rectangle().fill(TokyoNight.blueColor.opacity(0.18)).frame(height: 1)
+            Rectangle().fill(TokyoNight.borderColor.opacity(0.65)).frame(height: 1)
         }
     }
 
     private var tabList: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(spacing: 4) {
+                LazyVStack(spacing: 2) {
                     if matches.isEmpty {
                         Text(language.text(.noMatchingTabs))
                             .font(.system(size: 13))
                             .foregroundStyle(TokyoNight.mutedColor)
-                            .frame(maxWidth: .infinity, minHeight: 68, alignment: .leading)
-                            .padding(.horizontal, 16)
+                            .frame(maxWidth: .infinity, minHeight: 60, alignment: .leading)
+                            .padding(.horizontal, 14)
                     }
                     ForEach(Array(matches.enumerated()), id: \.element.id) { index, tab in
                         TabSwitcherRow(tab: tab, isSelected: index == selectedIndex,
@@ -171,43 +144,46 @@ struct TabSwitcherOverlay: View {
         }
     }
 
-    private func paperStack(tab: PDFTab, layout: TabSwitcherLayout) -> some View {
-        ZStack(alignment: .topLeading) {
-            ForEach([-1, 1], id: \.self) { offset in
-                if matches.indices.contains(selectedIndex + offset) {
-                    let neighbor = matches[selectedIndex + offset]
-                    let rect = layout.paperRect(for: neighbor)
-                    paper(tab: neighbor)
-                        .frame(width: rect.width, height: rect.height)
-                        .brightness(offset < 0 ? -0.22 : -0.12)
-                        .rotationEffect(.degrees(Double(offset) * 5), anchor: .init(x: 0.5, y: 0.76))
-                        .position(x: rect.midX + CGFloat(offset) * 22, y: rect.midY + 7)
-                        .accessibilityHidden(true)
+    private func pagePreview(layout: TabSwitcherLayout) -> some View {
+        VStack(spacing: 16) {
+            ZStack {
+                if let tab = selectedTab {
+                    let size = layout.paperSize(for: tab)
+                    paper(tab: tab)
+                        .frame(width: size.width, height: size.height)
+                        .contentShape(Rectangle())
+                        .onTapGesture { dismiss(committing: tab) }
+                        .accessibilityLabel(tab.title)
+                        .accessibilityAddTraits(.isButton)
+                        .accessibilityAction { dismiss(committing: tab) }
+                        .id(tab.id)
+                        .transition(.opacity)
                 }
             }
-            let rect = layout.paperRect(for: tab)
-            paper(tab: tab)
-                .frame(width: rect.width, height: rect.height)
-                .contentShape(Rectangle())
-                .onTapGesture { dismiss(committing: tab) }
-                .accessibilityLabel(tab.title)
-                .accessibilityAddTraits(.isButton)
-                .accessibilityAction { dismiss(committing: tab) }
-                .id(tab.id)
-                .transition(.opacity.combined(with: .offset(y: reduceMotion ? 0 : 8)))
-                .position(x: rect.midX, y: rect.midY)
-                .opacity(flightImage == nil ? 1 : 0)
+            .frame(width: layout.paperBox.width, height: layout.paperBox.height)
+            .animation(.easeOut(duration: 0.14), value: selectedTab?.id)
+            Group {
+                if let tab = selectedTab, let document = tab.document, document.pageCount > 0 {
+                    let index = min(max(tab.snapshot?.pageIndex ?? 0, 0), document.pageCount - 1)
+                    Text("\(index + 1) / \(document.pageCount)")
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(TokyoNight.mutedColor)
+                }
+            }
+            .frame(height: 16)
         }
-        .animation(.easeOut(duration: reduceMotion ? 0.12 : 0.28), value: tab.id)
-        .allowsHitTesting(!isClosing)
     }
 
     @ViewBuilder
     private func paper(tab: PDFTab) -> some View {
         if let image = previews.images[tab.id] {
-            paperImage(image)
+            Image(nsImage: image)
+                .resizable()
+                .interpolation(.high)
+                .clipShape(RoundedRectangle(cornerRadius: 2))
+                .shadow(color: .black.opacity(0.25), radius: 6, y: 3)
         } else {
-            Rectangle().fill(TokyoNight.panelElevatedColor)
+            RoundedRectangle(cornerRadius: 2).fill(TokyoNight.panelElevatedColor)
                 .overlay {
                     Image(systemName: "doc.text")
                         .font(.system(size: 28, weight: .light))
@@ -216,123 +192,26 @@ struct TabSwitcherOverlay: View {
         }
     }
 
-    private func paperImage(_ image: NSImage) -> some View {
-        Image(nsImage: image)
-            .resizable()
-            .interpolation(.high)
-            .clipShape(RoundedRectangle(cornerRadius: 2))
-            .shadow(color: .black.opacity(0.42), radius: 28, y: 18)
-            .shadow(color: .black.opacity(0.22), radius: 3, y: 2)
-    }
-
-    private func previewCaption(tab: PDFTab) -> some View {
-        VStack(spacing: 7) {
-            Text(tab.title)
-                .font(.system(size: 17, weight: .medium))
-                .foregroundStyle(TokyoNight.foregroundColor)
-                .lineLimit(1)
-            if let document = tab.document, document.pageCount > 0 {
-                let index = min(max(tab.snapshot?.pageIndex ?? 0, 0), document.pageCount - 1)
-                Text("\(index + 1) / \(document.pageCount)")
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(TokyoNight.mutedColor)
-            }
-        }
-    }
-
     private func select(_ index: Int) {
         guard !isClosing else { return }
-        didEnter = true
-        transitionTask?.cancel()
-        flightImage = nil
-        withAnimation(.easeOut(duration: 0.2)) { isVisible = true }
         selectedIndex = min(max(index, 0), max(0, matches.count - 1))
     }
 
     private func updatePreviews(layout: TabSwitcherLayout) {
-        var tabs = [PDFTab]()
-        if let current = appState.selectedTab { tabs.append(current) }
-        for index in [selectedIndex, selectedIndex - 1, selectedIndex + 1] where matches.indices.contains(index) {
-            let tab = matches[index]
-            if !tabs.contains(where: { $0.id == tab.id }) { tabs.append(tab) }
-        }
-        let scale = coordinates?.window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2
-        // Match Retina paper size, with room for the expansion back into the reader.
-        previews.update(tabs: tabs, maximumPixelSize: NSSize(
-            width: max(layout.previewRegion.width, coordinates?.bounds.width ?? 0) * scale,
-            height: max(layout.previewRegion.height, coordinates?.bounds.height ?? 0) * scale
+        let scale = appState.readerWindow?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2
+        previews.update(tabs: selectedTab.map { [$0] } ?? [], maximumPixelSize: NSSize(
+            width: layout.paperBox.width * scale,
+            height: layout.paperBox.height * scale
         ))
-    }
-
-    private func readingRect(for tab: PDFTab) -> CGRect? {
-        guard let coordinates, let reader = appState.activeReaderController as? VellumPDFView,
-              reader.window === coordinates.window, reader.document === tab.document,
-              let document = tab.document, document.pageCount > 0,
-              let page = document.page(at: min(max(tab.snapshot?.pageIndex ?? 0, 0), document.pageCount - 1)),
-              let rect = reader.viewRect(for: page.bounds(for: reader.displayBox), on: page) else { return nil }
-        let converted = coordinates.convert(rect, from: reader)
-        return converted.width > 0 && converted.height > 0 ? converted : nil
-    }
-
-    private func beginEntry(layout: TabSwitcherLayout) {
-        guard !didEnter, !isClosing, let tab = selectedTab, tab.id == appState.selectedTabID,
-              let image = previews.images[tab.id], let rect = readingRect(for: tab) else { return }
-        didEnter = true
-        transitionTask?.cancel()
-        withAnimation(.easeOut(duration: reduceMotion ? 0.12 : 0.32)) { isVisible = true }
-        guard !reduceMotion else { return }
-        flightImage = image
-        flightRect = rect
-        transitionTask = Task { @MainActor in
-            await Task.yield()
-            guard !Task.isCancelled else { return }
-            withAnimation(.timingCurve(0.2, 0.75, 0.2, 1, duration: 0.58)) {
-                flightRect = layout.paperRect(for: tab)
-            }
-            try? await Task.sleep(for: .milliseconds(580))
-            guard !Task.isCancelled else { return }
-            flightImage = nil
-        }
     }
 
     private func dismiss(committing tab: PDFTab?) {
         guard !isClosing else { return }
         isClosing = true
-        transitionTask?.cancel()
-        let destination = tab ?? appState.selectedTab
-        let source = selectedTab
-        let layout = TabSwitcherLayout(size: coordinates?.bounds.size ?? .zero)
-        let image = destination.flatMap { previews.images[$0.id] }
-        let canMorph = !reduceMotion && destination?.id == source?.id && image != nil
-        flightImage = canMorph ? image : nil
-        if let source { flightRect = layout.paperRect(for: source) }
         if let tab { appState.selectTab(tab.id) }
+        withAnimation(.easeOut(duration: 0.15)) { isVisible = false }
         transitionTask = Task { @MainActor in
-            // SwiftUI registers the newly active native PDFReader on the next layout pass.
-            var target: CGRect?
-            if let destination, canMorph {
-                for _ in 0..<30 {
-                    guard !Task.isCancelled else { return }
-                    if let reader = appState.activeReaderController as? VellumPDFView,
-                       reader.document === destination.document {
-                        reader.layoutSubtreeIfNeeded()
-                        reader.completePendingRestoreBeforeUserInteraction()
-                        target = readingRect(for: destination)
-                        if target != nil { break }
-                    }
-                    try? await Task.sleep(for: .milliseconds(16))
-                }
-            }
-            guard !Task.isCancelled else { return }
-            withAnimation(.timingCurve(0.2, 0.75, 0.2, 1, duration: target == nil ? 0.2 : 0.5)) {
-                isVisible = false
-                if let target { flightRect = target }
-                else { flightImage = nil }
-            }
-            try? await Task.sleep(for: .milliseconds(target == nil ? 200 : 500))
-            guard !Task.isCancelled else { return }
-            withAnimation(.easeOut(duration: 0.06)) { flightImage = nil }
-            try? await Task.sleep(for: .milliseconds(60))
+            try? await Task.sleep(for: .milliseconds(150))
             guard !Task.isCancelled else { return }
             appState.hideTabSwitcher()
         }
@@ -342,49 +221,23 @@ struct TabSwitcherOverlay: View {
 private struct TabSwitcherLayout {
     let padding: CGFloat
     let listWidth: CGFloat
-    let contentHeight: CGFloat
-    let previewRegion: CGRect
+    let paperBox: CGSize
 
     init(size: CGSize) {
-        padding = min(max(size.width * 0.045, 26), 52)
+        padding = min(max(size.width * 0.036, 26), 40)
         let width = max(0, size.width - padding * 2)
-        listWidth = min(width * 0.39, 390)
-        contentHeight = max(0, size.height - padding * 2)
-        previewRegion = CGRect(x: padding + listWidth + 32, y: padding,
-                               width: max(0, width - listWidth - 32), height: max(0, contentHeight - 72))
+        listWidth = max(0, width - 26) * 0.64
+        let paperWidth = min(246, max(0, width - listWidth - 26 - 52))
+        paperBox = CGSize(width: paperWidth,
+                          height: min(paperWidth * 792 / 612, max(0, size.height - padding * 2 - 104)))
     }
 
-    func paperRect(for tab: PDFTab) -> CGRect {
+    func paperSize(for tab: PDFTab) -> CGSize {
         let index = min(max(tab.snapshot?.pageIndex ?? 0, 0), max(0, (tab.document?.pageCount ?? 1) - 1))
         let size = tab.document?.page(at: index).map { PDFPageDisplayGeometry(page: $0, box: .cropBox).bounds.size }
             ?? CGSize(width: 612, height: 792)
-        let scale = min(max(0, previewRegion.width - 48) / max(1, size.width),
-                        max(0, previewRegion.height - 12) / max(1, size.height))
-        return CGRect(x: previewRegion.midX - size.width * scale / 2,
-                      y: previewRegion.midY - size.height * scale / 2,
-                      width: size.width * scale, height: size.height * scale)
-    }
-}
-
-private struct TabSwitcherCoordinates: NSViewRepresentable {
-    let onReady: (NSView) -> Void
-    func makeNSView(context: Context) -> CoordinateView {
-        let view = CoordinateView()
-        view.onReady = onReady
-        return view
-    }
-    func updateNSView(_ nsView: CoordinateView, context: Context) { nsView.onReady = onReady }
-    final class CoordinateView: NSView {
-        var onReady: ((NSView) -> Void)?
-        override var isFlipped: Bool { true }
-        override func hitTest(_ point: NSPoint) -> NSView? { nil }
-        override func viewDidMoveToWindow() {
-            super.viewDidMoveToWindow()
-            DispatchQueue.main.async { [weak self] in
-                guard let self, self.window != nil else { return }
-                self.onReady?(self)
-            }
-        }
+        let scale = min(paperBox.width / max(1, size.width), paperBox.height / max(1, size.height))
+        return CGSize(width: size.width * scale, height: size.height * scale)
     }
 }
 
@@ -489,7 +342,7 @@ private final class TabSwitcherTextField: NSTextField {
 
     func configure(language: AppUILanguage) {
         cell = TabSwitcherTextFieldCell(textCell: "")
-        font = .systemFont(ofSize: 19, weight: .regular)
+        font = .systemFont(ofSize: 18, weight: .regular)
         textColor = TokyoNight.foreground
         configurePlaceholder(language: language)
         backgroundColor = .clear
@@ -510,7 +363,7 @@ private final class TabSwitcherTextField: NSTextField {
             string: language.text(.searchOpenTabs),
             attributes: [
                 .foregroundColor: TokyoNight.muted.withAlphaComponent(0.92),
-                .font: NSFont.systemFont(ofSize: 19, weight: .regular)
+                .font: NSFont.systemFont(ofSize: 18, weight: .regular)
             ]
         )
     }
@@ -587,9 +440,9 @@ private struct TabSwitcherRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 5) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(tab.title)
-                    .font(.system(size: isSelected ? 17 : 13, weight: isSelected ? .medium : .regular))
+                    .font(.system(size: 14, weight: isSelected ? .medium : .regular))
                     .foregroundStyle(isSelected ? TokyoNight.foregroundColor : TokyoNight.foregroundColor.opacity(0.8))
                     .lineLimit(1)
                 Text(tab.url?.deletingLastPathComponent().path ?? language.text(.untitled))
@@ -607,14 +460,14 @@ private struct TabSwitcherRow: View {
                     .accessibilityHidden(true)
             }
         }
-        .padding(.horizontal, 16)
-        .frame(height: 68)
+        .padding(.horizontal, 14)
+        .frame(height: 60)
         .background(isSelected ? TokyoNight.selectionColor.opacity(0.6)
                     : isHovered ? TokyoNight.panelElevatedColor.opacity(0.4) : .clear,
                     in: RoundedRectangle(cornerRadius: 6))
         .overlay(alignment: .leading) {
             if isSelected {
-                Capsule().fill(TokyoNight.blueColor).frame(width: 2, height: 19)
+                Capsule().fill(TokyoNight.blueColor).frame(width: 2, height: 14)
             }
         }
         .contentShape(Rectangle())

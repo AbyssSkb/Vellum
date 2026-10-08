@@ -16,12 +16,14 @@ struct TabSwitcherInteractionTests {
         let editor = try #require(field.currentEditor() as? NSTextView)
 
         #expect(field.delegate?.control?(field, textView: editor, doCommandBy: #selector(NSResponder.moveDown(_:))) == true)
+        #expect(field.delegate?.control?(field, textView: editor, doCommandBy: #selector(NSResponder.moveUp(_:))) == true)
+        #expect(field.delegate?.control?(field, textView: editor, doCommandBy: #selector(NSResponder.moveDown(_:))) == true)
         try await Task.sleep(for: .milliseconds(80))
         #expect(fixture.state.selectedTabID == fixture.tabs[0].id)
         #expect(fixture.state.isTabSwitcherPresented)
 
         #expect(field.delegate?.control?(field, textView: editor, doCommandBy: #selector(NSResponder.insertNewline(_:))) == true)
-        try await Task.sleep(for: .milliseconds(1100))
+        try await Task.sleep(for: .milliseconds(250))
         #expect(fixture.state.selectedTabID == fixture.tabs[1].id)
         #expect(!fixture.state.isTabSwitcherPresented)
     }
@@ -38,16 +40,40 @@ struct TabSwitcherInteractionTests {
         try await Task.sleep(for: .milliseconds(80))
 
         #expect(field.delegate?.control?(field, textView: editor, doCommandBy: #selector(NSResponder.insertNewline(_:))) == true)
-        try await Task.sleep(for: .milliseconds(900))
+        try await Task.sleep(for: .milliseconds(180))
         #expect(fixture.state.isTabSwitcherPresented)
         #expect(fixture.state.selectedTabID == fixture.tabs[0].id)
 
         #expect(field.delegate?.control?(field, textView: editor, doCommandBy: #selector(NSResponder.cancelOperation(_:))) == true)
-        try await Task.sleep(for: .milliseconds(1100))
+        try await Task.sleep(for: .milliseconds(250))
         #expect(!fixture.state.isTabSwitcherPresented)
         #expect(fixture.state.selectedTabID == fixture.tabs[0].id)
         let restoredFocus = fixture.window.firstResponder === fixture.originalFocus
         #expect(restoredFocus)
+    }
+
+    @Test
+    func externalFileSelectionDismissesTheSwitcherAndFocusesTheNewReader() async throws {
+        let fixture = try Fixture()
+        defer { fixture.close() }
+        try await Task.sleep(for: .milliseconds(100))
+        let field = try fixture.searchField()
+        let nextTab = fixture.tabs[1]
+        let nextReader = VellumPDFView(frame: fixture.host.frame)
+        nextReader.appState = fixture.state
+        nextReader.document = nextTab.document
+        fixture.window.contentView?.addSubview(nextReader)
+
+        fixture.state.selectTab(nextTab.id)
+        fixture.state.setActiveReaderController(nextReader, for: nextTab.id)
+        try await Task.sleep(for: .milliseconds(250))
+
+        #expect(fixture.state.selectedTabID == nextTab.id)
+        #expect(!fixture.state.isTabSwitcherPresented)
+        #expect(fixture.state.responderBeforeSwitcher == nil)
+        #expect(field.window == nil)
+        let newReaderHasFocus = fixture.window.firstResponder === nextReader
+        #expect(newReaderHasFocus)
     }
 
     @Test
