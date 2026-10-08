@@ -361,6 +361,52 @@ struct PDFZoomLayoutTests {
         #expect(view.currentPageState()?.pageIndex == 1)
     }
 
+    @Test(arguments: [false, true], [false, true]) @MainActor
+    func nativeScrollSettlesAfterLiveEndAndLateLayoutWrites(atBottom: Bool, terminalWheelReachesScrollView: Bool) async throws {
+        let (window, view, _) = try makeReader()
+        defer { view.stopZoomState(); view.stopScrollAnimation(); window.close() }
+        let firstPage = try #require(view.document?.page(at: 0))
+        #expect(view.applyWidthFitScaleNow(for: firstPage))
+        view.scrollToDocumentEdge(atBottom ? .bottom : .top)
+        let scrollView = try #require(view.pdfScrollView)
+        let clipView = scrollView.contentView
+        let documentView = try #require(scrollView.documentView)
+        let origin = clipView.bounds.origin
+        let outward: CGFloat = atBottom == documentView.isFlipped ? 1 : -1
+
+        func nativeScroll(_ phase: CGScrollPhase) throws {
+            let cgEvent = try #require(CGEvent(
+                scrollWheelEvent2Source: nil, units: .pixel,
+                wheelCount: 1, wheel1: phase == .ended ? 0 : (atBottom ? -60 : 60), wheel2: 0, wheel3: 0
+            ))
+            cgEvent.setIntegerValueField(.scrollWheelEventIsContinuous, value: 1)
+            cgEvent.setIntegerValueField(.scrollWheelEventScrollPhase, value: Int64(phase.rawValue))
+            scrollView.scrollWheel(with: try #require(NSEvent(cgEvent: cgEvent)))
+        }
+        func nativeLayoutMovesOutsidePaper() {
+            let bounds = clipView.constrainBoundsRect(NSRect(
+                origin: NSPoint(x: origin.x, y: origin.y + outward * 30), size: clipView.bounds.size
+            ))
+            clipView.scroll(to: bounds.origin)
+            scrollView.reflectScrolledClipView(clipView)
+            #expect(abs(clipView.bounds.origin.y - origin.y) > 1)
+        }
+        NotificationCenter.default.post(name: NSScrollView.willStartLiveScrollNotification, object: scrollView)
+        try nativeScroll(.began)
+        try nativeScroll(.changed)
+        if terminalWheelReachesScrollView { try nativeScroll(.ended) }
+        NotificationCenter.default.post(name: NSScrollView.didEndLiveScrollNotification, object: scrollView)
+        nativeLayoutMovesOutsidePaper()
+        try await Task.sleep(for: .milliseconds(200))
+        #expect(abs(clipView.bounds.origin.y - origin.y) < 0.001)
+
+        if terminalWheelReachesScrollView {
+            nativeLayoutMovesOutsidePaper()
+            try await Task.sleep(for: .milliseconds(200))
+            #expect(abs(clipView.bounds.origin.y - origin.y) < 0.001)
+        }
+    }
+
     @Test @MainActor
     func zoomCompletesPendingSnapshotBeforeChoosingBaseScale() throws {
         let (window, view, page) = try makeReader()

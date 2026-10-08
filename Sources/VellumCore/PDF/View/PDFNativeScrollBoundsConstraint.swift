@@ -57,6 +57,7 @@ enum PDFNativeScrollBoundsConstraint {
 
     static func endLiveScroll(in scrollView: NSScrollView) {
         context(for: scrollView)?.liveScrollActive = false
+        context(for: scrollView)?.phaseActive = false
         scheduleSettle(in: scrollView)
     }
 
@@ -117,7 +118,8 @@ enum PDFNativeScrollBoundsConstraint {
                     context.clear()
                     return
                 }
-                context.clear()
+                // PDFKit can write its outer-margin position again after the first quiet interval.
+                context.cancelSettle()
                 let clipView = scrollView.contentView
                 let origin = clipView.bounds.origin
                 let y = min(max(origin.y, range.lowerBound), range.upperBound)
