@@ -233,6 +233,79 @@ struct AppStateReaderControllerTests {
         #expect(appState.aiExplanationHistory.map(\.selectedText) == ["transient", "saved"])
     }
 
+    @Test(arguments: [false, true], [false, true])
+    func changingDocumentsDismissesAIHistory(conversation: Bool, closesLastFile: Bool) throws {
+        _ = NSApplication.shared
+        let suite = "Vellum.AIHistoryDocumentChange.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let appState = AppState(sessionDefaults: defaults, keyboardController: KeyboardController(
+            installsKeyMonitor: false, installsOpenURLObserver: false,
+            notificationCenter: NotificationCenter(), openURLRelay: OpenURLRelay()
+        ))
+        let tab = PDFTab(url: URL(fileURLWithPath: "/tmp/current.pdf"), document: nil)
+        let nextTab = PDFTab(url: URL(fileURLWithPath: "/tmp/next.pdf"), document: nil)
+        _ = appState.tabStore.openInNewTabs(closesLastFile ? [tab] : [tab, nextTab])
+        _ = appState.tabStore.selectTab(tab.id)
+        let reader = RecordingReaderController(documentKey: "/tmp/current.pdf")
+        appState.setActiveReaderController(reader, for: tab.id)
+        if conversation {
+            appState.upsertAIConversationHistory(conversationHistoryItem(
+                selectedText: "current", documentKey: "/tmp/current.pdf"
+            ))
+            appState.showAIConversationHistory()
+        } else {
+            appState.upsertAIExplanationHistory(AIExplanationHistoryItem(
+                id: UUID(), selectedText: "current", explanation: "answer", fileName: "current.pdf",
+                documentKey: "/tmp/current.pdf", pageNumbers: [1], updatedAt: Date()
+            ))
+            appState.showAIExplanationHistory()
+        }
+        #expect(appState.hasBlockingReaderPresentation)
+        #expect(appState.tabBeforeSwitcher == tab.id)
+        let originalResponder = NSView()
+        appState.responderBeforeSwitcher = originalResponder
+
+        if closesLastFile {
+            appState.closeSelectedTab()
+        } else {
+            appState.selectTab(nextTab.id)
+        }
+
+        #expect(!appState.isAIConversationHistoryPresented)
+        #expect(!appState.isAIExplanationHistoryPresented)
+        #expect(!appState.hasBlockingReaderPresentation)
+        #expect(appState.responderBeforeSwitcher == nil)
+        #expect(appState.tabBeforeSwitcher == nil)
+        #expect(appState.selectedTabID == (closesLastFile ? nil : nextTab.id))
+    }
+
+    @Test
+    func changingDocumentsKeepsTabSwitcherFocusSnapshot() throws {
+        _ = NSApplication.shared
+        let suite = "Vellum.TabSwitcherDocumentChange.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let appState = AppState(sessionDefaults: defaults, keyboardController: KeyboardController(
+            installsKeyMonitor: false, installsOpenURLObserver: false,
+            notificationCenter: NotificationCenter(), openURLRelay: OpenURLRelay()
+        ))
+        let tab = PDFTab(url: URL(fileURLWithPath: "/tmp/current.pdf"), document: nil)
+        let nextTab = PDFTab(url: URL(fileURLWithPath: "/tmp/next.pdf"), document: nil)
+        _ = appState.tabStore.openInNewTabs([tab, nextTab])
+        _ = appState.tabStore.selectTab(tab.id)
+        appState.showTabSwitcher()
+        let originalResponder = NSView()
+        appState.responderBeforeSwitcher = originalResponder
+
+        appState.selectTab(nextTab.id)
+
+        #expect(appState.isTabSwitcherPresented)
+        let retainedOriginalResponder = appState.responderBeforeSwitcher === originalResponder
+        #expect(retainedOriginalResponder)
+        #expect(appState.tabBeforeSwitcher == tab.id)
+    }
+
     @Test
     func emptyAIHistoryShowsReaderNotification() {
         let appState = AppState()

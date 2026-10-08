@@ -30,7 +30,13 @@ extension AppState {
         outlineReadingDestination = nil
         outlineReadingItemID = nil
         keyboardController.cancelInput()
-        focusActiveReaderSoon()
+        if isAIConversationHistoryPresented || isAIExplanationHistoryPresented {
+            isAIConversationHistoryPresented = false
+            isAIExplanationHistoryPresented = false
+            restoreFocusAfterSwitcher()
+        } else {
+            focusActiveReaderSoon()
+        }
     }
 
     func updateOutlineReadingPosition(

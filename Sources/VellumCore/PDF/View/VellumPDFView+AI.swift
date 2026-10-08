@@ -699,12 +699,12 @@ extension VellumPDFView {
 
     func handleAIKeyEvent(_ event: NSEvent) -> Bool {
         guard isAIInteractionActive else { return false }
-        if let editor = window?.firstResponder as? NSTextView, editor.hasMarkedText() { return false }
         if event.type == .keyUp,
            event.keyCode == aiInteraction.continuousScrollKeyCode {
             stopAIContinuousScroll()
             return true
         }
+        if let editor = window?.firstResponder as? NSTextView, editor.hasMarkedText() { return false }
         guard event.modifierFlags.intersection([.command, .control, .option]).isEmpty else { return false }
         guard let key = event.charactersIgnoringModifiers?.lowercased(), !key.isEmpty else { return false }
 
@@ -737,6 +737,16 @@ extension VellumPDFView {
             if aiInteraction.activeWebView?.handleKey(key) == true {
                 return true
             }
+            switch key {
+            case "\u{1b}":
+                dismissActiveAIInteraction(clearSelection: true)
+            case "m":
+                highlightActiveAISelection()
+            case "c":
+                appState?.cycleHighlightColor(preserveFocus: true)
+            default:
+                break
+            }
             return true
         case .consume:
             return true
@@ -745,8 +755,6 @@ extension VellumPDFView {
 
     func startAIContinuousScroll(_ key: String, keyCode: UInt16) {
         aiInteraction.continuousScrollKeyCode = keyCode
-        guard aiInteraction.continuousScrollKey != key else { return }
-
         aiInteraction.continuousScrollKey = key
         aiInteraction.activeWebView?.startContinuousScroll(direction: key == "j" ? 1 : -1)
     }
