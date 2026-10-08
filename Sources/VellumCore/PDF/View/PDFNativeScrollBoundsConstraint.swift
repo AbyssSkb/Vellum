@@ -14,19 +14,22 @@ enum PDFNativeScrollBoundsConstraint {
         var phaseActive = false
         var liveScrollActive = false
         var settleWorkItem: DispatchWorkItem?
+        var settleTimer: Timer?
         var generation = 0
 
         func cancelSettle() {
+            generation += 1
             settleWorkItem?.cancel()
             settleWorkItem = nil
-            generation += 1
+            settleTimer?.invalidate()
+            settleTimer = nil
         }
 
         func clear() {
-            cancelSettle()
             range = nil
             phaseActive = false
             liveScrollActive = false
+            cancelSettle()
         }
     }
 
@@ -67,6 +70,7 @@ enum PDFNativeScrollBoundsConstraint {
             context.clear()
             return
         }
+        guard context.settleTimer == nil else { return }
         scheduleSettle(in: scrollView)
     }
 
@@ -124,11 +128,43 @@ enum PDFNativeScrollBoundsConstraint {
                 let origin = clipView.bounds.origin
                 let y = min(max(origin.y, range.lowerBound), range.upperBound)
                 guard abs(origin.y - y) > 0.001 else { return }
-                clipView.scroll(to: NSPoint(x: origin.x, y: y))
-                scrollView.reflectScrolledClipView(clipView)
+                let target = NSPoint(x: origin.x, y: y)
+                if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+                    clipView.scroll(to: target)
+                    scrollView.reflectScrolledClipView(clipView)
+                    return
+                }
+                let animationGeneration = context.generation
+                let started = ProcessInfo.processInfo.systemUptime
+                let timer = Timer(timeInterval: 1.0 / 120.0, repeats: true) { [weak context, weak scrollView] timer in
+                    MainActor.assumeIsolated {
+                        guard let context, let scrollView, context.generation == animationGeneration else {
+                            timer.invalidate()
+                            return
+                        }
+                        guard isValid(context, in: scrollView) else {
+                            context.clear()
+                            return
+                        }
+                        let progress = min(max((ProcessInfo.processInfo.systemUptime - started) / 0.16, 0), 1)
+                        let eased = 1 - pow(1 - progress, 3)
+                        let clipView = scrollView.contentView
+                        // scroll(to:) preserves paper-edge anchoring for fully visible pages too.
+                        clipView.scroll(to: NSPoint(x: clipView.bounds.origin.x, y: AnimationGeometry.nextValue(
+                            current: origin.y, target: target.y, progress: eased
+                        )))
+                        scrollView.reflectScrolledClipView(clipView)
+                        if progress == 1 {
+                            timer.invalidate()
+                            context.settleTimer = nil
+                        }
+                    }
+                }
+                context.settleTimer = timer
+                RunLoop.main.add(timer, forMode: .common)
             }
         }
         context.settleWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: workItem)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.04, execute: workItem)
     }
 }

@@ -288,14 +288,14 @@ struct PDFZoomLayoutTests {
                 ))
                 clipView.scroll(to: deferredBounds.origin)
                 scrollView.reflectScrolledClipView(clipView)
-                try await Task.sleep(for: .milliseconds(200))
+                try await Task.sleep(for: .milliseconds(350))
                 #expect(abs(clipView.bounds.origin.y - origin.y) < 0.001)
                 if edge == .top, paper.height > viewport.height + 0.5 {
                     try nativeScroll(-wheelDirection, phase: .began)
                     #expect(abs(clipView.bounds.origin.y - origin.y) > 1)
                     try nativeScroll(wheelDirection * 2, phase: .changed)
                     try nativeScroll(0, phase: .ended)
-                    try await Task.sleep(for: .milliseconds(200))
+                    try await Task.sleep(for: .milliseconds(350))
                     #expect(abs(clipView.bounds.origin.y - origin.y) < 0.001)
                 }
             }
@@ -323,10 +323,10 @@ struct PDFZoomLayoutTests {
         try nativeScroll(-60)
         #expect(abs(clipView.bounds.origin.y - origin.y) > 1)
         try nativeScroll(120)
-        try await Task.sleep(for: .milliseconds(200))
+        try await Task.sleep(for: .milliseconds(350))
         #expect(abs(clipView.bounds.origin.y - origin.y) < 0.001)
         for _ in 0..<8 { try nativeScroll(60) }
-        try await Task.sleep(for: .milliseconds(200))
+        try await Task.sleep(for: .milliseconds(350))
         #expect(abs(clipView.bounds.origin.y - origin.y) < 0.001)
     }
 
@@ -353,7 +353,7 @@ struct PDFZoomLayoutTests {
             PDFNativeScrollBoundsConstraint.endLiveScroll(in: scrollView)
         }
         dragOutward()
-        try await Task.sleep(for: .milliseconds(200))
+        try await Task.sleep(for: .milliseconds(350))
         #expect(abs(clipView.bounds.origin.y - origin.y) < 0.001)
         dragOutward()
         view.vimGoToPage(2)
@@ -397,13 +397,114 @@ struct PDFZoomLayoutTests {
         if terminalWheelReachesScrollView { try nativeScroll(.ended) }
         NotificationCenter.default.post(name: NSScrollView.didEndLiveScrollNotification, object: scrollView)
         nativeLayoutMovesOutsidePaper()
-        try await Task.sleep(for: .milliseconds(200))
+        try await Task.sleep(for: .milliseconds(350))
         #expect(abs(clipView.bounds.origin.y - origin.y) < 0.001)
 
         if terminalWheelReachesScrollView {
             nativeLayoutMovesOutsidePaper()
-            try await Task.sleep(for: .milliseconds(200))
+            try await Task.sleep(for: .milliseconds(350))
             #expect(abs(clipView.bounds.origin.y - origin.y) < 0.001)
+        }
+    }
+
+    @Test(arguments: [false, true], ["settle", "scroll", "navigate", "shortPage"]) @MainActor
+    func nativeEdgeSettlementHasContinuousFramesAndCanBeInterrupted(atBottom: Bool, scenario: String) async throws {
+        let (window, view, _) = try makeReader()
+        defer { view.stopZoomState(); view.stopScrollAnimation(); window.close() }
+        if scenario == "shortPage" {
+            let document = PDFDocument()
+            let page = PDFPage()
+            page.setBounds(NSRect(x: 0, y: 0, width: 600, height: 900), for: .mediaBox)
+            page.rotation = 90
+            document.insert(page, at: 0)
+            view.document = document
+            view.vimZoomToPageFit()
+            for _ in 0..<60 {
+                view.animationState.lastZoomTick = Date.timeIntervalSinceReferenceDate - 1.0 / 30.0
+                view.stepZoomAnimation()
+            }
+        }
+        let firstPage = try #require(view.document?.page(at: 0))
+        if scenario != "shortPage" { #expect(view.applyWidthFitScaleNow(for: firstPage)) }
+        view.scrollToDocumentEdge(atBottom ? .bottom : .top)
+        let scrollView = try #require(view.pdfScrollView)
+        let clipView = scrollView.contentView
+        let documentView = try #require(scrollView.documentView)
+        let edge = clipView.bounds.origin
+        let outward: CGFloat = atBottom == documentView.isFlipped ? 1 : -1
+        @MainActor final class Samples { var values: [CGFloat] = [] }
+        let samples = Samples()
+        let observer = NotificationCenter.default.addObserver(
+            forName: NSView.boundsDidChangeNotification, object: clipView, queue: .main
+        ) { _ in
+            MainActor.assumeIsolated { samples.values.append(clipView.bounds.origin.y) }
+        }
+        defer { NotificationCenter.default.removeObserver(observer) }
+
+        PDFNativeScrollBoundsConstraint.beginLiveScroll(in: scrollView)
+        let outside = clipView.constrainBoundsRect(NSRect(
+            origin: NSPoint(x: edge.x, y: edge.y + outward * 30), size: clipView.bounds.size
+        )).origin
+        clipView.scroll(to: outside)
+        scrollView.reflectScrolledClipView(clipView)
+        let start = clipView.bounds.origin.y
+        let gap = abs(start - edge.y)
+        #expect(gap > 1)
+        func isIntermediate(_ y: CGFloat) -> Bool {
+            let distance = abs(y - edge.y)
+            return distance > 0.5 && distance < gap - 0.5
+        }
+        samples.values = [start]
+        PDFNativeScrollBoundsConstraint.endLiveScroll(in: scrollView)
+
+        if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+            try await Task.sleep(for: .milliseconds(350))
+            #expect(abs(clipView.bounds.origin.y - edge.y) < 0.001)
+            return
+        }
+
+        if scenario == "settle" || scenario == "shortPage" {
+            try await Task.sleep(for: .milliseconds(350))
+            let intermediate = samples.values.filter(isIntermediate)
+            #expect(Set(intermediate).count >= 2)
+            let pixel = abs(clipView.convert(NSSize(width: 1, height: 1), from: nil).height)
+                / window.backingScaleFactor
+            for (previous, next) in zip(samples.values, samples.values.dropFirst()) {
+                #expect(abs(next - edge.y) <= abs(previous - edge.y) + pixel)
+            }
+            let finalFrames = Array(samples.values.suffix(2))
+            #expect(finalFrames.count == 2)
+            if finalFrames.count == 2 {
+                #expect(abs(finalFrames[1] - finalFrames[0]) <= pixel)
+            }
+            #expect(abs(clipView.bounds.origin.y - edge.y) < 0.001)
+        } else {
+            for _ in 0..<40 {
+                if samples.values.contains(where: isIntermediate) { break }
+                try await Task.sleep(for: .milliseconds(8))
+            }
+            let hasIntermediateFrame = samples.values.contains(where: isIntermediate)
+            #expect(hasIntermediateFrame)
+            if scenario == "scroll" {
+                for phase in [CGScrollPhase.began, .ended] {
+                    let cgEvent = try #require(CGEvent(
+                        scrollWheelEvent2Source: nil, units: .pixel,
+                        wheelCount: 1, wheel1: phase == .began ? (atBottom ? 60 : -60) : 0,
+                        wheel2: 0, wheel3: 0
+                    ))
+                    cgEvent.setIntegerValueField(.scrollWheelEventIsContinuous, value: 1)
+                    cgEvent.setIntegerValueField(.scrollWheelEventScrollPhase, value: Int64(phase.rawValue))
+                    scrollView.scrollWheel(with: try #require(NSEvent(cgEvent: cgEvent)))
+                }
+                let inward = clipView.bounds.origin.y
+                #expect(abs(inward - edge.y) > gap)
+                try await Task.sleep(for: .milliseconds(350))
+                #expect(abs(clipView.bounds.origin.y - inward) < 0.001)
+            } else {
+                view.vimGoToPage(2)
+                try await Task.sleep(for: .milliseconds(350))
+                #expect(view.currentPageState()?.pageIndex == 1)
+            }
         }
     }
 
