@@ -43,7 +43,7 @@ Short taps move the page; holding a scroll or zoom key continues the movement.
 | `Space` / `f` | Forward one page |
 | `b` | Back one page |
 | `gg` / `G` | First page at the document's top / last page at its bottom |
-| `[number]G` | Jump to a page, for example `12G` |
+| `[number]G` / `[number]gg` | Jump to a page, for example `12G` or `12gg` |
 | `Control-O` / `Control-I` | Back / forward through jump history |
 | `=` / `+` / `-` | Zoom in / out |
 | `0` | Fit the whole page |

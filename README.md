@@ -50,7 +50,7 @@ AI assistance is optional and experimental. See the [user guide](docs/USER_GUIDE
 | --- | --- |
 | `j` / `k`, `d` / `u` | Scroll down / up; larger steps with `d` / `u` |
 | `Space` / `f`, `b` | Next / previous page |
-| `gg`, `G`, `12G` | First page, last page, page 12 |
+| `gg`, `G`, `12G` / `12gg` | First page, last page, page 12 |
 | `=` / `-`, `0`, `z` | Zoom in / out, fit page, fit width |
 | `t` | Show / hide the contents sidebar |
 | Tap `Tab` | Switch focus between the reader and contents |

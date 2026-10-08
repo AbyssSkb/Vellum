@@ -35,7 +35,7 @@ enum ShortcutCatalog {
                 ShortcutItem(keys: ["h", "l"], action: "Horizontal scroll"),
                 ShortcutItem(keys: ["f", "b"], action: "Move exactly one page"),
                 ShortcutItem(keys: ["Space"], action: "Move forward one page"),
-                ShortcutItem(keys: ["gg", "G", "[num]G"], action: "Jump to first, last, or numbered page"),
+                ShortcutItem(keys: ["gg", "G", "[num]G", "[num]gg"], action: "Jump to first, last, or numbered page"),
                 ShortcutItem(keys: ["Ctrl O", "Ctrl I"], action: "Jump backward or forward")
             ]
         ),
@@ -170,7 +170,7 @@ enum ShortcutCatalog {
                 ShortcutItem(keys: ["h", "l"], action: "横向滚动"),
                 ShortcutItem(keys: ["f", "b"], action: "精确翻一页"),
                 ShortcutItem(keys: ["Space"], action: "向前翻一页"),
-                ShortcutItem(keys: ["gg", "G", "[num]G"], action: "跳到首页、末页或指定页"),
+                ShortcutItem(keys: ["gg", "G", "[num]G", "[num]gg"], action: "跳到首页、末页或指定页"),
                 ShortcutItem(keys: ["Ctrl O", "Ctrl I"], action: "向后或向前跳转")
             ]
         ),

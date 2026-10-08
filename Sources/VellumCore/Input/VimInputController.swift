@@ -74,9 +74,13 @@ struct VimInputController {
         }
 
         if state.pendingKey == "g" {
+            let pageNumber = state.consumeNumericPrefix()
             state.clearPendingInput()
             switch key {
             case "g":
+                if let pageNumber {
+                    return .command(.jumpToPage(pageNumber))
+                }
                 return .command(.firstPage)
             case "t":
                 return .command(.nextTab)
@@ -92,7 +96,6 @@ struct VimInputController {
             state.clearPendingInput()
             return .ignored
         case "g":
-            state.numericPrefix = ""
             state.pendingKey = "g"
             return .handled
         case "G":

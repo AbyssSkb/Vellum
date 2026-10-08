@@ -36,6 +36,18 @@ struct VimInputControllerTests {
         #expect(input.handleKeyDown("G", isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .command(.jumpToPage(12)))
     }
 
+    @Test(arguments: [1, 10, 12])
+    func numericPrefixGGCommandRoutesToPageAndConsumesTheCount(pageNumber: Int) {
+        var input = VimInputController()
+
+        for digit in String(pageNumber) {
+            #expect(input.handleKeyDown(String(digit), isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .handled)
+        }
+        #expect(input.handleKeyDown("g", isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .handled)
+        #expect(input.handleKeyDown("g", isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .command(.jumpToPage(pageNumber)))
+        #expect(input.handleKeyDown("G", isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .command(.lastPage))
+    }
+
     @Test
     func continuousCommandCancelsPendingGCommand() {
         var input = VimInputController()
