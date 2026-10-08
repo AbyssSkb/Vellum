@@ -58,6 +58,28 @@ enum PDFOverlayScrollerStyleLock {
             return nil
         }
 
+        let wheelSelector = #selector(NSScrollView.scrollWheel(with:))
+        guard let wheelMethod = class_getInstanceMethod(originalClass, wheelSelector) else {
+            objc_disposeClassPair(subclass)
+            return nil
+        }
+        typealias ScrollWheel = @convention(c) @Sendable (AnyObject, Selector, NSEvent) -> Void
+        let originalScrollWheel = unsafeBitCast(method_getImplementation(wheelMethod), to: ScrollWheel.self)
+        let constrainedScrollWheel: @convention(block) @MainActor (NSScrollView, NSEvent) -> Void = { scrollView, event in
+            PDFNativeScrollBoundsConstraint.withNativeScroll(on: scrollView) {
+                originalScrollWheel(scrollView, wheelSelector, event)
+            }
+        }
+        guard class_addMethod(
+            subclass,
+            wheelSelector,
+            imp_implementationWithBlock(constrainedScrollWheel),
+            method_getTypeEncoding(wheelMethod)
+        ) else {
+            objc_disposeClassPair(subclass)
+            return nil
+        }
+
         objc_registerClassPair(subclass)
         return subclass
     }
