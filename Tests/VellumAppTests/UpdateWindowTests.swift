@@ -361,6 +361,68 @@ struct UpdateWindowTests {
         }
     }
 
+    @Test
+    func windowHeightFollowsWrappedNotesAndShrinksAfterLongNotes() throws {
+        _ = NSApplication.shared
+        let controller = UpdateWindowController()
+        defer { controller.dismiss() }
+        let content = UpdateWindowContent(phase: .available, currentVersion: "0.8.10", updateVersion: "0.8.11",
+            releaseNotes: [AppReleaseNotesSection(version: "0.8.11", notes: ["Improve update installation."])])
+        controller.update(content)
+        let window = try #require(controller.window)
+        let root = try #require(window.contentView)
+        let scroll = try #require(descendants(of: root).compactMap { $0 as? NSScrollView }.first)
+        let text = try #require(scroll.documentView as? NSTextView)
+        let layout = try #require(text.layoutManager)
+        let container = try #require(text.textContainer)
+        layout.ensureLayout(for: container)
+        let compactHeight = root.bounds.height
+        let textHeight = ceil(layout.usedRect(for: container).height + text.textContainerInset.height * 2)
+        #expect(compactHeight < 400)
+        #expect(abs(scroll.contentView.bounds.height - textHeight) <= 1)
+        #expect(abs(text.bounds.height - textHeight) <= 1)
+        #expect(root.bounds.width == 560)
+        let top = window.frame.maxY
+        let center = window.frame.midX
+
+        var wrapped = content
+        wrapped.releaseNotes = [AppReleaseNotesSection(version: "0.8.11", notes: [
+            String(repeating: "Improve update installation and document reading. ", count: 10)
+        ])]
+        controller.update(wrapped)
+        #expect(root.bounds.height > compactHeight && root.bounds.height < 500)
+        layout.ensureLayout(for: container)
+        #expect(abs(scroll.contentView.bounds.height - ceil(layout.usedRect(for: container).height + text.textContainerInset.height * 2)) <= 1)
+
+        wrapped.releaseNotes = longNotes()
+        controller.update(wrapped)
+        #expect(root.bounds.height == 500)
+        send("G", modifiers: .shift, to: window)
+        #expect(scroll.contentView.bounds.minY > 0)
+        controller.update(content)
+        #expect(root.bounds.height == compactHeight)
+        #expect(scroll.contentView.bounds.minY == 0)
+        #expect(abs(text.bounds.height - textHeight) <= 1)
+        #expect(window.frame.maxY == top)
+        #expect(window.frame.midX == center)
+    }
+
+    @Test
+    func errorWindowHeightAdaptsToMessageLength() throws {
+        _ = NSApplication.shared
+        let controller = UpdateWindowController()
+        defer { controller.dismiss() }
+        controller.update(UpdateWindowContent(phase: .error, currentVersion: "0.8.10", message: "Try checking again."))
+        let root = try #require(controller.window?.contentView)
+        let compactHeight = root.bounds.height
+        #expect(compactHeight < 350)
+        controller.update(UpdateWindowContent(phase: .error, currentVersion: "0.8.10",
+            message: String(repeating: "The download failed. Try checking again.\n", count: 50)))
+        #expect(root.bounds.height == 500)
+        controller.update(UpdateWindowContent(phase: .error, currentVersion: "0.8.10", message: "Try checking again."))
+        #expect(root.bounds.height == compactHeight)
+    }
+
     private func makeController(actions: [UpdateWindowAction] = []) -> UpdateWindowController {
         _ = NSApplication.shared
         let controller = UpdateWindowController()

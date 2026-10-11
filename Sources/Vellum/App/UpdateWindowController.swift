@@ -157,8 +157,21 @@ final class UpdateWindowController: NSWindowController {
         let width = hasBody ? 560 : min(560, max(320, ceil(max(labelWidth, buttonWidth)) + 48))
         if contentWidth?.constant != width { progressFill.layer?.removeAnimation(forKey: "preparing") }
         contentWidth?.constant = width
+        var height: CGFloat = hasBody ? 500 : compactStatus ? 232 : 250
+        var notesHeight: CGFloat = 0
+        let notesOffset = notesScrollView.contentView.bounds.origin
+        if hasBody, let root = window?.contentView,
+           let layout = notesView.layoutManager, let container = notesView.textContainer {
+            if notesView.frame.width != width - 48 { notesView.frame.size.width = width - 48 }
+            layout.ensureLayout(for: container)
+            notesHeight = ceil(layout.usedRect(for: container).height + notesView.textContainerInset.height * 2)
+            let measuredHeight = notesScrollView.heightAnchor.constraint(equalToConstant: notesHeight)
+            measuredHeight.isActive = true
+            height = min(500, root.fittingSize.height)
+            measuredHeight.isActive = false
+        }
         if let window {
-            let size = window.frameRect(forContentRect: NSRect(x: 0, y: 0, width: width, height: hasBody ? 500 : compactStatus ? 232 : 250)).size
+            let size = window.frameRect(forContentRect: NSRect(x: 0, y: 0, width: width, height: height)).size
             if abs(window.frame.width - size.width) > 0.5 || abs(window.frame.height - size.height) > 0.5 {
                 let origin = NSPoint(x: window.frame.midX - size.width / 2, y: window.frame.maxY - size.height)
                 window.setFrame(NSRect(origin: origin, size: size), display: true, animate: window.isVisible)
@@ -166,6 +179,12 @@ final class UpdateWindowController: NSWindowController {
         }
         updateProgress(content)
         window?.contentView?.layoutSubtreeIfNeeded()
+        if hasBody {
+            let notesSize = NSSize(width: notesScrollView.contentSize.width, height: max(notesHeight, notesScrollView.contentSize.height))
+            if notesView.frame.size != notesSize { notesView.setFrameSize(notesSize) }
+            notesScrollView.contentView.scroll(to: notesOffset)
+            notesScrollView.reflectScrolledClipView(notesScrollView.contentView)
+        }
     }
 
     func dismiss() {
