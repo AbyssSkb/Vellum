@@ -45,6 +45,58 @@ struct SparkleUpdateTests {
         #expect(callbacks == ["acknowledge", "retry"])
     }
 
+    @Test(arguments: AppUILanguage.allCases)
+    func updateErrorsShowTheUnderlyingCauseAndRecoveryDetails(language: AppUILanguage) throws {
+        let preference = AppPreferenceKeys.appLanguage
+        let previous = UserDefaults.standard.object(forKey: preference)
+        UserDefaults.standard.set(language.rawValue, forKey: preference)
+        defer { UserDefaults.standard.set(previous, forKey: preference) }
+        let cause = NSError(domain: SUSparkleErrorDomain, code: 2001, userInfo: [
+            NSLocalizedDescriptionKey: "A network error occurred: service unavailable (503).",
+            NSLocalizedFailureReasonErrorKey: "The server is temporarily unavailable.",
+            NSLocalizedRecoverySuggestionErrorKey: "Please retry later."
+        ])
+        let download = NSError(domain: SUSparkleErrorDomain, code: 2001, userInfo: [
+            NSLocalizedDescriptionKey: "An error occurred while downloading the update.", NSUnderlyingErrorKey: cause
+        ])
+        let error = NSError(domain: SUSparkleErrorDomain, code: 2001, userInfo: [
+            NSLocalizedDescriptionKey: "An error occurred in retrieving update information.",
+            NSLocalizedFailureReasonErrorKey: "  An error occurred in retrieving update information.  ",
+            NSLocalizedRecoverySuggestionErrorKey: " \n ", NSUnderlyingErrorKey: download
+        ])
+        let driver = makeDriver()
+        defer { driver.windowController.dismiss() }
+        driver.showUpdaterError(error, acknowledgement: {})
+        let message = try #require(driver.content.message)
+        #expect(message.hasPrefix(error.localizedDescription))
+        #expect(message.contains(download.localizedDescription))
+        #expect(message.contains(cause.localizedDescription))
+        #expect(message.contains("The server is temporarily unavailable."))
+        #expect(message.contains("Please retry later."))
+        #expect(message.components(separatedBy: error.localizedDescription).count == 2)
+        #expect(message.components(separatedBy: language.text(.updateErrorCode(domain: SUSparkleErrorDomain, code: 2001))).count == 4)
+        #expect(!message.contains("\n\n\n"))
+        let reason = "The server is temporarily unavailable."
+        driver.presentError(NSError(domain: "NetworkFixture", code: 503, userInfo: [NSLocalizedFailureReasonErrorKey: reason]))
+        #expect(try #require(driver.content.message).components(separatedBy: reason).count == 2)
+    }
+
+    @Test
+    func updateErrorsIncludeSwiftUnderlyingErrorsAndStopAtCycles() throws {
+        let driver = makeDriver()
+        defer { driver.windowController.dismiss() }
+        let error = NSError(domain: SUSparkleErrorDomain, code: 2001, userInfo: [NSUnderlyingErrorKey: URLError(.timedOut)])
+        driver.presentError(error)
+        let message = try #require(driver.content.message)
+        #expect(message.contains(URLError(.timedOut).localizedDescription))
+        #expect(message.contains("NSURLErrorDomain"))
+        #expect(message.contains("-1001"))
+        let cyclicError = CyclicUpdateError(domain: "CyclicUpdateError", code: 1)
+        driver.presentError(cyclicError)
+        let cyclicMessage = try #require(driver.content.message)
+        #expect(cyclicMessage.components(separatedBy: cyclicError.localizedDescription).count == 2)
+    }
+
     @Test
     func restartWaitsForSuccessfulSaveAndRespondsOnlyOnce() {
         var saved = false
@@ -245,6 +297,10 @@ struct SparkleUpdateTests {
         var keyPresentationCount = 0
         override func makeKeyAndOrderFront(_ sender: Any?) { keyPresentationCount += 1 }
         override func orderFront(_ sender: Any?) {}
+    }
+
+    private final class CyclicUpdateError: NSError, @unchecked Sendable {
+        override var userInfo: [String: Any] { [NSUnderlyingErrorKey: self] }
     }
 
     private func item(_ version: String = "0.8.9") throws -> SUAppcastItem {

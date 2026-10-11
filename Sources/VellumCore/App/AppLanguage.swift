@@ -264,6 +264,7 @@ public enum AppText {
     case retryUpdate
     case updateError
     case updateDetails
+    case updateErrorCode(domain: String, code: Int)
     case updateNewVersion
     case updateWindowTitle
     case updates
@@ -523,6 +524,7 @@ public extension AppText {
         case .retryUpdate: return "Try Again"
         case .updateError: return "Update interrupted"
         case .updateDetails: return "Details"
+        case .updateErrorCode(let domain, let code): return "Error code: \(domain) (\(code))"
         case .updateNewVersion: return "New version"
         case .updateWindowTitle: return "Vellum Update"
         case .updates: return "Updates"
@@ -773,6 +775,7 @@ public extension AppText {
         case .retryUpdate: return "重试"
         case .updateError: return "更新已中断"
         case .updateDetails: return "详细信息"
+        case .updateErrorCode(let domain, let code): return "错误代码：\(domain)（\(code)）"
         case .updateNewVersion: return "新版本"
         case .updateWindowTitle: return "Vellum 更新"
         case .updates: return "更新"

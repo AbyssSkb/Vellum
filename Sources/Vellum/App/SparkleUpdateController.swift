@@ -202,13 +202,30 @@ final class VellumUpdateUserDriver: NSObject, SPUUserDriver {
     func presentError(_ error: Error, acknowledgement: @escaping () -> Void = {}) {
         installWhenReady = false
         content.phase = .error
-        content.message = error.localizedDescription
+        content.message = errorDetails(error)
         let close = { [weak self] in self?.dismiss(); acknowledgement() }
         present(actions: [action(.closeUpdate, key: "c", handler: close), releaseAction(),
                           action(.retryUpdate, key: "r", primary: true) { [weak self] in
             self?.dismiss(); acknowledgement()
             self?.checkAgain?()
         }], close: close)
+    }
+
+    private func errorDetails(_ error: Error) -> String {
+        var paragraphs: [String] = []
+        var current: NSError? = error as NSError
+        var visited: Set<ObjectIdentifier> = []
+        while let error = current, visited.insert(ObjectIdentifier(error)).inserted {
+            var lines: [String] = []
+            for value in [error.localizedDescription, error.localizedFailureReason, error.localizedRecoverySuggestion].compactMap({ $0 }) {
+                let text = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !text.isEmpty && !lines.contains(where: { $0.contains(text) }) { lines.append(text) }
+            }
+            lines.append(language.text(.updateErrorCode(domain: error.domain, code: error.code)))
+            paragraphs.append(lines.joined(separator: "\n"))
+            current = (error.userInfo[NSUnderlyingErrorKey] as? Error).map { $0 as NSError }
+        }
+        return paragraphs.joined(separator: "\n\n")
     }
 
     func showDownloadInitiated(cancellation: @escaping () -> Void) {
