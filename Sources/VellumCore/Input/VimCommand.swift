@@ -22,6 +22,7 @@ enum VimCommand: Equatable {
     case jumpBack
     case jumpForward
     case beginSearch
+    case beginWordJump
     case searchNext
     case searchPrevious
     case materializeSearchSelection

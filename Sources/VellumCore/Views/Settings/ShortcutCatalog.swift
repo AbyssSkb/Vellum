@@ -112,6 +112,7 @@ enum ShortcutCatalog {
             title: "Text Selection",
             systemImage: "selection.pin.in.out",
             items: [
+                ShortcutItem(keys: ["s"], action: "Type a visible word prefix, then its label to select"),
                 ShortcutItem(keys: ["h", "j", "k", "l"], action: "Move selection endpoint"),
                 ShortcutItem(keys: ["w", "b", "e"], action: "Move by word"),
                 ShortcutItem(keys: ["Esc"], action: "Clear text selection")
@@ -247,6 +248,7 @@ enum ShortcutCatalog {
             title: "文本选择",
             systemImage: "selection.pin.in.out",
             items: [
+                ShortcutItem(keys: ["s"], action: "输入可见单词的开头，再按标签选中"),
                 ShortcutItem(keys: ["h", "j", "k", "l"], action: "移动选择端点"),
                 ShortcutItem(keys: ["w", "b", "e"], action: "按单词移动"),
                 ShortcutItem(keys: ["Esc"], action: "清除文本选择")

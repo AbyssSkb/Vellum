@@ -50,6 +50,7 @@ struct VimCommandDispatcherTests {
         dispatcher.perform(.jumpBack, on: target)
         dispatcher.perform(.jumpForward, on: target)
         dispatcher.perform(.beginSearch, on: target)
+        dispatcher.perform(.beginWordJump, on: target)
         dispatcher.perform(.searchNext, on: target)
         dispatcher.perform(.searchPrevious, on: target)
         dispatcher.perform(.materializeSearchSelection, on: target)
@@ -71,6 +72,7 @@ struct VimCommandDispatcherTests {
             .jumpBack,
             .jumpForward,
             .beginSearch,
+            .beginWordJump,
             .searchNext,
             .searchPrevious,
             .materializeSearchSelection
@@ -177,6 +179,10 @@ private final class RecordingVimCommandTarget: VimCommandTarget {
         actions.append(.beginSearch)
     }
 
+    func beginWordJump() {
+        actions.append(.beginWordJump)
+    }
+
     func searchNext() {
         actions.append(.searchNext)
     }
@@ -249,6 +255,7 @@ private final class RecordingVimCommandTarget: VimCommandTarget {
         case jumpBack
         case jumpForward
         case beginSearch
+        case beginWordJump
         case searchNext
         case searchPrevious
         case materializeSearchSelection

@@ -23,6 +23,7 @@ struct AppStateReaderControllerTests {
         appState.jumpBack()
         appState.jumpForward()
         appState.beginSearch()
+        appState.beginWordJump()
         appState.searchNext()
         appState.searchPrevious()
         appState.materializeSearchSelection()
@@ -43,6 +44,7 @@ struct AppStateReaderControllerTests {
             .jumpBack,
             .jumpForward,
             .beginSearch,
+            .beginWordJump,
             .searchNext,
             .searchPrevious,
             .materializeSearchSelection,
@@ -352,6 +354,7 @@ private final class RecordingReaderController: ReaderController {
     var hasNavigableTextSelection = false
     var hasSearchTextTarget = false
     var isPageOverviewActive = false
+    var isWordJumpActive = false
     var documentKey: String?
     var aiExplanationHistory: [AIExplanationHistoryItem]
     private let savedSnapshot: ReaderSnapshot?
@@ -394,6 +397,19 @@ private final class RecordingReaderController: ReaderController {
 
     func beginSearchCommand() {
         actions.append(.beginSearch)
+    }
+
+    func beginWordJumpCommand() {
+        actions.append(.beginWordJump)
+        isWordJumpActive = true
+    }
+
+    func handleWordJumpKey(_ event: NSEvent) -> Bool {
+        isWordJumpActive
+    }
+
+    func cancelWordJump() {
+        isWordJumpActive = false
     }
 
     func handleAIKeyEvent(_ event: NSEvent) -> Bool {
@@ -506,6 +522,7 @@ private final class RecordingReaderController: ReaderController {
         case jumpBack
         case jumpForward
         case beginSearch
+        case beginWordJump
         case searchNext
         case searchPrevious
         case materializeSearchSelection

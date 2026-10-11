@@ -68,6 +68,16 @@ struct VimKeyMapTests {
     }
 
     @Test
+    func wordJumpUsesOnlyLowercaseSWithoutRequiringASelection() {
+        #expect(VimKeyMap.isHandledKey("s", hasNavigableTextSelection: false, hasTextActionTarget: false))
+        #expect(VimKeyMap.command(for: "s") == .beginWordJump)
+        #expect(!VimKeyMap.isContinuousKey("s"))
+        #expect(!VimKeyMap.isHandledKey("S", hasNavigableTextSelection: false, hasTextActionTarget: false))
+        #expect(VimKeyMap.command(for: "S") == nil)
+        #expect(VimKeyMap.lowercaseFallback(for: "S") == nil)
+    }
+
+    @Test
     func materializeSearchSelectionKeyIsHandledWithoutSelection() {
         #expect(VimKeyMap.isHandledKey("v", hasNavigableTextSelection: false, hasTextActionTarget: false))
         #expect(VimKeyMap.command(for: "v") == .materializeSearchSelection)

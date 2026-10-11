@@ -41,6 +41,10 @@ extension AppState: VimCommandTarget {
         activeReaderController?.beginSearchCommand()
     }
 
+    func beginWordJump() {
+        activeReaderController?.beginWordJumpCommand()
+    }
+
     func searchNext() {
         activeReaderController?.vimSearchNext()
     }

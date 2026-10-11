@@ -50,6 +50,8 @@ struct VimCommandDispatcher {
             target.jumpForward()
         case .beginSearch:
             target.beginSearch()
+        case .beginWordJump:
+            target.beginWordJump()
         case .searchNext:
             target.searchNext()
         case .searchPrevious:
@@ -101,6 +103,7 @@ protocol VimCommandTarget {
     func jumpBack()
     func jumpForward()
     func beginSearch()
+    func beginWordJump()
     func searchNext()
     func searchPrevious()
     func materializeSearchSelection()

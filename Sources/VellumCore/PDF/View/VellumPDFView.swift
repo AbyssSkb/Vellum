@@ -77,6 +77,7 @@ final class VellumPDFView: PDFView {
     var pageOverviewController: PageOverviewController?
     var finishingPageOverviewGeneration: Int?
     var searchController: PDFSearchController?
+    var wordJumpController: PDFWordJumpController?
 
     override var acceptsFirstResponder: Bool { true }
 
@@ -180,6 +181,7 @@ final class VellumPDFView: PDFView {
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
+        cancelWordJump()
         window?.acceptsMouseMovedEvents = true
         configurePDFScrollers()
         updateExplanationTrackingArea()
@@ -199,6 +201,7 @@ final class VellumPDFView: PDFView {
 
     override func layout() {
         super.layout()
+        wordJumpController?.cancelIfViewportChanged()
         configurePDFScrollersIfNeeded()
         updateAIFloatingOverlayFrames()
         scheduleReadingPositionReport()
@@ -218,7 +221,10 @@ final class VellumPDFView: PDFView {
 
     override func resignFirstResponder() -> Bool {
         let resigned = super.resignFirstResponder()
-        if resigned { appState?.keyboardController.cancelInput() }
+        if resigned {
+            cancelWordJump()
+            appState?.keyboardController.cancelInput()
+        }
         return resigned
     }
 
@@ -257,6 +263,7 @@ final class VellumPDFView: PDFView {
     }
 
     override func mouseDown(with event: NSEvent) {
+        cancelWordJump()
         appState?.keyboardController.cancelInput()
         focus()
         completePendingRestoreBeforeUserInteraction()
@@ -307,6 +314,7 @@ final class VellumPDFView: PDFView {
     }
 
     override func otherMouseDown(with event: NSEvent) {
+        cancelWordJump()
         completePendingRestoreBeforeUserInteraction()
         cancelPendingRestore()
         stopScrollAnimation()
@@ -320,6 +328,7 @@ final class VellumPDFView: PDFView {
     }
 
     override func menu(for event: NSEvent) -> NSMenu? {
+        cancelWordJump()
         let pointInView = convert(event.locationInWindow, from: nil)
         let menu = super.menu(for: event) ?? NSMenu()
 
@@ -347,6 +356,7 @@ final class VellumPDFView: PDFView {
     }
 
     override func scrollWheel(with event: NSEvent) {
+        cancelWordJump()
         guard !isPageOverviewActive else { return }
         completePendingRestoreBeforeUserInteraction()
         cancelPendingRestore(cancelNativeScroll: false)
@@ -359,6 +369,7 @@ final class VellumPDFView: PDFView {
     }
 
     override func magnify(with event: NSEvent) {
+        cancelWordJump()
         guard !isPageOverviewActive else { return }
         completePendingRestoreBeforeUserInteraction()
         cancelPendingRestore()
@@ -369,6 +380,7 @@ final class VellumPDFView: PDFView {
     }
 
     override func smartMagnify(with event: NSEvent) {
+        cancelWordJump()
         guard !isPageOverviewActive else { return }
         completePendingRestoreBeforeUserInteraction()
         cancelPendingRestore()
@@ -505,6 +517,7 @@ final class VellumPDFView: PDFView {
                 guard let self, let clipView, let scrollView else { return }
                 PDFNativeScrollBoundsConstraint.boundsDidChange(in: scrollView)
                 let moved = self.observedReadingScrollOrigin != clipView.bounds.origin
+                if moved { self.cancelWordJump() }
                 self.observedReadingScrollOrigin = clipView.bounds.origin
                 let event = NSApp?.currentEvent
                 var scrollHit: NSView?

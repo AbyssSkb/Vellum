@@ -7,6 +7,7 @@ protocol ReaderController: AnyObject {
     var hasNavigableTextSelection: Bool { get }
     var hasSearchTextTarget: Bool { get }
     var isPageOverviewActive: Bool { get }
+    var isWordJumpActive: Bool { get }
     var documentKey: String? { get }
 
     func snapshot() -> ReaderSnapshot?
@@ -16,6 +17,9 @@ protocol ReaderController: AnyObject {
     func finishPageOverview()
     func cancelPageOverview()
     func beginSearchCommand()
+    func beginWordJumpCommand()
+    func handleWordJumpKey(_ event: NSEvent) -> Bool
+    func cancelWordJump()
     func handleAIKeyEvent(_ event: NSEvent) -> Bool
     func handleTextSelectionKeyEvent(_ event: NSEvent) -> Bool
     func handleTextSelectionKey(_ rawKey: String, eventType: NSEvent.EventType) -> Bool

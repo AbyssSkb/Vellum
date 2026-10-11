@@ -9,7 +9,7 @@ extension VellumPDFView {
             return
         }
 
-        if isMouseSelectingText || currentSelection != nil || NSEvent.pressedMouseButtons != 0 {
+        if isWordJumpActive || isMouseSelectingText || currentSelection != nil || NSEvent.pressedMouseButtons != 0 {
             hideAIExplanationPopover()
             return
         }

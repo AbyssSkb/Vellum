@@ -157,6 +157,16 @@ struct VimInputControllerTests {
     }
 
     @Test
+    func wordJumpStartsOnceAndClearsNumericInput() {
+        var input = VimInputController()
+        #expect(input.handleKeyDown("2", isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .handled)
+        #expect(input.handleKeyDown("s", isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .command(.beginWordJump))
+        #expect(input.state.numericPrefix.isEmpty)
+        #expect(input.handleKeyDown("s", isRepeat: true, hasNavigableTextSelection: false, hasTextActionTarget: false) == .handled)
+        #expect(input.handleKeyDown("S", isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .ignored)
+    }
+
+    @Test
     func uppercaseTOpensTabSwitcherButGTStillRoutesPreviousTab() {
         var input = VimInputController()
 

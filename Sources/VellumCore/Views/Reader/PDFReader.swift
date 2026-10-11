@@ -54,6 +54,7 @@ struct PDFReader: NSViewRepresentable {
         }
 
         if nsView.document !== document {
+            nsView.cancelWordJump()
             nsView.hideAIExplanationPopover()
             nsView.clearSuppressedHoverExplanation()
             nsView.cancelPageOverview()
@@ -79,6 +80,7 @@ struct PDFReader: NSViewRepresentable {
         }
 
         if !isActive {
+            nsView.cancelWordJump()
             nsView.cancelPendingRestore()
             nsView.stopScrollAnimation()
             nsView.stopZoomState()
@@ -109,6 +111,7 @@ struct PDFReader: NSViewRepresentable {
     }
 
     static func dismantleNSView(_ nsView: VellumPDFView, coordinator: ()) {
+        nsView.cancelWordJump()
         nsView.saveBeforeDismantle?()
         nsView.hideAIExplanationPopover()
         nsView.cancelPageOverview()

@@ -34,6 +34,10 @@ Search with `/`, move through matches with `n` and `N`, and press `v` to select 
 
 ![Search matches with a compact query field and result counter](docs/images/vellum-search.png)
 
+Press `s`, type the beginning of a visible word, then type its letter label to select the whole word. Refine the selection with Vim motions, copy with `y`, or highlight with `m`. Labels adapt to the displayed text size and stay in place as you enter a multi-letter label.
+
+![Visible words highlighted with letter labels for keyboard selection](docs/images/vellum-word-jump.png)
+
 *Screenshots use this [sample PDF](docs/samples/the-shape-of-attention.pdf).*
 
 ## Experimental AI
@@ -57,6 +61,7 @@ AI assistance is optional and experimental. See the [user guide](docs/USER_GUIDE
 | Hold `Tab` | Open the page gallery |
 | `H` / `L`, `T` | Previous / next tab; searchable tab switcher |
 | `/`, `n` / `N` | Search; next / previous match |
+| `s` | Type a visible word prefix and its label to select |
 | `m`, `c`, `y` | Highlight, change highlight color, copy |
 
 Letter shortcuts apply to the focused reading surface. The [user guide](docs/USER_GUIDE.md) covers selection, outline folds, focus behavior, and the full shortcut set.

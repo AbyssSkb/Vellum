@@ -229,6 +229,9 @@ public enum AppText {
     case searchNoMatch
     case searchOpenTabs
     case searchTypeHint
+    case wordJump
+    case wordJumpTypeHint
+    case wordJumpNoText
     case selected
     case selectHighlightColorHint
     case settings
@@ -489,6 +492,9 @@ public extension AppText {
         case .searchNoMatch: return "no match"
         case .searchOpenTabs: return "Search open tabs"
         case .searchTypeHint: return "type"
+        case .wordJump: return "Select word"
+        case .wordJumpTypeHint: return "Type a word prefix"
+        case .wordJumpNoText: return "No selectable text on screen"
         case .selected: return "Selected"
         case .selectHighlightColorHint: return "Select this highlight color"
         case .settings: return "Settings"
@@ -740,6 +746,9 @@ public extension AppText {
         case .searchNoMatch: return "无匹配"
         case .searchOpenTabs: return "搜索已打开的标签页"
         case .searchTypeHint: return "输入"
+        case .wordJump: return "定位单词"
+        case .wordJumpTypeHint: return "输入单词开头"
+        case .wordJumpNoText: return "屏幕内没有可选文字"
         case .selected: return "已选"
         case .selectHighlightColorHint: return "选择这个高亮颜色"
         case .settings: return "设置"

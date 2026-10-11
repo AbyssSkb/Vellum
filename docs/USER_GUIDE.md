@@ -131,6 +131,24 @@ Press `/`, type a query, and press `Enter`. Matches stay highlighted after leavi
 
 Select text with the pointer, or use `v` on a search result. With text selected, `h` / `l` adjusts the selection endpoint horizontally, `j` / `k` moves it by visual line, and `w` / `b` / `e` moves it by word. Press `Esc` to clear the selection and resume normal page movement.
 
+### Select a visible word
+
+1. With the reader focused, press `s` and type the beginning of a word on screen. Matching ignores case.
+2. Matching words receive letter labels. Type the target's label to select the whole word. For a multi-letter label, enter its letters in order; its position and size stay stable while you type.
+3. Use `h` / `j` / `k` / `l` or `w` / `b` / `e` to adjust the selection, `y` to copy, or `m` to highlight.
+
+![Visible words highlighted with letter labels for keyboard selection](images/vellum-word-jump.png)
+
+Labels adapt to the displayed text size and avoid letters that could continue the word prefix. Keep typing the word to narrow a crowded set of matches.
+
+| Key while word jump is open | Action |
+| --- | --- |
+| `Backspace` | Remove the last entered label letter; otherwise remove the last word-prefix character |
+| `Enter` | Select the first remaining match |
+| `Esc` | Cancel word jump, preserving the previous text selection |
+
+Word jump uses extractable PDF text. Scanned pages need a text layer before words can be targeted.
+
 ## Highlight and save
 
 Choose a color from the circular swatches in the tab bar, or press `c` to cycle through yellow, green, cyan, purple, and pink.

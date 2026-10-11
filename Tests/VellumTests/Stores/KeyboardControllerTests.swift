@@ -9,6 +9,140 @@ struct KeyboardControllerTests {
     private let notificationCenter = NotificationCenter()
 
     @Test
+    func wordJumpOwnsQueryKeysBeforeSelectionNavigationAndVimCommands() {
+        let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
+        let delegate = RecordingKeyboardDelegate()
+        delegate.reader.hasNavigableTextSelection = true
+        controller.delegate = delegate
+
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "s", keyCode: 1)))
+        #expect(controller.handleKeyEvent(keyEvent(.keyUp, key: "s", keyCode: 1)))
+        delegate.reader.textSelectionKeyResult = true
+        for key in ["g", "j", "H", "2"] {
+            #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: key, keyCode: 0)))
+            #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: key, keyCode: 0, isRepeat: true)))
+            #expect(controller.handleKeyEvent(keyEvent(.keyUp, key: key, keyCode: 0)))
+        }
+
+        #expect(delegate.commands == [.beginWordJump])
+        #expect(delegate.reader.actions == [.beginWordJump, .wordJumpKey("g"), .wordJumpKey("j"), .wordJumpKey("H"), .wordJumpKey("2")])
+        #expect(delegate.reader.textSelectionKeys == ["s"])
+        #expect(delegate.reader.hasNavigableTextSelection)
+    }
+
+    @Test
+    func escapeCancelsWordJumpWithoutReachingTheOldSelection() {
+        let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
+        let delegate = RecordingKeyboardDelegate()
+        delegate.reader.hasNavigableTextSelection = true
+        controller.delegate = delegate
+
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "s", keyCode: 1)))
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "\u{1b}", keyCode: 53)))
+        #expect(!delegate.reader.isWordJumpActive)
+        #expect(delegate.reader.hasNavigableTextSelection)
+        #expect(delegate.reader.textSelectionKeys == ["s"])
+        #expect(delegate.reader.actions == [.beginWordJump, .cancelWordJump])
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "G", keyCode: 5)))
+        #expect(delegate.commands == [.beginWordJump, .lastPage])
+    }
+
+    @Test(arguments: [false, true])
+    func tabCancelsWordJumpAndRetainsTapAndHoldBehavior(holdsTab: Bool) throws {
+        let controller = KeyboardController(
+            tabPageOverviewDelay: holdsTab ? 0.001 : 10,
+            installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter
+        )
+        let delegate = RecordingKeyboardDelegate()
+        controller.delegate = delegate
+
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "s", keyCode: 1)))
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "\t", keyCode: 48)))
+        #expect(!delegate.reader.isWordJumpActive)
+        if holdsTab { try waitForPageOverview(delegate.reader) }
+        #expect(controller.handleKeyEvent(keyEvent(.keyUp, key: "\t", keyCode: 48)))
+        #expect(delegate.focusSwitches == (holdsTab ? 0 : 1))
+        #expect(delegate.reader.actions == (holdsTab
+            ? [.beginWordJump, .cancelWordJump, .beginPageOverview, .finishPageOverview]
+            : [.beginWordJump, .cancelWordJump]))
+    }
+
+    @Test(arguments: [NSApplication.willResignActiveNotification, NSWindow.didResignKeyNotification])
+    func deactivationCancelsWordJump(name: Notification.Name) {
+        let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
+        let delegate = RecordingKeyboardDelegate()
+        controller.delegate = delegate
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "s", keyCode: 1)))
+        notificationCenter.post(name: name, object: nil)
+        #expect(!delegate.reader.isWordJumpActive)
+        #expect(delegate.reader.actions == [.beginWordJump, .cancelWordJump])
+    }
+
+    @Test(arguments: [false, true])
+    func changingReaderOrEnteringOutlineCancelsTheOriginalWordJump(changesReader: Bool) {
+        let window = makeWindow()
+        defer { window.close() }
+        let responder = KeyboardFocusView(frame: window.contentView!.bounds)
+        let outline = PDFOutlineKeyView(frame: window.contentView!.bounds)
+        window.contentView?.addSubview(responder)
+        window.contentView?.addSubview(outline)
+        #expect(window.makeFirstResponder(responder))
+        let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
+        let delegate = RecordingKeyboardDelegate()
+        delegate.readerWindow = window
+        controller.delegate = delegate
+        let event = WindowKeyboardEvent()
+        event.targetWindow = window
+        event.key = "s"
+        #expect(controller.routeKeyEvent(event))
+        let originalReader = delegate.reader
+        if changesReader {
+            delegate.reader = RecordingKeyboardReaderController()
+        } else {
+            #expect(window.makeFirstResponder(outline))
+        }
+        event.key = "q"
+        #expect(!controller.routeKeyEvent(event))
+        #expect(!originalReader.isWordJumpActive)
+        #expect(originalReader.actions == [.aiKey, .beginWordJump, .cancelWordJump])
+        #expect(delegate.commands == [.beginWordJump])
+    }
+
+    @Test
+    func systemShortcutCancelsWordJumpAndKeepsItsNativeRouting() {
+        let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
+        let delegate = RecordingKeyboardDelegate()
+        controller.delegate = delegate
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "s", keyCode: 1)))
+        #expect(!controller.handleKeyEvent(keyEvent(.keyDown, key: "o", keyCode: 31, modifierFlags: [.command])))
+        #expect(!delegate.reader.isWordJumpActive)
+        #expect(delegate.reader.actions == [.beginWordJump, .cancelWordJump])
+        #expect(delegate.commands == [.beginWordJump])
+    }
+
+    @Test
+    func wordJumpTracksReaderFocusEstablishedByItsStartCommand() {
+        let window = makeWindow()
+        defer { window.close() }
+        let readerView = KeyboardFocusView(frame: window.contentView!.bounds)
+        window.contentView?.addSubview(readerView)
+        #expect(window.makeFirstResponder(nil))
+        let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
+        let delegate = RecordingKeyboardDelegate()
+        delegate.readerWindow = window
+        delegate.reader.onBeginWordJump = { #expect(window.makeFirstResponder(readerView)) }
+        controller.delegate = delegate
+        let event = WindowKeyboardEvent()
+        event.targetWindow = window
+        event.key = "s"
+        #expect(controller.routeKeyEvent(event))
+        event.key = "g"
+        #expect(controller.routeKeyEvent(event))
+        #expect(delegate.reader.isWordJumpActive)
+        #expect(delegate.reader.actions == [.aiKey, .beginWordJump, .aiKey, .wordJumpKey("g")])
+    }
+
+    @Test
     func shortTabPressSwitchesReadingFocusOnRelease() {
         let controller = KeyboardController(
             tabPageOverviewDelay: 10,
@@ -1008,6 +1142,9 @@ private final class RecordingKeyboardDelegate: KeyboardControllerDelegate {
 
     func handleVimCommand(_ command: VimCommand) {
         commands.append(command)
+        if command == .beginWordJump {
+            activeReaderController?.beginWordJumpCommand()
+        }
     }
 
     func switchReadingFocus() { focusSwitches += 1 }
@@ -1025,10 +1162,13 @@ private final class RecordingKeyboardReaderController: ReaderController {
     var hasNavigableTextSelection = false
     var hasSearchTextTarget = false
     var isPageOverviewActive = false
+    var isWordJumpActive = false
     var deleteHighlightsResult = false
     var aiKeyResult = false
     var textSelectionKeyResult = false
     var onBeginPageOverview: (() -> Void)?
+    var onBeginWordJump: (() -> Void)?
+    private(set) var textSelectionKeys: [String] = []
     private(set) var actions: [Action] = []
 
     func snapshot() -> ReaderSnapshot? { nil }
@@ -1061,6 +1201,23 @@ private final class RecordingKeyboardReaderController: ReaderController {
         actions.append(.beginSearch)
     }
 
+    func beginWordJumpCommand() {
+        actions.append(.beginWordJump)
+        isWordJumpActive = true
+        onBeginWordJump?()
+    }
+
+    func handleWordJumpKey(_ event: NSEvent) -> Bool {
+        actions.append(.wordJumpKey(event.charactersIgnoringModifiers ?? ""))
+        return isWordJumpActive
+    }
+
+    func cancelWordJump() {
+        guard isWordJumpActive else { return }
+        actions.append(.cancelWordJump)
+        isWordJumpActive = false
+    }
+
     func handleAIKeyEvent(_ event: NSEvent) -> Bool {
         actions.append(.aiKey)
         return aiKeyResult
@@ -1068,7 +1225,10 @@ private final class RecordingKeyboardReaderController: ReaderController {
 
     func handleTextSelectionKeyEvent(_ event: NSEvent) -> Bool { false }
 
-    func handleTextSelectionKey(_ rawKey: String, eventType: NSEvent.EventType) -> Bool { textSelectionKeyResult }
+    func handleTextSelectionKey(_ rawKey: String, eventType: NSEvent.EventType) -> Bool {
+        textSelectionKeys.append(rawKey)
+        return textSelectionKeyResult
+    }
 
     func vimDeleteHighlightsForSelection() -> Bool {
         actions.append(.deleteHighlights)
@@ -1117,6 +1277,9 @@ private final class RecordingKeyboardReaderController: ReaderController {
         case finishPageOverview
         case cancelPageOverview
         case beginSearch
+        case beginWordJump
+        case wordJumpKey(String)
+        case cancelWordJump
         case deleteHighlights
         case aiKey
     }

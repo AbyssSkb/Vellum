@@ -97,6 +97,20 @@ final class KeyboardController {
             inputReader = delegate?.activeReaderController
         }
 
+        if inputReader?.isWordJumpActive == true {
+            if key == "\t", event.type == .keyDown {
+                inputReader?.cancelWordJump()
+            } else if key == "\u{1b}", event.type == .keyDown {
+                cancelInput()
+                return true
+            } else {
+                if event.type == .keyDown, !event.isARepeat {
+                    _ = inputReader?.handleWordJumpKey(event)
+                }
+                return true
+            }
+        }
+
         if handleTabPageOverviewKey(key, event: event) {
             return true
         }
@@ -474,9 +488,11 @@ final class KeyboardController {
     private var hasInputSequence: Bool {
         vimInput.state.pendingKey != nil || !vimInput.state.numericPrefix.isEmpty
             || vimInput.heldKey != nil || tabPageOverviewArmed || tabPageOverviewActive
+            || inputReader?.isWordJumpActive == true
     }
 
     func cancelInput() {
+        inputReader?.cancelWordJump()
         stopHeldKeyTimer()
         vimInput.clearPendingInput()
         tabPageOverviewTimer?.invalidate()
@@ -515,6 +531,9 @@ final class KeyboardController {
         case .command(let command):
             stopHeldKeyTimer()
             delegate?.handleVimCommand(command)
+            if command == .beginWordJump {
+                inputResponder = inputWindow?.firstResponder
+            }
             return true
         case .continuousKey(let key):
             performContinuousKey(key)
