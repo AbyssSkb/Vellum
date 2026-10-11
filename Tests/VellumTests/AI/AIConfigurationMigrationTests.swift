@@ -149,6 +149,47 @@ struct AIConfigurationMigrationTests {
         #expect(explanation.model == "explanation-model")
     }
 
+    @Test
+    func reasoningEffortIsIndependentPerProviderAndUsage() throws {
+        let defaults = isolatedDefaults()
+        defaults.set("codex-cli", forKey: AISettingsKeys.providerID)
+        defaults.set("codex-cli", forKey: AISettingsKeys.conversationProviderID)
+        #expect(try AIConfiguration.current(defaults: defaults).reasoningEffort == "medium")
+        #expect(try AIConfiguration.current(profile: .conversation, defaults: defaults).reasoningEffort == "high")
+
+        defaults.set(" ultra \n", forKey: AIConfigurationProfile.explanation.reasoningEffortKey(for: "codex-cli"))
+        defaults.set("low", forKey: AIConfigurationProfile.conversation.reasoningEffortKey(for: "codex-cli"))
+        defaults.set("high", forKey: AIConfigurationProfile.explanation.reasoningEffortKey(for: "custom"))
+        #expect(try AIConfiguration.current(defaults: defaults).reasoningEffort == "ultra")
+        #expect(try AIConfiguration.current(profile: .conversation, defaults: defaults).reasoningEffort == "low")
+
+        defaults.set(" \n", forKey: AIConfigurationProfile.explanation.reasoningEffortKey(for: "codex-cli"))
+        #expect(try AIConfiguration.current(defaults: defaults).reasoningEffort == "medium")
+        #expect(defaults.string(forKey: AIConfigurationProfile.explanation.reasoningEffortKey(for: "custom")) == "high")
+    }
+
+    @Test(arguments: ["", " \n "])
+    func blankCodexDepthUsesApplicationDefaultForEachUsage(value: String) throws {
+        let defaults = isolatedDefaults()
+        for profile in AIConfigurationProfile.allCases {
+            defaults.set("codex-cli", forKey: profile.providerIDKey)
+            defaults.set(value, forKey: profile.reasoningEffortKey(for: "codex-cli"))
+            let configuration = try AIConfiguration.current(profile: profile, defaults: defaults)
+            #expect(configuration.reasoningEffort == profile.defaultCodexReasoningEffort)
+            #expect(defaults.string(forKey: profile.reasoningEffortKey(for: "codex-cli")) == value)
+        }
+    }
+
+    @Test
+    func HTTPProvidersKeepUnspecifiedReasoningDepth() throws {
+        let defaults = isolatedDefaults()
+        defaults.set("key", forKey: AISettingsKeys.apiKeyKey(for: "openai"))
+        for profile in AIConfigurationProfile.allCases {
+            defaults.set("openai", forKey: profile.providerIDKey)
+            #expect(try AIConfiguration.current(profile: profile, defaults: defaults).reasoningEffort == nil)
+        }
+    }
+
     private func isolatedDefaults() -> UserDefaults {
         let name = "VellumTests.AIConfigurationMigration.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: name)!

@@ -182,6 +182,9 @@ public enum AppText {
     case modelsLoaded(Int)
     case modelOverrideHint
     case modelChoicesHint
+    case reasoningDepth
+    case reasoningEffortValue(String)
+    case reasoningEffortUnsupported(String)
     case navigate
     case newTabs
     case nextTab
@@ -427,6 +430,20 @@ public extension AppText {
         case .modelsLoaded(let count): return "\(count) models loaded."
         case .modelOverrideHint: return "Leave Model Override empty to use Codex default."
         case .modelChoicesHint: return "Fetched models will appear as choices for Current Model."
+        case .reasoningDepth: return "Reasoning Depth"
+        case .reasoningEffortValue(let effort):
+            switch effort {
+            case "none": return "None"
+            case "minimal": return "Minimal"
+            case "low": return "Low"
+            case "medium": return "Medium"
+            case "high": return "High"
+            case "xhigh": return "Extra High"
+            case "max": return "Maximum"
+            case "ultra": return "Ultra"
+            default: return effort
+            }
+        case .reasoningEffortUnsupported(let effort): return "This model does not support \(effort). Choose a supported depth or change the model."
         case .navigate: return "Navigate"
         case .newTabs: return "New Tabs"
         case .nextTab: return "Next Tab"
@@ -663,6 +680,20 @@ public extension AppText {
         case .modelsLoaded(let count): return "已加载 \(count) 个模型。"
         case .modelOverrideHint: return "留空则使用 Codex 默认模型。"
         case .modelChoicesHint: return "获取到的模型会作为当前模型的可选项显示。"
+        case .reasoningDepth: return "思考深度"
+        case .reasoningEffortValue(let effort):
+            switch effort {
+            case "none": return "无"
+            case "minimal": return "极低"
+            case "low": return "低"
+            case "medium": return "中"
+            case "high": return "高"
+            case "xhigh": return "极高"
+            case "max": return "最高"
+            case "ultra": return "Ultra"
+            default: return effort
+            }
+        case .reasoningEffortUnsupported(let effort): return "当前模型不支持 \(effort)。请选择支持的深度或更换模型。"
         case .navigate: return "导航"
         case .newTabs: return "新标签页"
         case .nextTab: return "下一个标签页"

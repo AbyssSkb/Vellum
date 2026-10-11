@@ -339,9 +339,11 @@ struct AISettingsDetailView: View {
     let page: AISettingsConfigurationPage
     @State var providerID = "openai"
     @State var model = ""
+    @State var reasoningEffort = ""
     @StateObject var validation = AISettingsValidation()
     @State var targetLanguage = AIPromptSettings.defaultTargetLanguage
     @State var promptTemplate = AIPromptSettings.defaultTemplate
+    @State private var showsModelTestStatus = false
     @State private var didLoadProviderSettings = false
     @State private var didLoadPromptSettings = false
 
@@ -351,11 +353,11 @@ struct AISettingsDetailView: View {
                 header
                 providerSection
                 modelSection
+                validationSection
                 promptSection
                 if page == .explanation {
                     pronunciationSection
                 }
-                validationSection
             }
             .padding(.horizontal, 24)
             .padding(.vertical, 22)
@@ -381,6 +383,18 @@ struct AISettingsDetailView: View {
             guard didLoadProviderSettings else { return }
             saveUsageSettings()
             validation.invalidate(clearModels: false)
+        }
+        .onChange(of: reasoningEffort) { _, _ in
+            guard didLoadProviderSettings else { return }
+            saveUsageSettings()
+            validation.invalidate(clearModels: false)
+        }
+        .task(id: [page.rawValue, providerID]) {
+            guard didLoadProviderSettings,
+                  selectedPreset.format.usesCodexExecutable,
+                  validation.codexSettings == nil else { return }
+            showsModelTestStatus = false
+            fetchModels()
         }
         .onChange(of: targetLanguage) { _, _ in
             guard didLoadPromptSettings else { return }
@@ -472,8 +486,13 @@ struct AISettingsDetailView: View {
                     )
                 }
 
+                if !validation.availableModels.isEmpty {
+                    ModelChoiceGrid(models: validation.availableModels, selection: $model)
+                }
+
                 HStack(spacing: 10) {
                     Button {
+                        showsModelTestStatus = false
                         fetchModels()
                     } label: {
                         Label(validation.isFetchingModels ? language.text(.fetching) : language.text(.fetchModels), systemImage: "arrow.clockwise")
@@ -483,17 +502,78 @@ struct AISettingsDetailView: View {
 
                     Text(modelsSummary)
                         .font(.system(size: 12))
-                        .foregroundStyle(VellumColors.mutedColor)
+                        .foregroundStyle(!showsModelTestStatus && isModelFetchFailure ? VellumColors.redColor : VellumColors.mutedColor)
                         .fixedSize(horizontal: false, vertical: true)
 
                     Spacer()
                 }
 
-                if !validation.availableModels.isEmpty {
-                    ModelChoiceGrid(models: validation.availableModels, selection: $model)
+                if selectedPreset.format.usesCodexExecutable {
+                    reasoningEffortField
                 }
             }
         }
+    }
+
+    private var reasoningEffortField: some View {
+        LabeledSettingsField(title: language.text(.reasoningDepth)) {
+            VStack(alignment: .leading, spacing: 8) {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 112), spacing: 8)], spacing: 8) {
+                    ForEach(reasoningEffortChoices, id: \.self) { effort in
+                        Button {
+                            reasoningEffort = effort
+                        } label: {
+                            HStack(spacing: 6) {
+                                Text(language.text(.reasoningEffortValue(effort)))
+                                    .lineLimit(1)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                if reasoningEffort == effort {
+                                    Image(systemName: "checkmark")
+                                        .font(.system(size: 10, weight: .medium))
+                                        .foregroundStyle(VellumColors.blueColor)
+                                }
+                            }
+                        }
+                        .buttonStyle(SettingsActionButtonStyle())
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                .stroke(reasoningEffort == effort ? VellumColors.blueColor.opacity(0.65) : .clear, lineWidth: 1)
+                                .allowsHitTesting(false)
+                        }
+                        .disabled(knownModelReasoningEfforts.map { !$0.contains(effort) } ?? false)
+                    }
+                }
+
+                if let unsupportedReasoningEffort {
+                    Text(language.text(.reasoningEffortUnsupported(unsupportedReasoningEffort)))
+                        .font(.system(size: 12))
+                        .foregroundStyle(VellumColors.redColor)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+    }
+
+    private var knownModelReasoningEfforts: [String]? {
+        guard let configuration = try? currentConfiguration(requireModel: false) else { return nil }
+        return validation.codexSettings?.model(for: configuration)?.supportedReasoningEfforts
+    }
+
+    private var reasoningEffortChoices: [String] {
+        let models = validation.codexSettings?.models ?? []
+        var choices = knownModelReasoningEfforts ?? models.reduce(models.first?.supportedReasoningEfforts ?? []) { efforts, model in
+            efforts.filter { model.supportedReasoningEfforts.contains($0) }
+        }
+        for effort in [page.profile.defaultCodexReasoningEffort, reasoningEffort] where !effort.isEmpty && !choices.contains(effort) {
+            choices.append(effort)
+        }
+        return choices
+    }
+
+    private var unsupportedReasoningEffort: String? {
+        guard selectedPreset.format.usesCodexExecutable,
+              let configuration = try? currentConfiguration(requireModel: false) else { return nil }
+        return validation.unsupportedReasoningEffort(configuration: configuration)
     }
 
     private var promptSection: some View {
@@ -577,24 +657,33 @@ struct AISettingsDetailView: View {
             VStack(alignment: .leading, spacing: 14) {
                 HStack(spacing: 10) {
                     Button {
+                        showsModelTestStatus = true
                         testFunction()
                     } label: {
                         Label(validation.isTesting ? language.text(.testing) : language.text(.testModel), systemImage: "sparkles")
                     }
                     .buttonStyle(SettingsPrimaryButtonStyle())
-                    .disabled(isBusy)
+                    .disabled(isBusy || unsupportedReasoningEffort != nil)
 
                     Spacer()
                 }
 
-                AIConnectionStatusRow(status: validation.status, isBusy: isBusy)
-
-                VStack(alignment: .leading, spacing: 8) {
-                    ForEach(diagnosticRows, id: \.title) { row in
-                        diagnosticRow(row.title, row.value)
-                    }
-                    diagnosticRow(language.text(.selected), trimmedModelText)
+                if showsModelTestStatus && !validation.status.isIdle {
+                    AIConnectionStatusRow(status: validation.status, isBusy: validation.isTesting)
                 }
+
+                DisclosureGroup(language.text(.diagnostics)) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(diagnosticRows, id: \.title) { row in
+                            diagnosticRow(row.title, row.value)
+                        }
+                        diagnosticRow(language.text(.selected), trimmedModelText)
+                    }
+                    .padding(.top, 8)
+                }
+                .font(.system(size: 12))
+                .foregroundStyle(VellumColors.mutedColor)
+                .tint(VellumColors.mutedColor)
                 .padding(.top, 2)
             }
         }
@@ -605,6 +694,10 @@ struct AISettingsDetailView: View {
             return language.text(.fetchingModelsFrom(selectedPreset.name))
         }
 
+        if !showsModelTestStatus && isModelFetchFailure {
+            return validation.status.text(language: language)
+        }
+
         if validation.availableModels.isEmpty {
             return selectedPreset.format.usesCodexExecutable
                 ? language.text(.modelOverrideHint)
@@ -612,6 +705,11 @@ struct AISettingsDetailView: View {
         }
 
         return language.text(.modelsLoaded(validation.availableModels.count))
+    }
+
+    private var isModelFetchFailure: Bool {
+        if case .failure = validation.status { return true }
+        return false
     }
 
     var diagnosticRows: [(title: String, value: String)] {
@@ -654,6 +752,7 @@ struct AISettingsDetailView: View {
             model: model,
             apiKey: apiKey,
             providerFormat: selectedPreset.format,
+            reasoningEffort: selectedPreset.format.usesCodexExecutable ? page.profile.codexReasoningEffort(reasoningEffort) : reasoningEffort.nilIfEmpty,
             requireModel: requireModel
         )
     }
@@ -673,7 +772,10 @@ struct AISettingsDetailView: View {
         didLoadProviderSettings = false
         providerID = preset.id
         model = defaults.string(forKey: page.profile.modelKey(for: preset.id)) ?? preset.defaultModel
+        let savedEffort = defaults.string(forKey: page.profile.reasoningEffortKey(for: preset.id))
+        reasoningEffort = preset.format.usesCodexExecutable ? page.profile.codexReasoningEffort(savedEffort) : savedEffort ?? ""
         validation.invalidate()
+        showsModelTestStatus = false
         didLoadProviderSettings = true
         saveUsageSettings()
     }
@@ -685,6 +787,11 @@ struct AISettingsDetailView: View {
         defaults.set(preset.id, forKey: profile.providerIDKey)
         defaults.set(preset.format.rawValue, forKey: profile.providerFormatKey)
         defaults.set(model, forKey: profile.modelKey(for: preset.id))
+        if let effort = reasoningEffort.nilIfEmpty {
+            defaults.set(effort, forKey: profile.reasoningEffortKey(for: preset.id))
+        } else {
+            defaults.removeObject(forKey: profile.reasoningEffortKey(for: preset.id))
+        }
     }
 
     private func loadPromptSettings() {
@@ -977,7 +1084,7 @@ private struct StyledPromptEditor: View {
             .focused($isFocused)
             .padding(.horizontal, 10)
             .padding(.vertical, 9)
-            .frame(minHeight: 260)
+            .frame(height: 260)
             .background(VellumColors.panelColor, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 6, style: .continuous)

@@ -18,6 +18,10 @@ enum AISettingsKeys {
         providerScopedKey("Model", providerID: providerID)
     }
 
+    static func reasoningEffortKey(for providerID: String) -> String {
+        providerScopedKey("ReasoningEffort", providerID: providerID)
+    }
+
     static func apiKeyKey(for providerID: String) -> String {
         providerScopedKey("APIKey", providerID: providerID)
     }
@@ -34,6 +38,10 @@ enum AISettingsKeys {
         conversationProviderScopedKey("Model", providerID: providerID)
     }
 
+    static func conversationReasoningEffortKey(for providerID: String) -> String {
+        conversationProviderScopedKey("ReasoningEffort", providerID: providerID)
+    }
+
     static func conversationAPIKeyKey(for providerID: String) -> String {
         conversationProviderScopedKey("APIKey", providerID: providerID)
     }
@@ -48,6 +56,17 @@ enum AIConfigurationProfile: String, CaseIterable, Identifiable {
     case conversation
 
     var id: String { rawValue }
+
+    var defaultCodexReasoningEffort: String {
+        switch self {
+        case .explanation: return "medium"
+        case .conversation: return "high"
+        }
+    }
+
+    func codexReasoningEffort(_ savedValue: String?) -> String {
+        savedValue?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty ?? defaultCodexReasoningEffort
+    }
 
     var providerIDKey: String {
         switch self {
@@ -77,6 +96,15 @@ enum AIConfigurationProfile: String, CaseIterable, Identifiable {
             return AISettingsKeys.modelKey(for: providerID)
         case .conversation:
             return AISettingsKeys.conversationModelKey(for: providerID)
+        }
+    }
+
+    func reasoningEffortKey(for providerID: String) -> String {
+        switch self {
+        case .explanation:
+            return AISettingsKeys.reasoningEffortKey(for: providerID)
+        case .conversation:
+            return AISettingsKeys.conversationReasoningEffortKey(for: providerID)
         }
     }
 
@@ -205,6 +233,7 @@ struct AIConfiguration: Sendable {
     let model: String
     let apiKey: String
     let providerFormat: AIProviderFormat
+    let reasoningEffort: String?
 
     static func migrateLegacyProviderSettings(defaults: UserDefaults = .standard) {
         let providerID = defaults.string(forKey: AISettingsKeys.providerID)
@@ -245,12 +274,17 @@ struct AIConfiguration: Sendable {
         let baseURLString = defaults.string(forKey: profile.baseURLKey(for: provider.id)) ?? provider.baseURL
         let model = defaults.string(forKey: profile.modelKey(for: provider.id)) ?? provider.defaultModel
         let apiKey = defaults.string(forKey: profile.apiKeyKey(for: provider.id)) ?? ""
+        let savedReasoningEffort = defaults.string(forKey: profile.reasoningEffortKey(for: provider.id))
+        let reasoningEffort = provider.format.usesCodexExecutable
+            ? profile.codexReasoningEffort(savedReasoningEffort)
+            : savedReasoningEffort
 
         return try AIConfiguration(
             baseURLString: baseURLString,
             model: model,
             apiKey: apiKey,
             providerFormat: provider.format,
+            reasoningEffort: reasoningEffort,
             requireModel: requireModel
         )
     }
@@ -260,11 +294,13 @@ struct AIConfiguration: Sendable {
         model: String,
         apiKey: String,
         providerFormat: AIProviderFormat = .openAICompatible,
+        reasoningEffort: String? = nil,
         requireModel: Bool = true
     ) throws {
         let trimmedBaseURL = baseURLString.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedModel = model.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedAPIKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.reasoningEffort = reasoningEffort?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
 
         if providerFormat.usesCodexExecutable {
             guard !trimmedBaseURL.isEmpty else {

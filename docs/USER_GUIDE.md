@@ -149,9 +149,10 @@ Annotations save automatically to the PDF in the background. If saving fails or 
 AI is an optional experimental feature. To configure a provider, open Settings with `Command-,`.
 
 1. In **AI Providers**, select a preset or a custom OpenAI-compatible endpoint. HTTP providers use a Base URL and API key.
-2. For the **Codex** preset, supply the executable path of an installed, authenticated Codex CLI. An optional profile selects its configuration. The integration uses the CLI's existing authentication.
-3. In **AI Explanation** and **AI Conversation**, choose the provider and model independently. Use Fetch Models where supported and Test Endpoint (HTTP) or Test Codex to check the configuration. The Codex model field can be empty to use its configured default.
-4. Choose the target output language and, optionally, customize each prompt template. Output language is independent of Vellum's English / Chinese interface setting.
+2. For the **Codex** preset, supply the executable path of an installed, authenticated Codex CLI. Vellum uses the CLI's existing authentication. With Codex CLI 0.162.1, leave **Codex Profile** empty.
+3. In **AI Explanation** and **AI Conversation**, choose the provider and model independently. Use **Fetch Models** to view available choices and **Test Model** to verify the configuration. The Codex model field can be empty to use the CLI's configured default.
+4. For Codex, choose **Reasoning Depth** separately for explanations and conversations. Explanations default to **Medium** and conversations to **High**. Each page remembers your chosen depth. Available levels come from Codex's model catalog; use **Fetch Models** to refresh the choices.
+5. Choose the target output language and, optionally, customize each prompt template. Output language is independent of Vellum's English / Chinese interface setting.
 
 AI requests send the selection and extracted nearby context, such as its page, outline heading, and surrounding paragraphs, to the configured provider. Models accessed through the local Codex CLI may use a remote service.
 

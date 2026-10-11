@@ -4,6 +4,7 @@ import SwiftUI
 final class AISettingsValidation: ObservableObject {
     @Published var status: AIConnectionStatus = .idle
     @Published private(set) var availableModels: [String] = []
+    @Published private(set) var codexSettings: CodexSettingsSnapshot?
     @Published private(set) var isTesting = false
     @Published private(set) var isFetchingModels = false
     private var requestID: UUID?
@@ -20,21 +21,40 @@ final class AISettingsValidation: ObservableObject {
         requestID == id
     }
 
-    func finish(_ id: UUID, status: AIConnectionStatus, models: [String]? = nil) {
+    func finish(
+        _ id: UUID,
+        status: AIConnectionStatus,
+        models: [String]? = nil,
+        codexSettings: CodexSettingsSnapshot? = nil
+    ) {
         guard isCurrent(id) else { return }
         requestID = nil
         self.status = status
         if let models { availableModels = models }
+        if let codexSettings { self.codexSettings = codexSettings }
         isTesting = false
         isFetchingModels = false
     }
 
     func invalidate(clearModels: Bool = true) {
+        if !clearModels && isFetchingModels { return }
         requestID = nil
         status = .idle
         isTesting = false
         isFetchingModels = false
-        if clearModels { availableModels.removeAll() }
+        if clearModels {
+            availableModels.removeAll()
+            codexSettings = nil
+        }
+    }
+
+    func unsupportedReasoningEffort(configuration: AIConfiguration) -> String? {
+        guard configuration.providerFormat.usesCodexExecutable,
+              let codexSettings,
+              let model = codexSettings.model(for: configuration),
+              let effort = configuration.reasoningEffort,
+              !model.supportedReasoningEfforts.contains(effort) else { return nil }
+        return effort
     }
 }
 
@@ -82,6 +102,10 @@ extension AISettingsDetailView {
             guard validation.isCurrent(requestID) else { return }
             do {
                 let configuration = try currentConfiguration(requireModel: !selectedPreset.format.usesCodexExecutable)
+                if let effort = validation.unsupportedReasoningEffort(configuration: configuration) {
+                    validation.finish(requestID, status: .failure(language.text(.reasoningEffortUnsupported(effort))))
+                    return
+                }
                 let target = configuration.providerFormat.usesCodexExecutable
                     ? "Codex"
                     : configuration.model
@@ -102,10 +126,17 @@ extension AISettingsDetailView {
             do {
                 let configuration = try currentConfiguration(requireModel: false)
                 validation.status = .working(language.text(.fetchingModels))
-                let models = try await AIExplanationClient.fetchModels(configuration: configuration)
+                let settings = configuration.providerFormat.usesCodexExecutable
+                    ? try await CodexAppServerAIExplanationClient().fetchSettings(configuration: configuration)
+                    : nil
+                let models = if let settings {
+                    settings.models.map(\.id)
+                } else {
+                    try await AIExplanationClient.fetchModels(configuration: configuration)
+                }
                 validation.finish(requestID, status: .success(models.isEmpty
                     ? language.text(.connectedNoModels)
-                    : language.text(.modelsLoaded(models.count))), models: models)
+                    : language.text(.modelsLoaded(models.count))), models: models, codexSettings: settings)
             } catch {
                 validation.finish(requestID, status: .failure(error.localizedDescription))
             }

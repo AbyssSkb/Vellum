@@ -20,17 +20,20 @@ struct CodexAppServerAIExplanationClient: AIExplaining {
     }
 
     func fetchModels(configuration: AIConfiguration) async throws -> [String] {
+        try await fetchSettings(configuration: configuration).models.map(\.id)
+    }
+
+    func fetchSettings(configuration: AIConfiguration) async throws -> CodexSettingsSnapshot {
         let startedAt = Date()
         do {
-            let models = try await withAppServerSession(configuration: configuration, timeout: 45) { session in
+            let settings = try await withAppServerSession(configuration: configuration, timeout: 45) { session in
                 try session.send([
                     "id": 0,
                     "method": "initialize",
                     "params": initializeParams
                 ])
 
-                var didInitialize = false
-                var models: [String] = []
+                var models: [CodexModelInfo] = []
 
                 try await session.readMessages { message in
                     if let error = CodexAppServerMessageParser.errorMessage(from: message) {
@@ -38,7 +41,6 @@ struct CodexAppServerAIExplanationClient: AIExplaining {
                     }
 
                     if CodexAppServerMessageParser.responseID(from: message) == 0 {
-                        didInitialize = true
                         try session.send(["method": "initialized", "params": [:]])
                         try session.send([
                             "id": 1,
@@ -51,27 +53,36 @@ struct CodexAppServerAIExplanationClient: AIExplaining {
                         return false
                     }
 
-                    if didInitialize, CodexAppServerMessageParser.responseID(from: message) == 1 {
-                        models = CodexAppServerMessageParser.modelIDs(from: message)
+                    if CodexAppServerMessageParser.responseID(from: message) == 1 {
+                        models += CodexAppServerMessageParser.models(from: message)
+                        if let result = message["result"] as? [String: Any],
+                           let cursor = (result["nextCursor"] as? String)?.nilIfEmpty {
+                            try session.send([
+                                "id": 1,
+                                "method": "model/list",
+                                "params": ["includeHidden": false, "limit": 100, "cursor": cursor]
+                            ])
+                            return false
+                        }
                         return true
                     }
 
                     return false
                 }
 
-                return models
+                return CodexSettingsSnapshot(models: models)
             }
 
             AIRequestLogger.recordLocal(
-                operation: "codex.fetchModels",
+                operation: "codex.fetchSettings",
                 configuration: configuration,
-                responseText: "Models: \(models.joined(separator: ", "))",
+                responseText: "Models: \(settings.models.map(\.id).joined(separator: ", "))",
                 startedAt: startedAt
             )
-            return models
+            return settings
         } catch {
             AIRequestLogger.recordLocal(
-                operation: "codex.fetchModels",
+                operation: "codex.fetchSettings",
                 configuration: configuration,
                 startedAt: startedAt,
                 error: error
@@ -253,6 +264,10 @@ struct CodexAppServerAIExplanationClient: AIExplaining {
             params["model"] = configuration.model
         }
 
+        if let reasoningEffort = configuration.reasoningEffort {
+            params["config"] = ["model_reasoning_effort": reasoningEffort]
+        }
+
         return params
     }
 
@@ -271,6 +286,10 @@ struct CodexAppServerAIExplanationClient: AIExplaining {
 
         if !configuration.model.isEmpty {
             params["model"] = configuration.model
+        }
+
+        if let reasoningEffort = configuration.reasoningEffort {
+            params["effort"] = reasoningEffort
         }
 
         return params
@@ -442,13 +461,22 @@ enum CodexAppServerMessageParser {
     }
 
     static func modelIDs(from message: [String: Any]) -> [String] {
+        models(from: message).map(\.id)
+    }
+
+    static func models(from message: [String: Any]) -> [CodexModelInfo] {
         guard let result = message["result"] as? [String: Any],
               let data = result["data"] as? [[String: Any]] else {
             return []
         }
 
         return data.compactMap { model in
-            (model["id"] as? String)?.nilIfEmpty
+            guard let id = (model["model"] as? String)?.nilIfEmpty ?? (model["id"] as? String)?.nilIfEmpty else { return nil }
+            let efforts = model["supportedReasoningEfforts"] as? [[String: Any]] ?? []
+            return CodexModelInfo(
+                id: id,
+                supportedReasoningEfforts: efforts.compactMap { ($0["reasoningEffort"] as? String)?.nilIfEmpty }
+            )
         }
     }
 
