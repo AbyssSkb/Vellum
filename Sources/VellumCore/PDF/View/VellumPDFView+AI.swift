@@ -980,10 +980,10 @@ private final class AIToastView: NSView {
     init(message: String) {
         super.init(frame: .zero)
         wantsLayer = true
-        layer?.backgroundColor = TokyoNight.panelElevated.withAlphaComponent(0.96).cgColor
+        layer?.backgroundColor = VellumColors.panelElevated.withAlphaComponent(0.96).cgColor
         layer?.cornerRadius = 8
         layer?.borderWidth = 1
-        layer?.borderColor = TokyoNight.border.withAlphaComponent(0.85).cgColor
+        layer?.borderColor = VellumColors.border.withAlphaComponent(0.85).cgColor
         layer?.shadowColor = NSColor.black.cgColor
         layer?.shadowOpacity = 0.24
         layer?.shadowRadius = 14
@@ -991,12 +991,12 @@ private final class AIToastView: NSView {
 
         let icon = NSImageView()
         icon.image = NSImage(systemSymbolName: "exclamationmark.circle.fill", accessibilityDescription: nil)
-        icon.contentTintColor = TokyoNight.cyan
+        icon.contentTintColor = VellumColors.cyan
         icon.translatesAutoresizingMaskIntoConstraints = false
 
         let label = NSTextField(wrappingLabelWithString: message)
         label.font = .systemFont(ofSize: 12.5, weight: .medium)
-        label.textColor = TokyoNight.foreground
+        label.textColor = VellumColors.foreground
         label.backgroundColor = .clear
         label.isBezeled = false
         label.maximumNumberOfLines = 2

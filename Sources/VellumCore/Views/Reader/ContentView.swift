@@ -40,13 +40,13 @@ public struct ContentView: View {
                             .clipShape(readerShape)
                             .background {
                                 readerShape
-                                    .fill(TokyoNight.panelColor)
+                                    .fill(VellumColors.panelColor)
                             }
                             .overlay {
                                 readerShape
                                     .strokeBorder(
-                                        LinearGradient(colors: [TokyoNight.foregroundColor.opacity(0.10),
-                                                                TokyoNight.foregroundColor.opacity(0.025)],
+                                        LinearGradient(colors: [VellumColors.foregroundColor.opacity(0.10),
+                                                                VellumColors.foregroundColor.opacity(0.025)],
                                                        startPoint: .top, endPoint: .bottom),
                                         lineWidth: 0.5
                                     )
@@ -58,7 +58,7 @@ public struct ContentView: View {
                             .padding(.leading, appState.isOutlineVisible && appState.hasOpenTabs ? 0 : edgeInset)
                             .padding(.top, appState.hasOpenTabs ? 0 : edgeInset)
                     }
-                    .background(TokyoNight.backgroundDeepColor)
+                    .background(VellumColors.backgroundDeepColor)
                 }
 
                 .allowsHitTesting(!appState.isTabSwitcherPresented)
@@ -84,9 +84,9 @@ public struct ContentView: View {
                 TitlebarDragRegion(hasOpenTabs: appState.hasOpenTabs)
                     .frame(height: appState.hasOpenTabs ? 38 + edgeInset : 46)
             }
-            .foregroundStyle(TokyoNight.foregroundColor)
-            .tint(TokyoNight.blueColor)
-            .background(TokyoNight.backgroundColor)
+            .foregroundStyle(VellumColors.foregroundColor)
+            .tint(VellumColors.blueColor)
+            .background(VellumColors.backgroundColor)
             .preferredColorScheme(.dark)
             .environment(\.appUILanguage, AppUILanguage.saved(rawValue: appLanguage))
             .background(WindowChromeConfigurator(appState: appState))

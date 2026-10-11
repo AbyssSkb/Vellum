@@ -8,10 +8,10 @@ struct ShortcutGroupCard: View {
             HStack(spacing: 12) {
                 Label(group.title, systemImage: group.systemImage)
                     .font(.system(size: 11.5, weight: .regular))
-                    .foregroundStyle(TokyoNight.mutedColor)
+                    .foregroundStyle(VellumColors.mutedColor)
                     .layoutPriority(1)
 
-                TokyoNight.borderColor.opacity(0.45)
+                VellumColors.borderColor.opacity(0.45)
                     .frame(height: 0.5)
             }
 
@@ -20,7 +20,7 @@ struct ShortcutGroupCard: View {
                     ShortcutRow(item: item)
 
                     if item.id != group.items.last?.id {
-                        TokyoNightDivider(axis: .horizontal)
+                        VellumDivider(axis: .horizontal)
                             .opacity(0.35)
                     }
                 }

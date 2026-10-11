@@ -9,17 +9,17 @@ struct ShortcutSettingsView: View {
                 HStack(alignment: .center, spacing: 12) {
                     Image(systemName: "keyboard")
                         .font(.system(size: 18, weight: .regular))
-                        .foregroundStyle(TokyoNight.mutedColor)
+                        .foregroundStyle(VellumColors.mutedColor)
                         .frame(width: 24)
 
                     VStack(alignment: .leading, spacing: 3) {
                         Text(language.text(.shortcuts))
                             .font(.system(size: 20, weight: .medium))
-                            .foregroundStyle(TokyoNight.foregroundColor)
+                            .foregroundStyle(VellumColors.foregroundColor)
 
                         Text(language.text(.shortcutsHeaderSubtitle))
                             .font(.system(size: 12.5))
-                            .foregroundStyle(TokyoNight.mutedColor)
+                            .foregroundStyle(VellumColors.mutedColor)
                             .fixedSize(horizontal: false, vertical: true)
                     }
 
@@ -35,7 +35,7 @@ struct ShortcutSettingsView: View {
             .padding(.vertical, 22)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .background(TokyoNight.backgroundColor)
+        .background(VellumColors.backgroundColor)
         .background(SettingsScrollChromeConfigurator())
     }
 }

@@ -50,7 +50,7 @@ struct EmptyReader: View {
         VStack(spacing: 20) {
             Image(systemName: "doc.text")
                 .font(.system(size: 40, weight: .light))
-                .foregroundStyle(TokyoNight.mutedColor.opacity(0.8))
+                .foregroundStyle(VellumColors.mutedColor.opacity(0.8))
                 .accessibilityHidden(true)
 
             Button {
@@ -61,21 +61,21 @@ struct EmptyReader: View {
                         .font(.system(size: 12.5, weight: .medium))
                     Text("O")
                         .font(.system(size: 10, weight: .medium, design: .monospaced))
-                        .foregroundStyle(TokyoNight.mutedColor)
+                        .foregroundStyle(VellumColors.mutedColor)
                         .frame(width: 18, height: 18)
-                        .background(TokyoNight.foregroundColor.opacity(0.045),
+                        .background(VellumColors.foregroundColor.opacity(0.045),
                                     in: RoundedRectangle(cornerRadius: 4))
                         .accessibilityHidden(true)
                 }
-                .foregroundStyle(TokyoNight.foregroundColor.opacity(0.92))
+                .foregroundStyle(VellumColors.foregroundColor.opacity(0.92))
                 .padding(.horizontal, 14)
                 .frame(height: 34)
-                .background(isOpenHovered ? TokyoNight.panelElevatedColor : TokyoNight.backgroundColor,
+                .background(isOpenHovered ? VellumColors.panelElevatedColor : VellumColors.backgroundColor,
                             in: RoundedRectangle(cornerRadius: 7, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 7, style: .continuous)
-                        .strokeBorder(isOpenHovered ? TokyoNight.blueColor.opacity(0.55)
-                                      : TokyoNight.borderColor, lineWidth: 1)
+                        .strokeBorder(isOpenHovered ? VellumColors.blueColor.opacity(0.55)
+                                      : VellumColors.borderColor, lineWidth: 1)
                 }
                 .contentShape(RoundedRectangle(cornerRadius: 7))
             }
@@ -85,7 +85,7 @@ struct EmptyReader: View {
         // Follow native window resizing without a second animation trailing its frame.
         .scaleEffect(scale)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(TokyoNight.panelColor)
+        .background(VellumColors.panelColor)
         .background(KeyboardCapture(appState: appState))
     }
 }

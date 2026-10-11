@@ -32,7 +32,7 @@ struct TabStrip: View {
                                index + 1 < appState.tabs.count,
                                appState.tabs[index + 1].id != appState.selectedTabID {
                                 Rectangle()
-                                    .fill(TokyoNight.borderColor.opacity(0.7))
+                                    .fill(VellumColors.borderColor.opacity(0.7))
                                     .frame(width: 1, height: 22)
                                     .offset(x: 0.5)
                                     .allowsHitTesting(false)
@@ -51,7 +51,7 @@ struct TabStrip: View {
                 .padding(.trailing, edgeInset)
         }
         .frame(height: 38 + edgeInset)
-        .background(TokyoNight.backgroundDeepColor)
+        .background(VellumColors.backgroundDeepColor)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(language.text(.filesAndTabs))
     }

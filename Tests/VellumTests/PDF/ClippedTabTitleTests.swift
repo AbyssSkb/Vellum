@@ -77,7 +77,7 @@ struct ClippedTabTitleTests {
         #expect(view.textField.lineBreakMode == .byTruncatingTail)
         #expect(!view.textField.isSelectable)
         #expect(view.textField.stringValue == title)
-        #expect(view.textField.textColor == TokyoNight.foreground)
+        #expect(view.textField.textColor == VellumColors.foreground)
         #expect(!view.repeatsMarquee)
 
         if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
@@ -110,7 +110,7 @@ struct ClippedTabTitleTests {
             try await update(selected: false, hovered: false)
             try await update(selected: selected, hovered: !selected)
             #expect(view.textField.font == NSFont.systemFont(ofSize: 12.5, weight: selected ? .medium : .regular))
-            #expect(view.textField.textColor == TokyoNight.foreground)
+            #expect(view.textField.textColor == VellumColors.foreground)
             #expect(view.toolTip == title)
             let currentAnimation = try animation()
             #expect(!layer.isHidden)

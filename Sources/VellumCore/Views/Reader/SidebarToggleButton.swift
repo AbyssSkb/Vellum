@@ -12,11 +12,11 @@ struct SidebarToggleButton: View {
             SidebarToggleGlyph(isOpen: appState.isOutlineVisible)
                 .foregroundStyle(
                     appState.isOutlineVisible
-                        ? TokyoNight.blueColor
-                        : TokyoNight.mutedColor
+                        ? VellumColors.blueColor
+                        : VellumColors.mutedColor
                 )
                 .frame(width: 30, height: 30)
-                .background(isHovered ? TokyoNight.panelColor.opacity(0.55) : .clear,
+                .background(isHovered ? VellumColors.panelColor.opacity(0.55) : .clear,
                             in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                 .contentShape(Rectangle())
         }

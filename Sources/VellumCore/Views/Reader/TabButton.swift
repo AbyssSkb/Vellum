@@ -25,9 +25,9 @@ struct TabButton: View {
                 } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(TokyoNight.foregroundColor.opacity(isCloseHovered ? 0.95 : 0.68))
+                        .foregroundStyle(VellumColors.foregroundColor.opacity(isCloseHovered ? 0.95 : 0.68))
                         .frame(width: 22, height: 22)
-                        .background(isCloseHovered ? TokyoNight.selectionColor : .clear,
+                        .background(isCloseHovered ? VellumColors.selectionColor : .clear,
                                     in: RoundedRectangle(cornerRadius: 4, style: .continuous))
                         .contentShape(Rectangle())
                 }
@@ -63,13 +63,13 @@ struct TabButton: View {
         }
         .background(
             isSelected
-                ? TokyoNight.panelColor
-                : TokyoNight.panelColor.opacity(isHovered ? 0.55 : 0)
+                ? VellumColors.panelColor
+                : VellumColors.panelColor.opacity(isHovered ? 0.55 : 0)
         )
         .overlay {
             if isSelected {
                 tabShape
-                    .strokeBorder(TokyoNight.foregroundColor.opacity(0.10), lineWidth: 0.5)
+                    .strokeBorder(VellumColors.foregroundColor.opacity(0.10), lineWidth: 0.5)
                     .padding(.bottom, -1)
                     .allowsHitTesting(false)
             }

@@ -1,7 +1,7 @@
 @preconcurrency import AppKit
 import SwiftUI
 
-public enum TokyoNight {
+public enum VellumColors {
     public static var background: NSColor { color(0x141820) }
     public static var backgroundDeep: NSColor { color(0x0E1015) }
     public static var panel: NSColor { color(0x1D222C) }
@@ -45,7 +45,7 @@ public enum TokyoNight {
     }
 }
 
-struct TokyoNightDivider: View {
+struct VellumDivider: View {
     enum Axis {
         case horizontal
         case vertical
@@ -55,7 +55,7 @@ struct TokyoNightDivider: View {
 
     var body: some View {
         Rectangle()
-            .fill(TokyoNight.borderColor.opacity(0.6))
+            .fill(VellumColors.borderColor.opacity(0.6))
             .frame(
                 width: axis == .vertical ? 1 : nil,
                 height: axis == .horizontal ? 1 : nil

@@ -27,11 +27,11 @@ struct AIExplanationPopoverView: View {
             onReady: onWebViewReady
         )
         .frame(width: model.preferredSize.width, height: model.preferredSize.height)
-        .background(TokyoNight.panelColor)
+        .background(VellumColors.panelColor)
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .strokeBorder(TokyoNight.foregroundColor.opacity(0.12), lineWidth: 1)
+                .strokeBorder(VellumColors.foregroundColor.opacity(0.12), lineWidth: 1)
                 .allowsHitTesting(false)
         }
         .overlay(alignment: .topTrailing) {

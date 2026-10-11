@@ -28,7 +28,7 @@ struct AIWebLinkSafetyTests {
         let webColor = try #require(try await webView.evaluateJavaScript(
             "getComputedStyle(document.body).color.match(/\\d+/g).map(Number);"
         ) as? [Int])
-        let foreground = try #require(TokyoNight.foreground.usingColorSpace(.sRGB))
+        let foreground = try #require(VellumColors.foreground.usingColorSpace(.sRGB))
         #expect(webColor == [foreground.redComponent, foreground.greenComponent, foreground.blueComponent].map { Int(($0 * 255).rounded()) })
 
         let command = "window.webkit.messageHandlers.vellum.postMessage%28%27highlight%27%29"

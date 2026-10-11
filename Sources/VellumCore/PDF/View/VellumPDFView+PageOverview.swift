@@ -179,7 +179,7 @@ final class PageOverviewOverlayView: NSView {
         super.init(frame: .zero)
         wantsLayer = true
         alphaValue = 0
-        backdrop.backgroundColor = TokyoNight.panel.cgColor
+        backdrop.backgroundColor = VellumColors.panel.cgColor
         backdrop.opacity = 0
         backdrop.zPosition = -1
         layer?.addSublayer(backdrop)
@@ -187,7 +187,7 @@ final class PageOverviewOverlayView: NSView {
         setAccessibilityRole(.group)
         setAccessibilityLabel(AppUILanguage.saved().text(.pageOverview))
         positionLabel.font = .monospacedDigitSystemFont(ofSize: 12, weight: .medium)
-        positionLabel.textColor = TokyoNight.muted
+        positionLabel.textColor = VellumColors.muted
         positionLabel.alignment = .center
         positionLabel.alphaValue = 0
         addSubview(positionLabel)
@@ -199,7 +199,7 @@ final class PageOverviewOverlayView: NSView {
             button.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 11, weight: .medium)
             button.isBordered = false
             button.refusesFirstResponder = true
-            button.contentTintColor = TokyoNight.muted
+            button.contentTintColor = VellumColors.muted
             button.target = self
             button.action = action
             button.alphaValue = 0
@@ -379,14 +379,14 @@ final class PageOverviewOverlayView: NSView {
         image.contentsGravity = .resizeAspect
         let shade = CALayer()
         shade.name = "shade"
-        shade.backgroundColor = TokyoNight.panel.cgColor
+        shade.backgroundColor = VellumColors.panel.cgColor
         image.addSublayer(shade)
         paper.addSublayer(image)
         let number = CATextLayer()
         number.string = "\(index + 1)"
         number.font = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .regular)
         number.fontSize = 11
-        number.foregroundColor = TokyoNight.muted.cgColor
+        number.foregroundColor = VellumColors.muted.cgColor
         number.alignmentMode = .center
         paper.addSublayer(number)
         layer?.addSublayer(paper)

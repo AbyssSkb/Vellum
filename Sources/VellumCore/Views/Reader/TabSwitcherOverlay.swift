@@ -37,14 +37,14 @@ struct TabSwitcherOverlay: View {
                     pagePreview(layout: layout)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .overlay(alignment: .leading) {
-                            Rectangle().fill(TokyoNight.borderColor.opacity(0.45)).frame(width: 1)
+                            Rectangle().fill(VellumColors.borderColor.opacity(0.45)).frame(width: 1)
                         }
                 }
                 .frame(maxHeight: .infinity)
             }
             .padding(layout.padding)
             .frame(width: geometry.size.width, height: geometry.size.height)
-            .background(TokyoNight.backgroundColor)
+            .background(VellumColors.backgroundColor)
             .opacity(isVisible ? 1 : 0)
             .allowsHitTesting(!isClosing)
             .onAppear {
@@ -78,7 +78,7 @@ struct TabSwitcherOverlay: View {
         HStack(spacing: 12) {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 17, weight: .regular))
-                .foregroundStyle(TokyoNight.mutedColor)
+                .foregroundStyle(VellumColors.mutedColor)
                 .accessibilityHidden(true)
             TabSwitcherSearchField(
                 text: $query, language: language,
@@ -90,16 +90,16 @@ struct TabSwitcherOverlay: View {
             .frame(height: 36)
             Text("\(matches.count)")
                 .font(.system(size: 11, design: .monospaced))
-                .foregroundStyle(TokyoNight.mutedColor)
+                .foregroundStyle(VellumColors.mutedColor)
                 .accessibilityHidden(true)
             Button { dismiss(committing: nil) } label: {
                 Text("Esc")
                     .font(.system(size: 10, design: .monospaced))
-                    .foregroundStyle(isCancelHovered ? TokyoNight.foregroundColor : TokyoNight.mutedColor)
+                    .foregroundStyle(isCancelHovered ? VellumColors.foregroundColor : VellumColors.mutedColor)
                     .frame(width: 32, height: 28)
-                    .background(isCancelHovered ? TokyoNight.panelElevatedColor : TokyoNight.panelColor,
+                    .background(isCancelHovered ? VellumColors.panelElevatedColor : VellumColors.panelColor,
                                 in: RoundedRectangle(cornerRadius: 5))
-                    .overlay(RoundedRectangle(cornerRadius: 5).strokeBorder(TokyoNight.borderColor, lineWidth: 1))
+                    .overlay(RoundedRectangle(cornerRadius: 5).strokeBorder(VellumColors.borderColor, lineWidth: 1))
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -109,7 +109,7 @@ struct TabSwitcherOverlay: View {
         }
         .padding(.bottom, 16)
         .overlay(alignment: .bottom) {
-            Rectangle().fill(TokyoNight.borderColor.opacity(0.65)).frame(height: 1)
+            Rectangle().fill(VellumColors.borderColor.opacity(0.65)).frame(height: 1)
         }
     }
 
@@ -120,7 +120,7 @@ struct TabSwitcherOverlay: View {
                     if matches.isEmpty {
                         Text(language.text(.noMatchingTabs))
                             .font(.system(size: 13))
-                            .foregroundStyle(TokyoNight.mutedColor)
+                            .foregroundStyle(VellumColors.mutedColor)
                             .frame(maxWidth: .infinity, minHeight: 60, alignment: .leading)
                             .padding(.horizontal, 14)
                     }
@@ -167,7 +167,7 @@ struct TabSwitcherOverlay: View {
                     let index = min(max(tab.snapshot?.pageIndex ?? 0, 0), document.pageCount - 1)
                     Text("\(index + 1) / \(document.pageCount)")
                         .font(.system(size: 11, design: .monospaced))
-                        .foregroundStyle(TokyoNight.mutedColor)
+                        .foregroundStyle(VellumColors.mutedColor)
                 }
             }
             .frame(height: 16)
@@ -183,11 +183,11 @@ struct TabSwitcherOverlay: View {
                 .clipShape(RoundedRectangle(cornerRadius: 2))
                 .shadow(color: .black.opacity(0.25), radius: 6, y: 3)
         } else {
-            RoundedRectangle(cornerRadius: 2).fill(TokyoNight.panelElevatedColor)
+            RoundedRectangle(cornerRadius: 2).fill(VellumColors.panelElevatedColor)
                 .overlay {
                     Image(systemName: "doc.text")
                         .font(.system(size: 28, weight: .light))
-                        .foregroundStyle(TokyoNight.mutedColor.opacity(0.4))
+                        .foregroundStyle(VellumColors.mutedColor.opacity(0.4))
                 }
         }
     }
@@ -343,7 +343,7 @@ private final class TabSwitcherTextField: NSTextField {
     func configure(language: AppUILanguage) {
         cell = TabSwitcherTextFieldCell(textCell: "")
         font = .systemFont(ofSize: 18, weight: .regular)
-        textColor = TokyoNight.foreground
+        textColor = VellumColors.foreground
         configurePlaceholder(language: language)
         backgroundColor = .clear
         isBordered = false
@@ -362,7 +362,7 @@ private final class TabSwitcherTextField: NSTextField {
         placeholderAttributedString = NSAttributedString(
             string: language.text(.searchOpenTabs),
             attributes: [
-                .foregroundColor: TokyoNight.muted.withAlphaComponent(0.92),
+                .foregroundColor: VellumColors.muted.withAlphaComponent(0.92),
                 .font: NSFont.systemFont(ofSize: 18, weight: .regular)
             ]
         )
@@ -443,11 +443,11 @@ private struct TabSwitcherRow: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(tab.title)
                     .font(.system(size: 14, weight: isSelected ? .medium : .regular))
-                    .foregroundStyle(isSelected ? TokyoNight.foregroundColor : TokyoNight.foregroundColor.opacity(0.8))
+                    .foregroundStyle(isSelected ? VellumColors.foregroundColor : VellumColors.foregroundColor.opacity(0.8))
                     .lineLimit(1)
                 Text(tab.url?.deletingLastPathComponent().path ?? language.text(.untitled))
                     .font(.system(size: 11))
-                    .foregroundStyle(TokyoNight.mutedColor.opacity(0.8))
+                    .foregroundStyle(VellumColors.mutedColor.opacity(0.8))
                     .lineLimit(1)
                     .truncationMode(.middle)
             }
@@ -455,19 +455,19 @@ private struct TabSwitcherRow: View {
             if isCurrent {
                 Image(systemName: "checkmark")
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(TokyoNight.blueColor)
+                    .foregroundStyle(VellumColors.blueColor)
                     .help(language.text(.currentTab))
                     .accessibilityHidden(true)
             }
         }
         .padding(.horizontal, 14)
         .frame(height: 60)
-        .background(isSelected ? TokyoNight.selectionColor.opacity(0.6)
-                    : isHovered ? TokyoNight.panelElevatedColor.opacity(0.4) : .clear,
+        .background(isSelected ? VellumColors.selectionColor.opacity(0.6)
+                    : isHovered ? VellumColors.panelElevatedColor.opacity(0.4) : .clear,
                     in: RoundedRectangle(cornerRadius: 6))
         .overlay(alignment: .leading) {
             if isSelected {
-                Capsule().fill(TokyoNight.blueColor).frame(width: 2, height: 14)
+                Capsule().fill(VellumColors.blueColor).frame(width: 2, height: 14)
             }
         }
         .contentShape(Rectangle())

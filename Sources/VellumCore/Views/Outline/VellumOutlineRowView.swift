@@ -1,6 +1,6 @@
 @preconcurrency import AppKit
 
-final class TokyoNightOutlineRowView: NSTableRowView {
+final class VellumOutlineRowView: NSTableRowView {
     private static let horizontalInset: CGFloat = 10
     var contentIndent: CGFloat = 0
     var isBranch = false
@@ -69,21 +69,21 @@ final class TokyoNightOutlineRowView: NSTableRowView {
             guides.line(to: segment.end)
         }
         guides.lineWidth = 1
-        TokyoNight.border.withAlphaComponent(0.65).setStroke()
+        VellumColors.border.withAlphaComponent(0.65).setStroke()
         guides.stroke()
         NSGraphicsContext.restoreGraphicsState()
         if isReadingSection && !(isSelected && keyboardFocused) {
             let rect = roundedBackgroundRect()
-            TokyoNight.blue.withAlphaComponent(0.07).setFill()
+            VellumColors.blue.withAlphaComponent(0.07).setFill()
             NSBezierPath(roundedRect: rect, xRadius: 5, yRadius: 5).fill()
-            TokyoNight.blue.withAlphaComponent(0.5).setFill()
+            VellumColors.blue.withAlphaComponent(0.5).setFill()
             NSBezierPath(roundedRect: NSRect(x: rect.minX + 4, y: rect.midY - 3,
                                            width: 2, height: 6), xRadius: 1, yRadius: 1).fill()
         }
         if mouseInside && !isSelected {
             let hoverRect = roundedBackgroundRect()
             let path = NSBezierPath(roundedRect: hoverRect, xRadius: 5, yRadius: 5)
-            TokyoNight.panelElevated.withAlphaComponent(0.35).setFill()
+            VellumColors.panelElevated.withAlphaComponent(0.35).setFill()
             path.fill()
         }
     }
@@ -126,13 +126,13 @@ final class TokyoNightOutlineRowView: NSTableRowView {
 
         let selectionRect = roundedBackgroundRect()
         let path = NSBezierPath(roundedRect: selectionRect, xRadius: 5, yRadius: 5)
-        TokyoNight.selection.withAlphaComponent(0.5).setFill()
+        VellumColors.selection.withAlphaComponent(0.5).setFill()
         path.fill()
-        TokyoNight.foreground.withAlphaComponent(isEmphasized ? 0.06 : 0.03).setStroke()
+        VellumColors.foreground.withAlphaComponent(isEmphasized ? 0.06 : 0.03).setStroke()
         path.lineWidth = 0.5
         path.stroke()
 
-        TokyoNight.blue.withAlphaComponent(isEmphasized ? 0.9 : 0.6).setFill()
+        VellumColors.blue.withAlphaComponent(isEmphasized ? 0.9 : 0.6).setFill()
         NSBezierPath(roundedRect: NSRect(x: selectionRect.minX + 4, y: selectionRect.midY - 6,
                                        width: 2, height: 12), xRadius: 1, yRadius: 1).fill()
     }
@@ -143,13 +143,13 @@ final class TokyoNightOutlineRowView: NSTableRowView {
             let isKeyboardSelection = isSelected && keyboardFocused
             cell.textField?.font = .systemFont(ofSize: isRoot ? 13 : 12.5,
                                               weight: isKeyboardSelection || isReadingSection || isRoot || isBranch ? .medium : .regular)
-            cell.textField?.textColor = isKeyboardSelection ? TokyoNight.foreground : isReadingSection
-                ? TokyoNight.foreground.withAlphaComponent(0.95) : isRoot
-                ? TokyoNight.foreground.withAlphaComponent(0.9) : isBranch
-                ? TokyoNight.foreground.withAlphaComponent(0.8) : TokyoNight.muted
+            cell.textField?.textColor = isKeyboardSelection ? VellumColors.foreground : isReadingSection
+                ? VellumColors.foreground.withAlphaComponent(0.95) : isRoot
+                ? VellumColors.foreground.withAlphaComponent(0.9) : isBranch
+                ? VellumColors.foreground.withAlphaComponent(0.8) : VellumColors.muted
             (cell as? PDFOutlineCellView)?.titleView.isSelected = isKeyboardSelection
             (cell as? PDFOutlineCellView)?.pageNumberField.textColor = isKeyboardSelection
-                ? TokyoNight.foreground.withAlphaComponent(0.75) : TokyoNight.muted.withAlphaComponent(0.8)
+                ? VellumColors.foreground.withAlphaComponent(0.75) : VellumColors.muted.withAlphaComponent(0.8)
         }
     }
 

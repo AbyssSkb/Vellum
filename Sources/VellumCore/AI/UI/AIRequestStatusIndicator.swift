@@ -18,9 +18,9 @@ struct AIRequestStatusIndicator: View {
             case .streaming:
                 spinningRing
             case .completed:
-                symbol("checkmark", color: TokyoNight.cyanColor)
+                symbol("checkmark", color: VellumColors.cyanColor)
             case .failed:
-                symbol("exclamationmark", color: TokyoNight.redColor)
+                symbol("exclamationmark", color: VellumColors.redColor)
             }
         }
         .allowsHitTesting(false)
@@ -29,10 +29,10 @@ struct AIRequestStatusIndicator: View {
 
     private var base: some View {
         Circle()
-            .fill(TokyoNight.backgroundDeepColor.opacity(0.88))
+            .fill(VellumColors.backgroundDeepColor.opacity(0.88))
             .overlay {
                 Circle()
-                    .stroke(TokyoNight.borderColor.opacity(0.52), lineWidth: 1)
+                    .stroke(VellumColors.borderColor.opacity(0.52), lineWidth: 1)
             }
             .frame(width: 18, height: 18)
     }
@@ -44,7 +44,7 @@ struct AIRequestStatusIndicator: View {
                 Circle()
                     .trim(from: 0.18, to: 0.82)
                     .stroke(
-                        TokyoNight.cyanColor,
+                        VellumColors.cyanColor,
                         style: StrokeStyle(lineWidth: 1.8, lineCap: .round)
                     )
                     .rotationEffect(.degrees(rotationAngle(at: timeline.date)))

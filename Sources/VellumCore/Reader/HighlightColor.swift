@@ -21,11 +21,11 @@ enum HighlightColor: String, CaseIterable, Identifiable {
         case .green:
             return NSColor(calibratedRed: 0.62, green: 0.86, blue: 0.49, alpha: 1)
         case .cyan:
-            return TokyoNight.cyan
+            return VellumColors.cyan
         case .purple:
-            return TokyoNight.purple
+            return VellumColors.purple
         case .pink:
-            return TokyoNight.red
+            return VellumColors.red
         }
     }
 

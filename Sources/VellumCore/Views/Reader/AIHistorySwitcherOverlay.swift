@@ -92,7 +92,7 @@ private struct AIHistorySwitcherOverlay: View {
     var body: some View {
         ZStack {
             Rectangle()
-                .fill(TokyoNight.backgroundDeepColor.opacity(0.48))
+                .fill(VellumColors.backgroundDeepColor.opacity(0.48))
                 .ignoresSafeArea()
                 .contentShape(Rectangle())
                 .onTapGesture(perform: onDismiss)
@@ -101,7 +101,7 @@ private struct AIHistorySwitcherOverlay: View {
                 searchHeader
 
                 Rectangle()
-                    .fill(TokyoNight.foregroundColor.opacity(0.06))
+                    .fill(VellumColors.foregroundColor.opacity(0.06))
                     .frame(height: 1)
 
                 historyList
@@ -110,13 +110,13 @@ private struct AIHistorySwitcherOverlay: View {
             .background {
                 ZStack {
                     AIHistoryVisualEffectBackground()
-                    TokyoNight.panelColor.opacity(0.98)
+                    VellumColors.panelColor.opacity(0.98)
                 }
             }
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .strokeBorder(TokyoNight.foregroundColor.opacity(0.12), lineWidth: 1)
+                    .strokeBorder(VellumColors.foregroundColor.opacity(0.12), lineWidth: 1)
                     .allowsHitTesting(false)
             }
             .shadow(color: .black.opacity(0.26), radius: 18, y: 8)
@@ -139,7 +139,7 @@ private struct AIHistorySwitcherOverlay: View {
         HStack(spacing: 10) {
             Image(systemName: mode.systemImage)
                 .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(TokyoNight.mutedColor)
+                .foregroundStyle(VellumColors.mutedColor)
                 .frame(width: 24, height: 24)
 
             AIHistorySearchField(
@@ -156,13 +156,13 @@ private struct AIHistorySwitcherOverlay: View {
         }
         .padding(.horizontal, 16)
         .frame(height: 52)
-        .background(TokyoNight.backgroundColor)
+        .background(VellumColors.backgroundColor)
     }
 
     private var matchCount: some View {
         Text("\(matches.count)")
             .font(.system(size: 11.5, weight: .medium, design: .monospaced))
-            .foregroundStyle(matches.isEmpty ? TokyoNight.redColor : TokyoNight.mutedColor)
+            .foregroundStyle(matches.isEmpty ? VellumColors.redColor : VellumColors.mutedColor)
             .frame(minWidth: 24)
     }
 
@@ -190,7 +190,7 @@ private struct AIHistorySwitcherOverlay: View {
             }
             .scrollIndicators(.hidden)
             .frame(height: listHeight)
-            .background(TokyoNight.panelColor)
+            .background(VellumColors.panelColor)
             .onChange(of: selectedItemIDForScroll) { _, id in
                 guard let id else { return }
                 withAnimation(.easeOut(duration: 0.12)) {
@@ -204,12 +204,12 @@ private struct AIHistorySwitcherOverlay: View {
         HStack(spacing: 12) {
             Image(systemName: "text.magnifyingglass")
                 .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(TokyoNight.mutedColor)
+                .foregroundStyle(VellumColors.mutedColor)
                 .frame(width: 22)
 
             Text(mode.emptyText(in: language))
                 .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(TokyoNight.mutedColor)
+                .foregroundStyle(VellumColors.mutedColor)
 
             Spacer()
         }
@@ -283,12 +283,12 @@ private struct AIHistorySwitcherRow: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(item.title)
                     .font(.system(size: 13, weight: isSelected ? .medium : .regular))
-                    .foregroundStyle(TokyoNight.foregroundColor)
+                    .foregroundStyle(VellumColors.foregroundColor)
                     .lineLimit(1)
 
                 Text(item.preview)
                     .font(.system(size: 11.5))
-                    .foregroundStyle(TokyoNight.mutedColor)
+                    .foregroundStyle(VellumColors.mutedColor)
                     .lineLimit(1)
                     .truncationMode(.tail)
             }
@@ -298,13 +298,13 @@ private struct AIHistorySwitcherRow: View {
         .padding(.horizontal, 12)
         .frame(height: Self.metricsHeight)
         .background(
-            isSelected ? TokyoNight.selectionColor.opacity(0.85) : isHovered ? TokyoNight.panelElevatedColor.opacity(0.35) : Color.clear,
+            isSelected ? VellumColors.selectionColor.opacity(0.85) : isHovered ? VellumColors.panelElevatedColor.opacity(0.35) : Color.clear,
             in: RoundedRectangle(cornerRadius: 6, style: .continuous)
         )
         .overlay(alignment: .leading) {
             if isSelected {
                 Capsule()
-                    .fill(TokyoNight.blueColor)
+                    .fill(VellumColors.blueColor)
                     .frame(width: 2, height: 12)
                     .padding(.leading, 4)
                     .allowsHitTesting(false)
@@ -436,7 +436,7 @@ private final class AIHistoryTextField: NSTextField {
     func configure(placeholder: String) {
         cell = AIHistoryTextFieldCell(textCell: "")
         font = .systemFont(ofSize: 14, weight: .medium)
-        textColor = TokyoNight.foreground
+        textColor = VellumColors.foreground
         configurePlaceholder(placeholder)
         backgroundColor = .clear
         isBordered = false
@@ -455,7 +455,7 @@ private final class AIHistoryTextField: NSTextField {
         placeholderAttributedString = NSAttributedString(
             string: placeholder,
             attributes: [
-                .foregroundColor: TokyoNight.muted.withAlphaComponent(0.92),
+                .foregroundColor: VellumColors.muted.withAlphaComponent(0.92),
                 .font: NSFont.systemFont(ofSize: 14, weight: .regular)
             ]
         )

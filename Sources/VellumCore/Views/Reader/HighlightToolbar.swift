@@ -16,12 +16,12 @@ struct HighlightToolbar: View {
                 } label: {
                     ZStack {
                         Circle()
-                            .fill(isHovered ? TokyoNight.panelElevatedColor : .clear)
+                            .fill(isHovered ? VellumColors.panelElevatedColor : .clear)
                             .frame(width: 28, height: 28)
 
                         if isSelected {
                             Circle()
-                                .strokeBorder(TokyoNight.mutedColor.opacity(0.85), lineWidth: 1)
+                                .strokeBorder(VellumColors.mutedColor.opacity(0.85), lineWidth: 1)
                                 .frame(width: 22, height: 22)
                         }
 
@@ -47,7 +47,7 @@ struct HighlightToolbar: View {
         .frame(height: 34)
         .overlay(alignment: .leading) {
             Rectangle()
-                .fill(TokyoNight.borderColor.opacity(0.6))
+                .fill(VellumColors.borderColor.opacity(0.6))
                 .frame(width: 1, height: 24)
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)

@@ -236,7 +236,7 @@ struct UpdateWindowTests {
             for label in views.compactMap({ $0 as? NSTextField }).filter({ !$0.isHidden && !$0.stringValue.isEmpty }) {
                 #expect(label.frame.width >= label.intrinsicContentSize.width)
             }
-            let fill = try #require(views.first { $0.layer?.backgroundColor == TokyoNight.blue.cgColor })
+            let fill = try #require(views.first { $0.layer?.backgroundColor == VellumColors.blue.cgColor })
             #expect(abs(fill.bounds.width - root.bounds.width + 48) < 0.5)
             controller.update(UpdateWindowContent(phase: .checking, currentVersion: "0.8.9"))
             let compactAnimation = try #require(fill.layer?.animation(forKey: "preparing") as? CABasicAnimation)

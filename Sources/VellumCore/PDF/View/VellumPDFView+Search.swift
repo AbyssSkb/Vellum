@@ -204,7 +204,7 @@ extension VellumPDFView {
 final class PDFSearchController {
     private static let debounceDelay: TimeInterval = 0.16
     private static let jumpCoalescingInterval: TimeInterval = 1.0
-    private static let inactiveMatchColor = TokyoNight.blue.withAlphaComponent(0.32)
+    private static let inactiveMatchColor = VellumColors.blue.withAlphaComponent(0.32)
     private static let activeMatchColor = NSColor(calibratedRed: 1.0, green: 0.64, blue: 0.20, alpha: 0.58)
 
     enum Direction {
@@ -1011,11 +1011,11 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
         var color: NSColor {
             switch self {
             case .hint:
-                return TokyoNight.muted
+                return VellumColors.muted
             case .error:
-                return TokyoNight.red
+                return VellumColors.red
             case .count:
-                return TokyoNight.muted
+                return VellumColors.muted
             }
         }
 
@@ -1024,7 +1024,7 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
             case .hint:
                 return .clear
             case .error:
-                return TokyoNight.red.withAlphaComponent(0.24)
+                return VellumColors.red.withAlphaComponent(0.24)
             case .count:
                 return .clear
             }
@@ -1208,15 +1208,15 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
         container.blendingMode = .withinWindow
         container.state = .active
         container.wantsLayer = true
-        container.layer?.backgroundColor = TokyoNight.panel.withAlphaComponent(0.98).cgColor
-        container.layer?.borderColor = TokyoNight.foreground.withAlphaComponent(0.12).cgColor
+        container.layer?.backgroundColor = VellumColors.panel.withAlphaComponent(0.98).cgColor
+        container.layer?.borderColor = VellumColors.foreground.withAlphaComponent(0.12).cgColor
         container.layer?.borderWidth = 1
         container.layer?.cornerRadius = 8
         container.layer?.shadowColor = NSColor.black.cgColor
         container.layer?.shadowOpacity = 0.18
         container.layer?.shadowRadius = 16
         container.layer?.shadowOffset = NSSize(width: 0, height: 5)
-        inputFocusLine.backgroundColor = TokyoNight.blue.withAlphaComponent(0.7).cgColor
+        inputFocusLine.backgroundColor = VellumColors.blue.withAlphaComponent(0.7).cgColor
         inputFocusLine.actions = ["position": NSNull(), "bounds": NSNull()]
         container.layer?.addSublayer(inputFocusLine)
 
@@ -1224,8 +1224,8 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
         miniContainer.blendingMode = .withinWindow
         miniContainer.state = .active
         miniContainer.wantsLayer = true
-        miniContainer.layer?.backgroundColor = TokyoNight.panel.withAlphaComponent(0.98).cgColor
-        miniContainer.layer?.borderColor = TokyoNight.foreground.withAlphaComponent(0.12).cgColor
+        miniContainer.layer?.backgroundColor = VellumColors.panel.withAlphaComponent(0.98).cgColor
+        miniContainer.layer?.borderColor = VellumColors.foreground.withAlphaComponent(0.12).cgColor
         miniContainer.layer?.borderWidth = 1
         miniContainer.layer?.cornerRadius = 8
         miniContainer.layer?.shadowColor = NSColor.black.cgColor
@@ -1237,19 +1237,19 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
     private func configureLabels() {
         iconView.image = NSImage(systemSymbolName: "magnifyingglass", accessibilityDescription: nil)
         iconView.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 13, weight: .medium)
-        iconView.contentTintColor = TokyoNight.muted
+        iconView.contentTintColor = VellumColors.muted
 
         statusLabel.font = .monospacedDigitSystemFont(ofSize: 12, weight: .regular)
-        statusLabel.textColor = TokyoNight.muted.withAlphaComponent(0.95)
+        statusLabel.textColor = VellumColors.muted.withAlphaComponent(0.95)
         miniLabel.font = .monospacedDigitSystemFont(ofSize: 12, weight: .regular)
-        miniLabel.textColor = TokyoNight.foreground.withAlphaComponent(0.94)
+        miniLabel.textColor = VellumColors.foreground.withAlphaComponent(0.94)
         miniLabel.lineBreakMode = .byTruncatingMiddle
 
         statusPill.material = .hudWindow
         statusPill.blendingMode = .withinWindow
         statusPill.state = .active
         statusPill.wantsLayer = true
-        statusPill.layer?.backgroundColor = TokyoNight.backgroundDeep.withAlphaComponent(0.94).cgColor
+        statusPill.layer?.backgroundColor = VellumColors.backgroundDeep.withAlphaComponent(0.94).cgColor
         statusPill.layer?.borderColor = currentStatus.accentColor.cgColor
         statusPill.layer?.borderWidth = 1
         statusPill.layer?.cornerRadius = 7
@@ -1259,11 +1259,11 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
         textField.cell = VerticallyCenteredTextFieldCell(textCell: "")
         textField.stringValue = query
         textField.font = .systemFont(ofSize: 14, weight: .medium)
-        textField.textColor = TokyoNight.foreground
+        textField.textColor = VellumColors.foreground
         textField.placeholderAttributedString = NSAttributedString(
             string: AppUILanguage.saved().text(.search),
             attributes: [
-                .foregroundColor: TokyoNight.muted,
+                .foregroundColor: VellumColors.muted,
                 .font: NSFont.systemFont(ofSize: 14, weight: .regular)
             ]
         )

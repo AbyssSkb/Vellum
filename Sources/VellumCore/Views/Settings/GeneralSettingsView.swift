@@ -25,7 +25,7 @@ struct GeneralSettingsView: View {
             .padding(.vertical, 22)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .background(TokyoNight.backgroundColor)
+        .background(VellumColors.backgroundColor)
         .background(SettingsScrollChromeConfigurator())
     }
 
@@ -33,17 +33,17 @@ struct GeneralSettingsView: View {
         HStack(alignment: .center, spacing: 12) {
             Image(systemName: "gearshape")
                 .font(.system(size: 19, weight: .regular))
-                .foregroundStyle(TokyoNight.mutedColor)
+                .foregroundStyle(VellumColors.mutedColor)
                 .frame(width: 24)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(language.text(.general))
                     .font(.system(size: 20, weight: .medium))
-                    .foregroundStyle(TokyoNight.foregroundColor)
+                    .foregroundStyle(VellumColors.foregroundColor)
 
                 Text(language.text(.generalHeaderSubtitle))
                     .font(.system(size: 12.5))
-                    .foregroundStyle(TokyoNight.mutedColor)
+                    .foregroundStyle(VellumColors.mutedColor)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
@@ -113,11 +113,11 @@ struct GeneralSettingsView: View {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(language.text(.currentVersion))
                             .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(TokyoNight.foregroundColor)
+                            .foregroundStyle(VellumColors.foregroundColor)
 
                         Text(appVersionText)
                             .font(.system(size: 12))
-                            .foregroundStyle(TokyoNight.mutedColor)
+                            .foregroundStyle(VellumColors.mutedColor)
                     }
 
                     Spacer()
@@ -147,17 +147,17 @@ struct GeneralSettingsView: View {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(language.text(.aiRequestLogs))
                             .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(TokyoNight.foregroundColor)
+                            .foregroundStyle(VellumColors.foregroundColor)
 
                         Text(language.text(.aiRequestLogsSubtitle))
                             .font(.system(size: 12))
-                            .foregroundStyle(TokyoNight.mutedColor)
+                            .foregroundStyle(VellumColors.mutedColor)
                             .fixedSize(horizontal: false, vertical: true)
 
                         if let logStatusMessage {
                             Text(logStatusMessage)
                                 .font(.system(size: 11.5))
-                                .foregroundStyle(TokyoNight.mutedColor)
+                                .foregroundStyle(VellumColors.mutedColor)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                     }
@@ -216,10 +216,10 @@ private struct GeneralSettingsPanel<Content: View>: View {
             HStack(spacing: 12) {
                 Label(title, systemImage: systemImage)
                     .font(.system(size: 11.5, weight: .regular))
-                    .foregroundStyle(TokyoNight.mutedColor)
+                    .foregroundStyle(VellumColors.mutedColor)
                     .layoutPriority(1)
 
-                TokyoNight.borderColor.opacity(0.45)
+                VellumColors.borderColor.opacity(0.45)
                     .frame(height: 0.5)
             }
 
@@ -243,11 +243,11 @@ private struct GeneralToggleRow: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(title)
                         .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(TokyoNight.foregroundColor)
+                        .foregroundStyle(VellumColors.foregroundColor)
 
                     Text(subtitle)
                         .font(.system(size: 12))
-                        .foregroundStyle(TokyoNight.mutedColor)
+                        .foregroundStyle(VellumColors.mutedColor)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -259,7 +259,7 @@ private struct GeneralToggleRow: View {
             .padding(.vertical, 12)
             .frame(maxWidth: .infinity, alignment: .leading)
             .frame(minHeight: 58)
-            .background(isHovered ? TokyoNight.panelColor : .clear)
+            .background(isHovered ? VellumColors.panelColor : .clear)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -277,11 +277,11 @@ private struct GeneralOptionRow<Content: View>: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
                     .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(TokyoNight.foregroundColor)
+                    .foregroundStyle(VellumColors.foregroundColor)
 
                 Text(subtitle)
                     .font(.system(size: 12))
-                    .foregroundStyle(TokyoNight.mutedColor)
+                    .foregroundStyle(VellumColors.mutedColor)
                     .fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -313,7 +313,7 @@ private struct GeneralSegmentedControl: View {
             }
         }
         .padding(3)
-        .background(TokyoNight.backgroundDeepColor.opacity(0.7), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .background(VellumColors.backgroundDeepColor.opacity(0.7), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
     }
 }
 
@@ -334,7 +334,7 @@ private struct OpenFileZoomSegmentedControl: View {
             }
         }
         .padding(3)
-        .background(TokyoNight.backgroundDeepColor.opacity(0.7), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .background(VellumColors.backgroundDeepColor.opacity(0.7), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
     }
 }
 
@@ -354,7 +354,7 @@ private struct LanguageSegmentedControl: View {
             }
         }
         .padding(3)
-        .background(TokyoNight.backgroundDeepColor.opacity(0.7), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .background(VellumColors.backgroundDeepColor.opacity(0.7), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
     }
 }
 
@@ -369,13 +369,13 @@ private struct GeneralSegmentButton: View {
         Button(action: action) {
             Label(title, systemImage: systemImage)
                 .font(.system(size: 12, weight: isSelected ? .medium : .regular))
-                .foregroundStyle(isSelected ? TokyoNight.foregroundColor : TokyoNight.mutedColor)
+                .foregroundStyle(isSelected ? VellumColors.foregroundColor : VellumColors.mutedColor)
                 .padding(.horizontal, 10)
                 .frame(height: 28)
                 .background(background, in: RoundedRectangle(cornerRadius: 4, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 4, style: .continuous)
-                        .stroke(isSelected ? TokyoNight.borderColor.opacity(0.65) : .clear, lineWidth: 1)
+                        .stroke(isSelected ? VellumColors.borderColor.opacity(0.65) : .clear, lineWidth: 1)
                 }
                 .shadow(color: .black.opacity(isSelected ? 0.14 : 0), radius: 1, y: 1)
                 .contentShape(Rectangle())
@@ -386,9 +386,9 @@ private struct GeneralSegmentButton: View {
 
     private var background: Color {
         if isSelected {
-            return TokyoNight.panelElevatedColor
+            return VellumColors.panelElevatedColor
         }
-        return isHovered ? TokyoNight.panelColor : .clear
+        return isHovered ? VellumColors.panelColor : .clear
     }
 }
 
@@ -415,7 +415,7 @@ private struct HighlightColorPicker: View {
         }
         .padding(.horizontal, 7)
         .frame(height: 34)
-        .background(TokyoNight.backgroundDeepColor.opacity(0.7), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .background(VellumColors.backgroundDeepColor.opacity(0.7), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
     }
 }
 
@@ -433,16 +433,16 @@ private struct HighlightColorButton: View {
                 .frame(width: 18, height: 18)
                 .overlay {
                     Circle()
-                        .stroke(TokyoNight.backgroundDeepColor.opacity(0.55), lineWidth: 1)
+                        .stroke(VellumColors.backgroundDeepColor.opacity(0.55), lineWidth: 1)
                 }
                 .padding(5)
                 .background(
-                    isSelected || isHovered ? TokyoNight.selectionColor.opacity(isSelected ? 0.78 : 0.45) : .clear,
+                    isSelected || isHovered ? VellumColors.selectionColor.opacity(isSelected ? 0.78 : 0.45) : .clear,
                     in: RoundedRectangle(cornerRadius: 6, style: .continuous)
                 )
                 .overlay {
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .stroke(isSelected ? TokyoNight.blueColor.opacity(0.65) : .clear, lineWidth: 1)
+                        .stroke(isSelected ? VellumColors.blueColor.opacity(0.65) : .clear, lineWidth: 1)
                 }
                 .contentShape(Rectangle())
         }
@@ -457,17 +457,17 @@ private struct TogglePill: View {
 
     var body: some View {
         RoundedRectangle(cornerRadius: 10, style: .continuous)
-            .fill(isOn ? TokyoNight.blueColor : TokyoNight.panelElevatedColor)
+            .fill(isOn ? VellumColors.blueColor : VellumColors.panelElevatedColor)
             .frame(width: 34, height: 20)
             .overlay(alignment: isOn ? .trailing : .leading) {
                 Circle()
-                    .fill(isOn ? TokyoNight.foregroundColor : TokyoNight.mutedColor)
+                    .fill(isOn ? VellumColors.foregroundColor : VellumColors.mutedColor)
                     .frame(width: 14, height: 14)
                     .padding(3)
             }
             .overlay {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(isOn ? TokyoNight.blueColor.opacity(0.65) : TokyoNight.borderColor.opacity(0.7), lineWidth: 1)
+                    .stroke(isOn ? VellumColors.blueColor.opacity(0.65) : VellumColors.borderColor.opacity(0.7), lineWidth: 1)
             }
     }
 }
@@ -478,18 +478,18 @@ private struct GeneralActionButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 12.5, weight: .regular))
-            .foregroundStyle(TokyoNight.foregroundColor)
+            .foregroundStyle(VellumColors.foregroundColor)
             .padding(.horizontal, 12)
             .frame(height: 32)
             .background(
                 configuration.isPressed
-                ? TokyoNight.selectionColor.opacity(0.72)
-                : (isHovered ? TokyoNight.panelColor : TokyoNight.panelColor.opacity(0.35)),
+                ? VellumColors.selectionColor.opacity(0.72)
+                : (isHovered ? VellumColors.panelColor : VellumColors.panelColor.opacity(0.35)),
                 in: RoundedRectangle(cornerRadius: 7, style: .continuous)
             )
             .overlay {
                 RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .stroke(TokyoNight.borderColor.opacity(isHovered ? 0.8 : 0.4), lineWidth: 1)
+                    .stroke(VellumColors.borderColor.opacity(isHovered ? 0.8 : 0.4), lineWidth: 1)
             }
             .contentShape(Rectangle())
             .onHover { isHovered = $0 }

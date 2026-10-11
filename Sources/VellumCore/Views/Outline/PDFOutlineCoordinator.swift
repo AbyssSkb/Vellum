@@ -124,7 +124,7 @@ extension PDFOutlineView {
             let readingRow = visibleReadingItem.map { outlineView.row(forItem: $0) }
             let keyboardFocused = outlineView.window?.firstResponder === outlineView
             outlineView.enumerateAvailableRowViews { row, index in
-                guard let row = row as? TokyoNightOutlineRowView else { return }
+                guard let row = row as? VellumOutlineRowView else { return }
                 row.keyboardFocused = keyboardFocused
                 row.isReadingSection = index == readingRow
                 row.needsDisplay = true
@@ -188,7 +188,7 @@ extension PDFOutlineView {
         }
 
         func outlineView(_ outlineView: NSOutlineView, rowViewForItem item: Any) -> NSTableRowView? {
-            let row = TokyoNightOutlineRowView()
+            let row = VellumOutlineRowView()
             row.hierarchyLevel = outlineView.level(forItem: item)
             row.levelIndent = outlineView.indentationPerLevel
             row.contentIndent = CGFloat(row.hierarchyLevel) * row.levelIndent
@@ -244,7 +244,7 @@ extension PDFOutlineView {
             textField.lineBreakMode = .byTruncatingTail
             textField.maximumNumberOfLines = 1
             textField.font = .systemFont(ofSize: 13, weight: .regular)
-            textField.textColor = TokyoNight.muted
+            textField.textColor = VellumColors.muted
             textField.backgroundColor = .clear
             titleView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
@@ -254,7 +254,7 @@ extension PDFOutlineView {
             pageNumberField.translatesAutoresizingMaskIntoConstraints = false
             pageNumberField.font = .monospacedDigitSystemFont(ofSize: 10.5, weight: .regular)
             pageNumberField.alignment = .right
-            pageNumberField.textColor = TokyoNight.muted
+            pageNumberField.textColor = VellumColors.muted
             pageNumberField.setContentHuggingPriority(.required, for: .horizontal)
             pageNumberField.setContentCompressionResistancePriority(.required, for: .horizontal)
 

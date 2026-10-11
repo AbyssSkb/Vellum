@@ -243,14 +243,14 @@ struct AIConversationPopoverView: View {
     var body: some View {
         visibleContent
         .frame(width: AIConversationPopoverMetrics.width, height: model.preferredHeight)
-        .background(TokyoNight.panelColor)
+        .background(VellumColors.panelColor)
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .strokeBorder(TokyoNight.foregroundColor.opacity(0.12), lineWidth: 1)
+                .strokeBorder(VellumColors.foregroundColor.opacity(0.12), lineWidth: 1)
                 .allowsHitTesting(false)
         }
-        .foregroundStyle(TokyoNight.foregroundColor)
+        .foregroundStyle(VellumColors.foregroundColor)
         .overlay(alignment: .topLeading) {
             if model.requestStatus != .idle {
                 AIRequestStatusIndicator(status: model.requestStatus)
@@ -290,7 +290,7 @@ struct AIConversationPopoverView: View {
         VStack(spacing: 0) {
             if hasConversationContent {
                 messagesView
-                TokyoNightDivider(axis: .horizontal)
+                VellumDivider(axis: .horizontal)
             }
 
             composer
@@ -308,7 +308,7 @@ struct AIConversationPopoverView: View {
             onContentHeightChange: applyMeasuredContentHeight
         )
         .frame(height: messageViewportHeight)
-        .background(TokyoNight.panelColor)
+        .background(VellumColors.panelColor)
     }
 
     private var composer: some View {
@@ -327,7 +327,7 @@ struct AIConversationPopoverView: View {
             if model.draft.isEmpty {
                 Text(language.text(.aiChatPlaceholder))
                     .font(.system(size: 13))
-                    .foregroundStyle(TokyoNight.mutedColor)
+                    .foregroundStyle(VellumColors.mutedColor)
                     .padding(.top, 11)
                     .padding(.leading, 12)
                     .padding(.trailing, 42)
@@ -353,7 +353,7 @@ struct AIConversationPopoverView: View {
         .frame(height: model.composerTextHeight)
         .overlay(alignment: .bottom) {
             Rectangle()
-                .fill(inputIsFocused ? TokyoNight.blueColor.opacity(0.7) : Color.clear)
+                .fill(inputIsFocused ? VellumColors.blueColor.opacity(0.7) : Color.clear)
                 .frame(height: 1)
                 .padding(.horizontal, 12)
                 .allowsHitTesting(false)
@@ -364,7 +364,7 @@ struct AIConversationPopoverView: View {
         }
         .padding(8)
         .frame(height: model.composerHeight)
-        .background(TokyoNight.backgroundColor)
+        .background(VellumColors.backgroundColor)
     }
 
     private func sendDraft() {
@@ -432,8 +432,8 @@ struct AIConversationInputTextView: NSViewRepresentable {
         textView.allowsUndo = true
         textView.drawsBackground = false
         textView.font = .systemFont(ofSize: 13)
-        textView.textColor = TokyoNight.foreground
-        textView.insertionPointColor = TokyoNight.foreground
+        textView.textColor = VellumColors.foreground
+        textView.insertionPointColor = VellumColors.foreground
         textView.textContainerInset = NSSize(width: 0, height: 11)
         textView.textContainer?.lineFragmentPadding = 0
         textView.textContainer?.widthTracksTextView = true
@@ -443,8 +443,8 @@ struct AIConversationInputTextView: NSViewRepresentable {
         textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
         textView.autoresizingMask = [.width]
         textView.selectedTextAttributes = [
-            .backgroundColor: TokyoNight.selection,
-            .foregroundColor: TokyoNight.foreground
+            .backgroundColor: VellumColors.selection,
+            .foregroundColor: VellumColors.foreground
         ]
 
         scrollView.documentView = textView
@@ -761,11 +761,11 @@ private struct AIConversationSendButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .foregroundStyle(isEnabled ? TokyoNight.backgroundDeepColor : TokyoNight.mutedColor)
+            .foregroundStyle(isEnabled ? VellumColors.backgroundDeepColor : VellumColors.mutedColor)
             .background(
                 isEnabled
-                    ? TokyoNight.foregroundColor.opacity(configuration.isPressed ? 0.82 : 1)
-                    : TokyoNight.panelElevatedColor,
+                    ? VellumColors.foregroundColor.opacity(configuration.isPressed ? 0.82 : 1)
+                    : VellumColors.panelElevatedColor,
                 in: RoundedRectangle(cornerRadius: 7, style: .continuous)
             )
     }

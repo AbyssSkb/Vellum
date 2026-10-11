@@ -10,7 +10,7 @@ struct OutlineSidebar: View {
             if let tab, let document = tab.document {
                 let items = PDFOutlineBuilder.items(for: document, language: language)
                 OutlineSidebarHeader(pageCount: document.pageCount)
-                TokyoNightDivider(axis: .horizontal)
+                VellumDivider(axis: .horizontal)
                     .opacity(0.5)
 
                 ZStack {
@@ -29,7 +29,7 @@ struct OutlineSidebar: View {
                 }
             } else {
                 OutlineSidebarHeader()
-                TokyoNightDivider(axis: .horizontal)
+                VellumDivider(axis: .horizontal)
                     .opacity(0.5)
                 OutlinePlaceholder(text: language.text(.noDocument))
             }
@@ -37,7 +37,7 @@ struct OutlineSidebar: View {
         .background {
             ZStack {
                 SidebarVisualEffectBackground()
-                TokyoNight.backgroundDeepColor.opacity(0.97)
+                VellumColors.backgroundDeepColor.opacity(0.97)
             }
         }
     }
@@ -51,21 +51,21 @@ struct OutlineSidebarHeader: View {
         HStack(spacing: 8) {
             Image(systemName: "list.bullet")
                 .font(.system(size: 11, weight: .regular))
-                .foregroundStyle(TokyoNight.mutedColor)
+                .foregroundStyle(VellumColors.mutedColor)
                 .accessibilityHidden(true)
 
             Text(language.text(.contents))
                 .font(.system(size: 11.5, weight: .medium))
-                .foregroundStyle(TokyoNight.foregroundColor.opacity(0.8))
+                .foregroundStyle(VellumColors.foregroundColor.opacity(0.8))
 
             Spacer(minLength: 8)
             if pageCount > 0 {
                 Text(language.text(.outlinePageCount(pageCount)))
                     .font(.system(size: 10, weight: .medium, design: .monospaced))
-                    .foregroundStyle(TokyoNight.mutedColor)
+                    .foregroundStyle(VellumColors.mutedColor)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 3)
-                    .background(TokyoNight.panelElevatedColor.opacity(0.5),
+                    .background(VellumColors.panelElevatedColor.opacity(0.5),
                                 in: RoundedRectangle(cornerRadius: 4))
             }
         }
@@ -82,7 +82,7 @@ struct OutlinePlaceholder: View {
     var body: some View {
         Text(text)
             .font(.system(size: 13, weight: .medium))
-            .foregroundStyle(TokyoNight.mutedColor)
+            .foregroundStyle(VellumColors.mutedColor)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }

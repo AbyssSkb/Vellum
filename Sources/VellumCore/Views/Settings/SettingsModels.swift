@@ -19,13 +19,13 @@ enum AIConnectionStatus: Equatable {
     var color: NSColor {
         switch self {
         case .idle:
-            return TokyoNight.muted
+            return VellumColors.muted
         case .working:
-            return TokyoNight.blue
+            return VellumColors.blue
         case .success:
             return NSColor(calibratedRed: 0.62, green: 0.86, blue: 0.49, alpha: 1)
         case .failure:
-            return TokyoNight.red
+            return VellumColors.red
         }
     }
 

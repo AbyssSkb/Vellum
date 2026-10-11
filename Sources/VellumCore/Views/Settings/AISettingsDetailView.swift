@@ -76,7 +76,7 @@ struct AIProviderSettingsDetailView: View {
             .padding(.vertical, 22)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .background(TokyoNight.backgroundColor)
+        .background(VellumColors.backgroundColor)
         .background(SettingsScrollChromeConfigurator())
         .onAppear {
             loadProviderSelection()
@@ -217,7 +217,7 @@ struct AIProviderSettingsDetailView: View {
 
                     Text(modelsSummary)
                         .font(.system(size: 12))
-                        .foregroundStyle(TokyoNight.mutedColor)
+                        .foregroundStyle(VellumColors.mutedColor)
                         .fixedSize(horizontal: false, vertical: true)
 
                     Spacer()
@@ -279,12 +279,12 @@ struct AIProviderSettingsDetailView: View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
             Text(title)
                 .font(.system(size: 11, weight: .regular))
-                .foregroundStyle(TokyoNight.mutedColor)
+                .foregroundStyle(VellumColors.mutedColor)
                 .frame(width: 58, alignment: .leading)
 
             Text(value)
                 .font(.system(size: 11.5, design: .monospaced))
-                .foregroundStyle(TokyoNight.foregroundColor)
+                .foregroundStyle(VellumColors.foregroundColor)
                 .lineLimit(2)
                 .textSelection(.enabled)
         }
@@ -361,7 +361,7 @@ struct AISettingsDetailView: View {
             .padding(.vertical, 22)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .background(TokyoNight.backgroundColor)
+        .background(VellumColors.backgroundColor)
         .background(SettingsScrollChromeConfigurator())
         .onAppear {
             loadSettingsForCurrentPage()
@@ -483,7 +483,7 @@ struct AISettingsDetailView: View {
 
                     Text(modelsSummary)
                         .font(.system(size: 12))
-                        .foregroundStyle(TokyoNight.mutedColor)
+                        .foregroundStyle(VellumColors.mutedColor)
                         .fixedSize(horizontal: false, vertical: true)
 
                     Spacer()
@@ -515,11 +515,11 @@ struct AISettingsDetailView: View {
                     HStack(spacing: 8) {
                         Image(systemName: "curlybraces")
                             .font(.system(size: 11, weight: .regular))
-                            .foregroundStyle(TokyoNight.mutedColor)
+                            .foregroundStyle(VellumColors.mutedColor)
 
                         Text(language.text(.promptVariables))
                             .font(.system(size: 11.5, weight: .regular))
-                            .foregroundStyle(TokyoNight.mutedColor)
+                            .foregroundStyle(VellumColors.mutedColor)
                     }
 
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 168), spacing: 8)], spacing: 8) {
@@ -539,7 +539,7 @@ struct AISettingsDetailView: View {
 
                     Text(language.text(.promptVariablesHint))
                         .font(.system(size: 12))
-                        .foregroundStyle(TokyoNight.mutedColor)
+                        .foregroundStyle(VellumColors.mutedColor)
                         .fixedSize(horizontal: false, vertical: true)
 
                     Spacer()
@@ -632,12 +632,12 @@ struct AISettingsDetailView: View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
             Text(title)
                 .font(.system(size: 11, weight: .regular))
-                .foregroundStyle(TokyoNight.mutedColor)
+                .foregroundStyle(VellumColors.mutedColor)
                 .frame(width: 58, alignment: .leading)
 
             Text(value)
                 .font(.system(size: 11.5, design: .monospaced))
-                .foregroundStyle(TokyoNight.foregroundColor)
+                .foregroundStyle(VellumColors.foregroundColor)
                 .lineLimit(2)
                 .textSelection(.enabled)
         }
@@ -728,11 +728,11 @@ private struct AIPronunciationToggleRow: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(title)
                         .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(TokyoNight.foregroundColor)
+                        .foregroundStyle(VellumColors.foregroundColor)
 
                     Text(subtitle)
                         .font(.system(size: 12))
-                        .foregroundStyle(TokyoNight.mutedColor)
+                        .foregroundStyle(VellumColors.mutedColor)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -742,7 +742,7 @@ private struct AIPronunciationToggleRow: View {
             .padding(.vertical, 12)
             .frame(maxWidth: .infinity, alignment: .leading)
             .frame(minHeight: 58)
-            .background(isHovered ? TokyoNight.panelColor : .clear)
+            .background(isHovered ? VellumColors.panelColor : .clear)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -760,11 +760,11 @@ private struct AIPronunciationOptionRow<Content: View>: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
                     .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(TokyoNight.foregroundColor)
+                    .foregroundStyle(VellumColors.foregroundColor)
 
                 Text(subtitle)
                     .font(.system(size: 12))
-                    .foregroundStyle(TokyoNight.mutedColor)
+                    .foregroundStyle(VellumColors.mutedColor)
                     .fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -793,7 +793,7 @@ private struct AIPronunciationAccentSegmentedControl: View {
             }
         }
         .padding(3)
-        .background(TokyoNight.backgroundDeepColor.opacity(0.7), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .background(VellumColors.backgroundDeepColor.opacity(0.7), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
     }
 }
 
@@ -808,13 +808,13 @@ private struct AIPronunciationSegmentButton: View {
         Button(action: action) {
             Label(title, systemImage: systemImage)
                 .font(.system(size: 12, weight: isSelected ? .medium : .regular))
-                .foregroundStyle(isSelected ? TokyoNight.foregroundColor : TokyoNight.mutedColor)
+                .foregroundStyle(isSelected ? VellumColors.foregroundColor : VellumColors.mutedColor)
                 .padding(.horizontal, 10)
                 .frame(height: 28)
                 .background(background, in: RoundedRectangle(cornerRadius: 4, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 4, style: .continuous)
-                        .stroke(isSelected ? TokyoNight.borderColor.opacity(0.65) : .clear, lineWidth: 1)
+                        .stroke(isSelected ? VellumColors.borderColor.opacity(0.65) : .clear, lineWidth: 1)
                 }
                 .shadow(color: .black.opacity(isSelected ? 0.14 : 0), radius: 1, y: 1)
                 .contentShape(Rectangle())
@@ -825,9 +825,9 @@ private struct AIPronunciationSegmentButton: View {
 
     private var background: Color {
         if isSelected {
-            return TokyoNight.panelElevatedColor
+            return VellumColors.panelElevatedColor
         }
-        return isHovered ? TokyoNight.panelColor : .clear
+        return isHovered ? VellumColors.panelColor : .clear
     }
 }
 
@@ -836,17 +836,17 @@ private struct AISettingsTogglePill: View {
 
     var body: some View {
         RoundedRectangle(cornerRadius: 10, style: .continuous)
-            .fill(isOn ? TokyoNight.blueColor : TokyoNight.panelElevatedColor)
+            .fill(isOn ? VellumColors.blueColor : VellumColors.panelElevatedColor)
             .frame(width: 34, height: 20)
             .overlay(alignment: isOn ? .trailing : .leading) {
                 Circle()
-                    .fill(isOn ? TokyoNight.foregroundColor : TokyoNight.mutedColor)
+                    .fill(isOn ? VellumColors.foregroundColor : VellumColors.mutedColor)
                     .frame(width: 14, height: 14)
                     .padding(3)
             }
             .overlay {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(isOn ? TokyoNight.blueColor.opacity(0.65) : TokyoNight.borderColor.opacity(0.7), lineWidth: 1)
+                    .stroke(isOn ? VellumColors.blueColor.opacity(0.65) : VellumColors.borderColor.opacity(0.7), lineWidth: 1)
             }
     }
 }
@@ -860,17 +860,17 @@ private struct SettingsHeader: View {
         HStack(alignment: .center, spacing: 12) {
             Image(systemName: systemImage)
                 .font(.system(size: 19, weight: .regular))
-                .foregroundStyle(TokyoNight.mutedColor)
+                .foregroundStyle(VellumColors.mutedColor)
                 .frame(width: 24)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
                     .font(.system(size: 20, weight: .medium))
-                    .foregroundStyle(TokyoNight.foregroundColor)
+                    .foregroundStyle(VellumColors.foregroundColor)
 
                 Text(subtitle)
                     .font(.system(size: 12.5))
-                    .foregroundStyle(TokyoNight.mutedColor)
+                    .foregroundStyle(VellumColors.mutedColor)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
@@ -890,10 +890,10 @@ private struct SettingsPanel<Content: View>: View {
             HStack(spacing: 12) {
                 Label(title, systemImage: systemImage)
                     .font(.system(size: 11.5, weight: .regular))
-                    .foregroundStyle(TokyoNight.mutedColor)
+                    .foregroundStyle(VellumColors.mutedColor)
                     .layoutPriority(1)
 
-                TokyoNight.borderColor.opacity(0.45)
+                VellumColors.borderColor.opacity(0.45)
                     .frame(height: 0.5)
             }
 
@@ -911,7 +911,7 @@ private struct LabeledSettingsField<Content: View>: View {
         VStack(alignment: .leading, spacing: 7) {
             Text(title)
                 .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(TokyoNight.foregroundColor)
+                .foregroundStyle(VellumColors.foregroundColor)
 
             content
         }
@@ -928,13 +928,13 @@ private struct StyledTextField: View {
         HStack(spacing: 9) {
             Image(systemName: systemImage)
                 .font(.system(size: 12, weight: .regular))
-                .foregroundStyle(isFocused ? TokyoNight.blueColor : TokyoNight.mutedColor)
+                .foregroundStyle(isFocused ? VellumColors.blueColor : VellumColors.mutedColor)
                 .frame(width: 16)
 
             TextField(placeholder, text: $text)
                 .textFieldStyle(.plain)
                 .font(.system(size: 13))
-                .foregroundStyle(TokyoNight.foregroundColor)
+                .foregroundStyle(VellumColors.foregroundColor)
                 .textSelection(.enabled)
                 .focused($isFocused)
         }
@@ -951,13 +951,13 @@ private struct StyledSecureField: View {
         HStack(spacing: 9) {
             Image(systemName: "key.fill")
                 .font(.system(size: 12, weight: .regular))
-                .foregroundStyle(isFocused ? TokyoNight.blueColor : TokyoNight.mutedColor)
+                .foregroundStyle(isFocused ? VellumColors.blueColor : VellumColors.mutedColor)
                 .frame(width: 16)
 
             SecureField(placeholder, text: $text)
                 .textFieldStyle(.plain)
                 .font(.system(size: 13))
-                .foregroundStyle(TokyoNight.foregroundColor)
+                .foregroundStyle(VellumColors.foregroundColor)
                 .focused($isFocused)
         }
         .settingsInputChrome(isFocused: isFocused)
@@ -971,17 +971,17 @@ private struct StyledPromptEditor: View {
     var body: some View {
         TextEditor(text: $text)
             .font(.system(size: 12.5, design: .monospaced))
-            .foregroundStyle(TokyoNight.foregroundColor)
+            .foregroundStyle(VellumColors.foregroundColor)
             .scrollContentBackground(.hidden)
             .background(Color.clear)
             .focused($isFocused)
             .padding(.horizontal, 10)
             .padding(.vertical, 9)
             .frame(minHeight: 260)
-            .background(TokyoNight.panelColor, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .background(VellumColors.panelColor, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .stroke(isFocused ? TokyoNight.blueColor.opacity(0.8) : TokyoNight.borderColor.opacity(0.45), lineWidth: 1)
+                    .stroke(isFocused ? VellumColors.blueColor.opacity(0.8) : VellumColors.borderColor.opacity(0.45), lineWidth: 1)
             }
     }
 }
@@ -993,12 +993,12 @@ private struct PromptVariableChip: View {
         VStack(alignment: .leading, spacing: 4) {
             Text("{{\(variable.name)}}")
                 .font(.system(size: 11.5, weight: .medium, design: .monospaced))
-                .foregroundStyle(TokyoNight.foregroundColor)
+                .foregroundStyle(VellumColors.foregroundColor)
                 .lineLimit(1)
 
             Text(variable.description)
                 .font(.system(size: 10.5))
-                .foregroundStyle(TokyoNight.mutedColor)
+                .foregroundStyle(VellumColors.mutedColor)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.vertical, 6)
@@ -1012,10 +1012,10 @@ private extension View {
         self
             .padding(.horizontal, 11)
             .frame(height: 34)
-            .background(TokyoNight.panelColor, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .background(VellumColors.panelColor, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .stroke(isFocused ? TokyoNight.blueColor.opacity(0.8) : TokyoNight.borderColor.opacity(0.45), lineWidth: 1)
+                    .stroke(isFocused ? VellumColors.blueColor.opacity(0.8) : VellumColors.borderColor.opacity(0.45), lineWidth: 1)
             }
     }
 }
@@ -1033,11 +1033,11 @@ private struct ProviderPresetRow: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(preset.name)
                         .font(.system(size: 13, weight: isSelected ? .medium : .regular))
-                        .foregroundStyle(TokyoNight.foregroundColor)
+                        .foregroundStyle(VellumColors.foregroundColor)
 
                     Text(preset.localizedSummary(language: language))
                         .font(.system(size: 11.5))
-                        .foregroundStyle(TokyoNight.mutedColor)
+                        .foregroundStyle(VellumColors.mutedColor)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -1046,7 +1046,7 @@ private struct ProviderPresetRow: View {
 
                 Image(systemName: "checkmark")
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(TokyoNight.blueColor)
+                    .foregroundStyle(VellumColors.blueColor)
                     .frame(width: 16)
                     .opacity(isSelected ? 1 : 0)
                     .accessibilityHidden(true)
@@ -1056,18 +1056,18 @@ private struct ProviderPresetRow: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .frame(minHeight: 50)
             .background(
-                isSelected ? TokyoNight.selectionColor.opacity(0.65) : (isHovered ? TokyoNight.panelColor : .clear),
+                isSelected ? VellumColors.selectionColor.opacity(0.65) : (isHovered ? VellumColors.panelColor : .clear),
                 in: RoundedRectangle(cornerRadius: 7, style: .continuous)
             )
             .overlay {
                 RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .stroke(TokyoNight.borderColor.opacity(isSelected ? 0.45 : 0), lineWidth: 1)
+                    .stroke(VellumColors.borderColor.opacity(isSelected ? 0.45 : 0), lineWidth: 1)
                     .allowsHitTesting(false)
             }
             .overlay(alignment: .leading) {
                 if isSelected {
                     RoundedRectangle(cornerRadius: 1, style: .continuous)
-                        .fill(TokyoNight.blueColor.opacity(0.85))
+                        .fill(VellumColors.blueColor.opacity(0.85))
                         .frame(width: 2, height: 14)
                         .padding(.leading, 5)
                         .allowsHitTesting(false)
@@ -1122,7 +1122,7 @@ private struct ModelChoiceGrid: View {
                     HStack(spacing: 8) {
                         Text(model)
                             .font(.system(size: 11.5, weight: selection == model ? .medium : .regular, design: .monospaced))
-                            .foregroundStyle(TokyoNight.foregroundColor)
+                            .foregroundStyle(VellumColors.foregroundColor)
                             .lineLimit(1)
 
                         Spacer(minLength: 0)
@@ -1130,17 +1130,17 @@ private struct ModelChoiceGrid: View {
                         if selection == model {
                             Image(systemName: "checkmark")
                                 .font(.system(size: 10, weight: .medium))
-                                .foregroundStyle(TokyoNight.blueColor)
+                                .foregroundStyle(VellumColors.blueColor)
                         }
                     }
                     .padding(.horizontal, 10)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .frame(height: 30)
-                    .background(selection == model || hoveredModel == model ? TokyoNight.panelElevatedColor : TokyoNight.panelColor)
+                    .background(selection == model || hoveredModel == model ? VellumColors.panelElevatedColor : VellumColors.panelColor)
                     .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                     .overlay {
                         RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .stroke(selection == model ? TokyoNight.blueColor.opacity(0.5) : TokyoNight.borderColor.opacity(hoveredModel == model ? 0.85 : 0.55), lineWidth: 1)
+                            .stroke(selection == model ? VellumColors.blueColor.opacity(0.5) : VellumColors.borderColor.opacity(hoveredModel == model ? 0.85 : 0.55), lineWidth: 1)
                     }
                     .contentShape(Rectangle())
                 }
@@ -1164,15 +1164,15 @@ private struct ModelPreviewGrid: View {
             ForEach(models, id: \.self) { model in
                 Text(model)
                     .font(.system(size: 11.5, design: .monospaced))
-                    .foregroundStyle(TokyoNight.foregroundColor)
+                    .foregroundStyle(VellumColors.foregroundColor)
                     .lineLimit(1)
                     .padding(.horizontal, 10)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .frame(height: 30)
-                    .background(TokyoNight.panelColor, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .background(VellumColors.panelColor, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                     .overlay {
                         RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .stroke(TokyoNight.borderColor.opacity(0.45), lineWidth: 1)
+                            .stroke(VellumColors.borderColor.opacity(0.45), lineWidth: 1)
                     }
             }
         }
@@ -1186,18 +1186,18 @@ private struct SettingsActionButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 12.5, weight: .regular))
-            .foregroundStyle(TokyoNight.foregroundColor)
+            .foregroundStyle(VellumColors.foregroundColor)
             .padding(.horizontal, 12)
             .frame(height: 32)
             .background(
                 configuration.isPressed
-                ? TokyoNight.selectionColor.opacity(0.72)
-                : (isHovered ? TokyoNight.panelColor : TokyoNight.panelColor.opacity(0.35)),
+                ? VellumColors.selectionColor.opacity(0.72)
+                : (isHovered ? VellumColors.panelColor : VellumColors.panelColor.opacity(0.35)),
                 in: RoundedRectangle(cornerRadius: 7, style: .continuous)
             )
             .overlay {
                 RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .stroke(TokyoNight.borderColor.opacity(isHovered ? 0.8 : 0.4), lineWidth: 1)
+                    .stroke(VellumColors.borderColor.opacity(isHovered ? 0.8 : 0.4), lineWidth: 1)
             }
             .contentShape(Rectangle())
             .onHover { isHovered = $0 }
@@ -1210,13 +1210,13 @@ private struct SettingsPrimaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 12.5, weight: .medium))
-            .foregroundStyle(TokyoNight.backgroundDeepColor)
+            .foregroundStyle(VellumColors.backgroundDeepColor)
             .padding(.horizontal, 12)
             .frame(height: 32)
             .background(
                 configuration.isPressed
-                ? TokyoNight.foregroundColor.opacity(0.8)
-                : TokyoNight.foregroundColor.opacity(isHovered ? 1 : 0.92),
+                ? VellumColors.foregroundColor.opacity(0.8)
+                : VellumColors.foregroundColor.opacity(isHovered ? 1 : 0.92),
                 in: RoundedRectangle(cornerRadius: 6, style: .continuous)
             )
             .contentShape(Rectangle())

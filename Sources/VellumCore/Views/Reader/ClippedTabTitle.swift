@@ -32,8 +32,8 @@ struct ClippedTabTitle: NSViewRepresentable {
         let textField = view.textField
         textField.font = .systemFont(ofSize: 12.5, weight: isSelected ? .medium : .regular)
         textField.textColor = isSelected || isHovered
-            ? TokyoNight.foreground
-            : TokyoNight.muted
+            ? VellumColors.foreground
+            : VellumColors.muted
         view.invalidateIntrinsicContentSize()
         let previous = context.coordinator
         let activated = isSelected && (!previous.isSelected || previous.title != title)

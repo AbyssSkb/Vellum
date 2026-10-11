@@ -62,7 +62,7 @@ final class UpdateWindowController: NSWindowController {
         window.title = AppUILanguage.saved().text(.updateWindowTitle)
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
-        window.backgroundColor = TokyoNight.background
+        window.backgroundColor = VellumColors.background
         window.isReleasedWhenClosed = false
         window.contentView = UpdateContentView(frame: NSRect(x: 0, y: 0, width: 560, height: 500))
         super.init(window: window)
@@ -103,8 +103,8 @@ final class UpdateWindowController: NSWindowController {
         }
         titleLabel.stringValue = language.text(title)
         iconView.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
-        iconView.contentTintColor = content.phase == .error ? TokyoNight.red
-            : content.phase == .upToDate ? .systemGreen : TokyoNight.muted
+        iconView.contentTintColor = content.phase == .error ? VellumColors.red
+            : content.phase == .upToDate ? .systemGreen : VellumColors.muted
         detailLabel.stringValue = content.phase == .error ? "" : content.message ?? (content.phase == .ready
             ? language.text(.updateReadyInstallDetail(current: content.currentVersion))
             : content.phase == .installing ? language.text(.installingDetail) : "")
@@ -116,7 +116,7 @@ final class UpdateWindowController: NSWindowController {
         let previousError = previous?.phase == .error ? previous?.message : nil
         if previous?.releaseNotes != content.releaseNotes || previousError != errorMessage {
             let body = errorMessage.map { NSAttributedString(string: $0, attributes: [
-                .font: NSFont.systemFont(ofSize: 13), .foregroundColor: TokyoNight.foreground
+                .font: NSFont.systemFont(ofSize: 13), .foregroundColor: VellumColors.foreground
             ]) } ?? attributedReleaseNotes(content.releaseNotes)
             notesView.textStorage?.setAttributedString(body)
             notesScrollView.contentView.scroll(to: .zero)
@@ -132,7 +132,7 @@ final class UpdateWindowController: NSWindowController {
         titleLabel.alignment = compactStatus ? .center : .left
         versionsLabel.alignment = compactStatus ? .center : .left
         detailLabel.isHidden = compactStatus
-        header.layer?.backgroundColor = (compactStatus ? TokyoNight.background : TokyoNight.backgroundDeep).cgColor
+        header.layer?.backgroundColor = (compactStatus ? VellumColors.background : VellumColors.backgroundDeep).cgColor
         footerBackground.isHidden = compactStatus
         divider.isHidden = compactStatus
         notesTitle.isHidden = !hasBody
@@ -176,13 +176,13 @@ final class UpdateWindowController: NSWindowController {
     private func buildContent() {
         guard let root = window?.contentView else { return }
         root.wantsLayer = true
-        root.layer?.backgroundColor = TokyoNight.background.cgColor
+        root.layer?.backgroundColor = VellumColors.background.cgColor
         header.wantsLayer = true
-        header.layer?.backgroundColor = TokyoNight.backgroundDeep.cgColor
+        header.layer?.backgroundColor = VellumColors.backgroundDeep.cgColor
         footerBackground.wantsLayer = true
-        footerBackground.layer?.backgroundColor = TokyoNight.backgroundDeep.cgColor
+        footerBackground.layer?.backgroundColor = VellumColors.backgroundDeep.cgColor
         divider.wantsLayer = true
-        divider.layer?.backgroundColor = TokyoNight.border.withAlphaComponent(0.6).cgColor
+        divider.layer?.backgroundColor = VellumColors.border.withAlphaComponent(0.6).cgColor
 
         for view in [header, footerBackground, divider, iconView, titleLabel, detailLabel,
                      versionsLabel, notesTitle, notesScrollView, progressTrack, footer] {
@@ -190,12 +190,12 @@ final class UpdateWindowController: NSWindowController {
             root.addSubview(view)
         }
         for label in [titleLabel, detailLabel, versionsLabel, notesTitle] {
-            label.textColor = TokyoNight.muted
+            label.textColor = VellumColors.muted
             label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
             label.lineBreakMode = .byWordWrapping
         }
         titleLabel.font = .systemFont(ofSize: 20, weight: .medium)
-        titleLabel.textColor = TokyoNight.foreground
+        titleLabel.textColor = VellumColors.foreground
         titleLabel.lineBreakMode = .byTruncatingTail
         detailLabel.font = .systemFont(ofSize: 12.5)
         detailLabel.maximumNumberOfLines = 2
@@ -223,14 +223,14 @@ final class UpdateWindowController: NSWindowController {
         notesView.textContainer?.widthTracksTextView = true
         notesView.textContainer?.containerSize = NSSize(width: 0, height: CGFloat.greatestFiniteMagnitude)
         notesView.textContainer?.lineFragmentPadding = 0
-        notesView.selectedTextAttributes = [.backgroundColor: TokyoNight.selection]
+        notesView.selectedTextAttributes = [.backgroundColor: VellumColors.selection]
 
         progressTrack.wantsLayer = true
-        progressTrack.layer?.backgroundColor = TokyoNight.border.withAlphaComponent(0.5).cgColor
+        progressTrack.layer?.backgroundColor = VellumColors.border.withAlphaComponent(0.5).cgColor
         progressTrack.layer?.cornerRadius = 1.5
         progressTrack.layer?.masksToBounds = true
         progressFill.wantsLayer = true
-        progressFill.layer?.backgroundColor = TokyoNight.blue.cgColor
+        progressFill.layer?.backgroundColor = VellumColors.blue.cgColor
         progressFill.translatesAutoresizingMaskIntoConstraints = false
         progressTrack.addSubview(progressFill)
         progressWidth = progressFill.widthAnchor.constraint(equalToConstant: 0)
@@ -313,13 +313,13 @@ final class UpdateWindowController: NSWindowController {
                 if result.length > 0 { result.append(NSAttributedString(string: "\n")) }
                 result.append(NSAttributedString(string: "\(version)\n", attributes: [
                     .font: NSFont.monospacedSystemFont(ofSize: 11, weight: .medium),
-                    .foregroundColor: TokyoNight.blue
+                    .foregroundColor: VellumColors.blue
                 ]))
             }
             for note in section.notes {
                 result.append(NSAttributedString(string: "•\t\(note)\n", attributes: [
                     .font: NSFont.systemFont(ofSize: 13),
-                    .foregroundColor: TokyoNight.foreground,
+                    .foregroundColor: VellumColors.foreground,
                     .paragraphStyle: paragraph
                 ]))
             }
@@ -552,12 +552,12 @@ private final class UpdateActionButton: NSButton {
     override func mouseExited(with event: NSEvent) { hovering = false; needsDisplay = true }
 
     override func draw(_ dirtyRect: NSRect) {
-        let fill = isPrimary ? TokyoNight.foreground : hovering || isHighlighted ? TokyoNight.panelElevated : TokyoNight.panel
-        let text = isPrimary ? TokyoNight.backgroundDeep : TokyoNight.foreground
+        let fill = isPrimary ? VellumColors.foreground : hovering || isHighlighted ? VellumColors.panelElevated : VellumColors.panel
+        let text = isPrimary ? VellumColors.backgroundDeep : VellumColors.foreground
         let path = NSBezierPath(roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5), xRadius: 7, yRadius: 7)
         fill.withAlphaComponent(isHighlighted ? 0.85 : 1).setFill()
         path.fill()
-        (window?.firstResponder === self ? TokyoNight.blue : TokyoNight.border).setStroke()
+        (window?.firstResponder === self ? VellumColors.blue : VellumColors.border).setStroke()
         path.lineWidth = 1
         path.stroke()
         (title as NSString).draw(at: NSPoint(x: 12, y: (bounds.height - 16) / 2), withAttributes: [.font: font!, .foregroundColor: text])

@@ -18,7 +18,7 @@ enum AIConversationTranscriptHTML {
           margin: 0;
           padding: 0;
           background: transparent;
-          color: \#(TokyoNight.cssHex(TokyoNight.foreground));
+          color: \#(VellumColors.cssHex(VellumColors.foreground));
           font: 13px -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
           line-height: 1.55;
           overflow-y: auto;
@@ -58,26 +58,26 @@ enum AIConversationTranscriptHTML {
           box-sizing: border-box;
           padding: 9px 12px;
           border-radius: 6px;
-          background: \#(TokyoNight.cssHex(TokyoNight.selection));
-          color: \#(TokyoNight.cssHex(TokyoNight.foreground));
+          background: \#(VellumColors.cssHex(VellumColors.selection));
+          color: \#(VellumColors.cssHex(VellumColors.foreground));
           white-space: pre-wrap;
           overflow-wrap: anywhere;
         }
         .assistant-markdown {
           width: 100%;
           box-sizing: border-box;
-          color: \#(TokyoNight.cssHex(TokyoNight.foreground));
+          color: \#(VellumColors.cssHex(VellumColors.foreground));
           overflow-wrap: anywhere;
         }
         .assistant-markdown > :first-child { margin-top: 0; }
         .assistant-markdown > :last-child { margin-bottom: 0; }
         .thinking {
-          color: \#(TokyoNight.cssHex(TokyoNight.muted));
+          color: \#(VellumColors.cssHex(VellumColors.muted));
           font-style: italic;
           margin: 0;
         }
         h1, h2, h3 {
-          color: \#(TokyoNight.cssHex(TokyoNight.foreground));
+          color: \#(VellumColors.cssHex(VellumColors.foreground));
           margin: 0.8em 0 0.35em;
           line-height: 1.25;
           font-weight: 650;
@@ -94,20 +94,20 @@ enum AIConversationTranscriptHTML {
         blockquote {
           margin: 0.7em 0;
           padding: 0.2em 0 0.2em 0.8em;
-          border-left: 2px solid \#(TokyoNight.cssHex(TokyoNight.blue));
-          color: \#(TokyoNight.cssHex(TokyoNight.muted));
+          border-left: 2px solid \#(VellumColors.cssHex(VellumColors.blue));
+          color: \#(VellumColors.cssHex(VellumColors.muted));
         }
         code {
-          background: \#(TokyoNight.cssHex(TokyoNight.background));
-          color: \#(TokyoNight.cssHex(TokyoNight.foreground));
+          background: \#(VellumColors.cssHex(VellumColors.background));
+          color: \#(VellumColors.cssHex(VellumColors.foreground));
           padding: 1px 4px;
           border-radius: 4px;
           font-family: "SF Mono", Menlo, monospace;
           font-size: 12px;
         }
         pre {
-          background: \#(TokyoNight.cssHex(TokyoNight.background));
-          border: 1px solid \#(TokyoNight.cssHex(TokyoNight.border));
+          background: \#(VellumColors.cssHex(VellumColors.background));
+          border: 1px solid \#(VellumColors.cssHex(VellumColors.border));
           border-radius: 7px;
           padding: 10px;
           overflow-x: auto;
@@ -117,25 +117,25 @@ enum AIConversationTranscriptHTML {
           background: transparent;
           padding: 0;
         }
-        strong { color: \#(TokyoNight.cssHex(TokyoNight.foreground)); }
-        em { color: \#(TokyoNight.cssHex(TokyoNight.foreground)); }
-        a { color: \#(TokyoNight.cssHex(TokyoNight.blue)); }
+        strong { color: \#(VellumColors.cssHex(VellumColors.foreground)); }
+        em { color: \#(VellumColors.cssHex(VellumColors.foreground)); }
+        a { color: \#(VellumColors.cssHex(VellumColors.blue)); }
         .math-display {
           margin: 0.85em 0;
           overflow-x: auto;
           scrollbar-width: none;
         }
         mjx-container {
-          color: \#(TokyoNight.cssHex(TokyoNight.foreground));
+          color: \#(VellumColors.cssHex(VellumColors.foreground));
         }
         .error-bubble {
           box-sizing: border-box;
           max-width: 100%;
           padding: 8px 11px;
-          border: 1px solid \#(TokyoNight.cssHex(TokyoNight.red))61;
+          border: 1px solid \#(VellumColors.cssHex(VellumColors.red))61;
           border-radius: 7px;
-          background: \#(TokyoNight.cssHex(TokyoNight.red))1C;
-          color: \#(TokyoNight.cssHex(TokyoNight.red));
+          background: \#(VellumColors.cssHex(VellumColors.red))1C;
+          color: \#(VellumColors.cssHex(VellumColors.red));
           white-space: pre-wrap;
         }
       </style>

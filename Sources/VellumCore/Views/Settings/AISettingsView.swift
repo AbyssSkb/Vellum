@@ -10,7 +10,7 @@ public struct AISettingsView: View {
         HStack(spacing: 0) {
             settingsSidebar
 
-            TokyoNightDivider(axis: .vertical)
+            VellumDivider(axis: .vertical)
 
             Group {
                 switch selection {
@@ -29,10 +29,10 @@ public struct AISettingsView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(TokyoNight.backgroundColor)
+        .background(VellumColors.backgroundColor)
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .foregroundStyle(TokyoNight.foregroundColor)
-        .tint(TokyoNight.blueColor)
+        .foregroundStyle(VellumColors.foregroundColor)
+        .tint(VellumColors.blueColor)
         .preferredColorScheme(.dark)
         .environment(\.appUILanguage, language)
         .ignoresSafeArea()
@@ -51,11 +51,11 @@ public struct AISettingsView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Vellum")
                     .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(TokyoNight.foregroundColor)
+                    .foregroundStyle(VellumColors.foregroundColor)
 
                 Text(language.text(.settings))
                     .font(.system(size: 12))
-                    .foregroundStyle(TokyoNight.mutedColor)
+                    .foregroundStyle(VellumColors.mutedColor)
             }
             .padding(.horizontal, 18)
 
@@ -74,7 +74,7 @@ public struct AISettingsView: View {
             Spacer()
         }
         .frame(width: 212)
-        .background(TokyoNight.backgroundDeepColor)
+        .background(VellumColors.backgroundDeepColor)
         .ignoresSafeArea()
     }
 }
@@ -132,11 +132,11 @@ private struct SettingsSidebarRow: View {
                 Image(systemName: section.systemImage)
                     .font(.system(size: 13, weight: .regular))
                     .frame(width: 17)
-                    .foregroundStyle(isSelected ? TokyoNight.blueColor : TokyoNight.mutedColor)
+                    .foregroundStyle(isSelected ? VellumColors.blueColor : VellumColors.mutedColor)
 
                 Text(section.title(language: language))
                     .font(.system(size: 13, weight: isSelected ? .medium : .regular))
-                    .foregroundStyle(isSelected ? TokyoNight.foregroundColor : TokyoNight.mutedColor)
+                    .foregroundStyle(isSelected ? VellumColors.foregroundColor : VellumColors.mutedColor)
 
                 Spacer()
             }
@@ -144,13 +144,13 @@ private struct SettingsSidebarRow: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .frame(height: 34)
             .background(
-                isSelected ? TokyoNight.selectionColor.opacity(0.65) : (isHovered ? TokyoNight.panelColor : .clear),
+                isSelected ? VellumColors.selectionColor.opacity(0.65) : (isHovered ? VellumColors.panelColor : .clear),
                 in: RoundedRectangle(cornerRadius: 7, style: .continuous)
             )
             .overlay(alignment: .leading) {
                 if isSelected {
                     RoundedRectangle(cornerRadius: 1, style: .continuous)
-                        .fill(TokyoNight.blueColor.opacity(0.85))
+                        .fill(VellumColors.blueColor.opacity(0.85))
                         .frame(width: 2, height: 12)
                         .padding(.leading, 3)
                         .allowsHitTesting(false)
