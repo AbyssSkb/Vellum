@@ -25,6 +25,26 @@ struct SparkleUpdateTests {
         #expect(acknowledgements == 1)
     }
 
+    @Test(arguments: ["r", "R"])
+    func retryAcknowledgesTheFailedCycleBeforeRequestingANewCheck(key: String) throws {
+        let driver = makeDriver()
+        defer { driver.windowController.dismiss() }
+        var callbacks: [String] = []
+        driver.checkAgain = { callbacks.append("retry") }
+        driver.showUpdaterError(URLError(.cannotConnectToHost)) { callbacks.append("acknowledge") }
+        let retry = try #require(driver.content.actions.last?.handler)
+        let window = try #require(driver.windowController.window)
+        let event = try #require(NSEvent.keyEvent(with: .keyDown, location: .zero,
+            modifierFlags: key == "R" ? .shift : [], timestamp: 0,
+            windowNumber: window.windowNumber, context: nil,
+            characters: key, charactersIgnoringModifiers: key, isARepeat: false, keyCode: 15))
+        window.sendEvent(event)
+        #expect(callbacks == ["acknowledge", "retry"])
+        #expect(window.isVisible == false)
+        retry()
+        #expect(callbacks == ["acknowledge", "retry"])
+    }
+
     @Test
     func restartWaitsForSuccessfulSaveAndRespondsOnlyOnce() {
         var saved = false

@@ -7,12 +7,13 @@ final class SparkleUpdateController: NSObject, SPUUpdaterDelegate {
     let userDriver: VellumUpdateUserDriver
     private lazy var updater = SPUUpdater(hostBundle: .main, applicationBundle: .main, userDriver: userDriver, delegate: self)
     private var started = false
+    private var retryPending = false
     private var preferencesObserver: NSObjectProtocol?
 
     init(prepareToTerminate: @escaping () -> Bool) {
         userDriver = VellumUpdateUserDriver(prepareToTerminate: prepareToTerminate)
         super.init()
-        userDriver.checkAgain = { [weak self] in self?.checkForUpdates() }
+        userDriver.checkAgain = { [weak self] in self?.retryCheckForUpdates() }
     }
 
     @discardableResult
@@ -36,6 +37,12 @@ final class SparkleUpdateController: NSObject, SPUUpdaterDelegate {
         if let error = start() { userDriver.presentError(error); return }
         if updater.canCheckForUpdates { updater.checkForUpdates() }
         else { userDriver.showUpdateInFocus() }
+    }
+
+    private func retryCheckForUpdates() {
+        // Sparkle finishes the old session asynchronously after error acknowledgement.
+        if updater.sessionInProgress { retryPending = true }
+        else { checkForUpdates() }
     }
 
     private func synchronizePreferences() {
@@ -62,6 +69,10 @@ final class SparkleUpdateController: NSObject, SPUUpdaterDelegate {
 
     func updater(_ updater: SPUUpdater, didFinishUpdateCycleFor updateCheck: SPUUpdateCheck, error: Error?) {
         if updateCheck == .updatesInBackground { userDriver.finishAutomaticCycle(error: error) }
+        if retryPending {
+            retryPending = false
+            checkForUpdates()
+        }
     }
 
     deinit {
@@ -196,7 +207,7 @@ final class VellumUpdateUserDriver: NSObject, SPUUserDriver {
         present(actions: [action(.closeUpdate, key: "c", handler: close), releaseAction(),
                           action(.retryUpdate, key: "r", primary: true) { [weak self] in
             self?.dismiss(); acknowledgement()
-            DispatchQueue.main.async { [weak self] in self?.checkAgain?() }
+            self?.checkAgain?()
         }], close: close)
     }
 
