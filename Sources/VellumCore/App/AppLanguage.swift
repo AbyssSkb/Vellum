@@ -156,7 +156,7 @@ public enum AppText {
     case downloadAndInstall
     case downloadedBytes(String)
     case downloadingVersion(String)
-    case downloadUpdate
+    case updateAndRestart
     case extractingUpdate
     case endpoint
     case executable
@@ -404,7 +404,7 @@ public extension AppText {
         case .downloadAndInstall: return "Download and Install"
         case .downloadedBytes(let bytes): return "\(bytes) downloaded"
         case .downloadingVersion(let version): return "Downloading Vellum \(version)"
-        case .downloadUpdate: return "Download Update"
+        case .updateAndRestart: return "Update and Restart"
         case .extractingUpdate: return "Preparing the update"
         case .endpoint: return "Endpoint"
         case .executable: return "Executable"
@@ -654,7 +654,7 @@ public extension AppText {
         case .downloadAndInstall: return "下载并安装"
         case .downloadedBytes(let bytes): return "已下载 \(bytes)"
         case .downloadingVersion(let version): return "正在下载 Vellum \(version)"
-        case .downloadUpdate: return "下载更新"
+        case .updateAndRestart: return "更新并重启"
         case .extractingUpdate: return "正在准备更新"
         case .endpoint: return "端点"
         case .executable: return "可执行文件"

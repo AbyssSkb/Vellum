@@ -177,7 +177,7 @@ In a conversation, type a follow-up question and press `Enter` to send. `Shift-E
 
 **General** contains the interface language, tab restoration, default open mode, initial page fit, default highlight color, double-click translation, update checks, and AI logs. **AI Providers**, **AI Explanation**, and **AI Conversation** configure AI. **Shortcuts** contains an in-app key reference.
 
-Sparkle handles updates, with automatic checks enabled initially. New versions download and prepare in the background. Once ready, choose **Restart and Update** to install immediately, or **Later** to keep reading; a prepared update can also install when you normally quit Vellum. Manual checks in General settings or the Vellum menu use the same update window.
+Sparkle handles updates, with automatic checks enabled initially. New versions download and prepare in the background. Once ready, choose **Restart and Update** to install immediately, or **Later** to keep reading; a prepared update can also install when you normally quit Vellum. Manual checks in General settings or the Vellum menu use the same update window. Choose **Update and Restart** to download, install, and restart in one step. Vellum saves annotations and the reading session before restarting.
 
 A green check means Vellum is up to date. Scroll long release notes with the keys below; the action buttons stay visible. Press a letter shown on a button to activate it; lowercase and uppercase both work.
 
@@ -187,7 +187,7 @@ A green check means Vellum is up to date. Scroll long release notes with the key
 | `gg` / `G` | Beginning / end of the release notes |
 | `Control-D` / `Control-U` | Scroll down / up half a viewport |
 | `Control-F` / `Control-B` | Scroll down / up one viewport |
-| `U` | Download the update |
+| `U` | Download, install, and restart |
 | `R` | Restart and update, or retry after an error |
 | `L` | Later |
 | `C` | Cancel or close, as shown on the button |

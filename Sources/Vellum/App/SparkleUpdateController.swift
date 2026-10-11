@@ -79,6 +79,7 @@ final class VellumUpdateUserDriver: NSObject, SPUUserDriver {
     private var generation = 0
     private var receivedBytes: UInt64 = 0
     private var expectedBytes: UInt64 = 0
+    private var installWhenReady = false
     private var releaseURL = URL(string: "https://github.com/AbyssSkb/Vellum/releases/latest")!
     private var language: AppUILanguage { .saved() }
 
@@ -98,6 +99,7 @@ final class VellumUpdateUserDriver: NSObject, SPUUserDriver {
     }
 
     func showUserInitiatedUpdateCheck(cancellation: @escaping () -> Void) {
+        installWhenReady = false
         content = UpdateWindowContent(phase: .checking, currentVersion: content.currentVersion)
         present(actions: [action(.cancel, key: "c") { [weak self] in self?.dismiss(); cancellation() }], close: { [weak self] in self?.dismiss(); cancellation() })
     }
@@ -107,14 +109,16 @@ final class VellumUpdateUserDriver: NSObject, SPUUserDriver {
     }
 
     func offer(_ item: SUAppcastItem, stage: SPUUserUpdateStage, reply: @escaping (SPUUserUpdateChoice) -> Void) {
+        installWhenReady = false
         setItem(item)
         content.phase = stage == .notDownloaded ? .available : .ready
         let close = { [weak self] in self?.dismiss(); reply(.dismiss) }
         var actions = [action(.later, key: "l", handler: close), releaseAction()]
         if !item.isInformationOnlyUpdate {
-            actions.append(action(stage == .notDownloaded ? .downloadUpdate : .restartAndUpdate,
+            actions.append(action(stage == .notDownloaded ? .updateAndRestart : .restartAndUpdate,
                                   key: stage == .notDownloaded ? "u" : "r", primary: true) { [weak self] in
                 guard let self, stage != .installing || self.prepareToTerminate() else { return }
+                self.installWhenReady = stage != .installing
                 self.invalidateActions()
                 reply(.install)
             })
@@ -123,6 +127,7 @@ final class VellumUpdateUserDriver: NSObject, SPUUserDriver {
     }
 
     func showAutomaticUpdateReady(_ item: SUAppcastItem, install: @escaping () -> Void) {
+        installWhenReady = false
         setItem(item)
         content.phase = .ready
         present(actions: [action(.later, key: "l") { [weak self] in self?.windowController.dismiss() }, releaseAction(),
@@ -142,6 +147,7 @@ final class VellumUpdateUserDriver: NSObject, SPUUserDriver {
     }
 
     func beginAutomaticCheck() {
+        installWhenReady = false
         invalidateActions()
         content = UpdateWindowContent(phase: .checking, currentVersion: content.currentVersion)
         if windowController.window?.isVisible == true { showUpdateInFocus() }
@@ -172,6 +178,7 @@ final class VellumUpdateUserDriver: NSObject, SPUUserDriver {
     }
 
     func showUpdateNotFoundWithError(_ error: Error, acknowledgement: @escaping () -> Void) {
+        installWhenReady = false
         content = UpdateWindowContent(phase: .upToDate, currentVersion: content.currentVersion)
         present(actions: [action(.closeUpdate, key: "c", primary: true) { [weak self] in self?.dismiss(); acknowledgement() }],
                 close: { [weak self] in self?.dismiss(); acknowledgement() })
@@ -182,6 +189,7 @@ final class VellumUpdateUserDriver: NSObject, SPUUserDriver {
     }
 
     func presentError(_ error: Error, acknowledgement: @escaping () -> Void = {}) {
+        installWhenReady = false
         content.phase = .error
         content.message = error.localizedDescription
         let close = { [weak self] in self?.dismiss(); acknowledgement() }
@@ -235,6 +243,15 @@ final class VellumUpdateUserDriver: NSObject, SPUUserDriver {
         content.phase = .ready
         content.message = nil
         content.progress = nil
+        if installWhenReady {
+            installWhenReady = false
+            if prepareToTerminate() {
+                content.phase = .installing
+                present(actions: [], close: {})
+                reply(.install)
+                return
+            }
+        }
         let close = { [weak self] in self?.dismiss(); reply(.dismiss) }
         present(actions: [action(.later, key: "l", handler: close), releaseAction(),
                           action(.restartAndUpdate, key: "r", primary: true) { [weak self] in
@@ -303,5 +320,5 @@ final class VellumUpdateUserDriver: NSObject, SPUUserDriver {
 
     private func invalidateActions() { generation += 1 }
 
-    private func dismiss() { invalidateActions(); windowController.dismiss() }
+    private func dismiss() { installWhenReady = false; invalidateActions(); windowController.dismiss() }
 }

@@ -25,7 +25,7 @@ The release workflow packages a universal macOS app, creates the DMG, and publis
 
 Sparkle verifies the update archive before extraction and the appcast using the public key embedded in the app.
 
-Automatic checks and background downloads are enabled by default. Once an update is ready, users can confirm installation and restart immediately, or continue reading and let Sparkle install it when they normally quit the app.
+Automatic checks and background downloads are enabled by default. Once an update is ready, users can confirm installation and restart immediately, or continue reading and let Sparkle install it when they normally quit the app. A manual **Update and Restart** confirmation downloads the update and proceeds to installation and restart after annotations and the reading session are saved.
 
 The app's `CFBundleVersion` and `CFBundleShortVersionString` both use the release version.
 

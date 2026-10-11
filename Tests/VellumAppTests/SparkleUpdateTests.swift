@@ -41,24 +41,69 @@ struct SparkleUpdateTests {
         #expect(choices == [.install])
     }
 
-    @Test
-    func manualDownloadAndRestartAreDistinctActions() throws {
+    @Test(arguments: [SPUUserUpdateStage.notDownloaded, .downloaded])
+    func confirmedUpdateInstallsWhenReadyWithoutASecondPrompt(stage: SPUUserUpdateStage) throws {
         let driver = makeDriver()
         defer { driver.windowController.dismiss() }
         var choices: [SPUUserUpdateChoice] = []
-        driver.offer(try item(), stage: .notDownloaded) { choices.append($0) }
-        #expect(driver.content.phase == .available)
-        #expect(driver.content.actions.last?.key == "u")
+        driver.offer(try item(), stage: stage) { choices.append($0) }
+        #expect(driver.content.actions.last?.key == (stage == .notDownloaded ? "u" : "r"))
         driver.content.actions.last?.handler()
         #expect(choices == [.install])
-        driver.showDownloadInitiated(cancellation: {})
-        driver.showDownloadDidReceiveExpectedContentLength(100)
-        driver.showDownloadDidReceiveData(ofLength: 40)
-        #expect(driver.content.progress == 0.4)
+        if stage == .notDownloaded {
+            driver.showDownloadInitiated(cancellation: {})
+            driver.showDownloadDidReceiveExpectedContentLength(100)
+            driver.showDownloadDidReceiveData(ofLength: 40)
+            #expect(driver.content.progress == 0.4)
+        }
+        driver.showDownloadDidStartExtractingUpdate()
         driver.showReady(toInstallAndRelaunch: { choices.append($0) })
+        #expect(choices == [.install, .install])
+        #expect(driver.content.phase == .installing)
+        #expect(driver.content.actions.isEmpty)
+    }
+
+    @Test
+    func automaticRestartAfterDownloadWaitsForSuccessfulSave() throws {
+        var saved = false
+        let driver = makeDriver(prepare: { saved })
+        defer { driver.windowController.dismiss() }
+        driver.offer(try item(), stage: .notDownloaded, reply: { _ in })
+        driver.content.actions.last?.handler()
+        driver.showDownloadInitiated(cancellation: {})
+        var choices: [SPUUserUpdateChoice] = []
+        driver.showReady(toInstallAndRelaunch: { choices.append($0) })
+        #expect(choices.isEmpty)
         #expect(driver.content.phase == .ready)
-        #expect(driver.content.actions.last?.key == "r")
-        #expect(choices.count == 1)
+        saved = true
+        let restart = try #require(driver.content.actions.last?.handler)
+        restart()
+        restart()
+        #expect(choices == [.install])
+    }
+
+    @Test(arguments: [false, true])
+    func canceledOrFailedDownloadClearsTheRestartChoice(failed: Bool) throws {
+        let driver = makeDriver()
+        defer { driver.windowController.dismiss() }
+        driver.offer(try item(), stage: .notDownloaded, reply: { _ in })
+        driver.content.actions.last?.handler()
+        var cancellations = 0
+        driver.showDownloadInitiated { cancellations += 1 }
+        let cancel = try #require(driver.content.actions.first?.handler)
+        if failed {
+            driver.showUpdaterError(URLError(.cannotConnectToHost), acknowledgement: {})
+            cancel()
+            #expect(cancellations == 0)
+        } else {
+            cancel()
+            cancel()
+            #expect(cancellations == 1)
+        }
+        var choices: [SPUUserUpdateChoice] = []
+        driver.showReady(toInstallAndRelaunch: { choices.append($0) })
+        #expect(choices.isEmpty)
+        #expect(driver.content.phase == .ready)
     }
 
     @Test
