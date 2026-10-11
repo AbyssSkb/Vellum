@@ -12,10 +12,15 @@ struct PDFReader: NSViewRepresentable {
     func makeNSView(context: Context) -> VellumPDFView {
         let view = VellumPDFView()
         view.appState = appState
-        view.saveBeforeDismantle = { [weak appState, weak view] in
+        view.saveBeforeDismantle = { [weak appState, weak view, weak document, tabID] in
             guard view?.pendingActivationSnapshot == nil,
                   let snapshot = view?.snapshot() else { return }
-            appState?.saveSnapshot(snapshot, for: tabID)
+            // Publishing during SwiftUI teardown can re-enter its view graph.
+            DispatchQueue.main.async { [weak appState, weak document] in
+                guard let appState, let document,
+                      appState.tabs.contains(where: { $0.id == tabID && $0.document === document }) else { return }
+                appState.saveSnapshot(snapshot, for: tabID)
+            }
         }
         view.backgroundColor = VellumColors.panel
         view.displayMode = .singlePageContinuous
@@ -47,10 +52,14 @@ struct PDFReader: NSViewRepresentable {
 
     func updateNSView(_ nsView: VellumPDFView, context: Context) {
         nsView.appState = appState
-        nsView.saveBeforeDismantle = { [weak appState, weak nsView] in
+        nsView.saveBeforeDismantle = { [weak appState, weak nsView, weak document, tabID] in
             guard nsView?.pendingActivationSnapshot == nil,
                   let snapshot = nsView?.snapshot() else { return }
-            appState?.saveSnapshot(snapshot, for: tabID)
+            DispatchQueue.main.async { [weak appState, weak document] in
+                guard let appState, let document,
+                      appState.tabs.contains(where: { $0.id == tabID && $0.document === document }) else { return }
+                appState.saveSnapshot(snapshot, for: tabID)
+            }
         }
 
         if nsView.document !== document {
