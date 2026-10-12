@@ -315,8 +315,9 @@ struct AIConfiguration: Sendable {
         }
 
         guard let baseURL = URL(string: trimmedBaseURL),
-              let scheme = baseURL.scheme,
-              scheme.hasPrefix("http") else {
+              let scheme = baseURL.scheme?.lowercased(),
+              scheme == "http" || scheme == "https",
+              let host = baseURL.host, !host.isEmpty else {
             throw AIExplanationError.invalidBaseURL
         }
 
@@ -360,21 +361,22 @@ struct AIConfiguration: Sendable {
 
     private func endpointURL(_ endpoint: String) -> URL {
         var url = baseURL
-        let path = url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let components = url.pathComponents.filter { $0 != "/" }
+        let endpointComponents = endpoint.split(separator: "/").map(String.init)
 
-        if path.hasSuffix(endpoint) {
+        if components.suffix(endpointComponents.count).elementsEqual(endpointComponents) {
             return url
         }
 
-        if path.hasSuffix("chat/completions") {
+        if components.suffix(2).elementsEqual(["chat", "completions"]) {
             url.deleteLastPathComponent()
             url.deleteLastPathComponent()
-        } else if path.hasSuffix("models") {
+        } else if components.last == "models" || components.last == "messages" {
             url.deleteLastPathComponent()
         }
 
-        for component in endpoint.split(separator: "/") {
-            url.appendPathComponent(String(component))
+        for component in endpointComponents {
+            url.appendPathComponent(component)
         }
         return url
     }

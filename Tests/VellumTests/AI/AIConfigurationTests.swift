@@ -4,6 +4,64 @@ import Testing
 
 @Suite("AI configuration")
 struct AIConfigurationTests {
+    @Test(arguments: [
+        "", "httpx://api.example.com/v1", "https+unix://api.example.com/v1",
+        "ftp://api.example.com/v1", "file:///tmp/api", "https://", "http:/v1", "https:///v1"
+    ])
+    func rejectsUnsupportedSchemesAndMissingHosts(address: String) throws {
+        do {
+            _ = try AIConfiguration(baseURLString: address, model: "test-model", apiKey: "test-key")
+            Issue.record("Expected an invalid base URL: \(address)")
+        } catch AIExplanationError.invalidBaseURL {
+        }
+    }
+
+    @Test(arguments: [
+        "HTTP://api.example.com/v1", "HTTPS://api.example.com/v1",
+        "http://localhost:8080/v1", "https://127.0.0.1/v1", "http://[::1]:8080/v1"
+    ])
+    func acceptsHTTPAddressesIncludingLocalServers(address: String) throws {
+        let configuration = try AIConfiguration(baseURLString: address, model: "test-model", apiKey: "test-key")
+
+        #expect(configuration.baseURL.absoluteString == address)
+    }
+
+    @Test(arguments: [
+        ("", ""), ("/v1", "/v1"),
+        ("/messages", ""), ("/models", ""), ("/chat/completions", ""),
+        ("/proxy/v1/messages", "/proxy/v1"),
+        ("/v1/chat/completions", "/v1"), ("/v1/models", "/v1"),
+        ("/v1/my-models", "/v1/my-models"),
+        ("/v1/my-messages", "/v1/my-messages"),
+        ("/v1/my-chat/completions", "/v1/my-chat/completions")
+    ])
+    func endpointsReplaceCompleteEndpointComponentsAndPreservePrefixes(path: String, prefix: String) throws {
+        let configuration = try AIConfiguration(
+            baseURLString: "https://api.example.com\(path)?token=test#section",
+            model: "test-model",
+            apiKey: "test-key"
+        )
+
+        #expect(configuration.chatCompletionsURL.absoluteString == "https://api.example.com\(prefix)/chat/completions?token=test#section")
+        #expect(configuration.messagesURL.absoluteString == "https://api.example.com\(prefix)/messages?token=test#section")
+        #expect(configuration.modelsURL.absoluteString == "https://api.example.com\(prefix)/models?token=test#section")
+    }
+
+    @Test(arguments: ["chat/completions", "messages", "models"])
+    func endpointConversionsPreserveAnAlreadyCorrectTrailingSlash(endpoint: String) throws {
+        let address = "https://api.example.com/proxy/v1/\(endpoint)/?token=test"
+        let configuration = try AIConfiguration(baseURLString: address, model: "test-model", apiKey: "test-key")
+
+        for (name, url) in [
+            ("chat/completions", configuration.chatCompletionsURL),
+            ("messages", configuration.messagesURL),
+            ("models", configuration.modelsURL)
+        ] {
+            let expected = name == endpoint ? address : "https://api.example.com/proxy/v1/\(name)?token=test"
+            #expect(url.absoluteString == expected)
+        }
+    }
+
     @Test
     func currentConfigurationReadsSelectedProviderSettings() throws {
         let preferences = try TestPreferences()
