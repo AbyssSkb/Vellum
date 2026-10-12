@@ -60,21 +60,39 @@ enum SearchTextFinder {
 }
 
 extension SearchResultLocation {
-    static func documentOrderSort(_ lhs: SearchResultLocation, _ rhs: SearchResultLocation) -> Bool {
-        if lhs.pageIndex != rhs.pageIndex {
-            return lhs.pageIndex < rhs.pageIndex
+    static func orderedIndices(_ locations: [SearchResultLocation]) -> [Int] {
+        let topToBottom = locations.indices.sorted {
+            let lhs = locations[$0]
+            let rhs = locations[$1]
+            if lhs.pageIndex != rhs.pageIndex { return lhs.pageIndex < rhs.pageIndex }
+            if lhs.boundsInDisplay.midY != rhs.boundsInDisplay.midY {
+                return lhs.boundsInDisplay.midY > rhs.boundsInDisplay.midY
+            }
+            return lhs.documentOrder < rhs.documentOrder
         }
-
-        let verticalTolerance: CGFloat = 2
-        if abs(lhs.boundsInDisplay.midY - rhs.boundsInDisplay.midY) > verticalTolerance {
-            return lhs.boundsInDisplay.midY > rhs.boundsInDisplay.midY
+        var ordered: [Int] = []
+        var rowStart = 0
+        while rowStart < topToBottom.count {
+            let first = locations[topToBottom[rowStart]]
+            var rowEnd = rowStart + 1
+            // Anchor each row to its topmost result; pairwise tolerance is not transitive.
+            while rowEnd < topToBottom.count {
+                let next = locations[topToBottom[rowEnd]]
+                guard next.pageIndex == first.pageIndex,
+                      first.boundsInDisplay.midY - next.boundsInDisplay.midY <= 2 else { break }
+                rowEnd += 1
+            }
+            ordered.append(contentsOf: topToBottom[rowStart..<rowEnd].sorted {
+                let lhs = locations[$0]
+                let rhs = locations[$1]
+                if lhs.boundsInDisplay.minX != rhs.boundsInDisplay.minX {
+                    return lhs.boundsInDisplay.minX < rhs.boundsInDisplay.minX
+                }
+                return lhs.documentOrder < rhs.documentOrder
+            })
+            rowStart = rowEnd
         }
-
-        if lhs.boundsInDisplay.minX != rhs.boundsInDisplay.minX {
-            return lhs.boundsInDisplay.minX < rhs.boundsInDisplay.minX
-        }
-
-        return lhs.documentOrder < rhs.documentOrder
+        return ordered
     }
 }
 
@@ -733,9 +751,7 @@ final class PDFSearchController {
         let hadActiveResult = activeMatch != nil
         let previousActiveIndex = activeIndex
 
-        results = nextResults.sorted {
-            SearchResultLocation.documentOrderSort($0.searchLocation, $1.searchLocation)
-        }
+        results = orderedResults(nextResults)
         isSearchPending = !isComplete
 
         if results.isEmpty {
@@ -797,7 +813,7 @@ final class PDFSearchController {
     }
 
     private func searchResults(for matches: [SearchTextMatch], in document: PDFDocument) -> [PDFSearchResult] {
-        matches.map { match in
+        orderedResults(matches.map { match in
             var location: SearchResultLocation?
             if let page = document.page(at: match.pageIndex) {
                 let bounds = page.characterBounds(at: match.range.location)
@@ -811,7 +827,11 @@ final class PDFSearchController {
                 }
             }
             return PDFSearchResult(match: match, selection: nil, location: location)
-        }.sorted { SearchResultLocation.documentOrderSort($0.searchLocation, $1.searchLocation) }
+        })
+    }
+
+    private func orderedResults(_ results: [PDFSearchResult]) -> [PDFSearchResult] {
+        SearchResultLocation.orderedIndices(results.map(\.searchLocation)).map { results[$0] }
     }
 
     private func materializedSelectionIfCached(at index: Int) -> PDFSelection? {

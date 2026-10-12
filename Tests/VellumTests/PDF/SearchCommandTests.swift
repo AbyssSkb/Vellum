@@ -238,9 +238,24 @@ struct SearchCommandTests {
             )
         ]
 
-        let sorted = locations.sorted(by: SearchResultLocation.documentOrderSort)
+        let sorted = SearchResultLocation.orderedIndices(locations).map { locations[$0] }
 
         #expect(sorted.map(\.documentOrder) == [0, 1, 2, 3])
+    }
+
+    @Test
+    func nearbySearchRowsHaveTheSameOrderForEveryInputPermutation() {
+        let locations = [
+            SearchResultLocation(pageIndex: 0, boundsInDisplay: NSRect(x: 10, y: 100, width: 1, height: 1), documentOrder: 0),
+            SearchResultLocation(pageIndex: 0, boundsInDisplay: NSRect(x: 20, y: 101.5, width: 1, height: 1), documentOrder: 1),
+            SearchResultLocation(pageIndex: 0, boundsInDisplay: NSRect(x: 30, y: 103, width: 1, height: 1), documentOrder: 2)
+        ]
+        // Pairwise tolerance previously produced 0 < 1 < 2 < 0.
+        for order in [[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]] {
+            let shuffled = order.map { locations[$0] }
+            let sorted = SearchResultLocation.orderedIndices(shuffled).map { shuffled[$0] }
+            #expect(sorted.map(\.documentOrder) == [1, 2, 0])
+        }
     }
 
     @Test
