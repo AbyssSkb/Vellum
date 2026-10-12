@@ -67,34 +67,11 @@ enum AIRequestFactory {
         configuration: AIConfiguration,
         promptConfiguration: AIPromptConfiguration = AIPromptSettings.current()
     ) throws -> URLRequest {
-        let prompt = AIPromptRenderer.render(context: context, configuration: promptConfiguration)
-        if configuration.providerFormat == .anthropicMessages {
-            return try anthropicExplanationRequest(
-                configuration: configuration,
-                prompt: prompt
-            )
-        }
-        if configuration.providerFormat.usesCodexExecutable {
-            throw AIExplanationError.server(AppUILanguage.saved().text(.aiCodexNoHTTPRequest))
-        }
-
-        let body = ChatCompletionRequest(
-            model: configuration.model,
-            messages: [
-                ChatMessage(
-                    role: "system",
-                    content: prompt.system
-                ),
-                ChatMessage(role: "user", content: prompt.user)
-            ],
-            temperature: 0.2,
-            enableThinking: configuration.supportsSiliconFlowThinkingControls ? false : nil
-        )
-
-        return try chatCompletionsRequest(
+        try explanationRequest(
+            context: context,
             configuration: configuration,
-            timeout: 60,
-            body: body
+            promptConfiguration: promptConfiguration,
+            stream: nil
         )
     }
 
@@ -102,6 +79,20 @@ enum AIRequestFactory {
         context: AIExplanationContext,
         configuration: AIConfiguration,
         promptConfiguration: AIPromptConfiguration = AIPromptSettings.current()
+    ) throws -> URLRequest {
+        try explanationRequest(
+            context: context,
+            configuration: configuration,
+            promptConfiguration: promptConfiguration,
+            stream: true
+        )
+    }
+
+    private static func explanationRequest(
+        context: AIExplanationContext,
+        configuration: AIConfiguration,
+        promptConfiguration: AIPromptConfiguration,
+        stream: Bool?
     ) throws -> URLRequest {
         let prompt = AIPromptRenderer.render(context: context, configuration: promptConfiguration)
         if configuration.providerFormat == .anthropicMessages {
@@ -124,7 +115,7 @@ enum AIRequestFactory {
                 ChatMessage(role: "user", content: prompt.user)
             ],
             temperature: 0.2,
-            stream: true,
+            stream: stream,
             enableThinking: configuration.supportsSiliconFlowThinkingControls ? false : nil
         )
 
@@ -140,6 +131,37 @@ enum AIRequestFactory {
         messages: [AIConversationMessage],
         configuration: AIConfiguration,
         promptConfiguration: AIPromptConfiguration = AIPromptSettings.current(profile: .conversation)
+    ) throws -> URLRequest {
+        try conversationRequest(
+            context: context,
+            messages: messages,
+            configuration: configuration,
+            promptConfiguration: promptConfiguration,
+            stream: nil
+        )
+    }
+
+    static func streamingConversationRequest(
+        context: AIExplanationContext,
+        messages: [AIConversationMessage],
+        configuration: AIConfiguration,
+        promptConfiguration: AIPromptConfiguration = AIPromptSettings.current(profile: .conversation)
+    ) throws -> URLRequest {
+        try conversationRequest(
+            context: context,
+            messages: messages,
+            configuration: configuration,
+            promptConfiguration: promptConfiguration,
+            stream: true
+        )
+    }
+
+    private static func conversationRequest(
+        context: AIExplanationContext,
+        messages: [AIConversationMessage],
+        configuration: AIConfiguration,
+        promptConfiguration: AIPromptConfiguration,
+        stream: Bool?
     ) throws -> URLRequest {
         let systemPrompt = AIConversationPromptRenderer.systemPrompt(
             context: context,
@@ -161,48 +183,7 @@ enum AIRequestFactory {
             messages: [ChatMessage(role: "system", content: systemPrompt)]
                 + messages.map { ChatMessage(role: $0.role.rawValue, content: $0.content) },
             temperature: 0.2,
-            enableThinking: configuration.supportsSiliconFlowThinkingControls ? false : nil
-        )
-
-        return try chatCompletionsRequest(
-            configuration: configuration,
-            timeout: 90,
-            body: body
-        )
-    }
-
-    static func streamingConversationRequest(
-        context: AIExplanationContext,
-        messages: [AIConversationMessage],
-        configuration: AIConfiguration,
-        promptConfiguration: AIPromptConfiguration = AIPromptSettings.current(profile: .conversation)
-    ) throws -> URLRequest {
-        if configuration.providerFormat == .anthropicMessages {
-            return try conversationRequest(
-                context: context,
-                messages: messages,
-                configuration: configuration,
-                promptConfiguration: promptConfiguration
-            )
-        }
-        if configuration.providerFormat.usesCodexExecutable {
-            throw AIExplanationError.server(AppUILanguage.saved().text(.aiCodexNoHTTPRequest))
-        }
-
-        let body = ChatCompletionRequest(
-            model: configuration.model,
-            messages: [
-                ChatMessage(
-                    role: "system",
-                    content: AIConversationPromptRenderer.systemPrompt(
-                        context: context,
-                        configuration: promptConfiguration
-                    )
-                )
-            ]
-                + messages.map { ChatMessage(role: $0.role.rawValue, content: $0.content) },
-            temperature: 0.2,
-            stream: true,
+            stream: stream,
             enableThinking: configuration.supportsSiliconFlowThinkingControls ? false : nil
         )
 

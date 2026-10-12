@@ -20,6 +20,8 @@ protocol AIExplaining: Sendable {
 }
 
 struct OpenAICompatibleAIExplanationClient: AIExplaining {
+    var session: URLSession = .shared
+
     func testConnection(configuration: AIConfiguration) async throws -> String {
         let request = AIRequestFactory.connectionTestRequest(configuration: configuration)
         let (data, response) = try await data(for: request, operation: "testConnection", configuration: configuration)
@@ -78,79 +80,12 @@ struct OpenAICompatibleAIExplanationClient: AIExplaining {
             context: context,
             configuration: configuration
         )
-        let startedAt = Date()
-        let (bytes, response) = try await bytes(
+        return try await stream(
             for: request,
             operation: "streamExplanation",
             configuration: configuration,
-            startedAt: startedAt
+            onChunk: onChunk
         )
-
-        var fullText = ""
-        var didReceiveDone = false
-        var finishReason: String?
-        do {
-            try validate(response: response)
-
-            streamLoop:
-            for try await line in bytes.lines {
-                switch AIStreamParser.event(from: line) {
-                case .chunk(let delta):
-                    fullText += delta
-                    await MainActor.run {
-                        onChunk(delta)
-                    }
-                case .chunkAndFinished(let delta, let reason):
-                    fullText += delta
-                    finishReason = reason
-                    await MainActor.run {
-                        onChunk(delta)
-                    }
-                case .finished(let reason):
-                    finishReason = reason
-                case .done:
-                    didReceiveDone = true
-                    break streamLoop
-                case .error(let message):
-                    throw AIExplanationError.server(message)
-                case .ignored:
-                    continue
-                }
-            }
-
-            let trimmed = try validatedStreamText(
-                fullText,
-                didReceiveDone: didReceiveDone,
-                finishReason: finishReason
-            )
-
-            AIRequestLogger.recordHTTP(
-                operation: "streamExplanation",
-                configuration: configuration,
-                request: request,
-                response: response,
-                startedAt: startedAt,
-                responseText: trimmed,
-                streamCompleted: true,
-                streamDoneReceived: didReceiveDone,
-                finishReason: finishReason
-            )
-            return trimmed
-        } catch {
-            AIRequestLogger.recordHTTP(
-                operation: "streamExplanation",
-                configuration: configuration,
-                request: request,
-                response: response,
-                startedAt: startedAt,
-                responseText: fullText,
-                error: error,
-                streamCompleted: false,
-                streamDoneReceived: didReceiveDone,
-                finishReason: finishReason
-            )
-            throw error
-        }
     }
 
     func streamConversation(
@@ -179,10 +114,24 @@ struct OpenAICompatibleAIExplanationClient: AIExplaining {
             messages: messages,
             configuration: configuration
         )
+        return try await stream(
+            for: request,
+            operation: "streamConversation",
+            configuration: configuration,
+            onChunk: onChunk
+        )
+    }
+
+    private func stream(
+        for request: URLRequest,
+        operation: String,
+        configuration: AIConfiguration,
+        onChunk: @escaping @MainActor (String) -> Void
+    ) async throws -> String {
         let startedAt = Date()
         let (bytes, response) = try await bytes(
             for: request,
-            operation: "streamConversation",
+            operation: operation,
             configuration: configuration,
             startedAt: startedAt
         )
@@ -226,7 +175,7 @@ struct OpenAICompatibleAIExplanationClient: AIExplaining {
             )
 
             AIRequestLogger.recordHTTP(
-                operation: "streamConversation",
+                operation: operation,
                 configuration: configuration,
                 request: request,
                 response: response,
@@ -239,7 +188,7 @@ struct OpenAICompatibleAIExplanationClient: AIExplaining {
             return trimmed
         } catch {
             AIRequestLogger.recordHTTP(
-                operation: "streamConversation",
+                operation: operation,
                 configuration: configuration,
                 request: request,
                 response: response,
@@ -297,7 +246,7 @@ struct OpenAICompatibleAIExplanationClient: AIExplaining {
     ) async throws -> (Data, URLResponse) {
         let startedAt = Date()
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await session.data(for: request)
             AIRequestLogger.recordHTTP(
                 operation: operation,
                 configuration: configuration,
@@ -327,7 +276,7 @@ struct OpenAICompatibleAIExplanationClient: AIExplaining {
         startedAt: Date
     ) async throws -> (URLSession.AsyncBytes, URLResponse) {
         do {
-            return try await URLSession.shared.bytes(for: request)
+            return try await session.bytes(for: request)
         } catch {
             AIRequestLogger.recordHTTP(
                 operation: operation,

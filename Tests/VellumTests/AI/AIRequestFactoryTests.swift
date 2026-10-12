@@ -234,6 +234,39 @@ struct AIRequestFactoryTests {
         #expect(messages.last?["content"] == "Explain term in Spanish from paper.pdf.")
     }
 
+    @Test(arguments: [AIProviderFormat.openAICompatible, .anthropicMessages])
+    func streamingRequestsPreserveProviderBodies(provider: AIProviderFormat) throws {
+        let configuration = try AIConfiguration(
+            baseURLString: "https://api.example.com/v1",
+            model: "test-model",
+            apiKey: "secret",
+            providerFormat: provider
+        )
+        let context = makeContext()
+        let messages = [AIConversationMessage(role: .user, content: "Explain the result.")]
+        let requests = [
+            (
+                try AIRequestFactory.explanationRequest(context: context, configuration: configuration, promptConfiguration: .default),
+                try AIRequestFactory.streamingExplanationRequest(context: context, configuration: configuration, promptConfiguration: .default)
+            ),
+            (
+                try AIRequestFactory.conversationRequest(context: context, messages: messages, configuration: configuration, promptConfiguration: .default),
+                try AIRequestFactory.streamingConversationRequest(context: context, messages: messages, configuration: configuration, promptConfiguration: .default)
+            )
+        ]
+
+        for (plain, streaming) in requests {
+            let plainBody = try requestBody(plain)
+            var streamingBody = try requestBody(streaming)
+            #expect(plainBody["stream"] == nil)
+            #expect(streamingBody.removeValue(forKey: "stream") as? Bool == (provider == .openAICompatible ? true : nil))
+            #expect(NSDictionary(dictionary: plainBody) == NSDictionary(dictionary: streamingBody))
+            #expect(plain.url == streaming.url)
+            #expect(plain.timeoutInterval == streaming.timeoutInterval)
+            #expect(plain.allHTTPHeaderFields == streaming.allHTTPHeaderFields)
+        }
+    }
+
     private func requestBody(_ request: URLRequest) throws -> [String: Any] {
         let data = try #require(request.httpBody)
         return try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
