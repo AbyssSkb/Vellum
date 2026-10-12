@@ -74,6 +74,122 @@ struct PDFReaderInteractionTests {
         #expect(window.firstResponder === editor)
     }
 
+    @Test(arguments: [false, true])
+    @MainActor
+    func readerActivationLeavesNewerEditorOrPendingSearchFocusAlone(search: Bool) async throws {
+        let (window, reader) = try makeReader()
+        defer { reader.cancelPendingRestore(); window.close() }
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let state = makeTestAppState(defaults: preferences.defaults)
+        let document = try #require(reader.document)
+        let tab = PDFTab(url: nil, document: document)
+        _ = state.tabStore.openInNewTabs([tab])
+        state.readerWindow = window
+        let host = NSHostingView(rootView: PDFReader(
+            tabID: tab.id, document: document, snapshot: nil, isActive: true
+        ).environmentObject(state))
+        host.frame = window.contentView!.bounds
+        window.contentView = host
+        host.layoutSubtreeIfNeeded()
+        try await waitForTestCondition("Reader mounted before reactivation") {
+            guard let mounted = state.activeReaderController as? VellumPDFView else { return false }
+            return mounted.window === window && mounted.pendingRestoreAction == nil
+        }
+        let mounted = try #require(state.activeReaderController as? VellumPDFView)
+        defer {
+            mounted.saveBeforeDismantle = nil
+            mounted.searchController?.clear()
+            mounted.cancelPendingRestore()
+            mounted.readerStateSaveWorkItem?.cancel()
+            mounted.readingPositionReportWorkItem?.cancel()
+            state.activeReaderController = nil
+            state.readerWindow = nil
+        }
+        let editor = NSTextView(frame: NSRect(x: 0, y: 0, width: 180, height: 40))
+        host.addSubview(editor)
+        try #require(window.makeFirstResponder(mounted))
+        state.activeReaderController = nil
+        host.rootView = PDFReader(
+            tabID: tab.id, document: document, snapshot: try #require(mounted.snapshot()), isActive: true
+        ).environmentObject(state)
+        host.layoutSubtreeIfNeeded()
+        try #require(state.activeReaderController === mounted)
+
+        let searchField: NSTextField?
+        if search {
+            mounted.beginSearchCommand()
+            func fields(_ view: NSView) -> [NSTextField] {
+                (view as? NSTextField).map { [$0] } ?? view.subviews.flatMap(fields)
+            }
+            searchField = try #require(fields(mounted).first { $0.isEditable })
+        } else {
+            searchField = nil
+            try #require(window.makeFirstResponder(editor))
+        }
+        await nextTestMainQueueTurn()
+        await nextTestMainQueueTurn()
+
+        if let searchField {
+            let searchEditor = try #require(searchField.currentEditor())
+            #expect(window.firstResponder === searchEditor)
+        } else {
+            #expect(window.firstResponder === editor)
+        }
+    }
+
+    @Test
+    @MainActor
+    func cachedReaderActivationUpdatesTheInactiveWindowsResponder() async throws {
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),
+            styleMask: .borderless, backing: .buffered, defer: false
+        )
+        let (_, oldReader) = try makeReader(in: window)
+        let preferences = try TestPreferences()
+        let state = makeTestAppState(defaults: preferences.defaults)
+        let oldTab = PDFTab(url: nil, document: try #require(oldReader.document))
+        let data = try #require(oldTab.document?.dataRepresentation())
+        let document = try #require(PDFDocument(data: data))
+        let nextTab = PDFTab(url: nil, document: document)
+        _ = state.tabStore.openInNewTabs([oldTab, nextTab])
+        state.readerWindow = window
+        oldReader.appState = state
+        let nextReader = VellumPDFView(frame: oldReader.bounds)
+        nextReader.appState = state
+        nextReader.document = document
+        let container = NSView(frame: oldReader.bounds)
+        window.contentView = container
+        container.addSubview(oldReader)
+        container.addSubview(nextReader)
+        defer {
+            for view in [oldReader, nextReader] {
+                view.cancelPendingRestore()
+                view.readerStateSaveWorkItem?.cancel()
+                view.readingPositionReportWorkItem?.cancel()
+                view.appState = nil
+            }
+            state.activeReaderController = nil
+            state.readerWindow = nil
+            window.close()
+            preferences.cleanup()
+        }
+        try #require(!window.isKeyWindow)
+        try #require(window.makeFirstResponder(oldReader))
+        oldReader.alphaValue = 0
+        try #require(window.firstResponder === oldReader)
+        state.setActiveReaderController(nextReader, for: nextTab.id)
+
+        state.focusReaderSoon()
+        await nextTestMainQueueTurn()
+        #expect(window.firstResponder === oldReader)
+        state.focusActivatedReaderSoon(nextReader)
+        await nextTestMainQueueTurn()
+
+        #expect(window.firstResponder === nextReader)
+        #expect(!window.isKeyWindow)
+    }
+
     @Test
     @MainActor
     func inactiveReaderAttachmentAndOverviewDismissalPreserveResponder() throws {
@@ -220,7 +336,7 @@ struct PDFReaderInteractionTests {
     }
 
     @MainActor
-    private func makeReader() throws -> (NSWindow, VellumPDFView) {
+    private func makeReader(in suppliedWindow: NSWindow? = nil) throws -> (NSWindow, VellumPDFView) {
         _ = NSApplication.shared
         let data = NSMutableData()
         var mediaBox = CGRect(x: 0, y: 0, width: 612, height: 1_600)
@@ -239,7 +355,7 @@ struct PDFReaderInteractionTests {
         context.endPDFPage()
         context.closePDF()
         let document = try #require(PDFDocument(data: data as Data))
-        let window = NSWindow(
+        let window = suppliedWindow ?? FocusTestWindow(
             contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),
             styleMask: .borderless, backing: .buffered, defer: false
         )
@@ -253,5 +369,9 @@ struct PDFReaderInteractionTests {
         view.layoutDocumentView()
         view.centerBothAxes(on: view.pageCenterDestination(for: try #require(document.page(at: 0))))
         return (window, view)
+    }
+
+    private final class FocusTestWindow: NSWindow {
+        override var isKeyWindow: Bool { true }
     }
 }

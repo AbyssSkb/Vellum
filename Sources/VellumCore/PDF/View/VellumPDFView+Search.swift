@@ -304,6 +304,8 @@ final class PDFSearchController {
 
     func begin() {
         guard let pdfView, pdfView.document != nil else { return }
+        pdfView.appState?.recordReadingFocusIntent(outline: false)
+        let focusGeneration = pdfView.appState?.outlineFocusGeneration
 
         if overlay?.ownsFocus != true {
             returnFocusView = pdfView.window?.firstResponder as? NSView
@@ -333,6 +335,7 @@ final class PDFSearchController {
         overlay.canFocus = { [weak self, weak pdfView, weak overlay] in
             guard let self, let pdfView, let overlay,
                   self.overlay === overlay, overlay.superview === pdfView,
+                  pdfView.appState?.outlineFocusGeneration == focusGeneration,
                   pdfView.appState?.canFocusReaderContent != false,
                   pdfView.appState == nil || pdfView.appState?.activeReaderController === pdfView else { return false }
             return true

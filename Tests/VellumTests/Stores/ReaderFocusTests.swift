@@ -21,7 +21,9 @@ struct ReaderFocusTests {
         fixture.expectFocus(outline)
     }
 
-    enum FocusInterruption: CaseIterable { case field, editor, switcher, document, tab }
+    enum FocusInterruption: CaseIterable {
+        case field, editor, switcher, conversationHistory, explanationHistory, document, tab
+    }
 
     @Test(arguments: FocusInterruption.allCases, [false, true])
     func queuedFocusCannotOverrideNewerOwnership(interruption: FocusInterruption, activePane: Bool) async throws {
@@ -44,6 +46,12 @@ struct ReaderFocusTests {
             fixture.state.showTabSwitcher()
             #expect(fixture.window.makeFirstResponder(fixture.field))
             expected = try #require(fixture.field.currentEditor())
+        case .conversationHistory:
+            fixture.state.isAIConversationHistoryPresented = true
+            expected = outline
+        case .explanationHistory:
+            fixture.state.isAIExplanationHistoryPresented = true
+            expected = outline
         case .document:
             fixture.state.tabStore.replaceDocument(for: fixture.tab.id, with: Fixture.document())
             expected = outline
@@ -53,6 +61,43 @@ struct ReaderFocusTests {
         }
         try await fixture.drainQueuedFocus()
         fixture.expectFocus(expected)
+    }
+
+    @Test(arguments: [false, true])
+    func pendingSearchFocusCancelsOlderReaderRequests(activePane: Bool) async throws {
+        let fixture = try Fixture()
+        defer { fixture.close() }
+        try await fixture.ready()
+        fixture.state.isOutlineVisible = false
+        let outline = try fixture.outline()
+        try #require(fixture.window.makeFirstResponder(outline))
+        if activePane { fixture.state.focusActiveReaderSoon() } else { fixture.state.focusReaderSoon() }
+
+        fixture.reader.beginSearchCommand()
+        let field = try #require(fixture.searchField())
+        try await waitForTestCondition("The newer search received its pending focus") {
+            guard let editor = field.currentEditor() else { return false }
+            return fixture.window.firstResponder === editor
+        }
+        try await fixture.drainQueuedFocus()
+        fixture.expectFocus(try #require(field.currentEditor()))
+    }
+
+    @Test(arguments: [false, true])
+    func newerPaneIntentCancelsPendingSearchFocus(outlineFocused: Bool) async throws {
+        let fixture = try Fixture()
+        defer { fixture.close() }
+        try await fixture.ready()
+        try #require(fixture.window.makeFirstResponder(fixture.reader))
+        fixture.reader.beginSearchCommand()
+        let field = try #require(fixture.searchField())
+
+        if outlineFocused { fixture.state.focusOutlineSidebar() } else { fixture.state.focusReaderContent() }
+        let expected = outlineFocused ? try fixture.outline() : fixture.reader
+        try await fixture.waitForFocus(expected)
+
+        fixture.expectFocus(expected)
+        #expect(field.currentEditor() == nil)
     }
 
     @Test
@@ -265,6 +310,13 @@ struct ReaderFocusTests {
             return try #require(descendants(host).compactMap { $0 as? PDFOutlineKeyView }.first)
         }
 
+        func searchField() -> NSTextField? {
+            func fields(_ view: NSView) -> [NSTextField] {
+                (view as? NSTextField).map { [$0] } ?? view.subviews.flatMap(fields)
+            }
+            return fields(reader).first { $0.isEditable }
+        }
+
         func ready() async throws {
             try await waitForTestCondition("The outline and reader did not mount") {
                 state.activeOutlineView?.window === window && reader.currentPage != nil
@@ -311,6 +363,7 @@ struct ReaderFocusTests {
             state.activeReaderController = nil
             state.readerWindow = nil
             for reader in window.contentView?.subviews.compactMap({ $0 as? VellumPDFView }) ?? [] {
+                reader.searchController?.clear()
                 reader.cancelPendingRestore()
                 reader.stopScrollAnimation()
                 reader.stopZoomState()

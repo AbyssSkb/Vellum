@@ -92,52 +92,64 @@ extension AppState {
 
     func focusActiveReaderSoon(restoring responder: NSResponder? = nil, from sourceTabID: PDFTab.ID? = nil) {
         let tabID = selectedTabID
-        let documentID = selectedTab?.document.map(ObjectIdentifier.init)
-        let generation = outlineFocusGeneration
-        let sourceWindow = readerWindow
-        let initiatingResponder = sourceWindow?.firstResponder
-        let prefersOutline = isOutlineVisible && (responder ?? initiatingResponder) is PDFOutlineKeyView
-        DispatchQueue.main.async { [weak self, weak responder, weak sourceWindow, weak initiatingResponder] in
-            guard let self, self.selectedTabID == tabID,
-                  self.selectedTab?.document.map(ObjectIdentifier.init) == documentID,
-                  self.readerWindow === sourceWindow,
-                  self.outlineFocusGeneration == generation,
-                  self.canFocusReaderContent else { return }
-            if let current = sourceWindow?.firstResponder as? NSView,
-               current !== initiatingResponder, current.window === sourceWindow {
-                return
-            }
+        let prefersOutline = isOutlineVisible && (responder ?? readerWindow?.firstResponder) is PDFOutlineKeyView
+        queueReaderFocus { [weak responder] state in
             if sourceTabID == tabID, let view = responder as? NSView,
-               let window = self.readerWindow, view.window === window,
-               !(view is PDFOutlineKeyView) || self.isOutlineVisible,
+               let window = state.readerWindow, view.window === window,
+               !(view is PDFOutlineKeyView) || state.isOutlineVisible,
                window.makeFirstResponder(view) {
                 return
             }
-            if prefersOutline, self.isOutlineVisible {
-                self.focusOutlineSidebar()
+            if prefersOutline, state.isOutlineVisible {
+                state.focusOutlineSidebar()
             } else {
-                self.focusReaderContent()
+                state.focusReaderContent()
             }
         }
     }
 
     func focusReaderSoon() {
+        queueReaderFocus { state in
+            state.activeReaderController?.focus()
+        }
+    }
+
+    func focusActivatedReaderSoon(_ reader: VellumPDFView) {
+        guard !isOutlineVisible else { return }
+        queueReaderFocus(in: reader.window, allowsInactiveWindow: true) { [weak reader] state in
+            guard let reader, state.activeReaderController === reader,
+                  !state.isOutlineVisible else { return }
+            if reader.isAIInteractionActive {
+                reader.restoreAIFloatingOverlayPresentation()
+            } else {
+                reader.focus()
+            }
+        }
+    }
+
+    private func queueReaderFocus(
+        in window: NSWindow? = nil, allowsInactiveWindow: Bool = false,
+        _ apply: @escaping (AppState) -> Void
+    ) {
         let tabID = selectedTabID
         let documentID = selectedTab?.document.map(ObjectIdentifier.init)
         let generation = outlineFocusGeneration
-        let sourceWindow = readerWindow
+        let sourceReaderWindow = readerWindow
+        let sourceWindow = window ?? sourceReaderWindow
         let initiatingResponder = sourceWindow?.firstResponder
-        DispatchQueue.main.async { [weak self, weak sourceWindow, weak initiatingResponder] in
+        DispatchQueue.main.async { [weak self, weak sourceReaderWindow, weak sourceWindow, weak initiatingResponder] in
             guard let self, self.selectedTabID == tabID,
                   self.selectedTab?.document.map(ObjectIdentifier.init) == documentID,
-                  self.readerWindow === sourceWindow,
+                  self.readerWindow === sourceReaderWindow,
                   self.outlineFocusGeneration == generation,
-                  self.canFocusReaderContent else { return }
+                  self.canFocusReaderContent || (allowsInactiveWindow && !self.hasBlockingReaderPresentation),
+                  allowsInactiveWindow || sourceWindow?.isKeyWindow != false,
+                  sourceWindow?.attachedSheet == nil else { return }
             if let current = sourceWindow?.firstResponder as? NSView,
                current !== initiatingResponder, current.window === sourceWindow {
                 return
             }
-            self.activeReaderController?.focus()
+            apply(self)
         }
     }
 }
