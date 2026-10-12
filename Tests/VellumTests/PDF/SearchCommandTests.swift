@@ -5,6 +5,70 @@ import Testing
 
 @Suite("Search command")
 struct SearchCommandTests {
+    @Test(arguments: ["alpha", nil] as [String?])
+    @MainActor
+    func committingCompletedPreviewDoesNotScanAgain(text: String?) async throws {
+        let (view, controller, field, pages) = try makeCountingSearchReader(texts: [text, text])
+        defer { controller.clear() }
+        enter("alpha", into: field)
+        try await waitForTestCondition("Preview scans every page") {
+            pages.allSatisfy { $0.stringReads > 0 }
+        }
+        let stringReads = pages.map(\.stringReads)
+        let boundsReads = pages.map(\.characterBoundsReads)
+        if text != nil { #expect(boundsReads.allSatisfy { $0 > 0 }) }
+
+        commit(field)
+        commit(field)
+
+        #expect(pages.map(\.stringReads) == stringReads)
+        #expect(pages.map(\.characterBoundsReads) == boundsReads)
+        #expect(controller.hasVisibleHighlights == (text != nil))
+        #expect(view.searchController === controller)
+    }
+
+    @Test
+    @MainActor
+    func committingPartialPreviewFinishesUnscannedPages() async throws {
+        let (view, controller, field, pages) = try makeCountingSearchReader(texts: ["alpha", "alpha", "alpha"])
+        defer { controller.clear() }
+        var committedPartialPreview = false
+        let observation = view.observe(\.highlightedSelections, options: [.new]) { _, _ in
+            MainActor.assumeIsolated {
+                guard !committedPartialPreview, controller.hasVisibleHighlights,
+                      pages[0].stringReads > 0, pages[1].stringReads == 0 else { return }
+                committedPartialPreview = true
+                commit(field)
+                #expect(pages.allSatisfy { $0.stringReads > 0 && $0.characterBoundsReads > 0 })
+            }
+        }
+        defer { observation.invalidate() }
+
+        enter("alpha", into: field)
+
+        try await waitForTestCondition("Return finishes the first partial preview") { committedPartialPreview }
+        #expect(controller.hasVisibleHighlights)
+    }
+
+    @Test
+    @MainActor
+    func replacementDocumentIsScannedInsteadOfReusingCompletedPreview() async throws {
+        let (view, controller, field, pages) = try makeCountingSearchReader(texts: ["alpha"])
+        defer { controller.clear() }
+        enter("alpha", into: field)
+        try await waitForTestCondition("Original preview completes") { pages[0].characterBoundsReads > 0 }
+        let replacement = PDFDocument()
+        let replacementPage = SearchReadCountingPage(text: "other")
+        replacement.insert(replacementPage, at: 0)
+        view.document = replacement
+        replacementPage.resetCounts()
+
+        commit(field)
+
+        #expect(replacementPage.stringReads > 0)
+        #expect(!controller.hasVisibleHighlights)
+    }
+
     @Test
     @MainActor
     func escapeKeepsProgressiveResultsHiddenUntilNextSearchMove() async throws {
@@ -356,5 +420,66 @@ struct SearchCommandTests {
     ])
     func fieldEditorCommandsMapToTheirAction(selector: Selector, expected: SearchCommandEditingAction?) {
         #expect(SearchCommandEditingCommand.action(for: selector) == expected)
+    }
+
+    @MainActor
+    private func makeCountingSearchReader(texts: [String?]) throws -> (
+        VellumPDFView, PDFSearchController, NSTextField, [SearchReadCountingPage]
+    ) {
+        _ = NSApplication.shared
+        let document = PDFDocument()
+        let pages = texts.map(SearchReadCountingPage.init(text:))
+        for (index, page) in pages.enumerated() { document.insert(page, at: index) }
+        let view = VellumPDFView(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
+        view.document = document
+        view.beginSearchCommand()
+        func searchField(in view: NSView) -> NSTextField? {
+            if let field = view as? NSTextField, field.isEditable { return field }
+            return view.subviews.lazy.compactMap { searchField(in: $0) }.first
+        }
+        let field = try #require(searchField(in: view))
+        let controller = try #require(view.searchController)
+        pages.forEach { $0.resetCounts() }
+        return (view, controller, field, pages)
+    }
+
+    @MainActor
+    private func enter(_ query: String, into field: NSTextField) {
+        field.stringValue = query
+        field.delegate?.controlTextDidChange?(Notification(name: NSControl.textDidChangeNotification, object: field))
+    }
+
+    @MainActor
+    private func commit(_ field: NSTextField) {
+        _ = field.delegate?.control?(field, textView: NSTextView(), doCommandBy: #selector(NSResponder.insertNewline(_:)))
+    }
+}
+
+private final class SearchReadCountingPage: PDFPage {
+    private let text: String?
+    var stringReads = 0
+    var characterBoundsReads = 0
+
+    init(text: String?) {
+        self.text = text
+        super.init()
+        setBounds(NSRect(x: 0, y: 0, width: 612, height: 792), for: .mediaBox)
+    }
+
+    override var string: String? {
+        stringReads += 1
+        return text
+    }
+
+    override var numberOfCharacters: Int { (text as NSString?)?.length ?? 0 }
+
+    override func characterBounds(at index: Int) -> CGRect {
+        characterBoundsReads += 1
+        return NSRect(x: 72 + index * 10, y: 720, width: 8, height: 16)
+    }
+
+    func resetCounts() {
+        stringReads = 0
+        characterBoundsReads = 0
     }
 }

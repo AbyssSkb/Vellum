@@ -260,6 +260,8 @@ final class PDFSearchController {
     private var previewSearchTask: Task<Void, Never>?
     private var searchGeneration = 0
     private var isSearchPending = false
+    private weak var searchDocument: PDFDocument?
+    private var completedQuery: String?
     private var lastJumpCheckpointTime: Date?
     private var pageTextCache: [Int: String] = [:]
     private var pendingSearchJumpSource: ReaderSnapshot?
@@ -350,7 +352,7 @@ final class PDFSearchController {
     }
 
     func move(_ direction: Direction) {
-        if results.isEmpty || isSearchPending {
+        if results.isEmpty || isSearchPending || searchDocument !== pdfView?.document {
             performSearchImmediately(preferAnchor: false, materializeVisibleMatches: false)
         } else {
             cancelScheduledSearch()
@@ -441,6 +443,7 @@ final class PDFSearchController {
 
     private func update(query nextQuery: String, resetSelection: Bool) {
         query = nextQuery
+        completedQuery = nil
         searchGeneration += 1
         debounceTimer?.invalidate()
         previewSearchTask?.cancel()
@@ -515,6 +518,7 @@ final class PDFSearchController {
         areMatchesVisible = false
         shouldAnchorNextMove = false
         isSearchPending = false
+        completedQuery = nil
         lastJumpCheckpointTime = nil
         pendingSearchJumpSource = nil
     }
@@ -652,8 +656,12 @@ final class PDFSearchController {
         }
 
         isSearchPending = false
-        let matches = textMatches(for: term, in: document)
-        results = searchResults(for: matches, in: document)
+        if completedQuery != term || searchDocument !== document {
+            prepareSearchDocument(document)
+            let matches = textMatches(for: term, in: document)
+            results = searchResults(for: matches, in: document)
+            completedQuery = term
+        }
 
         if results.isEmpty {
             activeIndex = nil
@@ -680,11 +688,12 @@ final class PDFSearchController {
     private func startPreviewSearch(generation: Int, preferAnchor: Bool) {
         previewSearchTask?.cancel()
         previewSearchTask = Task { @MainActor [weak self] in
-            guard let self else { return }
+            guard let self, !Task.isCancelled, self.searchGeneration == generation else { return }
             guard let document = self.pdfView?.document else {
                 self.publishPreviewResults([], preferAnchor: preferAnchor, isComplete: true)
                 return
             }
+            self.prepareSearchDocument(document)
 
             var previewResults: [PDFSearchResult] = []
             var lastPublish = Date.distantPast
@@ -696,13 +705,14 @@ final class PDFSearchController {
                 anchorPageIndex: anchorPageIndex
             )
 
-            guard !term.isEmpty else {
+            guard !term.isEmpty, !pageScanOrder.isEmpty else {
                 self.publishPreviewResults([], preferAnchor: preferAnchor, isComplete: true)
                 return
             }
 
             for (scanIndex, pageIndex) in pageScanOrder.enumerated() {
-                guard !Task.isCancelled, self.searchGeneration == generation else { return }
+                guard !Task.isCancelled, self.searchGeneration == generation,
+                      self.pdfView?.document === document else { return }
 
                 if let text = self.pageText(pageIndex: pageIndex, in: document) {
                     let pageMatches = SearchTextFinder.matches(
@@ -756,6 +766,7 @@ final class PDFSearchController {
 
         results = orderedResults(nextResults)
         isSearchPending = !isComplete
+        completedQuery = isComplete ? query.trimmingCharacters(in: .whitespacesAndNewlines) : nil
 
         if results.isEmpty {
             activeIndex = nil
@@ -803,6 +814,14 @@ final class PDFSearchController {
             matches.append(contentsOf: pageMatches)
         }
         return matches
+    }
+
+    private func prepareSearchDocument(_ document: PDFDocument) {
+        if searchDocument !== document {
+            pageTextCache.removeAll()
+            completedQuery = nil
+            searchDocument = document
+        }
     }
 
     private func pageText(pageIndex: Int, in document: PDFDocument) -> String? {

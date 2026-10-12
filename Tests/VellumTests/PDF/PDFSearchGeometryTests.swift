@@ -22,6 +22,7 @@ struct PDFSearchGeometryTests {
             return view.convert(selection.bounds(for: page), from: page).intersects(view.bounds)
         }
         #expect(view.jumpBackStack.isEmpty)
+        let previewSelection = try #require(controller.activeSearchSelection)
 
         _ = field.delegate?.control?(
             field,
@@ -33,6 +34,7 @@ struct PDFSearchGeometryTests {
         #expect(source.pageIndex == original.pageIndex)
         #expect(source.pointOnPage == original.pointOnPage)
         #expect(source.scrollOrigin == original.scrollOrigin)
+        #expect(controller.activeSearchSelection === previewSelection)
     }
 
     @Test @MainActor
