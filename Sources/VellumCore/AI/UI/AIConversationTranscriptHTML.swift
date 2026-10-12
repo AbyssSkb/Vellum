@@ -143,125 +143,7 @@ enum AIConversationTranscriptHTML {
     <body>
       <main id="content"><div class="messages"></div></main>
       <script>
-        function escapeHTML(value) {
-          return String(value || '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
-        }
-        function safeLinkURL(href) {
-          try {
-            const url = new URL(href);
-            return ['http:', 'https:', 'mailto:'].includes(url.protocol) ? url : null;
-          } catch (_) { return null; }
-        }
-        // MathJax can add anchors after Markdown has rendered.
-        document.addEventListener('click', function(event) {
-          const anchor = event.target.closest && event.target.closest('a');
-          if (!anchor) { return; }
-          const href = anchor.getAttribute('href') || anchor.getAttribute('xlink:href');
-          const url = safeLinkURL(href);
-          if (url) {
-            anchor.setAttribute('href', url.href);
-            anchor.removeAttribute('xlink:href');
-          } else {
-            anchor.removeAttribute('href');
-            anchor.removeAttribute('xlink:href');
-            event.preventDefault();
-            event.stopImmediatePropagation();
-          }
-        }, true);
-        function restoreTokens(value, tokens) {
-          for (const token of tokens) {
-            value = value.split(token.placeholder).join(token.html);
-          }
-          return value;
-        }
-        function protectInlineMath(value, tokenPrefix) {
-          const tokens = [];
-          value = value.replace(/(\\\([\s\S]*?\\\)|\$[^\n$]+\$)/g, (match, _group, offset, source) => {
-            if (match.startsWith('$') && (source[offset - 1] === '$' || source[offset + match.length] === '$')) {
-              return match;
-            }
-            const placeholder = `${tokenPrefix}INLINE_MATH_${tokens.length}@@`;
-            tokens.push({ placeholder, html: match });
-            return placeholder;
-          });
-          return { value, tokens };
-        }
-        function inlineMarkdown(value, tokenPrefix) {
-          const protectedMath = protectInlineMath(value, tokenPrefix);
-          value = protectedMath.value
-            .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-            .replace(/\*([^*]+)\*/g, '<em>$1</em>')
-            .replace(/\[([^\]]+)\]\(([^\)]+)\)/g, (_, label, href) => {
-              if (safeLinkURL(href)) {
-                // Keep Markdown token restoration out of link destinations.
-                return `<a href="${href.replace(/@/g, '&#64;')}">${label}</a>`;
-              }
-              return label;
-            });
-          return restoreTokens(value, protectedMath.tokens);
-        }
-        function renderMarkdown(markdown) {
-          const blocks = [];
-          const inlineCodes = [];
-          let text = escapeHTML(markdown || '');
-          let tokenPrefix = '@@';
-          while (text.includes(tokenPrefix)) { tokenPrefix += '@'; }
-          const blockPattern = new RegExp(`^${tokenPrefix}BLOCK_[0-9]+@@$`);
-          function stashBlock(html) {
-            const placeholder = `${tokenPrefix}BLOCK_${blocks.length}@@`;
-            blocks.push({ placeholder, html });
-            return placeholder;
-          }
-
-          text = text.replace(/```[^\n]*\n([\s\S]*?)```/g, (_, code) => {
-            return stashBlock(`<pre><code>${code.trim()}</code></pre>`);
-          });
-          text = text.replace(/`([^`\n]+)`/g, (_, code) => {
-            const placeholder = `${tokenPrefix}INLINE_CODE_${inlineCodes.length}@@`;
-            inlineCodes.push({ placeholder, html: `<code>${code}</code>` });
-            return placeholder;
-          });
-          text = text.replace(/(\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\])/g, match => {
-            return stashBlock(`<div class="math-display">${match}</div>`);
-          });
-
-          const lines = text.split(/\n/);
-          let html = '';
-          let list = null;
-          function closeList() {
-            if (list) { html += `</${list}>`; list = null; }
-          }
-
-          for (const raw of lines) {
-            const line = raw.trim();
-            if (!line) { closeList(); continue; }
-            if (blockPattern.test(line)) {
-              closeList();
-              html += line;
-              continue;
-            }
-
-            let match;
-            if ((match = line.match(/^(#{1,3})\s+(.+)$/))) {
-              closeList();
-              html += `<h${match[1].length}>${inlineMarkdown(match[2], tokenPrefix)}</h${match[1].length}>`;
-            } else if ((match = line.match(/^[-*]\s+(.+)$/))) {
-              if (list !== 'ul') { closeList(); html += '<ul>'; list = 'ul'; }
-              html += `<li>${inlineMarkdown(match[1], tokenPrefix)}</li>`;
-            } else if ((match = line.match(/^\d+\.\s+(.+)$/))) {
-              if (list !== 'ol') { closeList(); html += '<ol>'; list = 'ol'; }
-              html += `<li>${inlineMarkdown(match[1], tokenPrefix)}</li>`;
-            } else if ((match = line.match(/^&gt;\s*(.+)$/))) {
-              closeList();
-              html += `<blockquote>${inlineMarkdown(match[1], tokenPrefix)}</blockquote>`;
-            } else {
-              closeList();
-              html += `<p>${inlineMarkdown(line, tokenPrefix)}</p>`;
-            }
-          }
-          closeList();
-          return restoreTokens(restoreTokens(html, blocks), inlineCodes);
-        }
+        \#(AIMarkdownJavaScript.source)
         function renderMessage(message, thinkingText) {
           const role = message.role || 'assistant';
           const content = String(message.content || '');
@@ -295,8 +177,7 @@ enum AIConversationTranscriptHTML {
         function afterRender(followBottom, wasNearBottom, previousScrollY) {
           reportContentHeight();
           if ((followBottom || wasNearBottom) && isContentOverflowing()) {
-            scrollToBottom();
-            requestAnimationFrame(scrollToBottom);
+            window.vellumScrollConversationToBottom();
           } else {
             restoreScrollPosition(previousScrollY);
             requestAnimationFrame(() => restoreScrollPosition(previousScrollY));
@@ -318,6 +199,10 @@ enum AIConversationTranscriptHTML {
           const currentScroll = window.scrollY || window.pageYOffset || 0;
           return maxScroll - currentScroll <= 10;
         }
+        window.vellumScrollConversationToBottom = function() {
+          scrollToBottom();
+          requestAnimationFrame(scrollToBottom);
+        };
         function scrollToBottom() {
           const height = Math.max(
             document.documentElement.scrollHeight,

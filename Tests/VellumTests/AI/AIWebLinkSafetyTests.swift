@@ -113,12 +113,30 @@ struct AIWebLinkSafetyTests {
         let fixture = AIWebRenderingFixture(conversation: false)
         defer { fixture.close() }
         try await fixture.load()
-        _ = try await fixture.webView.evaluateJavaScript("window.vellumSetPronunciationSpeech('test', 'US', 'UK'); window.vellumSetMarkdown('## Pronunciation\\n/test/', false); null;")
+        _ = try await fixture.webView.evaluateJavaScript("window.vellumSetPronunciationSpeech('test', 'US', 'UK'); null;")
+        try await fixture.render("## Pronunciation\n/test/\nSecond paragraph\n## Reading\n- item\nAfter list")
+        #expect(try await fixture.webView.evaluateJavaScript("document.querySelectorAll('.heading-row').length") as? Int == 2)
+        #expect(try await fixture.webView.evaluateJavaScript("document.querySelectorAll('.pronunciation-line').length") as? Int == 1)
+        #expect(try await fixture.webView.evaluateJavaScript("document.querySelectorAll('.speak-button').length") as? Int == 2)
         try await fixture.probe.runAndWaitForMessages(
             "document.querySelector('.speak-button').click(); postVellumCommand('highlight');",
             in: fixture.webView
         )
         #expect(fixture.probe.commands == ["speakPronunciationUS", "highlight"])
+    }
+
+    @Test(.timeLimit(.minutes(1)), arguments: [false, true])
+    func backslashMathDelimitersPreserveTextInsteadOfEmphasis(conversation: Bool) async throws {
+        let fixture = AIWebRenderingFixture(conversation: conversation)
+        defer { fixture.close() }
+        try await fixture.load()
+        try await fixture.render(#"Before \(a*b*c\) after"# + "\n\n" + #"\[x*y*z\]"#)
+        let webView = fixture.webView
+        let text = try #require(try await webView.evaluateJavaScript("document.getElementById('content').textContent") as? String)
+        #expect(text.contains(#"\(a*b*c\)"#))
+        #expect(text.contains(#"\[x*y*z\]"#))
+        #expect(try await webView.evaluateJavaScript("document.querySelectorAll('.math-display').length") as? Int == 1)
+        #expect(try await webView.evaluateJavaScript("document.querySelectorAll('#content em').length") as? Int == 0)
     }
 
     @Test

@@ -656,12 +656,13 @@ private struct AIConversationTranscriptWebView: NSViewRepresentable {
     }
 }
 
-private final class AIConversationTranscriptWKWebView: WKWebView, WKNavigationDelegate, WKScriptMessageHandler {
+final class AIConversationTranscriptWKWebView: WKWebView, WKNavigationDelegate, WKScriptMessageHandler {
     var onDismiss: (() -> Void)?
     var onContentHeightChange: ((CGFloat) -> Void)?
     private var pendingPayload = "[]"
-    private var pendingFollowBottom = true
+    private var pendingFollowBottom = false
     private var didLoadDocument = false
+    private var lastRenderedPayload: String?
 
     init() {
         let configuration = WKWebViewConfiguration()
@@ -709,14 +710,28 @@ private final class AIConversationTranscriptWKWebView: WKWebView, WKNavigationDe
             isSending: isSending,
             thinkingText: thinkingText
         )
-        pendingFollowBottom = followBottom
+        pendingFollowBottom = pendingFollowBottom || followBottom
         guard didLoadDocument else { return }
-        evaluateJavaScript("window.vellumSetConversation(\(pendingPayload), \(pendingFollowBottom ? "true" : "false"));")
+        renderPendingPayload()
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         didLoadDocument = true
-        evaluateJavaScript("window.vellumSetConversation(\(pendingPayload), \(pendingFollowBottom ? "true" : "false"));")
+        lastRenderedPayload = nil
+        renderPendingPayload()
+    }
+
+    private func renderPendingPayload() {
+        let followBottom = pendingFollowBottom
+        pendingFollowBottom = false
+        guard pendingPayload != lastRenderedPayload else {
+            if followBottom {
+                evaluateJavaScript("window.vellumScrollConversationToBottom();")
+            }
+            return
+        }
+        lastRenderedPayload = pendingPayload
+        evaluateJavaScript("window.vellumSetConversation(\(pendingPayload), \(followBottom ? "true" : "false"));")
     }
 
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping @MainActor @Sendable (WKNavigationActionPolicy) -> Void) {
@@ -748,7 +763,7 @@ private final class AIConversationTranscriptWKWebView: WKWebView, WKNavigationDe
         }
 
         guard JSONSerialization.isValidJSONObject(payload),
-              let data = try? JSONSerialization.data(withJSONObject: payload),
+              let data = try? JSONSerialization.data(withJSONObject: payload, options: .sortedKeys),
               let string = String(data: data, encoding: .utf8) else {
             return #"{"messages":[],"isSending":false}"#
         }
