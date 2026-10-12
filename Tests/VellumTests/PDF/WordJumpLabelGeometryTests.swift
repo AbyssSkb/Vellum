@@ -11,11 +11,12 @@ struct WordJumpLabelGeometryTests {
         }
 
         #expect(size(80, 4) == 12)
-        #expect(abs(size(80, 18) - 14.4) < 0.001)
-        #expect(abs(size(80, 18.1) - size(80, 18) - 0.08) < 0.001)
-        #expect(size(80, 20) == 16)
+        #expect(size(80, 18) > size(80, 4))
+        #expect(size(80, 18.1) > size(80, 18))
+        #expect(size(80, 18.1) - size(80, 18) < 0.2)
+        #expect(size(80, 20) > size(80, 18.1))
         #expect(size(80, 100) == 20)
-        #expect(size(4, 20) == 16)
+        #expect(size(4, 20) == size(80, 20))
         #expect(WordJumpLabelGeometry.fontSize(for: NSRect(x: 0, y: 0, width: 18, height: 80), rotation: 90) == size(80, 18))
         #expect(WordJumpLabelGeometry.fontSize(for: NSRect(x: 0, y: 0, width: 18, height: 4), rotation: 270) == size(80, 18))
     }

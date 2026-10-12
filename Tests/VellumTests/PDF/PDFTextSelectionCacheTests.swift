@@ -8,32 +8,25 @@ struct PDFTextSelectionCacheTests {
     @Test
     @MainActor
     func repeatedCharacterNavigationDoesNotRescanOtherPages() throws {
-        let data = NSMutableData()
-        var mediaBox = CGRect(x: 0, y: 0, width: 612, height: 792)
-        let consumer = try #require(CGDataConsumer(data: data as CFMutableData))
-        let context = try #require(CGContext(consumer: consumer, mediaBox: &mediaBox, nil))
-        context.beginPDFPage(nil)
-        NSGraphicsContext.saveGraphicsState()
-        NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: false)
-        ("first second third fourth fifth" as NSString).draw(
-            at: CGPoint(x: 72, y: 720), withAttributes: [.font: NSFont.systemFont(ofSize: 18)]
-        )
-        NSGraphicsContext.restoreGraphicsState()
-        context.endPDFPage()
-        context.closePDF()
-        let document = try #require(PDFDocument(data: data as Data))
+        let document = try makeTextPDF(pages: [[
+            ("first second third fourth fifth", NSPoint(x: 72, y: 720))
+        ]])
         let page = try #require(document.page(at: 0))
         let otherPages = (0..<300).map { _ in CountingTextPage(text: "") }
         for extra in otherPages { document.insert(extra, at: document.pageCount) }
         let view = VellumPDFView(frame: .zero)
         view.document = document
         view.setCurrentSelection(page.selection(for: NSRange(location: 0, length: 5)), animate: false)
+        #expect(view.currentSelection?.string == "first")
         #expect(view.handleTextSelectionKey("l", eventType: .keyDown))
+        let firstMove = try #require(page.selection(for: NSRange(location: 0, length: 6)))
+        #expect(view.currentSelection?.range(at: 0, on: page) == firstMove.range(at: 0, on: page))
         for extra in otherPages { extra.resetCounts() }
 
         for _ in 0..<10 { #expect(view.handleTextSelectionKey("l", eventType: .keyDown)) }
 
-        #expect(view.currentSelection?.string == page.selection(for: NSRange(location: 0, length: 16))?.string)
+        let expected = try #require(page.selection(for: NSRange(location: 0, length: 16)))
+        #expect(view.currentSelection?.range(at: 0, on: page) == expected.range(at: 0, on: page))
         #expect(otherPages.allSatisfy { $0.characterCountReads == 0 && $0.stringReads == 0 })
     }
 
@@ -48,9 +41,13 @@ struct PDFTextSelectionCacheTests {
         for page in pages { page.resetCounts() }
 
         let starts = view.textPageStarts(in: document)
-        _ = view.wordForwardOffset(from: 0, in: document, pageStarts: starts)
+        #expect(starts == (0...pages.count).map { $0 * ("first second third\nfourth fifth" as NSString).length })
+        #expect(pages.allSatisfy { $0.characterCountReads == 1 })
+        #expect(view.wordForwardOffset(from: 0, in: document, pageStarts: starts) == 6)
         let firstLines = view.textLines(onPageAt: 0, pageStarts: starts)
-        #expect(!firstLines.isEmpty)
+        let firstOffsets = firstLines.flatMap(\.characters).map(\.globalOffset).sorted()
+        #expect(firstOffsets == Array(0..<18) + Array(19..<31))
+        #expect(pages[0].stringReads > 0 && pages[0].characterBoundsReads > 0)
         #expect(pages.dropFirst().allSatisfy { $0.stringReads == 0 })
         for page in pages { page.resetCounts() }
 
@@ -59,7 +56,8 @@ struct PDFTextSelectionCacheTests {
             #expect(view.wordForwardOffset(from: 0, in: document, pageStarts: starts) == 6)
             #expect(view.wordBackwardOffset(from: 12, in: document, pageStarts: starts) == 6)
             #expect(view.wordEndOffset(from: 0, in: document, pageStarts: starts) == 5)
-            #expect(view.textLines(onPageAt: 0, pageStarts: starts).count == firstLines.count)
+            #expect(view.textLines(onPageAt: 0, pageStarts: starts)
+                .flatMap(\.characters).map(\.globalOffset).sorted() == firstOffsets)
         }
 
         #expect(pages.dropFirst().allSatisfy { $0.characterCountReads == 0 && $0.stringReads == 0 })

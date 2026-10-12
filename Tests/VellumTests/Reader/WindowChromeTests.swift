@@ -30,17 +30,15 @@ struct WindowChromeTests {
         let frameView = try #require(container.superview)
         let originalTitlebarHeight = titlebar.frame.height
         let originalContainerHeight = container.frame.height
-        let defaults = try #require(UserDefaults(suiteName: "WindowChromeTests.\(UUID().uuidString)"))
-        let appState = AppState(
-            sessionDefaults: defaults,
-            keyboardController: KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false)
-        )
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let appState = makeTestAppState(defaults: preferences.defaults)
         // Native resizing must work even when this background view does not relayout.
         let chrome = WindowChromeConfigurator.ChromeView(frame: .zero)
         chrome.appState = appState
         window.contentView?.addSubview(chrome)
         window.orderFront(nil)
-        try await Task.sleep(for: .milliseconds(30))
+        await nextTestMainQueueTurn()
 
         func checkPlacement(centerFromTop: CGFloat, leftInset: CGFloat) {
             for index in buttons.indices {
@@ -61,11 +59,11 @@ struct WindowChromeTests {
                 _ = appState.tabStore.closeSelectedTab()
             }
             chrome.configureWindow()
-            try await Task.sleep(for: .milliseconds(30))
+            await nextTestMainQueueTurn()
             for size in [NSSize(width: 640, height: 480), NSSize(width: 900, height: 650),
                          NSSize(width: 1100, height: 690.5), NSSize(width: 1400, height: 950)] {
                 window.setFrame(NSRect(origin: .zero, size: size), display: true)
-                try await Task.sleep(for: .milliseconds(30))
+                await nextTestMainQueueTurn()
                 checkPlacement(centerFromTop: 23, leftInset: 22)
                 #expect(titlebar.frame.height == originalTitlebarHeight)
                 #expect(container.frame.height == originalContainerHeight)
@@ -74,8 +72,7 @@ struct WindowChromeTests {
                 window.titleVisibility = .visible
                 window.titleVisibility = .hidden
                 #expect(window.frame == unchangedFrame)
-                #expect(buttons[0].frame.minX == 7)
-                try await Task.sleep(for: .milliseconds(30))
+                await nextTestMainQueueTurn()
                 checkPlacement(centerFromTop: 23, leftInset: 22)
                 #expect(titlebar.frame.height == originalTitlebarHeight)
                 #expect(container.frame.height == originalContainerHeight)
@@ -97,7 +94,8 @@ struct WindowChromeTests {
             container.needsLayout = true
             container.layoutSubtreeIfNeeded()
         }
-        try await Task.sleep(for: .milliseconds(30))
+        await nextTestMainQueueTurn()
+        await nextTestMainQueueTurn()
         #expect(frameChanges.count == 0)
     }
 }

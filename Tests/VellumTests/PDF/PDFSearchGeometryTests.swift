@@ -14,7 +14,7 @@ struct PDFSearchGeometryTests {
         let controller = try #require(view.searchController)
         let field = try #require(searchField(in: view))
         enter("alpha", into: field)
-        try await waitUntil(in: view) {
+        try await waitForTestCondition("Search preview reaches its matching page") {
             guard controller.hasVisibleHighlights,
                   let selection = controller.activeSearchSelection,
                   let page = selection.pages.first,
@@ -45,14 +45,16 @@ struct PDFSearchGeometryTests {
         view.beginSearchCommand()
         let controller = try #require(view.searchController)
         enter("alpha", into: try #require(searchField(in: view)))
-        try await waitUntil(in: view) { (view.highlightedSelections?.count ?? 0) >= 3 }
+        try await waitForTestCondition("Search materializes highlights on visible pages") {
+            (view.highlightedSelections?.count ?? 0) >= 3
+        }
         let activePage = try #require(controller.activeSearchSelection?.pages.first)
         let visibleBefore = Set(view.visiblePages.map(ObjectIdentifier.init))
         #expect(visibleBefore.count > 2)
         #expect(visibleBefore.isSubset(of: highlightedPages(in: view)))
 
         view.scrollToDocumentEdge(.bottom)
-        try await waitUntil(in: view) {
+        try await waitForTestCondition("Scrolled pages receive their search highlights") {
             let visible = Set(view.visiblePages.map(ObjectIdentifier.init))
             return visible != visibleBefore && visible.isSubset(of: highlightedPages(in: view))
         }
@@ -89,7 +91,9 @@ struct PDFSearchGeometryTests {
         view.beginSearchCommand()
         let controller = try #require(view.searchController)
         enter("alpha", into: try #require(searchField(in: view)))
-        try await waitUntil(in: view) { (view.highlightedSelections?.count ?? 0) == 3 }
+        try await waitForTestCondition("All rotated search matches are highlighted") {
+            (view.highlightedSelections?.count ?? 0) == 3
+        }
 
         let firstY = try #require(controller.activeSearchSelection).bounds(for: page).midY
         view.vimSearchNext()
@@ -174,12 +178,4 @@ struct PDFSearchGeometryTests {
         Set((view.highlightedSelections ?? []).flatMap(\.pages).map(ObjectIdentifier.init))
     }
 
-    @MainActor
-    private func waitUntil(in view: VellumPDFView, _ condition: () -> Bool) async throws {
-        let deadline = ContinuousClock.now.advanced(by: .seconds(5))
-        while !condition(), ContinuousClock.now < deadline {
-            try await Task.sleep(for: .milliseconds(10))
-        }
-        try #require(condition(), "current page: \(view.currentPage.flatMap { view.document?.index(for: $0) } ?? -1); visible pages: \(view.visiblePages.map { view.document?.index(for: $0) ?? -1 }); highlighted: \(view.highlightedSelections?.count ?? 0); has target: \(view.searchController?.hasTextTarget ?? false)")
-    }
 }

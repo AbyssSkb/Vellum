@@ -5,76 +5,31 @@ import Testing
 
 @Suite("AI key event router")
 struct AIKeyEventRouterTests {
-    @Test
-    func escapeDismissesHoveredExplanationOnKeyDown() {
+    @Test(arguments: [
+        ("\u{1b}", NSEvent.EventType.keyDown, true, nil as String?, AIKeyEventRouter.Action.dismissHover),
+        ("\u{1b}", .keyDown, false, nil, .forwardToWebView(key: "\u{1b}")),
+        ("j", .keyDown, false, nil, .startContinuousScroll(directionKey: "j")),
+        ("k", .keyDown, false, nil, .startContinuousScroll(directionKey: "k")),
+        ("j", .keyUp, false, "j", .stopContinuousScroll),
+        ("j", .keyUp, false, "k", .consume),
+        ("m", .keyDown, false, nil, .forwardToWebView(key: "m")),
+        ("c", .keyUp, false, nil, .consume),
+        ("x", .keyDown, false, nil, .none),
+        ("x", .keyUp, false, nil, .none)
+    ])
+    func routesKeysByEventAndInteractionState(
+        key: String,
+        eventType: NSEvent.EventType,
+        hasHoveredExplanation: Bool,
+        continuousScrollKey: String?,
+        expected: AIKeyEventRouter.Action
+    ) {
         #expect(AIKeyEventRouter.action(
-            key: "\u{1b}",
-            eventType: .keyDown,
-            hasHoveredExplanation: true,
-            continuousScrollKey: nil
-        ) == .dismissHover)
-    }
-
-    @Test
-    func escapeWithoutHoveredExplanationIsForwardedToWebView() {
-        #expect(AIKeyEventRouter.action(
-            key: "\u{1b}",
-            eventType: .keyDown,
-            hasHoveredExplanation: false,
-            continuousScrollKey: nil
-        ) == .forwardToWebView(key: "\u{1b}"))
-    }
-
-    @Test
-    func jAndKStartContinuousScrollOnKeyDown() {
-        #expect(AIKeyEventRouter.action(
-            key: "j",
-            eventType: .keyDown,
-            hasHoveredExplanation: false,
-            continuousScrollKey: nil
-        ) == .startContinuousScroll(directionKey: "j"))
-        #expect(AIKeyEventRouter.action(
-            key: "k",
-            eventType: .keyDown,
-            hasHoveredExplanation: false,
-            continuousScrollKey: nil
-        ) == .startContinuousScroll(directionKey: "k"))
-    }
-
-    @Test
-    func matchingScrollKeyStopsContinuousScrollOnKeyUp() {
-        #expect(AIKeyEventRouter.action(
-            key: "j",
-            eventType: .keyUp,
-            hasHoveredExplanation: false,
-            continuousScrollKey: "j"
-        ) == .stopContinuousScroll)
-    }
-
-    @Test
-    func nonMatchingScrollKeyUpIsConsumedWithoutStopping() {
-        #expect(AIKeyEventRouter.action(
-            key: "j",
-            eventType: .keyUp,
-            hasHoveredExplanation: false,
-            continuousScrollKey: "k"
-        ) == .consume)
-    }
-
-    @Test
-    func popoverCommandKeysForwardOnKeyDownAndConsumeOnKeyUp() {
-        #expect(AIKeyEventRouter.action(
-            key: "m",
-            eventType: .keyDown,
-            hasHoveredExplanation: false,
-            continuousScrollKey: nil
-        ) == .forwardToWebView(key: "m"))
-        #expect(AIKeyEventRouter.action(
-            key: "c",
-            eventType: .keyUp,
-            hasHoveredExplanation: false,
-            continuousScrollKey: nil
-        ) == .consume)
+            key: key,
+            eventType: eventType,
+            hasHoveredExplanation: hasHoveredExplanation,
+            continuousScrollKey: continuousScrollKey
+        ) == expected)
     }
 
     @Test
@@ -145,7 +100,7 @@ struct AIKeyEventRouterTests {
         let webView = AIExplanationWebView()
         let probe = AIKeyEventNavigationProbe()
         webView.navigationDelegate = probe
-        defer { view.hideAIExplanationPopover(); webView.stopLoading() }
+        defer { view.hideAIExplanationPopover(); webView.stopLoading(); webView.navigationDelegate = nil }
         try await probe.load(AIExplanationHTML.document.replacingOccurrences(
             of: #"<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>"#,
             with: ""
@@ -227,8 +182,8 @@ struct AIKeyEventRouterTests {
         _ = NSApplication.shared
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 800, height: 600), styleMask: .borderless, backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
-        defer { window.close() }
         let view = VellumPDFView(frame: window.contentView!.bounds)
+        defer { view.hideAIExplanationPopover(); window.contentView = nil; window.close() }
         window.contentView = view
         view.showPopover(model: AIExplanationPopoverModel(title: "test"), at: nil, kind: .hover)
         view.startAIContinuousScroll("j", keyCode: 38)
@@ -239,46 +194,31 @@ struct AIKeyEventRouterTests {
         view.hideAIExplanationPopover()
         #expect(view.aiInteraction.continuousScrollKey == nil)
     }
-
-    @Test
-    func unrelatedKeysAreIgnored() {
-        #expect(AIKeyEventRouter.action(
-            key: "x",
-            eventType: .keyDown,
-            hasHoveredExplanation: false,
-            continuousScrollKey: nil
-        ) == .none)
-        #expect(AIKeyEventRouter.action(
-            key: "x",
-            eventType: .keyUp,
-            hasHoveredExplanation: false,
-            continuousScrollKey: nil
-        ) == .none)
-    }
 }
 
 @MainActor
 private final class AIKeyEventNavigationProbe: NSObject, WKNavigationDelegate {
-    private var loading: CheckedContinuation<Void, Error>?
     private var loadingNavigation: WKNavigation?
+    private var didComplete = false
+    private var loadingError: Error?
 
     func load(_ html: String, in webView: WKWebView) async throws {
-        try await withCheckedThrowingContinuation { continuation in
-            loading = continuation
-            loadingNavigation = webView.loadHTMLString(html, baseURL: nil)
-        }
+        didComplete = false
+        loadingError = nil
+        loadingNavigation = try #require(webView.loadHTMLString(html, baseURL: nil))
+        try await waitForTestCondition("The local explanation document finished loading") { didComplete }
+        if let loadingError { throw loadingError }
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         guard navigation === loadingNavigation else { return }
-        loading?.resume()
-        loading = nil
+        didComplete = true
     }
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
         guard navigation === loadingNavigation else { return }
-        loading?.resume(throwing: error)
-        loading = nil
+        loadingError = error
+        didComplete = true
     }
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {

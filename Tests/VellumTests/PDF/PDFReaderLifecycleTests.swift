@@ -16,7 +16,7 @@ struct PDFReaderLifecycleTests {
         if updated {
             fixture.host.rootView = fixture.readerContent(snapshot: .initial)
             fixture.host.layoutSubtreeIfNeeded()
-            await nextMainQueueTurn()
+            await nextTestMainQueueTurn()
         }
         reader.cancelPendingRestore()
         reader.autoScales = false
@@ -43,10 +43,10 @@ struct PDFReaderLifecycleTests {
 
         fixture.host.rootView = AnyView(EmptyView())
         fixture.host.layoutSubtreeIfNeeded()
-        try await waitUntil { dismantled }
+        try await waitForTestCondition("Reader dismantled") { dismantled }
         #expect(publicationsDuringDismantle == 0)
         try #require(finalSnapshot?.scaleFactor == 1.37)
-        await nextMainQueueTurn()
+        await nextTestMainQueueTurn()
 
         #expect(reader.window == nil)
         #expect(fixture.state.tabs.first?.snapshot == finalSnapshot)
@@ -85,8 +85,8 @@ struct PDFReaderLifecycleTests {
 
         fixture.host.rootView = AnyView(EmptyView())
         fixture.host.layoutSubtreeIfNeeded()
-        try await waitUntil { dismantled }
-        await nextMainQueueTurn()
+        try await waitForTestCondition("Reader dismantled before tab change") { dismantled }
+        await nextTestMainQueueTurn()
 
         #expect(snapshotPublications == 0)
         if replaced {
@@ -96,24 +96,10 @@ struct PDFReaderLifecycleTests {
         }
     }
 
-    private func nextMainQueueTurn() async {
-        await withCheckedContinuation { continuation in
-            DispatchQueue.main.async { continuation.resume() }
-        }
-    }
-
-    private func waitUntil(_ condition: () -> Bool) async throws {
-        let deadline = ContinuousClock.now.advanced(by: .seconds(5))
-        while !condition(), ContinuousClock.now < deadline {
-            try await Task.sleep(for: .milliseconds(10))
-        }
-        try #require(condition())
-    }
-
     @MainActor
     private struct Fixture {
-        let suiteName = "Vellum.ReaderTeardown.\(UUID().uuidString)"
-        let defaults: UserDefaults
+        let preferences: TestPreferences
+        var defaults: UserDefaults { preferences.defaults }
         let state: AppState
         let tab: PDFTab
         let host: NSHostingView<AnyView>
@@ -121,11 +107,8 @@ struct PDFReaderLifecycleTests {
 
         init() throws {
             _ = NSApplication.shared
-            defaults = try #require(UserDefaults(suiteName: suiteName))
-            state = AppState(sessionDefaults: defaults, keyboardController: KeyboardController(
-                installsKeyMonitor: false, installsOpenURLObserver: false,
-                notificationCenter: NotificationCenter(), openURLRelay: OpenURLRelay()
-            ))
+            preferences = try TestPreferences()
+            state = makeTestAppState(defaults: preferences.defaults)
             let document = PDFDocument()
             let page = PDFPage()
             page.setBounds(NSRect(x: 0, y: 0, width: 612, height: 1_600), for: .mediaBox)
@@ -150,18 +133,18 @@ struct PDFReaderLifecycleTests {
         }
 
         func mountedReader() async throws -> VellumPDFView {
-            let deadline = ContinuousClock.now.advanced(by: .seconds(5))
-            while state.activeReaderController == nil, ContinuousClock.now < deadline {
+            try await waitForTestCondition("Reader mounted in SwiftUI host") {
                 host.layoutSubtreeIfNeeded()
-                try await Task.sleep(for: .milliseconds(10))
+                return state.activeReaderController != nil
             }
             return try #require(state.activeReaderController as? VellumPDFView)
         }
 
         func cleanUp() {
+            (state.activeReaderController as? VellumPDFView)?.saveBeforeDismantle = nil
             host.rootView = AnyView(EmptyView())
             window.close()
-            defaults.removePersistentDomain(forName: suiteName)
+            preferences.cleanup()
         }
     }
 }

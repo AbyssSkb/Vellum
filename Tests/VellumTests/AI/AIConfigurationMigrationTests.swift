@@ -6,7 +6,9 @@ import Testing
 struct AIConfigurationMigrationTests {
     @Test
     func globalSettingsStayWithOriginalProviderAfterSwitching() throws {
-        let defaults = isolatedDefaults()
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let defaults = preferences.defaults
         defaults.set("deepseek", forKey: AISettingsKeys.providerID)
         defaults.set("anthropic", forKey: AISettingsKeys.providerSettingsSelectionID)
         defaults.set("anthropic", forKey: AISettingsKeys.conversationProviderID)
@@ -14,8 +16,12 @@ struct AIConfigurationMigrationTests {
         defaults.set("original-model", forKey: AISettingsKeys.model)
         defaults.set("original-key", forKey: AISettingsKeys.apiKey)
 
-        #expect(throws: AIExplanationError.self) {
-            try AIConfiguration.current(profile: .conversation, defaults: defaults)
+        do {
+            _ = try AIConfiguration.current(profile: .conversation, defaults: defaults)
+            Issue.record("The other provider must require its own API key")
+        } catch AIExplanationError.missingAPIKey {
+        } catch {
+            Issue.record(error)
         }
         let original = try AIConfiguration.current(defaults: defaults)
         #expect(original.baseURL.absoluteString == "https://original.example/v1")
@@ -23,8 +29,12 @@ struct AIConfigurationMigrationTests {
         #expect(original.apiKey == "original-key")
 
         defaults.set("anthropic", forKey: AISettingsKeys.providerID)
-        #expect(throws: AIExplanationError.self) {
-            try AIConfiguration.current(defaults: defaults)
+        do {
+            _ = try AIConfiguration.current(defaults: defaults)
+            Issue.record("Switching providers must not copy the original API key")
+        } catch AIExplanationError.missingAPIKey {
+        } catch {
+            Issue.record(error)
         }
         #expect(defaults.object(forKey: AISettingsKeys.baseURLKey(for: "anthropic")) == nil)
         #expect(defaults.object(forKey: AISettingsKeys.modelKey(for: "anthropic")) == nil)
@@ -49,7 +59,9 @@ struct AIConfigurationMigrationTests {
 
     @Test(arguments: ["", "removed-provider"])
     func originalProviderUsesTheSameDefaultResolutionAsRuntime(providerID: String) throws {
-        let defaults = isolatedDefaults()
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let defaults = preferences.defaults
         if !providerID.isEmpty {
             defaults.set(providerID, forKey: AISettingsKeys.providerID)
         }
@@ -64,8 +76,10 @@ struct AIConfigurationMigrationTests {
     }
 
     @Test(arguments: ["", "saved"])
-    func scopedSettingsIncludingEmptyValuesWinAndMigrationDoesNotRepeat(value: String) {
-        let defaults = isolatedDefaults()
+    func scopedSettingsIncludingEmptyValuesWinAndMigrationDoesNotRepeat(value: String) throws {
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let defaults = preferences.defaults
         defaults.set("anthropic", forKey: AISettingsKeys.providerID)
         let keys = [
             (AISettingsKeys.baseURL, AISettingsKeys.baseURLKey(for: "anthropic")),
@@ -92,8 +106,10 @@ struct AIConfigurationMigrationTests {
     }
 
     @Test
-    func conversationCredentialsMigrateForEveryProviderAndModelsStayIndependent() {
-        let defaults = isolatedDefaults()
+    func conversationCredentialsMigrateForEveryProviderAndModelsStayIndependent() throws {
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let defaults = preferences.defaults
         for preset in AIProviderPreset.presets {
             defaults.set("https://\(preset.id).example/v1", forKey: AISettingsKeys.conversationBaseURLKey(for: preset.id))
             defaults.set("\(preset.id)-key", forKey: AISettingsKeys.conversationAPIKeyKey(for: preset.id))
@@ -113,7 +129,9 @@ struct AIConfigurationMigrationTests {
 
     @Test
     func blankLegacyValuesKeepPresetDefaults() throws {
-        let defaults = isolatedDefaults()
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let defaults = preferences.defaults
         defaults.set(" \n ", forKey: AISettingsKeys.baseURL)
         defaults.set(" \n ", forKey: AISettingsKeys.model)
         defaults.set(" \n ", forKey: AISettingsKeys.conversationBaseURLKey(for: "openai"))
@@ -129,7 +147,9 @@ struct AIConfigurationMigrationTests {
 
     @Test
     func globalOwnerCredentialsHaveConsistentPrecedenceWhenConversationLoadsFirst() throws {
-        let defaults = isolatedDefaults()
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let defaults = preferences.defaults
         defaults.set("anthropic", forKey: AISettingsKeys.providerID)
         defaults.set("anthropic", forKey: AISettingsKeys.conversationProviderID)
         defaults.set("https://original.example/v1", forKey: AISettingsKeys.baseURL)
@@ -151,7 +171,9 @@ struct AIConfigurationMigrationTests {
 
     @Test
     func reasoningEffortIsIndependentPerProviderAndUsage() throws {
-        let defaults = isolatedDefaults()
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let defaults = preferences.defaults
         defaults.set("codex-cli", forKey: AISettingsKeys.providerID)
         defaults.set("codex-cli", forKey: AISettingsKeys.conversationProviderID)
         #expect(try AIConfiguration.current(defaults: defaults).reasoningEffort == "medium")
@@ -170,7 +192,9 @@ struct AIConfigurationMigrationTests {
 
     @Test(arguments: ["", " \n "])
     func blankCodexDepthUsesApplicationDefaultForEachUsage(value: String) throws {
-        let defaults = isolatedDefaults()
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let defaults = preferences.defaults
         for profile in AIConfigurationProfile.allCases {
             defaults.set("codex-cli", forKey: profile.providerIDKey)
             defaults.set(value, forKey: profile.reasoningEffortKey(for: "codex-cli"))
@@ -182,7 +206,9 @@ struct AIConfigurationMigrationTests {
 
     @Test
     func HTTPProvidersKeepUnspecifiedReasoningDepth() throws {
-        let defaults = isolatedDefaults()
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let defaults = preferences.defaults
         defaults.set("key", forKey: AISettingsKeys.apiKeyKey(for: "openai"))
         for profile in AIConfigurationProfile.allCases {
             defaults.set("openai", forKey: profile.providerIDKey)
@@ -190,10 +216,4 @@ struct AIConfigurationMigrationTests {
         }
     }
 
-    private func isolatedDefaults() -> UserDefaults {
-        let name = "VellumTests.AIConfigurationMigration.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
-        defaults.removePersistentDomain(forName: name)
-        return defaults
-    }
 }

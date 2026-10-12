@@ -8,8 +8,12 @@ import Testing
 struct PDFOutlineReadingSyncTests {
     @Test(arguments: [false, true])
     func delayedFirstReadingLocationAlignsUnlessTheUserAlreadyBrowsed(browsed: Bool) throws {
-        let fixture = makeFixture()
-        defer { fixture.window.close() }
+        let fixture = try makeFixture()
+        defer {
+            fixture.window.contentView = nil
+            fixture.window.close()
+            fixture.preferences.cleanup()
+        }
         fixture.coordinator.restoreState(in: fixture.outline)
         #expect(fixture.window.makeFirstResponder(fixture.outline))
         if browsed { fixture.outline.selectFoldItem(fixture.items.last!) }
@@ -23,8 +27,12 @@ struct PDFOutlineReadingSyncTests {
 
     @Test
     func readingMovementKeepsTheFocusedOutlineCursorAndScrollPosition() throws {
-        let fixture = makeFixture()
-        defer { fixture.window.close() }
+        let fixture = try makeFixture()
+        defer {
+            fixture.window.contentView = nil
+            fixture.window.close()
+            fixture.preferences.cleanup()
+        }
         fixture.appState.outlineReadingDestination = fixture.items[0].destination
         fixture.coordinator.restoreState(in: fixture.outline)
         #expect(fixture.window.makeFirstResponder(fixture.outline))
@@ -45,9 +53,13 @@ struct PDFOutlineReadingSyncTests {
     }
 
     @Test
-    func readerFocusedSynchronizationOnlyFollowsActualSectionChangesAndPreservesFolds() {
-        let fixture = makeFixture()
-        defer { fixture.window.close() }
+    func readerFocusedSynchronizationOnlyFollowsActualSectionChangesAndPreservesFolds() throws {
+        let fixture = try makeFixture()
+        defer {
+            fixture.window.contentView = nil
+            fixture.window.close()
+            fixture.preferences.cleanup()
+        }
         fixture.appState.outlineReadingDestination = fixture.items[0].destination
         fixture.coordinator.restoreState(in: fixture.outline)
         fixture.outline.selectFoldItem(fixture.items.last!)
@@ -66,9 +78,13 @@ struct PDFOutlineReadingSyncTests {
     }
 
     @Test
-    func reopeningAlignsWithReadingLocationWhileKeepingSavedFolds() {
-        let fixture = makeFixture()
-        defer { fixture.window.close() }
+    func reopeningAlignsWithReadingLocationWhileKeepingSavedFolds() throws {
+        let fixture = try makeFixture()
+        defer {
+            fixture.window.contentView = nil
+            fixture.window.close()
+            fixture.preferences.cleanup()
+        }
         fixture.coordinator.restoreState(in: fixture.outline)
         fixture.outline.collapseItem(fixture.items[0])
         fixture.outline.selectFoldItem(fixture.items.last!)
@@ -81,8 +97,12 @@ struct PDFOutlineReadingSyncTests {
 
     @Test
     func currentReadingMarkerRemainsSeparateFromKeyboardSelection() throws {
-        let fixture = makeFixture()
-        defer { fixture.window.close() }
+        let fixture = try makeFixture()
+        defer {
+            fixture.window.contentView = nil
+            fixture.window.close()
+            fixture.preferences.cleanup()
+        }
         fixture.appState.outlineReadingDestination = fixture.items[0].destination
         fixture.coordinator.restoreState(in: fixture.outline)
         #expect(fixture.window.makeFirstResponder(fixture.outline))
@@ -102,14 +122,13 @@ struct PDFOutlineReadingSyncTests {
         #expect(readingRow.isReadingSection)
     }
 
-    private func makeFixture() -> (
-        appState: AppState, items: [PDFOutlineItem], coordinator: PDFOutlineView.Coordinator,
+    private func makeFixture() throws -> (
+        preferences: TestPreferences, appState: AppState, items: [PDFOutlineItem], coordinator: PDFOutlineView.Coordinator,
         outline: PDFOutlineKeyView, scroll: NSScrollView, reader: VellumPDFView, window: NSWindow
     ) {
         _ = NSApplication.shared
-        let appState = AppState(sessionDefaults: UserDefaults(suiteName: UUID().uuidString)!, keyboardController: KeyboardController(
-            installsKeyMonitor: false, installsOpenURLObserver: false
-        ))
+        let preferences = try TestPreferences()
+        let appState = makeTestAppState(defaults: preferences.defaults)
         let document = PDFDocument()
         for index in 0..<2 {
             let page = PDFPage()
@@ -151,6 +170,6 @@ struct PDFOutlineReadingSyncTests {
         window.contentView?.addSubview(reader)
         appState.readerWindow = window
         window.contentView?.layoutSubtreeIfNeeded()
-        return (appState, items, coordinator, outline, scroll, reader, window)
+        return (preferences, appState, items, coordinator, outline, scroll, reader, window)
     }
 }

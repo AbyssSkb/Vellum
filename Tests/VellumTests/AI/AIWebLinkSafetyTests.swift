@@ -7,30 +7,12 @@ import Testing
 @MainActor
 struct AIWebLinkSafetyTests {
     @Test(.timeLimit(.minutes(1)), arguments: [false, true])
-    func markdownLinksAndCodeProtectLiteralContentAndNativeCommands(conversation: Bool) async throws {
-        _ = NSApplication.shared
-        let probe = AIWebLinkSafetyProbe()
-        let configuration = WKWebViewConfiguration()
-        configuration.userContentController.add(probe, name: "vellum")
-        configuration.userContentController.add(probe, name: "vellumConversation")
-        let webView = WKWebView(frame: NSRect(x: 0, y: 0, width: 400, height: 400), configuration: configuration)
-        webView.navigationDelegate = probe
-        defer {
-            webView.stopLoading()
-            configuration.userContentController.removeAllScriptMessageHandlers()
-        }
-        let document = conversation ? AIConversationTranscriptHTML.document : AIExplanationHTML.document
-        try await probe.load(document.replacingOccurrences(
-            of: #"<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>"#,
-            with: ""
-        ), in: webView)
-
-        let webColor = try #require(try await webView.evaluateJavaScript(
-            "getComputedStyle(document.body).color.match(/\\d+/g).map(Number);"
-        ) as? [Int])
-        let foreground = try #require(VellumColors.foreground.usingColorSpace(.sRGB))
-        #expect(webColor == [foreground.redComponent, foreground.greenComponent, foreground.blueComponent].map { Int(($0 * 255).rounded()) })
-
+    func markdownAndGeneratedMathLinksCannotInvokeNativeCommands(conversation: Bool) async throws {
+        let fixture = AIWebRenderingFixture(conversation: conversation)
+        defer { fixture.close() }
+        try await fixture.load()
+        let webView = fixture.webView
+        let probe = fixture.probe
         let command = "window.webkit.messageHandlers.vellum.postMessage%28%27highlight%27%29"
         let unsafeDestinations = [
             "javascript:\(command)", "JaVaScRiPt:\(command)", "java\tscript:\(command)",
@@ -45,11 +27,7 @@ struct AIWebLinkSafetyTests {
         ]
         let markdown = (unsafeDestinations + safeDestinations).enumerated()
             .map { "[link\($0.offset)](\($0.element))" }.joined(separator: "\n") + " $y$\n\n$$x$$"
-        let literal = String(decoding: try JSONSerialization.data(withJSONObject: [markdown]), as: UTF8.self)
-        let render = conversation
-            ? "window.vellumSetConversation({messages:[{role:'assistant',content:\(literal)[0]}]}, false);"
-            : "window.vellumSetMarkdown(\(literal)[0], false);"
-        _ = try await webView.evaluateJavaScript(render + "null;")
+        try await fixture.render(markdown)
         let destinations = try #require(try await webView.evaluateJavaScript(
             "Array.from(document.querySelectorAll('#content a'), a => a.getAttribute('href'));"
         ) as? [String])
@@ -99,15 +77,24 @@ struct AIWebLinkSafetyTests {
         let preventedMathClicks = try #require(try await webView.evaluateJavaScript("window.vellumMathLinkClicks") as? [Bool])
         #expect(preventedMathClicks == [true, true, true, false, false, false, true, true, true, false, false, false])
         #expect(probe.commands.isEmpty)
+    }
+
+    @Test(.timeLimit(.minutes(1)), arguments: [false, true])
+    func markdownFormattingPreservesLiteralCodeAndSharedForeground(conversation: Bool) async throws {
+        let fixture = AIWebRenderingFixture(conversation: conversation)
+        defer { fixture.close() }
+        try await fixture.load()
+        let webView = fixture.webView
+        let webColor = try #require(try await webView.evaluateJavaScript(
+            "getComputedStyle(document.body).color.match(/\\d+/g).map(Number);"
+        ) as? [Int])
+        let foreground = try #require(VellumColors.foreground.usingColorSpace(.sRGB))
+        #expect(webColor == [foreground.redComponent, foreground.greenComponent, foreground.blueComponent].map { Int(($0 * 255).rounded()) })
 
         let inlineCode = #"**strong** *emphasis* [reference](https://example.com) $x_y$ $$z$$ \(a_b\) <tag> & @@BLOCK_0@@ @@INLINE_MATH_0@@ @@INLINE_CODE_0@@"#
         let markers = "@@BLOCK_0@@ @@INLINE_MATH_0@@ @@INLINE_CODE_0@@ @@@BLOCK_0@@"
         let codeMarkdown = "`\(inlineCode)`\n\n\(markers)\n\n**bold** *emphasis* [reference](https://example.com) $x_y$\n\n```javascript\nconst tag = '<node>';\n```\n\n```\nplain & literal\n```\n\n$$outside$$\n\nBefore ` unmatched\n\n```swift\nlet value = 1\n```\n\nAfter ` unmatched"
-        let codeLiteral = String(decoding: try JSONSerialization.data(withJSONObject: [codeMarkdown]), as: UTF8.self)
-        let renderCode = conversation
-            ? "window.vellumSetConversation({messages:[{role:'assistant',content:\(codeLiteral)[0]}]}, false);"
-            : "window.vellumSetMarkdown(\(codeLiteral)[0], false);"
-        _ = try await webView.evaluateJavaScript(renderCode + "null;")
+        try await fixture.render(codeMarkdown)
         let codeContents = try #require(try await webView.evaluateJavaScript(
             "Array.from(document.querySelectorAll('#content code'), code => code.textContent);"
         ) as? [String])
@@ -119,51 +106,119 @@ struct AIWebLinkSafetyTests {
         #expect(try await webView.evaluateJavaScript("document.querySelectorAll('.math-display').length") as? Int == 1)
         let renderedText = try #require(try await webView.evaluateJavaScript("document.getElementById('content').textContent") as? String)
         #expect(renderedText.contains(markers))
-
-        if !conversation {
-            _ = try await webView.evaluateJavaScript("window.vellumSetPronunciationSpeech('test', 'US', 'UK'); window.vellumSetMarkdown('## Pronunciation\\n/test/', false); null;")
-            try await probe.runAndWaitForMessages(
-                "document.querySelector('.speak-button').click(); postVellumCommand('highlight');",
-                in: webView
-            )
-            #expect(probe.commands == ["speakPronunciationUS", "highlight"])
-        }
     }
+
+    @Test(.timeLimit(.minutes(1)))
+    func explanationControlsSendExplicitNativeCommands() async throws {
+        let fixture = AIWebRenderingFixture(conversation: false)
+        defer { fixture.close() }
+        try await fixture.load()
+        _ = try await fixture.webView.evaluateJavaScript("window.vellumSetPronunciationSpeech('test', 'US', 'UK'); window.vellumSetMarkdown('## Pronunciation\\n/test/', false); null;")
+        try await fixture.probe.runAndWaitForMessages(
+            "document.querySelector('.speak-button').click(); postVellumCommand('highlight');",
+            in: fixture.webView
+        )
+        #expect(fixture.probe.commands == ["speakPronunciationUS", "highlight"])
+    }
+
+    @Test
+    func nativeNavigationPolicyCancelsUnsafeLinksAndAllowsDocumentLoading() throws {
+        for destination in ["javascript:alert(1)", "data:text/html,test", "file:///etc/passwd", "vellum://highlight"] {
+            let action = AIWebNavigationAction(url: try #require(URL(string: destination)), type: .linkActivated)
+            var decision: WKNavigationActionPolicy?
+            AIWebLinkNavigationPolicy.decide(for: action) { decision = $0 }
+            #expect(decision == .cancel)
+        }
+        let documentLoad = AIWebNavigationAction(url: try #require(URL(string: "about:blank")), type: .other)
+        var decision: WKNavigationActionPolicy?
+        AIWebLinkNavigationPolicy.decide(for: documentLoad) { decision = $0 }
+        #expect(decision == .allow)
+    }
+}
+
+@MainActor
+private struct AIWebRenderingFixture {
+    let webView: WKWebView
+    let probe = AIWebLinkSafetyProbe()
+    let conversation: Bool
+
+    init(conversation: Bool) {
+        _ = NSApplication.shared
+        self.conversation = conversation
+        let configuration = WKWebViewConfiguration()
+        configuration.userContentController.add(probe, name: "vellum")
+        configuration.userContentController.add(probe, name: "vellumConversation")
+        webView = WKWebView(frame: NSRect(x: 0, y: 0, width: 400, height: 400), configuration: configuration)
+        webView.navigationDelegate = probe
+    }
+
+    func load() async throws {
+        let document = conversation ? AIConversationTranscriptHTML.document : AIExplanationHTML.document
+        // Exercise generated MathJax anchors locally without depending on the CDN.
+        try await probe.load(document.replacingOccurrences(
+            of: #"<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>"#,
+            with: ""
+        ), in: webView)
+    }
+
+    func render(_ markdown: String) async throws {
+        let literal = String(decoding: try JSONSerialization.data(withJSONObject: [markdown]), as: UTF8.self)
+        let script = conversation
+            ? "window.vellumSetConversation({messages:[{role:'assistant',content:\(literal)[0]}]}, false);"
+            : "window.vellumSetMarkdown(\(literal)[0], false);"
+        _ = try await webView.evaluateJavaScript(script + "null;")
+    }
+
+    func close() {
+        webView.stopLoading()
+        webView.navigationDelegate = nil
+        webView.configuration.userContentController.removeAllScriptMessageHandlers()
+    }
+}
+
+private final class AIWebNavigationAction: WKNavigationAction {
+    private let url: URL
+    private let type: WKNavigationType
+
+    init(url: URL, type: WKNavigationType) {
+        self.url = url
+        self.type = type
+        super.init()
+    }
+
+    override var request: URLRequest { URLRequest(url: url) }
+    override var navigationType: WKNavigationType { type }
 }
 
 @MainActor
 private final class AIWebLinkSafetyProbe: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
     var commands: [String] = []
-    private var loading: CheckedContinuation<Void, Error>?
-    private var messageBarrier: CheckedContinuation<Void, Error>?
+    private var didFinishLoading = false
+    private var loadingError: Error?
+    private var messageBarriers = 0
 
     func load(_ html: String, in webView: WKWebView) async throws {
-        try await withCheckedThrowingContinuation { continuation in
-            loading = continuation
-            webView.loadHTMLString(html, baseURL: nil)
-        }
+        webView.loadHTMLString(html, baseURL: nil)
+        try await waitForTestCondition("AI Markdown document loaded") { didFinishLoading || loadingError != nil }
+        if let loadingError { throw loadingError }
     }
 
     func runAndWaitForMessages(_ script: String, in webView: WKWebView) async throws {
-        try await withCheckedThrowingContinuation { continuation in
-            messageBarrier = continuation
-            webView.evaluateJavaScript(script + ";window.webkit.messageHandlers.vellum.postMessage('barrier'); null;") { [weak self] _, error in
-                if let error {
-                    self?.messageBarrier?.resume(throwing: error)
-                    self?.messageBarrier = nil
-                }
-            }
-        }
+        let previousBarriers = messageBarriers
+        _ = try await webView.evaluateJavaScript(script + ";window.webkit.messageHandlers.vellum.postMessage('barrier'); null;")
+        try await waitForTestCondition("AI Markdown native messages received") { messageBarriers > previousBarriers }
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        loading?.resume()
-        loading = nil
+        didFinishLoading = true
     }
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
-        loading?.resume(throwing: error)
-        loading = nil
+        loadingError = error
+    }
+
+    func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+        loadingError = error
     }
 
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping @MainActor @Sendable (WKNavigationActionPolicy) -> Void) {
@@ -173,8 +228,7 @@ private final class AIWebLinkSafetyProbe: NSObject, WKNavigationDelegate, WKScri
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
         guard let command = message.body as? String else { return }
         if command == "barrier" {
-            messageBarrier?.resume()
-            messageBarrier = nil
+            messageBarriers += 1
         } else {
             commands.append(command)
         }

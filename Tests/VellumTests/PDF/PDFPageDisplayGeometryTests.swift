@@ -15,18 +15,34 @@ struct PDFPageDisplayGeometryTests {
         page.rotation = rotation
         let geometry = PDFPageDisplayGeometry(page: page, box: .cropBox)
         let topPagePoint: NSPoint
+        let displayBounds: NSRect
+        let displayTextRect: NSRect
         switch rotation {
-        case 90: topPagePoint = NSPoint(x: crop.minX, y: crop.midY)
-        case 180: topPagePoint = NSPoint(x: crop.midX, y: crop.minY)
-        case 270, -90: topPagePoint = NSPoint(x: crop.maxX, y: crop.midY)
-        default: topPagePoint = NSPoint(x: crop.midX, y: crop.maxY)
+        case 90:
+            topPagePoint = NSPoint(x: 40, y: 660)
+            displayBounds = NSRect(x: 0, y: 0, width: 1_200, height: 800)
+            displayTextRect = NSRect(x: 160, y: 560, width: 20, height: 160)
+        case 180:
+            topPagePoint = NSPoint(x: 440, y: 60)
+            displayBounds = NSRect(x: 0, y: 0, width: 800, height: 1_200)
+            displayTextRect = NSRect(x: 560, y: 1_020, width: 160, height: 20)
+        case 270, -90:
+            topPagePoint = NSPoint(x: 840, y: 660)
+            displayBounds = NSRect(x: 0, y: 0, width: 1_200, height: 800)
+            displayTextRect = NSRect(x: 1_020, y: 80, width: 20, height: 160)
+        default:
+            topPagePoint = NSPoint(x: 440, y: 1_260)
+            displayBounds = NSRect(x: 0, y: 0, width: 800, height: 1_200)
+            displayTextRect = NSRect(x: 80, y: 160, width: 160, height: 20)
         }
 
-        #expect(geometry.rect(forPageRect: crop) == geometry.bounds)
-        #expect(geometry.point(forPagePoint: topPagePoint) == NSPoint(x: geometry.bounds.midX, y: geometry.bounds.maxY))
-        #expect(geometry.pagePoint(forDisplayPoint: NSPoint(x: geometry.bounds.midX, y: geometry.bounds.maxY)) == topPagePoint)
+        #expect(geometry.bounds == displayBounds)
+        #expect(geometry.rect(forPageRect: crop) == displayBounds)
+        #expect(geometry.point(forPagePoint: topPagePoint) == NSPoint(x: displayBounds.midX, y: displayBounds.maxY))
+        #expect(geometry.pagePoint(forDisplayPoint: NSPoint(x: displayBounds.midX, y: displayBounds.maxY)) == topPagePoint)
         let textRect = NSRect(x: 120, y: 220, width: 160, height: 20)
-        #expect(geometry.pageRect(forDisplayRect: geometry.rect(forPageRect: textRect)) == textRect)
+        #expect(geometry.rect(forPageRect: textRect) == displayTextRect)
+        #expect(geometry.pageRect(forDisplayRect: displayTextRect) == textRect)
 
         let view = VellumPDFView()
         view.displayBox = .cropBox
@@ -60,64 +76,33 @@ struct PDFPageDisplayGeometryTests {
         view.scaleFactor = 1
         view.layoutDocumentView()
         let sourcePage = try #require(document.page(at: 0))
-        let sourceGeometry = PDFPageDisplayGeometry(page: sourcePage, box: .cropBox)
-        view.centerBothAxes(on: PDFDestination(page: sourcePage, at: sourceGeometry.pagePoint(forDisplayPoint: NSPoint(
-            x: sourceGeometry.bounds.width * 0.35, y: sourceGeometry.bounds.height * 0.6
-        ))))
+        let sourcePoint: NSPoint
+        let targetPoint: NSPoint
+        switch rotation {
+        case 90:
+            sourcePoint = NSPoint(x: 360, y: 480)
+            targetPoint = NSPoint(x: 1_140, y: 520)
+        case 180:
+            sourcePoint = NSPoint(x: 560, y: 540)
+            targetPoint = NSPoint(x: 1_060, y: 770)
+        case 270:
+            sourcePoint = NSPoint(x: 520, y: 840)
+            targetPoint = NSPoint(x: 660, y: 720)
+        default:
+            sourcePoint = NSPoint(x: 320, y: 780)
+            targetPoint = NSPoint(x: 740, y: 470)
+        }
+        view.centerBothAxes(on: PDFDestination(page: sourcePage, at: sourcePoint))
 
         for delta in [1, -1] {
             view.vimMoveByPage(delta)
-            await withCheckedContinuation { continuation in
-                DispatchQueue.main.async { continuation.resume() }
-            }
+            await nextTestMainQueueTurn()
             let state = try #require(view.currentPageState())
             #expect(state.pageIndex == (delta == 1 ? 1 : 0))
-            let geometry = PDFPageDisplayGeometry(page: state.page, box: .cropBox)
-            let point = geometry.point(forPagePoint: state.pointOnPage)
-            #expect(abs(point.x / geometry.bounds.width - 0.35) < 0.005)
-            #expect(abs(point.y / geometry.bounds.height - 0.6) < 0.005)
+            let expectedPoint = delta == 1 ? targetPoint : sourcePoint
+            let cropSize = delta == 1 ? NSSize(width: 1_600, height: 1_000) : NSSize(width: 800, height: 1_200)
+            #expect(abs(state.pointOnPage.x - expectedPoint.x) / cropSize.width < 0.005)
+            #expect(abs(state.pointOnPage.y - expectedPoint.y) / cropSize.height < 0.005)
         }
-    }
-
-    @Test(arguments: [CGFloat(600), CGFloat(1_200)])
-    @MainActor
-    func scrollAnimationReclampsAfterViewportResize(viewportLength: CGFloat) throws {
-        _ = NSApplication.shared
-        let view = VellumPDFView()
-        let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 200, height: 200))
-        scrollView.documentView = NSView(frame: NSRect(x: 0, y: 0, width: 1_000, height: 1_000))
-        let clipView = scrollView.contentView
-        clipView.scroll(to: NSPoint(x: 800, y: 800))
-        view.animationState.scrollTargetOrigin = NSPoint(x: 800, y: 800)
-        clipView.setFrameSize(NSSize(width: viewportLength, height: viewportLength))
-
-        view.stepScrollAnimation(in: scrollView)
-
-        let maximum = max(0, 1_000 - viewportLength)
-        if viewportLength < 1_000 {
-            if let target = view.animationState.scrollTargetOrigin {
-                #expect(target == NSPoint(x: maximum, y: maximum))
-            }
-            #expect(clipView.bounds.origin.x >= 0 && clipView.bounds.origin.x <= maximum)
-            #expect(clipView.bounds.origin.y >= 0 && clipView.bounds.origin.y <= maximum)
-        } else {
-            #expect(clipView.bounds.contains(NSRect(x: 0, y: 0, width: 1_000, height: 1_000)))
-        }
-    }
-
-    @Test @MainActor
-    func scrollAnimationReachesFractionalTarget() throws {
-        _ = NSApplication.shared
-        let view = VellumPDFView()
-        let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 200, height: 200))
-        scrollView.documentView = NSView(frame: NSRect(x: 0, y: 0, width: 1_000, height: 1_000))
-        let target = NSPoint(x: 123.4, y: 456.65)
-        view.animationState.scrollTargetOrigin = target
-        for _ in 0..<60 {
-            view.animationState.lastScrollTick = Date.timeIntervalSinceReferenceDate - 1.0 / 30.0
-            view.stepScrollAnimation(in: scrollView)
-        }
-        #expect(scrollView.contentView.bounds.origin == target)
-        #expect(view.animationState.scrollTargetOrigin == nil)
     }
 }

@@ -5,22 +5,11 @@ import Testing
 
 @Suite("Hyphenated word selection")
 struct HyphenatedWordSelectionTests {
-    @Test
+    @Test(arguments: ["wor", "d"])
     @MainActor
-    func rangeExtendsForwardAcrossSoftHyphenLineBreak() {
+    func rangeExtendsAcrossSoftHyphenLineBreak(fragment: String) {
         let text = "The wor-\nd continues." as NSString
-        let selectedRange = text.range(of: "wor")
-
-        let range = VellumPDFView.hyphenatedWordRange(in: text, selectedRange: selectedRange)
-
-        #expect(text.substring(with: range) == "wor-\nd")
-    }
-
-    @Test
-    @MainActor
-    func rangeExtendsBackwardAcrossSoftHyphenLineBreak() {
-        let text = "The wor-\nd continues." as NSString
-        let selectedRange = text.range(of: "d")
+        let selectedRange = text.range(of: fragment)
 
         let range = VellumPDFView.hyphenatedWordRange(in: text, selectedRange: selectedRange)
 
@@ -38,38 +27,24 @@ struct HyphenatedWordSelectionTests {
         #expect(text.substring(with: range) == "well")
     }
 
-    @Test
+    @Test(arguments: ["wor", "d"])
     @MainActor
-    func smartSelectionSelectsWholeWordFromFirstFragmentInPDF() throws {
-        let document = try makeHyphenatedPDFDocument()
+    func smartSelectionSelectsWholeWordFromEitherFragmentInPDF(fragment: String) throws {
+        let document = try makeTextPDF(pages: [[
+            ("The broken wor-", NSPoint(x: 72, y: 720)),
+            ("d appears below.", NSPoint(x: 72, y: 693))
+        ]])
         let page = try #require(document.page(at: 0))
         let view = VellumPDFView(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
         view.document = document
         let pageText = try #require(page.string as NSString?)
         let expectedRange = try #require(foundRange(pageText.range(of: "wor-\nd")))
-        let firstFragmentRange = try #require(foundRange(pageText.range(of: "wor")))
-        let fragmentBounds = try #require(page.selection(for: firstFragmentRange)?.bounds(for: page))
-
-        let selection = try #require(view.smartWordSelection(at: center(of: fragmentBounds), on: page))
-
-        #expect(selection.string == pageText.substring(with: expectedRange))
-    }
-
-    @Test
-    @MainActor
-    func smartSelectionSelectsWholeWordFromSecondFragmentInPDF() throws {
-        let document = try makeHyphenatedPDFDocument()
-        let page = try #require(document.page(at: 0))
-        let view = VellumPDFView(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
-        view.document = document
-        let pageText = try #require(page.string as NSString?)
-        let expectedRange = try #require(foundRange(pageText.range(of: "wor-\nd")))
-        let secondFragmentRange = try #require(foundRange(pageText.range(
-            of: "d",
+        let fragmentRange = try #require(foundRange(pageText.range(
+            of: fragment,
             options: [],
             range: NSRange(location: expectedRange.location, length: expectedRange.length)
         )))
-        let fragmentBounds = try #require(page.selection(for: secondFragmentRange)?.bounds(for: page))
+        let fragmentBounds = try #require(page.selection(for: fragmentRange)?.bounds(for: page))
 
         let selection = try #require(view.smartWordSelection(at: center(of: fragmentBounds), on: page))
 
@@ -82,28 +57,5 @@ struct HyphenatedWordSelectionTests {
 
     private func foundRange(_ range: NSRange) -> NSRange? {
         range.location == NSNotFound ? nil : range
-    }
-
-    private func makeHyphenatedPDFDocument() throws -> PDFDocument {
-        let data = NSMutableData()
-        var mediaBox = CGRect(x: 0, y: 0, width: 612, height: 792)
-        let consumer = try #require(CGDataConsumer(data: data as CFMutableData))
-        let context = try #require(CGContext(consumer: consumer, mediaBox: &mediaBox, nil))
-
-        context.beginPDFPage(nil)
-        NSGraphicsContext.saveGraphicsState()
-        NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: false)
-
-        let attributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 18)
-        ]
-        ("The broken wor-" as NSString).draw(at: NSPoint(x: 72, y: 720), withAttributes: attributes)
-        ("d appears below." as NSString).draw(at: NSPoint(x: 72, y: 693), withAttributes: attributes)
-
-        NSGraphicsContext.restoreGraphicsState()
-        context.endPDFPage()
-        context.closePDF()
-
-        return try #require(PDFDocument(data: data as Data))
     }
 }

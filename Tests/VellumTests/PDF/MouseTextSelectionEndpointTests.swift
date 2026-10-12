@@ -128,10 +128,14 @@ struct MouseTextSelectionEndpointTests {
             with: .leftMouseUp, location: point, modifierFlags: [], timestamp: 0,
             windowNumber: window.windowNumber, context: nil, eventNumber: 1, clickCount: 1, pressure: 0
         ))
+        view.setCurrentSelection(page.selection(for: NSRange(location: 0, length: 6)), animate: false)
+        #expect(view.currentSelection?.string == "Line 1")
         unreadPage.characterReadCount = 0
 
         view.mouseDown(with: mouseDown)
 
+        #expect(window.eventReadCount > 0)
+        #expect(view.currentSelection == nil)
         #expect(unreadPage.characterReadCount == 0)
     }
 
@@ -143,30 +147,13 @@ struct MouseTextSelectionEndpointTests {
         range.location == NSNotFound ? nil : range
     }
 
+    @MainActor
     private func makeSimplePDFDocument() throws -> PDFDocument {
-        let data = NSMutableData()
-        var mediaBox = CGRect(x: 0, y: 0, width: 612, height: 792)
-        let consumer = try #require(CGDataConsumer(data: data as CFMutableData))
-        let context = try #require(CGContext(consumer: consumer, mediaBox: &mediaBox, nil))
-
-        context.beginPDFPage(nil)
-        NSGraphicsContext.saveGraphicsState()
-        NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: false)
-
-        let attributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 18)
-        ]
         let lineTemplate = "Line 1: Vellum selection wheel scrolling should expand and shrink this text selection smoothly."
-        for lineNumber in 1...12 {
-            let line = lineTemplate.replacingOccurrences(of: "Line 1", with: "Line \(lineNumber)") as NSString
-            line.draw(at: NSPoint(x: 72, y: 720 - lineNumber * 27), withAttributes: attributes)
-        }
-
-        NSGraphicsContext.restoreGraphicsState()
-        context.endPDFPage()
-        context.closePDF()
-
-        return try #require(PDFDocument(data: data as Data))
+        return try makeTextPDF(pages: [(1...12).map { lineNumber in
+            (lineTemplate.replacingOccurrences(of: "Line 1", with: "Line \(lineNumber)"),
+             NSPoint(x: 72, y: 720 - lineNumber * 27))
+        }])
     }
 }
 
@@ -181,6 +168,7 @@ private final class CharacterReadCountingPage: PDFPage {
 
 private final class MouseSelectionWindow: NSWindow {
     var mouseUp: NSEvent?
+    var eventReadCount = 0
 
     override func nextEvent(
         matching mask: NSEvent.EventTypeMask,
@@ -188,6 +176,7 @@ private final class MouseSelectionWindow: NSWindow {
         inMode mode: RunLoop.Mode,
         dequeue deqFlag: Bool
     ) -> NSEvent? {
-        mouseUp
+        eventReadCount += 1
+        return mouseUp
     }
 }

@@ -79,7 +79,7 @@ Requires macOS 14 or later and a Swift 6.2 toolchain. Release downloads support 
 ```sh
 git clone https://github.com/AbyssSkb/Vellum.git
 cd Vellum
-swift test --no-parallel
+scripts/test.sh
 scripts/package-app.sh
 open dist/Vellum.app
 ```

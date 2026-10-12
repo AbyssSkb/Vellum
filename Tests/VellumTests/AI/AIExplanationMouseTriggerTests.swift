@@ -4,81 +4,30 @@ import Testing
 
 @Suite("AI explanation mouse trigger")
 struct AIExplanationMouseTriggerTests {
-    @Test
-    func middleMouseDownOnSelectionTriggersExplanation() {
+    @Test(arguments: [
+        (2, NSEvent.ModifierFlags(), false, true, true, true),
+        (3, NSEvent.ModifierFlags(), false, true, true, false),
+        (2, NSEvent.ModifierFlags(), false, true, false, false),
+        (2, NSEvent.ModifierFlags(), false, false, true, false),
+        (2, NSEvent.ModifierFlags.command, false, true, true, false),
+        (2, NSEvent.ModifierFlags(), true, true, true, false)
+    ])
+    func explanationRequiresAnUnmodifiedMiddleClickOnAnInactiveSelection(
+        buttonNumber: Int,
+        modifierFlags: NSEvent.ModifierFlags,
+        isAIInteractionActive: Bool,
+        hasSelectedText: Bool,
+        pointIsInsideSelection: Bool,
+        expected: Bool
+    ) {
         #expect(AIExplanationMouseTrigger.shouldExplainSelection(
             eventType: .otherMouseDown,
-            buttonNumber: AIExplanationMouseTrigger.middleButtonNumber,
+            buttonNumber: buttonNumber,
             clickCount: 1,
-            modifierFlags: [],
-            isAIInteractionActive: false,
-            hasSelectedText: true,
-            pointIsInsideSelection: true
-        ))
-    }
-
-    @Test
-    func otherMouseButtonsDoNotTriggerExplanation() {
-        #expect(!AIExplanationMouseTrigger.shouldExplainSelection(
-            eventType: .otherMouseDown,
-            buttonNumber: 3,
-            clickCount: 1,
-            modifierFlags: [],
-            isAIInteractionActive: false,
-            hasSelectedText: true,
-            pointIsInsideSelection: true
-        ))
-    }
-
-    @Test
-    func clicksOutsideSelectionDoNotTriggerExplanation() {
-        #expect(!AIExplanationMouseTrigger.shouldExplainSelection(
-            eventType: .otherMouseDown,
-            buttonNumber: AIExplanationMouseTrigger.middleButtonNumber,
-            clickCount: 1,
-            modifierFlags: [],
-            isAIInteractionActive: false,
-            hasSelectedText: true,
-            pointIsInsideSelection: false
-        ))
-    }
-
-    @Test
-    func emptySelectionDoesNotTriggerExplanation() {
-        #expect(!AIExplanationMouseTrigger.shouldExplainSelection(
-            eventType: .otherMouseDown,
-            buttonNumber: AIExplanationMouseTrigger.middleButtonNumber,
-            clickCount: 1,
-            modifierFlags: [],
-            isAIInteractionActive: false,
-            hasSelectedText: false,
-            pointIsInsideSelection: true
-        ))
-    }
-
-    @Test
-    func modifiedMiddleClicksDoNotTriggerExplanation() {
-        #expect(!AIExplanationMouseTrigger.shouldExplainSelection(
-            eventType: .otherMouseDown,
-            buttonNumber: AIExplanationMouseTrigger.middleButtonNumber,
-            clickCount: 1,
-            modifierFlags: [.command],
-            isAIInteractionActive: false,
-            hasSelectedText: true,
-            pointIsInsideSelection: true
-        ))
-    }
-
-    @Test
-    func activeAIInteractionDoesNotStartAnotherExplanation() {
-        #expect(!AIExplanationMouseTrigger.shouldExplainSelection(
-            eventType: .otherMouseDown,
-            buttonNumber: AIExplanationMouseTrigger.middleButtonNumber,
-            clickCount: 1,
-            modifierFlags: [],
-            isAIInteractionActive: true,
-            hasSelectedText: true,
-            pointIsInsideSelection: true
-        ))
+            modifierFlags: modifierFlags,
+            isAIInteractionActive: isAIInteractionActive,
+            hasSelectedText: hasSelectedText,
+            pointIsInsideSelection: pointIsInsideSelection
+        ) == expected)
     }
 }

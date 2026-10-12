@@ -47,6 +47,8 @@ struct VisualLineGeometryTests {
         )
 
         #expect(VisualLineGeometry.lineIndex(for: caret, fallbackOffset: 12, in: [lower, upper]) == 1)
+        let sameRowNearX = line(page: 0, start: 20, y: 200, minX: 0, maxX: 60)
+        #expect(VisualLineGeometry.lineIndex(for: caret, fallbackOffset: 0, in: [upper, sameRowNearX]) == 1)
     }
 
     @Test
@@ -60,6 +62,12 @@ struct VisualLineGeometryTests {
             candidates: [fartherButNearX, closerButFarX],
             preferredX: 20
         )?.startOffset == 10)
+        let sameRowNearX = line(page: 0, start: 30, y: 170.5, minX: 0, maxX: 50)
+        #expect(VisualLineGeometry.bestTargetLine(
+            from: current,
+            candidates: [closerButFarX, sameRowNearX],
+            preferredX: 20
+        )?.startOffset == 30)
     }
 
     @Test

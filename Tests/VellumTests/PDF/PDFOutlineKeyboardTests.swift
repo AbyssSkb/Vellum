@@ -7,9 +7,9 @@ import Testing
 @Suite("PDF outline keyboard", .serialized)
 struct PDFOutlineKeyboardTests {
     @Test
-    func countsMoveVisibleRowsAndClampWithoutOverflow() {
-        let fixture = Fixture()
-        defer { fixture.window.close() }
+    func countsMoveVisibleRowsAndClampWithoutOverflow() throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanup() }
 
         fixture.send("1")
         fixture.send("2")
@@ -34,9 +34,9 @@ struct PDFOutlineKeyboardTests {
     }
 
     @Test
-    func firstLastAndNumberedJumpsKeepPrefixesLocal() {
-        let fixture = Fixture()
-        defer { fixture.window.close() }
+    func firstLastAndNumberedJumpsKeepPrefixesLocal() throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanup() }
         fixture.outline.selectRowIndexes(IndexSet(integer: 10), byExtendingSelection: false)
 
         fixture.send("g")
@@ -63,9 +63,9 @@ struct PDFOutlineKeyboardTests {
     }
 
     @Test
-    func capsLockPreservesUppercaseTabAndOutlineCommands() {
-        let fixture = Fixture(items: tree())
-        defer { fixture.window.close() }
+    func capsLockPreservesUppercaseTabAndOutlineCommands() throws {
+        let fixture = try Fixture(items: tree())
+        defer { fixture.cleanup() }
         let firstTabID = fixture.appState.selectedTabID
         let secondTab = PDFTab(url: nil, document: fixture.document)
         _ = fixture.appState.tabStore.openInNewTabs([secondTab])
@@ -89,10 +89,10 @@ struct PDFOutlineKeyboardTests {
     }
 
     @Test(arguments: [false, true])
-    func hierarchyKeysFoldLogicalCursorAndMoveToNextVisibleRow(arrows: Bool) {
+    func hierarchyKeysFoldLogicalCursorAndMoveToNextVisibleRow(arrows: Bool) throws {
         let items = tree()
-        let fixture = Fixture(items: items)
-        defer { fixture.window.close() }
+        let fixture = try Fixture(items: items)
+        defer { fixture.cleanup() }
         let root = items[0]
         let child = root.children[0]
         let grandchild = child.children[0]
@@ -132,10 +132,10 @@ struct PDFOutlineKeyboardTests {
     }
 
     @Test(arguments: [false, true])
-    func hierarchyCountsAndAutoRepeatPreserveFoldPathUntilNavigation(arrows: Bool) {
+    func hierarchyCountsAndAutoRepeatPreserveFoldPathUntilNavigation(arrows: Bool) throws {
         let items = deepTree()
-        let fixture = Fixture(items: items)
-        defer { fixture.window.close() }
+        let fixture = try Fixture(items: items)
+        defer { fixture.cleanup() }
         let parent = items[0].children[0]
         let leaf = parent.children[0].children[0]
         let closeKey = arrows ? "\u{f702}" : "h"
@@ -169,10 +169,10 @@ struct PDFOutlineKeyboardTests {
     }
 
     @Test(arguments: ["9", String(repeating: "9", count: 30)])
-    func expansionCountsIncludeNewlyVisibleRowsAndClampAtLastLeaf(count: String) {
+    func expansionCountsIncludeNewlyVisibleRowsAndClampAtLastLeaf(count: String) throws {
         let items = deepTree()
-        let fixture = Fixture(items: items)
-        defer { fixture.window.close() }
+        let fixture = try Fixture(items: items)
+        defer { fixture.cleanup() }
         fixture.sendKeys("zM")
 
         fixture.sendKeys(count + "l")
@@ -183,9 +183,9 @@ struct PDFOutlineKeyboardTests {
     }
 
     @Test
-    func hierarchyKeysMoveBetweenRootLeavesAndClampAtBoundaries() {
-        let fixture = Fixture()
-        defer { fixture.window.close() }
+    func hierarchyKeysMoveBetweenRootLeavesAndClampAtBoundaries() throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanup() }
 
         fixture.sendKeys("hl")
         #expect(fixture.outline.selectedRow == 1)
@@ -202,10 +202,10 @@ struct PDFOutlineKeyboardTests {
     }
 
     @Test
-    func recursiveFoldCommandsOpenClosedBranchesAndPreserveHiddenDescendants() {
+    func recursiveFoldCommandsOpenClosedBranchesAndPreserveHiddenDescendants() throws {
         let items = deepTree()
-        let fixture = Fixture(items: items)
-        defer { fixture.window.close() }
+        let fixture = try Fixture(items: items)
+        defer { fixture.cleanup() }
         fixture.outline.collapseItem(nil, collapseChildren: true)
 
         fixture.sendKeys("zO")
@@ -228,7 +228,7 @@ struct PDFOutlineKeyboardTests {
     }
 
     @Test
-    func uppercaseFoldCommandsRespectCursorPathAndKeepZeroDistinct() {
+    func uppercaseFoldCommandsRespectCursorPathAndKeepZeroDistinct() throws {
         let items = tree()
         let parent = items[0].children[0]
         let leaf = parent.children[0]
@@ -238,8 +238,8 @@ struct PDFOutlineKeyboardTests {
         )]
         parent.children.append(nested)
         let rootLeaf = PDFOutlineItem(id: "2", title: "Root leaf", destination: nil, pageIndex: nil, parent: nil)
-        let fixture = Fixture(items: items + [rootLeaf])
-        defer { fixture.window.close() }
+        let fixture = try Fixture(items: items + [rootLeaf])
+        defer { fixture.cleanup() }
 
         fixture.send("z")
         fixture.send("R", modifiers: .capsLock)
@@ -276,10 +276,10 @@ struct PDFOutlineKeyboardTests {
     }
 
     @Test
-    func optionArrowBranchCommandsRespectScopeModifiersAndPrefixes() {
+    func optionArrowBranchCommandsRespectScopeModifiersAndPrefixes() throws {
         let items = tree()
-        let fixture = Fixture(items: items)
-        defer { fixture.window.close() }
+        let fixture = try Fixture(items: items)
+        defer { fixture.cleanup() }
         let left = "\u{f702}"
         let right = "\u{f703}"
         let parent = items[0].children[0]
@@ -327,13 +327,13 @@ struct PDFOutlineKeyboardTests {
     }
 
     @Test
-    func singleLayerFoldCommandsFollowLogicalCursorThroughHiddenAncestors() {
+    func singleLayerFoldCommandsFollowLogicalCursorThroughHiddenAncestors() throws {
         let items = deepTree()
         let parent = items[0].children[0]
         let nested = parent.children[0]
         let leaf = nested.children[0]
-        let fixture = Fixture(items: items)
-        defer { fixture.window.close() }
+        let fixture = try Fixture(items: items)
+        defer { fixture.cleanup() }
 
         fixture.sendKeys("zR")
         fixture.outline.selectRowIndexes(IndexSet(integer: fixture.outline.row(forItem: leaf)), byExtendingSelection: false)
@@ -355,10 +355,10 @@ struct PDFOutlineKeyboardTests {
     }
 
     @Test(arguments: [("2zc", "2zo", 2), ("3zc", "3zo", 3)])
-    func foldCountsBeforePrefixOpenAndCloseLogicalPath(close: String, open: String, depth: Int) {
+    func foldCountsBeforePrefixOpenAndCloseLogicalPath(close: String, open: String, depth: Int) throws {
         let items = deepTree()
-        let fixture = Fixture(items: items)
-        defer { fixture.window.close() }
+        let fixture = try Fixture(items: items)
+        defer { fixture.cleanup() }
         let path = [items[0], items[0].children[0], items[0].children[0].children[0]]
         let leaf = path[2].children[0]
         fixture.sendKeys("zR")
@@ -374,10 +374,10 @@ struct PDFOutlineKeyboardTests {
     }
 
     @Test(arguments: ["z2r", "z3m", "z2o", "z2c", "2z3O", "z0c"])
-    func countsAfterFoldPrefixAreConsumedWithoutChangingState(command: String) {
+    func countsAfterFoldPrefixAreConsumedWithoutChangingState(command: String) throws {
         let items = deepTree()
-        let fixture = Fixture(items: items)
-        defer { fixture.window.close() }
+        let fixture = try Fixture(items: items)
+        defer { fixture.cleanup() }
         let parent = items[0].children[0]
         let leaf = parent.children[0].children[0]
         fixture.outline.expandItem(items[0], expandChildren: true)
@@ -396,15 +396,15 @@ struct PDFOutlineKeyboardTests {
     }
 
     @Test
-    func recursiveCommandsLeaveOtherBranchesAndOffPathDescendantsUnchanged() {
+    func recursiveCommandsLeaveOtherBranchesAndOffPathDescendantsUnchanged() throws {
         let items = deepTree()
         let parent = items[0].children[0]
         let nested = parent.children[0]
         let sibling = PDFOutlineItem(id: "0.0.1", title: "Sibling", destination: nil, pageIndex: nil, parent: parent)
         sibling.children = [PDFOutlineItem(id: "0.0.1.0", title: "Sibling detail", destination: nil, pageIndex: nil, parent: sibling)]
         parent.children.append(sibling)
-        let fixture = Fixture(items: items)
-        defer { fixture.window.close() }
+        let fixture = try Fixture(items: items)
+        defer { fixture.cleanup() }
 
         fixture.sendKeys("zO")
         #expect(fixture.outline.expandedIDs == ["0", "1"])
@@ -424,10 +424,10 @@ struct PDFOutlineKeyboardTests {
     }
 
     @Test
-    func closingSkipsRememberedOpenDescendantsBelowAClosedFold() {
+    func closingSkipsRememberedOpenDescendantsBelowAClosedFold() throws {
         let items = deepTree()
-        let fixture = Fixture(items: items)
-        defer { fixture.window.close() }
+        let fixture = try Fixture(items: items)
+        defer { fixture.cleanup() }
         let parent = items[0].children[0]
         let nested = parent.children[0]
         let leaf = nested.children[0]
@@ -445,10 +445,10 @@ struct PDFOutlineKeyboardTests {
     }
 
     @Test
-    func globalFoldCommandsStepThroughUnevenTreeDepthAndClamp() {
+    func globalFoldCommandsStepThroughUnevenTreeDepthAndClamp() throws {
         let items = deepTree()
-        let fixture = Fixture(items: items)
-        defer { fixture.window.close() }
+        let fixture = try Fixture(items: items)
+        defer { fixture.cleanup() }
 
         for (key, depth) in [("m", 0), ("r", 1), ("r", 2), ("r", 3), ("r", 3),
                              ("m", 2), ("m", 1), ("m", 0), ("m", 0)] {
@@ -465,12 +465,12 @@ struct PDFOutlineKeyboardTests {
     }
 
     @Test
-    func globalDepthUsesStoredLevelAndResetsManualOverrides() {
+    func globalDepthUsesStoredLevelAndResetsManualOverrides() throws {
         let items = deepTree()
         let parent = items[0].children[0]
         let nested = parent.children[0]
-        let fixture = Fixture(items: items)
-        defer { fixture.window.close() }
+        let fixture = try Fixture(items: items)
+        defer { fixture.cleanup() }
 
         fixture.sendKeys("zM")
         fixture.sendKeys("zO")
@@ -501,10 +501,10 @@ struct PDFOutlineKeyboardTests {
     }
 
     @Test
-    func maximumReducePreservesOverridesButOpenAllAndMinimumIncreaseResetThem() {
+    func maximumReducePreservesOverridesButOpenAllAndMinimumIncreaseResetThem() throws {
         let items = deepTree()
-        let fixture = Fixture(items: items)
-        defer { fixture.window.close() }
+        let fixture = try Fixture(items: items)
+        defer { fixture.cleanup() }
 
         fixture.sendKeys("zR")
         fixture.outline.selectRowIndexes(IndexSet(integer: fixture.outline.row(forItem: items[1])), byExtendingSelection: false)
@@ -524,10 +524,10 @@ struct PDFOutlineKeyboardTests {
     }
 
     @Test
-    func globalCountsAndOverflowClampWithoutChangingLogicalCursor() {
+    func globalCountsAndOverflowClampWithoutChangingLogicalCursor() throws {
         let items = deepTree()
-        let fixture = Fixture(items: items)
-        defer { fixture.window.close() }
+        let fixture = try Fixture(items: items)
+        defer { fixture.cleanup() }
         let leaf = items[0].children[0].children[0].children[0]
         fixture.sendKeys("zR")
         fixture.outline.selectRowIndexes(IndexSet(integer: fixture.outline.row(forItem: leaf)), byExtendingSelection: false)
@@ -556,10 +556,10 @@ struct PDFOutlineKeyboardTests {
     }
 
     @Test
-    func explicitSelectionAndNavigationReplaceLogicalFoldCursor() {
+    func explicitSelectionAndNavigationReplaceLogicalFoldCursor() throws {
         let items = deepTree()
-        let fixture = Fixture(items: items)
-        defer { fixture.window.close() }
+        let fixture = try Fixture(items: items)
+        defer { fixture.cleanup() }
         let leaf = items[0].children[0].children[0].children[0]
         fixture.sendKeys("zR")
         fixture.outline.selectRowIndexes(IndexSet(integer: fixture.outline.row(forItem: leaf)), byExtendingSelection: false)
@@ -590,9 +590,9 @@ struct PDFOutlineKeyboardTests {
     }
 
     @Test(arguments: [CGFloat(160), CGFloat(198)])
-    func pageCommandsMoveByHalfOrFullVisibleViewport(viewportHeight: CGFloat) {
-        let fixture = Fixture()
-        defer { fixture.window.close() }
+    func pageCommandsMoveByHalfOrFullVisibleViewport(viewportHeight: CGFloat) throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanup() }
         fixture.scrollView.setFrameSize(NSSize(width: 240, height: viewportHeight))
         fixture.scrollView.layoutSubtreeIfNeeded()
         func check(_ key: String, direction: Int, fraction: CGFloat = 1,
@@ -616,9 +616,9 @@ struct PDFOutlineKeyboardTests {
     }
 
     @Test
-    func nativeNavigationKeysStayInOutline() {
-        let fixture = Fixture()
-        defer { fixture.window.close() }
+    func nativeNavigationKeysStayInOutline() throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanup() }
         fixture.send("\u{f701}", keyCode: 125)
         #expect(fixture.outline.selectedRow == 1)
         fixture.send("\u{f700}", keyCode: 126)
@@ -631,9 +631,9 @@ struct PDFOutlineKeyboardTests {
     }
 
     @Test
-    func reloadAndFocusLossDiscardPendingInput() {
-        let fixture = Fixture()
-        defer { fixture.window.close() }
+    func reloadAndFocusLossDiscardPendingInput() throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanup() }
         fixture.send("7")
         fixture.send("g")
         fixture.outline.reloadData()
@@ -654,9 +654,9 @@ struct PDFOutlineKeyboardTests {
     }
 
     @Test
-    func appAndWindowDeactivationDiscardPendingInput() {
-        let fixture = Fixture()
-        defer { fixture.window.close() }
+    func appAndWindowDeactivationDiscardPendingInput() throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanup() }
         for name in [NSApplication.willResignActiveNotification, NSWindow.didResignKeyNotification] {
             fixture.outline.selectRowIndexes(IndexSet(integer: 10), byExtendingSelection: false)
             fixture.send("9")
@@ -672,9 +672,9 @@ struct PDFOutlineKeyboardTests {
     }
 
     @Test
-    func commandModifiedKeysAndRepeatedCommandsDoNotActivateOrDismiss() {
-        let fixture = Fixture()
-        defer { fixture.window.close() }
+    func commandModifiedKeysAndRepeatedCommandsDoNotActivateOrDismiss() throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanup() }
         fixture.outline.selectRowIndexes(IndexSet(integer: 1), byExtendingSelection: false)
 
         for (key, keyCode) in [("\r", UInt16(36)), ("\t", 48), ("t", 17), ("\u{1b}", 53)] {
@@ -692,10 +692,10 @@ struct PDFOutlineKeyboardTests {
     }
 
     @Test
-    func holdingRecursiveOpenDoesNotDispatchGlobalOpenCommand() {
+    func holdingRecursiveOpenDoesNotDispatchGlobalOpenCommand() throws {
         let items = deepTree()
-        let fixture = Fixture(items: items)
-        defer { fixture.window.close() }
+        let fixture = try Fixture(items: items)
+        defer { fixture.cleanup() }
         let delegate = RecordingKeyboardDelegate(appState: fixture.appState)
         fixture.appState.keyboardController.delegate = delegate
         fixture.outline.collapseItem(nil, collapseChildren: true)
@@ -712,12 +712,14 @@ struct PDFOutlineKeyboardTests {
 
     @Test
     func enterNavigatesAndReturnsToReaderWithOutlineVisible() async throws {
-        let fixture = Fixture()
-        defer { fixture.window.close() }
+        let fixture = try Fixture()
+        defer { fixture.cleanup() }
         fixture.outline.selectRowIndexes(IndexSet(integer: 1), byExtendingSelection: false)
 
         fixture.send("\r", keyCode: 36)
-        try await Task.sleep(for: .milliseconds(30))
+        try await waitForTestCondition("Outline activation returns focus to the reader") {
+            fixture.window.firstResponder === fixture.reader
+        }
 
         #expect(fixture.reader.currentPage === fixture.document.page(at: 1))
         #expect(fixture.appState.isOutlineVisible)
@@ -726,11 +728,13 @@ struct PDFOutlineKeyboardTests {
 
     @Test
     func tClosesOutlineAndReturnsFocusToReader() async throws {
-        let fixture = Fixture()
-        defer { fixture.window.close() }
+        let fixture = try Fixture()
+        defer { fixture.cleanup() }
 
         fixture.send("t", keyCode: 17)
-        try await Task.sleep(for: .milliseconds(20))
+        try await waitForTestCondition("Outline command returns focus to the reader") {
+            fixture.window.firstResponder === fixture.reader
+        }
 
         #expect(!fixture.appState.isOutlineVisible)
         let readerIsFocused = fixture.window.firstResponder === fixture.reader
@@ -739,11 +743,13 @@ struct PDFOutlineKeyboardTests {
 
     @Test
     func escapeReturnsToReaderAndKeepsOutlineAndCursor() async throws {
-        let fixture = Fixture()
-        defer { fixture.window.close() }
+        let fixture = try Fixture()
+        defer { fixture.cleanup() }
         fixture.outline.selectRowIndexes(IndexSet(integer: 5), byExtendingSelection: false)
         fixture.send("\u{1b}", keyCode: 53)
-        try await Task.sleep(for: .milliseconds(20))
+        try await waitForTestCondition("Outline command returns focus to the reader") {
+            fixture.window.firstResponder === fixture.reader
+        }
         #expect(fixture.appState.isOutlineVisible)
         #expect(fixture.window.firstResponder === fixture.reader)
         #expect(fixture.outline.selectedRow == 5)
@@ -751,41 +757,45 @@ struct PDFOutlineKeyboardTests {
 
     @Test(arguments: ["4", "g", "z"])
     func escapeFirstCancelsOutlinePrefixThenReturnsToReader(prefix: String) async throws {
-        let fixture = Fixture()
-        defer { fixture.window.close() }
+        let fixture = try Fixture()
+        defer { fixture.cleanup() }
         fixture.send(prefix)
         fixture.send("\u{1b}", keyCode: 53)
-        try await Task.sleep(for: .milliseconds(20))
+        await nextTestMainQueueTurn()
         #expect(fixture.appState.isOutlineVisible)
         #expect(fixture.window.firstResponder === fixture.outline)
         fixture.send("j")
         #expect(fixture.outline.selectedRow == 1)
         fixture.send("\u{1b}", keyCode: 53)
-        try await Task.sleep(for: .milliseconds(20))
+        try await waitForTestCondition("Outline command returns focus to the reader") {
+            fixture.window.firstResponder === fixture.reader
+        }
         #expect(fixture.window.firstResponder === fixture.reader)
         #expect(fixture.appState.isOutlineVisible)
     }
 
     @Test
     func tabWaitsForReleaseAndTransfersFocusWithoutClosingOutline() async throws {
-        let fixture = Fixture()
-        defer { fixture.window.close() }
+        let fixture = try Fixture()
+        defer { fixture.cleanup() }
         fixture.outline.selectRowIndexes(IndexSet(integer: 5), byExtendingSelection: false)
         fixture.send("\t", keyCode: 48)
         #expect(fixture.window.firstResponder === fixture.outline)
         #expect(fixture.appState.isOutlineVisible)
         fixture.send("\t", keyCode: 48, type: .keyUp)
-        try await Task.sleep(for: .milliseconds(20))
+        try await waitForTestCondition("Outline command returns focus to the reader") {
+            fixture.window.firstResponder === fixture.reader
+        }
         #expect(fixture.window.firstResponder === fixture.reader)
         #expect(fixture.appState.isOutlineVisible)
         #expect(fixture.outline.selectedRow == 5)
     }
 
     @Test(arguments: ["3", "g", "z"])
-    func monitorConsumedTabCancellationDiscardsOutlinePrefix(prefix: String) {
+    func monitorConsumedTabCancellationDiscardsOutlinePrefix(prefix: String) throws {
         let items = deepTree()
-        let fixture = Fixture(items: items)
-        defer { fixture.window.close() }
+        let fixture = try Fixture(items: items)
+        defer { fixture.cleanup() }
         fixture.sendKeys("zR")
         let leaf = items[0].children[0].children[0].children[0]
         let startingRow = fixture.outline.row(forItem: leaf)
@@ -833,6 +843,7 @@ struct PDFOutlineKeyboardTests {
 
     @MainActor
     private final class Fixture {
+        let preferences: TestPreferences
         let appState: AppState
         let document = PDFDocument()
         let coordinator: PDFOutlineView.Coordinator
@@ -843,12 +854,10 @@ struct PDFOutlineKeyboardTests {
 
         var selectedItem: PDFOutlineItem? { outline.item(atRow: outline.selectedRow) as? PDFOutlineItem }
 
-        init(items: [PDFOutlineItem]? = nil) {
+        init(items: [PDFOutlineItem]? = nil) throws {
             _ = NSApplication.shared
-            appState = AppState(
-                sessionDefaults: UserDefaults(suiteName: UUID().uuidString)!,
-                keyboardController: KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false)
-            )
+            preferences = try TestPreferences()
+            appState = makeTestAppState(defaults: preferences.defaults)
             for index in 0..<2 {
                 let page = PDFPage()
                 page.setBounds(NSRect(x: 0, y: 0, width: 612, height: 792), for: .mediaBox)
@@ -899,8 +908,13 @@ struct PDFOutlineKeyboardTests {
             appState.isOutlineVisible = true
             window.orderFront(nil)
             scrollView.layoutSubtreeIfNeeded()
-            RunLoop.main.run(until: Date().addingTimeInterval(0.01))
-            _ = window.makeFirstResponder(outline)
+            try #require(window.makeFirstResponder(outline))
+        }
+
+        func cleanup() {
+            window.contentView = nil
+            window.close()
+            preferences.cleanup()
         }
 
         func send(

@@ -41,6 +41,16 @@ struct TextWordNavigatorTests {
     }
 
     @Test
+    func unicodeWordNavigationUsesUTF16Offsets() {
+        let text = "😀 café 中文_2" as NSString
+
+        #expect(TextWordNavigator.wordForwardOffset(from: 3, in: text) == 8)
+        #expect(TextWordNavigator.wordBackwardOffset(from: 12, in: text) == 8)
+        #expect(TextWordNavigator.wordEndOffset(from: 3, in: text) == 7)
+        #expect(TextWordNavigator.wordEndOffset(from: 8, in: text) == 12)
+    }
+
+    @Test
     func characterClassGroupsWordWhitespaceAndPunctuation() {
         let text = "a_\n." as NSString
 
@@ -49,6 +59,7 @@ struct TextWordNavigatorTests {
         #expect(TextWordNavigator.characterClass(at: 2, in: text) == .whitespace)
         #expect(TextWordNavigator.characterClass(at: 3, in: text) == .punctuation)
         #expect(TextWordNavigator.characterClass(at: 99, in: text) == .punctuation)
+        #expect(TextWordNavigator.characterClass(at: -1, in: text) == .punctuation)
     }
 
     @Test
@@ -58,6 +69,7 @@ struct TextWordNavigatorTests {
         #expect(TextWordNavigator.isNewlineCharacter(at: 1, in: text))
         #expect(!TextWordNavigator.isNewlineCharacter(at: 0, in: text))
         #expect(!TextWordNavigator.isNewlineCharacter(at: 3, in: text))
+        #expect(!TextWordNavigator.isNewlineCharacter(at: -1, in: text))
         #expect(!TextWordNavigator.isNewlineCharacter(at: 0, in: nil))
     }
 }

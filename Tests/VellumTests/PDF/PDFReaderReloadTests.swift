@@ -9,13 +9,9 @@ struct PDFReaderReloadTests {
     @Test @MainActor
     func replacingDocumentKeepsReaderAndDiscardsOldDocumentState() async throws {
         _ = NSApplication.shared
-        let suiteName = "Vellum.ReaderReload.\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: suiteName))
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-        let appState = AppState(sessionDefaults: defaults, keyboardController: KeyboardController(
-            installsKeyMonitor: false, installsOpenURLObserver: false,
-            notificationCenter: NotificationCenter(), openURLRelay: OpenURLRelay()
-        ))
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let appState = makeTestAppState(defaults: preferences.defaults)
         let original = try makeDocument(text: "alpha")
         let replacement = try makeDocument(text: "beta")
         let tab = PDFTab(url: URL(fileURLWithPath: "/tmp/reader-reload.pdf"), document: original)
@@ -23,14 +19,18 @@ struct PDFReaderReloadTests {
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),
                               styleMask: .borderless, backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
-        defer { window.close() }
-        let hostingView = NSHostingView(rootView: PDFReader(
+        let hostingView = NSHostingView(rootView: AnyView(PDFReader(
             tabID: tab.id, document: original, snapshot: nil, isActive: true
-        ).environmentObject(appState))
+        ).environmentObject(appState)))
+        defer {
+            (appState.activeReaderController as? VellumPDFView)?.saveBeforeDismantle = nil
+            hostingView.rootView = AnyView(EmptyView())
+            window.close()
+        }
         hostingView.frame = window.contentView!.bounds
         window.contentView = hostingView
         hostingView.layoutSubtreeIfNeeded()
-        try await waitUntil { appState.activeReaderController != nil }
+        try await waitForTestCondition("Reader mounted before document replacement") { appState.activeReaderController != nil }
         let reader = try #require(appState.activeReaderController as? VellumPDFView)
         defer { reader.searchController?.clear() }
 
@@ -59,11 +59,13 @@ struct PDFReaderReloadTests {
         reader.jumpBackStack = [snapshot]
         reader.jumpForwardStack = [snapshot]
 
-        hostingView.rootView = PDFReader(
+        hostingView.rootView = AnyView(PDFReader(
             tabID: tab.id, document: replacement, snapshot: snapshot, isActive: true
-        ).environmentObject(appState)
+        ).environmentObject(appState))
         hostingView.layoutSubtreeIfNeeded()
-        try await waitUntil { reader.document === replacement && reader.pendingRestoreAction == nil }
+        try await waitForTestCondition("Replacement document and reader snapshot restored") {
+            reader.document === replacement && reader.pendingRestoreAction == nil
+        }
 
         #expect(appState.activeReaderController === reader)
         #expect(reader.scaleFactor == snapshot.scaleFactor)
@@ -119,12 +121,4 @@ struct PDFReaderReloadTests {
         field.delegate?.controlTextDidChange?(Notification(name: NSControl.textDidChangeNotification, object: field))
     }
 
-    @MainActor
-    private func waitUntil(_ condition: () -> Bool) async throws {
-        let deadline = ContinuousClock.now.advanced(by: .seconds(5))
-        while !condition(), ContinuousClock.now < deadline {
-            try await Task.sleep(for: .milliseconds(10))
-        }
-        try #require(condition())
-    }
 }

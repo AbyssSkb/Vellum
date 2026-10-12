@@ -11,12 +11,12 @@ struct ReaderFocusTests {
     func closingThenReopeningOutlineCancelsQueuedReaderFocus() async throws {
         let fixture = try Fixture()
         defer { fixture.close() }
-        try await settle()
+        try await fixture.ready()
         let outline = try fixture.outline()
         #expect(fixture.window.makeFirstResponder(outline))
         fixture.state.toggleOutlineSidebar()
         fixture.state.toggleOutlineSidebar()
-        try await settle()
+        try await fixture.drainQueuedFocus()
         #expect(fixture.state.isOutlineVisible)
         fixture.expectFocus(outline)
     }
@@ -27,7 +27,7 @@ struct ReaderFocusTests {
     func queuedFocusCannotOverrideNewerOwnership(interruption: FocusInterruption, activePane: Bool) async throws {
         let fixture = try Fixture()
         defer { fixture.close() }
-        try await settle()
+        try await fixture.ready()
         fixture.state.isOutlineVisible = false
         let outline = try fixture.outline()
         #expect(fixture.window.makeFirstResponder(outline))
@@ -51,7 +51,7 @@ struct ReaderFocusTests {
             _ = fixture.state.tabStore.openInNewTabs([PDFTab(url: nil, document: Fixture.document())])
             expected = outline
         }
-        try await settle()
+        try await fixture.drainQueuedFocus()
         fixture.expectFocus(expected)
     }
 
@@ -59,14 +59,14 @@ struct ReaderFocusTests {
     func switcherRestoresItsActualPaneAndLeavesNewFocusAlone() async throws {
         let fixture = try Fixture()
         defer { fixture.close() }
-        try await settle()
+        try await fixture.ready()
         let outline = try fixture.outline()
         for origin in [fixture.reader as NSView, outline] {
             #expect(fixture.window.makeFirstResponder(origin))
             fixture.state.showTabSwitcher()
             #expect(fixture.window.makeFirstResponder(fixture.field))
             fixture.state.hideTabSwitcher()
-            try await settle()
+            try await fixture.waitForFocus(origin)
             fixture.expectFocus(origin)
         }
 
@@ -75,7 +75,7 @@ struct ReaderFocusTests {
         #expect(fixture.window.makeFirstResponder(fixture.field))
         fixture.state.hideTabSwitcher()
         #expect(fixture.window.makeFirstResponder(fixture.editor))
-        try await settle()
+        try await fixture.drainQueuedFocus()
         fixture.expectFocus(fixture.editor)
 
         let secondTab = PDFTab(url: nil, document: Fixture.document())
@@ -91,7 +91,7 @@ struct ReaderFocusTests {
         newReader.document = secondTab.document
         fixture.window.contentView?.addSubview(newReader)
         fixture.state.setActiveReaderController(newReader, for: secondTab.id)
-        try await settle()
+        try await fixture.waitForFocus(newReader)
         #expect(fixture.state.selectedTabID == secondTab.id)
         fixture.expectFocus(newReader)
     }
@@ -100,20 +100,20 @@ struct ReaderFocusTests {
     func focusSwitchPreservesSidebarAndCannotBeOverriddenByAnOlderRequest() async throws {
         let fixture = try Fixture()
         defer { fixture.close() }
-        try await settle()
+        try await fixture.ready()
         let outline = try fixture.outline()
         #expect(fixture.window.makeFirstResponder(fixture.reader))
         fixture.state.switchReadingFocus()
-        try await settle()
+        try await fixture.waitForFocus(outline)
         fixture.expectFocus(outline)
         fixture.state.switchReadingFocus()
-        try await settle()
+        try await fixture.waitForFocus(fixture.reader)
         fixture.expectFocus(fixture.reader)
         #expect(fixture.state.isOutlineVisible)
 
         fixture.state.focusOutlineSidebar()
         fixture.reader.focus()
-        try await settle()
+        try await fixture.drainQueuedFocus()
         fixture.expectFocus(fixture.reader)
         #expect(fixture.state.isOutlineVisible)
     }
@@ -122,7 +122,7 @@ struct ReaderFocusTests {
     func switchingFilesPreservesTheFocusedPane(outlineFocused: Bool) async throws {
         let fixture = try Fixture()
         defer { fixture.close() }
-        try await settle()
+        try await fixture.ready()
         let outline = try fixture.outline()
         #expect(fixture.window.makeFirstResponder(outlineFocused ? outline : fixture.reader))
         let nextTab = PDFTab(url: nil, document: Fixture.document())
@@ -134,24 +134,29 @@ struct ReaderFocusTests {
         nextReader.document = nextTab.document
         fixture.window.contentView?.addSubview(nextReader)
         fixture.state.setActiveReaderController(nextReader, for: nextTab.id)
-        try await settle()
-        fixture.expectFocus(outlineFocused ? try fixture.outline() : nextReader)
+        try await fixture.drainQueuedFocus()
+        let expected = outlineFocused ? try fixture.outline() : nextReader
+        try await fixture.waitForFocus(expected)
+        fixture.expectFocus(expected)
     }
 
     @Test
     func reactivatingACachedReaderReportsItsPositionWithoutLayoutOrMovement() async throws {
         let fixture = try Fixture()
         defer { fixture.close() }
-        try await settle()
+        try await fixture.ready()
         fixture.reader.vimGoToPage(3)
-        try await settle()
+        await nextTestMainQueueTurn()
+        try await waitForTestCondition("The reader did not reach the third page") {
+            fixture.reader.readingDestination()?.page === fixture.tab.document?.page(at: 2)
+        }
         let expected = try #require(fixture.reader.readingDestination())
         #expect(expected.page === fixture.tab.document?.page(at: 2))
 
         let nextTab = PDFTab(url: nil, document: Fixture.document())
         _ = fixture.state.tabStore.openInNewTabs([nextTab])
         fixture.state.prepareForSelectedReaderChange()
-        try await settle()
+        try await fixture.drainQueuedFocus()
         _ = fixture.state.tabStore.selectTab(fixture.tab.id)
         fixture.state.prepareForSelectedReaderChange()
         #expect(fixture.state.outlineReadingDestination == nil)
@@ -159,7 +164,10 @@ struct ReaderFocusTests {
         fixture.reader.readingPositionReportWorkItem = nil
 
         fixture.state.setActiveReaderController(fixture.reader, for: fixture.tab.id)
-        try await settle()
+        try await waitForTestCondition("The cached reader did not report its position") {
+            fixture.state.outlineReadingDestination?.page === expected.page
+                && fixture.state.outlineReadingDestination?.point == expected.point
+        }
         let reported = try #require(fixture.state.outlineReadingDestination)
         #expect(reported.page === expected.page)
         #expect(reported.point == expected.point)
@@ -185,7 +193,7 @@ struct ReaderFocusTests {
     func explicitlyResigningTheReaderClearsItsPendingCommand(prefix: String) async throws {
         let fixture = try Fixture()
         defer { fixture.close() }
-        try await settle()
+        try await fixture.ready()
         let outline = try fixture.outline()
         #expect(fixture.window.makeFirstResponder(fixture.reader))
         #expect(fixture.state.handleKeyEvent(key(prefix, in: fixture.window)))
@@ -204,8 +212,6 @@ struct ReaderFocusTests {
         #expect(fixture.reader.restoreGeneration > generation)
     }
 
-    private func settle() async throws { try await Task.sleep(for: .milliseconds(60)) }
-
     private func key(_ value: String, in window: NSWindow) -> NSEvent {
         NSEvent.keyEvent(with: .keyDown, location: .zero,
                          modifierFlags: value == "G" ? .shift : [], timestamp: 0,
@@ -221,8 +227,7 @@ struct ReaderFocusTests {
 
     @MainActor
     private final class Fixture {
-        let suite = "Vellum.ReaderFocus.\(UUID().uuidString)"
-        let defaults: UserDefaults
+        let preferences: TestPreferences
         let state: AppState
         let window: NSWindow
         let tab: PDFTab
@@ -233,11 +238,8 @@ struct ReaderFocusTests {
 
         init() throws {
             _ = NSApplication.shared
-            defaults = try #require(UserDefaults(suiteName: suite))
-            state = AppState(sessionDefaults: defaults, keyboardController: KeyboardController(
-                installsKeyMonitor: false, installsOpenURLObserver: false,
-                notificationCenter: NotificationCenter(), openURLRelay: OpenURLRelay()
-            ))
+            preferences = try TestPreferences()
+            state = makeTestAppState(defaults: preferences.defaults)
             tab = PDFTab(url: nil, document: Self.document())
             _ = state.tabStore.openInNewTabs([tab])
             state.isOutlineVisible = true
@@ -263,6 +265,31 @@ struct ReaderFocusTests {
             return try #require(descendants(host).compactMap { $0 as? PDFOutlineKeyView }.first)
         }
 
+        func ready() async throws {
+            try await waitForTestCondition("The outline and reader did not mount") {
+                state.activeOutlineView?.window === window && reader.currentPage != nil
+            }
+            try await drainQueuedFocus()
+        }
+
+        func waitForFocus(_ responder: NSResponder) async throws {
+            try await waitForTestCondition("The requested pane did not receive focus") {
+                window.firstResponder === responder
+            }
+            try await drainQueuedFocus()
+        }
+
+        func drainQueuedFocus() async throws {
+            host.layoutSubtreeIfNeeded()
+            try await waitForTestCondition("The outline did not receive the latest focus intent") {
+                (state.activeOutlineView?.delegate as? PDFOutlineView.Coordinator)?.lastFocusGeneration
+                    == state.outlineFocusGeneration
+            }
+            // Active-pane restoration can enqueue a second reader-focus request.
+            await nextTestMainQueueTurn()
+            await nextTestMainQueueTurn()
+        }
+
         func expectFocus(_ responder: NSResponder) {
             let matches = window.firstResponder === responder
             #expect(matches)
@@ -279,10 +306,23 @@ struct ReaderFocusTests {
         }
 
         func close() {
+            state.keyboardController.cancelInput()
+            state.activeOutlineView?.cancelPendingFocus()
+            state.activeReaderController = nil
+            state.readerWindow = nil
+            for reader in window.contentView?.subviews.compactMap({ $0 as? VellumPDFView }) ?? [] {
+                reader.cancelPendingRestore()
+                reader.stopScrollAnimation()
+                reader.stopZoomState()
+                reader.readerStateSaveWorkItem?.cancel()
+                reader.readingPositionReportWorkItem?.cancel()
+                reader.appState = nil
+            }
             window.makeFirstResponder(nil)
+            host.rootView = AnyView(EmptyView())
             window.contentView = nil
             window.close()
-            defaults.removePersistentDomain(forName: suite)
+            preferences.cleanup()
         }
     }
 }

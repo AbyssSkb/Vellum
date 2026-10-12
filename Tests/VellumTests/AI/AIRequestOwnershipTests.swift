@@ -141,13 +141,9 @@ struct AIRequestOwnershipTests {
         let source = try #require(fixture.view.document)
         try #require(source.write(to: closingURL))
         try #require(source.write(to: otherURL))
-        let suiteName = "Vellum.CloseAIRequest.\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: suiteName))
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-        let appState = AppState(sessionDefaults: defaults, keyboardController: KeyboardController(
-            installsKeyMonitor: false, installsOpenURLObserver: false,
-            notificationCenter: NotificationCenter(), openURLRelay: OpenURLRelay()
-        ))
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let appState = makeTestAppState(defaults: preferences.defaults)
         appState.openInNewTabs(urls: [closingURL, otherURL])
         let closingTab = try #require(appState.tabs.first { $0.url == closingURL })
         let document = try #require(closingTab.document)
@@ -174,10 +170,9 @@ struct AIRequestOwnershipTests {
         @MainActor func reader(in view: NSView) -> VellumPDFView? {
             (view as? VellumPDFView) ?? view.subviews.lazy.compactMap { reader(in: $0) }.first
         }
-        let deadline = ContinuousClock.now.advanced(by: .seconds(5))
-        while reader(in: hostingView) == nil, ContinuousClock.now < deadline {
+        try await waitForTestCondition("Inactive reader is mounted") {
             hostingView.layoutSubtreeIfNeeded()
-            try await Task.sleep(for: .milliseconds(1))
+            return reader(in: hostingView) != nil
         }
         let mountedReader = try #require(reader(in: hostingView))
         try #require(persistence.onPrepareToClose != nil)
@@ -287,11 +282,9 @@ private final class ControlledAIClient: AIExplaining {
     private var onChunk: (@MainActor (String) -> Void)?
 
     func waitUntilStarted() async throws {
-        let deadline = ContinuousClock.now.advanced(by: .seconds(5))
-        while continuation == nil, ContinuousClock.now < deadline {
-            try await Task.sleep(for: .milliseconds(1))
+        try await waitForTestCondition("Controlled AI request has started") {
+            continuation != nil
         }
-        _ = try #require(continuation)
     }
 
     func emit(_ text: String) { onChunk?(text) }

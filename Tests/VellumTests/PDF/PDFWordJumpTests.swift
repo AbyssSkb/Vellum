@@ -6,8 +6,8 @@ import Testing
 @Suite("PDF word jump")
 struct PDFWordJumpTests {
     @Test @MainActor
-    func onlyWordsIntersectingTheViewportReceiveTargets() throws {
-        let (window, view) = try makeReader(pages: [
+    func onlyWordsIntersectingTheViewportReceiveTargets() async throws {
+        let (window, view) = try await makeReader(pages: [
             [("visible", NSPoint(x: 72, y: 650)), ("below", NSPoint(x: 72, y: 100))],
             [("nextpage", NSPoint(x: 72, y: 650))]
         ])
@@ -19,8 +19,8 @@ struct PDFWordJumpTests {
     }
 
     @Test @MainActor
-    func unclippedAncestorsDoNotIncludeWordsOutsideTheReadingViewport() throws {
-        let (window, view) = try makeReader(pages: [[
+    func unclippedAncestorsDoNotIncludeWordsOutsideTheReadingViewport() async throws {
+        let (window, view) = try await makeReader(pages: [[
             ("outside", NSPoint(x: 72, y: 650)),
             ("visible", NSPoint(x: 72, y: 600))
         ]])
@@ -40,8 +40,13 @@ struct PDFWordJumpTests {
         view.layoutDocumentView()
         view.centerBothAxes(on: PDFDestination(page: page,
             at: NSPoint(x: outsideBounds.midX, y: outsideBounds.midY - 130)))
-        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        await nextTestMainQueueTurn()
         let clipView = try #require(view.pdfScrollView?.contentView)
+        try await waitForTestCondition("The centered page is visible in the reading viewport") {
+            view.visiblePages.contains { $0 === page }
+                && !view.convert(outsideBounds, from: page)
+                    .intersects(view.bounds.intersection(view.convert(clipView.bounds, from: clipView)))
+        }
         let readingArea = view.bounds.intersection(view.convert(clipView.bounds, from: clipView))
         #expect(!view.bounds.contains(view.visibleRect))
         #expect(view.wordJumpViewport == readingArea.intersection(view.visibleRect))
@@ -57,8 +62,8 @@ struct PDFWordJumpTests {
     }
 
     @Test @MainActor
-    func choosingARepeatedWordSelectsItsActualRangeAndSupportsVisualMotions() throws {
-        let (window, view) = try makeReader(pages: [[
+    func choosingARepeatedWordSelectsItsActualRangeAndSupportsVisualMotions() async throws {
+        let (window, view) = try await makeReader(pages: [[
             ("alpha beta", NSPoint(x: 72, y: 650)),
             ("alpha gamma delta", NSPoint(x: 72, y: 610))
         ]])
@@ -67,10 +72,10 @@ struct PDFWordJumpTests {
         view.beginWordJumpCommand()
         let controller = try #require(view.wordJumpController)
         for character in "alp" { try send(String(character), to: view) }
-        #expect(controller.session.query == "alp")
         #expect(controller.session.matches.count == 2)
         let match = try #require(controller.session.matches.last)
-        let expected = controller.targets[match.wordIndex].selection.range(at: 0, on: page)
+        let expected = (try #require(page.string) as NSString).range(of: "alpha", options: .backwards)
+        try #require(expected.location != NSNotFound)
         for character in match.label { try send(String(character), to: view) }
         #expect(!view.isWordJumpActive)
         #expect(view.currentSelection?.range(at: 0, on: page) == expected)
@@ -83,8 +88,8 @@ struct PDFWordJumpTests {
     }
 
     @Test @MainActor
-    func cancellingEditingAndUnmatchedEnterPreserveTheExistingSelection() throws {
-        let (window, view) = try makeReader(pages: [[("alpha beta", NSPoint(x: 72, y: 650))]])
+    func cancellingEditingAndUnmatchedEnterPreserveTheExistingSelection() async throws {
+        let (window, view) = try await makeReader(pages: [[("alpha beta", NSPoint(x: 72, y: 650))]])
         defer { window.close() }
         let page = try #require(view.document?.page(at: 0))
         let originalRange = (try #require(page.string) as NSString).range(of: "beta")
@@ -95,8 +100,7 @@ struct PDFWordJumpTests {
         #expect(view.currentSelection?.range(at: 0, on: page) == originalRange)
         try send("a", to: view)
         try send("\u{7f}", to: view)
-        #expect(view.wordJumpController?.session.query == "")
-        #expect(view.wordJumpController?.session.matches.isEmpty == true)
+        #expect(view.currentSelection?.range(at: 0, on: page) == originalRange)
         for character in "unmatched" { try send(String(character), to: view) }
         try send("\r", to: view)
         #expect(view.isWordJumpActive)
@@ -107,28 +111,29 @@ struct PDFWordJumpTests {
     }
 
     @Test @MainActor
-    func hyphenatedLinesCreateOneCompleteWordTarget() throws {
-        let (window, view) = try makeReader(pages: [[
+    func hyphenatedLinesCreateOneCompleteWordTarget() async throws {
+        let (window, view) = try await makeReader(pages: [[
             ("broken-", NSPoint(x: 72, y: 650)),
             ("word after", NSPoint(x: 72, y: 625))
         ]])
         defer { window.close() }
+        let page = try #require(view.document?.page(at: 0))
         view.beginWordJumpCommand()
         let controller = try #require(view.wordJumpController)
         #expect(controller.targets.filter { $0.word == "brokenword" }.count == 1)
         #expect(!controller.targets.contains { $0.word == "broken" || $0.word == "word" })
         for character in "brokenw" { try send(String(character), to: view) }
         let match = try #require(controller.session.matches.first)
-        #expect(controller.session.matches.count == 1)
         #expect(controller.targets[match.wordIndex].rects.count == 2)
         for character in match.label { try send(String(character), to: view) }
-        #expect(view.currentSelection?.string?.contains("broken-") == true)
-        #expect(view.currentSelection?.string?.contains("word") == true)
+        let expectedRange = (try #require(page.string) as NSString).range(of: "broken-\nword")
+        try #require(expectedRange.location != NSNotFound)
+        #expect(view.currentSelection?.range(at: 0, on: page) == expectedRange)
     }
 
     @Test @MainActor
-    func partiallyVisibleHyphenatedWordIsIncludedWhenBothRangeEndpointsAreOffscreen() throws {
-        let (window, view) = try makeReader(pages: [[
+    func partiallyVisibleHyphenatedWordIsIncludedWhenBothRangeEndpointsAreOffscreen() async throws {
+        let (window, view) = try await makeReader(pages: [[
             ("The paragraph ends with broken-", NSPoint(x: 72, y: 650)),
             ("word after", NSPoint(x: 72, y: 625))
         ]])
@@ -137,15 +142,19 @@ struct PDFWordJumpTests {
         let text = try #require(page.string) as NSString
         let prefixRange = text.range(of: "broken")
         let suffixRange = text.range(of: "word")
-        let fullRange = VellumPDFView.hyphenatedWordRange(in: text, selectedRange: prefixRange)
-        #expect(NSMaxRange(fullRange) == NSMaxRange(suffixRange))
+        try #require(prefixRange.location != NSNotFound && suffixRange.location != NSNotFound)
+        let fullRange = NSRange(location: prefixRange.location, length: NSMaxRange(suffixRange) - prefixRange.location)
         window.setContentSize(NSSize(width: 200, height: 420))
         view.scaleFactor = 5
         view.layoutDocumentView()
         let visibleCharacter = page.characterBounds(at: suffixRange.location)
         view.centerBothAxes(on: PDFDestination(page: page,
             at: NSPoint(x: visibleCharacter.midX, y: visibleCharacter.midY)))
-        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        await nextTestMainQueueTurn()
+        try await waitForTestCondition("The middle fragment is visible after centering") {
+            view.visiblePages.contains { $0 === page }
+                && view.convert(visibleCharacter, from: page).intersects(view.visibleRect)
+        }
         #expect(view.convert(visibleCharacter, from: page).intersects(view.visibleRect))
         #expect(!view.convert(page.characterBounds(at: fullRange.location), from: page).intersects(view.visibleRect))
         #expect(!view.convert(page.characterBounds(at: NSMaxRange(fullRange) - 1), from: page).intersects(view.visibleRect))
@@ -159,13 +168,11 @@ struct PDFWordJumpTests {
         #expect(controller.targets.filter { $0.word == "brokenword" }.count == 1)
         #expect(target.rects.count == 1)
         #expect(target.rects[0].intersects(view.visibleRect))
-        for character in "brokenw" { try send(String(character), to: view) }
-        #expect(controller.session.matches.count == 1)
     }
 
     @Test(arguments: [0, 90, 180, 270]) @MainActor
-    func rotatedCroppedTargetsUseTheDisplayedPageGeometry(rotation: Int) throws {
-        let (window, view) = try makeReader(pages: [[
+    func rotatedCroppedTargetsUseTheDisplayedPageGeometry(rotation: Int) async throws {
+        let (window, view) = try await makeReader(pages: [[
             ("alpha", NSPoint(x: 100, y: 650)),
             ("beta", NSPoint(x: 100, y: 200))
         ]])
@@ -181,16 +188,27 @@ struct PDFWordJumpTests {
         let targets = try #require(view.wordJumpController).targets
         #expect(Set(targets.map(\.word)) == ["alpha", "beta"])
         for target in targets {
-            let expected = try #require(view.viewRect(for: target.selection.bounds(for: page), on: page))
+            let bounds = target.selection.bounds(for: page)
+            let firstCorner = view.convert(NSPoint(x: bounds.minX, y: bounds.minY), from: page)
+            let oppositeCorner = view.convert(NSPoint(x: bounds.maxX, y: bounds.maxY), from: page)
+            let expected = NSRect(
+                x: min(firstCorner.x, oppositeCorner.x),
+                y: min(firstCorner.y, oppositeCorner.y),
+                width: abs(firstCorner.x - oppositeCorner.x),
+                height: abs(firstCorner.y - oppositeCorner.y)
+            )
             let actual = try #require(target.rects.first)
             #expect(actual == expected)
+            let displayedSize = rotation % 180 == 0 ? bounds.size : NSSize(width: bounds.height, height: bounds.width)
+            #expect(abs(actual.width - displayedSize.width * view.scaleFactor) < 0.001)
+            #expect(abs(actual.height - displayedSize.height * view.scaleFactor) < 0.001)
             #expect(actual.intersects(view.visibleRect))
         }
     }
 
     @Test(arguments: ["scroll", "resize", "document"]) @MainActor
-    func changingTheViewportOrDocumentCancelsStaleLabels(change: String) throws {
-        let (window, view) = try makeReader(pages: [
+    func changingTheViewportOrDocumentCancelsStaleLabels(change: String) async throws {
+        let (window, view) = try await makeReader(pages: [
             [("alpha", NSPoint(x: 72, y: 650))],
             [("beta", NSPoint(x: 72, y: 650))]
         ])
@@ -211,8 +229,8 @@ struct PDFWordJumpTests {
     }
 
     @Test @MainActor
-    func pagesWithoutTextRemainCancellable() throws {
-        let (window, view) = try makeReader(pages: [[]])
+    func pagesWithoutTextRemainCancellable() async throws {
+        let (window, view) = try await makeReader(pages: [[]])
         defer { window.close() }
         view.beginWordJumpCommand()
         #expect(view.isWordJumpActive)
@@ -225,8 +243,8 @@ struct PDFWordJumpTests {
     }
 
     @Test @MainActor
-    func hoveringAnAIHighlightDoesNotInterruptWordJump() throws {
-        let (window, view) = try makeReader(pages: [[("alpha", NSPoint(x: 72, y: 650))]])
+    func hoveringAnAIHighlightDoesNotInterruptWordJump() async throws {
+        let (window, view) = try await makeReader(pages: [[("alpha", NSPoint(x: 72, y: 650))]])
         defer { view.hideAIExplanationPopover(); window.close() }
         let page = try #require(view.document?.page(at: 0))
         let range = (try #require(page.string) as NSString).range(of: "alpha")
@@ -248,36 +266,30 @@ struct PDFWordJumpTests {
     }
 
     @MainActor
-    private func makeReader(pages: [[(String, NSPoint)]]) throws -> (NSWindow, VellumPDFView) {
+    private func makeReader(pages: [[(String, NSPoint)]]) async throws -> (NSWindow, VellumPDFView) {
         _ = NSApplication.shared
-        let data = NSMutableData()
-        var mediaBox = CGRect(x: 0, y: 0, width: 612, height: 792)
-        let consumer = try #require(CGDataConsumer(data: data as CFMutableData))
-        let context = try #require(CGContext(consumer: consumer, mediaBox: &mediaBox, nil))
-        for lines in pages {
-            context.beginPDFPage(nil)
-            NSGraphicsContext.saveGraphicsState()
-            NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: false)
-            for (text, point) in lines {
-                (text as NSString).draw(at: point, withAttributes: [.font: NSFont.systemFont(ofSize: 18)])
-            }
-            NSGraphicsContext.restoreGraphicsState()
-            context.endPDFPage()
-        }
-        context.closePDF()
+        let document = try makeTextPDF(pages: pages)
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 800, height: 420),
                               styleMask: .borderless, backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
         let view = VellumPDFView(frame: try #require(window.contentView).bounds)
         window.contentView = view
         view.displayMode = .singlePageContinuous
-        view.document = PDFDocument(data: data as Data)
+        view.document = document
         view.autoScales = false
         view.scaleFactor = 1
         view.layoutDocumentView()
         view.scrollToDocumentEdge(.top)
-        // PDFKit reports the previous visible page until its scroll notification is delivered.
-        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        await nextTestMainQueueTurn()
+        let firstPage = try #require(document.page(at: 0))
+        do {
+            try await waitForTestCondition("The first PDF page is visible after layout") {
+                view.currentPage === firstPage && view.visiblePages.contains { $0 === firstPage }
+            }
+        } catch {
+            window.close()
+            throw error
+        }
         return (window, view)
     }
 

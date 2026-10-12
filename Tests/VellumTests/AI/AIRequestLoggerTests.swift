@@ -52,16 +52,19 @@ struct AIRequestLoggerTests {
 
         let preview = try #require(AIRequestLogger.textPreview(from: data, maxCharacters: 200))
 
-        #expect(preview.contains("\"model\" : \"test\""))
-        #expect(preview.contains("\"messages\" : ["))
+        let object = try #require(JSONSerialization.jsonObject(with: Data(preview.utf8)) as? [String: Any])
+        #expect(object["model"] as? String == "test")
+        #expect(object["messages"] as? [[String: String]] == [["role": "user", "content": "hello"]])
+        #expect(preview.contains("\n"))
     }
 
     @Test
     func textPreviewLimitsLength() throws {
-        let data = Data(#"{"model":"test","messages":[{"role":"user","content":"hello"}]}"#.utf8)
+        let text = String(repeating: "a🪁", count: 50)
+        let preview = try #require(AIRequestLogger.textPreview(from: Data(text.utf8), maxCharacters: 40))
 
-        let preview = try #require(AIRequestLogger.textPreview(from: data, maxCharacters: 40))
-
-        #expect(preview.contains("<truncated"))
+        #expect(preview.hasPrefix(String(text.prefix(40))))
+        #expect(preview.contains("<truncated 60 characters>"))
+        #expect(preview.count < text.count)
     }
 }

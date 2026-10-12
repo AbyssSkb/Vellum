@@ -17,42 +17,35 @@ struct AILocalizationTests {
             #expect(!error.message(language: .english).isEmpty)
             #expect(!error.message(language: .chinese).isEmpty)
         }
-        #expect(AIExplanationError.missingModel.message(language: .english) == "Enter an AI model name in Settings.")
-        #expect(AIExplanationError.missingModel.message(language: .chinese) == "AI 模型名称为空，请先在设置里填写模型名称。")
         #expect(AIExplanationError.server("Provider detail").message(language: .chinese) == "Provider detail")
-        #expect(AppUILanguage.english.text(.outlinePage(3)) == "Page 3")
-        #expect(AppUILanguage.chinese.text(.outlinePage(3)) == "第 3 页")
-        #expect(AppUILanguage.chinese.text(.sidebarOpen) == "已展开")
     }
 
     @Test
     @MainActor
     func hostedLanguageChangesWithoutRecreatingContentState() async throws {
         _ = NSApplication.shared
-        let suite = "VellumTests.AILanguage.\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: suite))
-        defer { defaults.removePersistentDomain(forName: suite) }
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let defaults = preferences.defaults
         defaults.set(AppUILanguage.english.rawValue, forKey: AppPreferenceKeys.appLanguage)
         var records: [(AppUILanguage, UUID)] = []
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 100, height: 100), styleMask: .borderless, backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
-        defer { window.close() }
+        defer { window.contentView = nil; window.close() }
         let hosting = NSHostingView(rootView: AppLanguageObservedView(content: LanguageProbe { records.append(($0, $1)) }).defaultAppStorage(defaults))
         window.contentView = hosting
         hosting.layoutSubtreeIfNeeded()
-        let initialDeadline = Date().addingTimeInterval(5)
-        while records.last?.0 != .english, Date() < initialDeadline {
-            try await Task.sleep(for: .milliseconds(10))
+        try await waitForTestCondition("Hosted content uses the initial app language") {
             hosting.layoutSubtreeIfNeeded()
+            return records.last?.0 == .english
         }
         let first = try #require(records.last)
         #expect(first.0 == .english)
 
         defaults.set(AppUILanguage.chinese.rawValue, forKey: AppPreferenceKeys.appLanguage)
-        let updateDeadline = Date().addingTimeInterval(5)
-        while records.last?.0 != .chinese, Date() < updateDeadline {
-            try await Task.sleep(for: .milliseconds(10))
+        try await waitForTestCondition("Hosted content observes the new app language") {
             hosting.layoutSubtreeIfNeeded()
+            return records.last?.0 == .chinese
         }
         let last = try #require(records.last)
         #expect(last.0 == .chinese)

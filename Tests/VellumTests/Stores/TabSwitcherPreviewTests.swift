@@ -13,8 +13,9 @@ struct TabSwitcherPreviewTests {
         let second = PDFTab(url: nil, document: try document(colors: [.red, .blue]),
                             snapshot: snapshot(pageIndex: 99))
         let store = TabSwitcherPreviewStore()
+        defer { store.cancel() }
         store.update(tabs: [first, second], maximumPixelSize: NSSize(width: 120, height: 160))
-        try await wait { store.images.count == 2 }
+        try await waitForTestCondition("The tab preview did not finish rendering") { store.images.count == 2 }
         let firstColor = try color(of: #require(store.images[first.id]))
         let secondColor = try color(of: #require(store.images[second.id]))
         #expect(firstColor.greenComponent > 0.9)
@@ -27,9 +28,10 @@ struct TabSwitcherPreviewTests {
     func replacementPagesAndLargerViewsRefreshWhileAdequatePreviewsAreReused() async throws {
         var tab = PDFTab(url: nil, document: try document(colors: [.red, .green]))
         let store = TabSwitcherPreviewStore()
+        defer { store.cancel() }
         let size = NSSize(width: 120, height: 160)
         store.update(tabs: [tab], maximumPixelSize: size)
-        try await wait { store.images[tab.id] != nil }
+        try await waitForTestCondition("The tab preview did not finish rendering") { store.images[tab.id] != nil }
         let original = try #require(store.images[tab.id])
         for pixels in [size, NSSize(width: 60, height: 80)] {
             store.update(tabs: [tab], maximumPixelSize: pixels)
@@ -39,25 +41,30 @@ struct TabSwitcherPreviewTests {
         tab.snapshot = snapshot(pageIndex: 1)
         store.update(tabs: [tab], maximumPixelSize: size)
         #expect(store.images[tab.id] == nil)
-        try await wait { store.images[tab.id] != nil }
+        try await waitForTestCondition("The tab preview did not finish rendering") { store.images[tab.id] != nil }
         #expect(try color(of: #require(store.images[tab.id])).greenComponent > 0.9)
 
         tab.document = try document(colors: [.blue])
         store.update(tabs: [tab], maximumPixelSize: size)
         #expect(store.images[tab.id] == nil)
-        try await wait { store.images[tab.id] != nil }
+        try await waitForTestCondition("The tab preview did not finish rendering") { store.images[tab.id] != nil }
         let replacement = try #require(store.images[tab.id])
         #expect(try color(of: replacement).blueComponent > 0.9)
         store.update(tabs: [tab], maximumPixelSize: NSSize(width: 240, height: 320))
         #expect(store.images[tab.id] === replacement)
-        try await wait { store.images[tab.id] !== replacement }
+        try await waitForTestCondition("The tab preview did not finish rendering") { store.images[tab.id] !== replacement }
         #expect(store.images[tab.id]?.representations.first?.pixelsWide == 240)
 
-        store.update(tabs: [], maximumPixelSize: size)
-        #expect(store.images.isEmpty)
-        store.update(tabs: [tab], maximumPixelSize: size)
+        let completedPreview = try #require(store.images[tab.id])
         store.cancel()
-        try await Task.sleep(for: .milliseconds(80))
+        #expect(store.images.isEmpty)
+        store.update(tabs: [tab], maximumPixelSize: NSSize(width: 240, height: 320))
+        #expect(store.images.isEmpty)
+        try await waitForTestCondition("A canceled preview did not render again") { store.images[tab.id] != nil }
+        #expect(store.images[tab.id] !== completedPreview)
+        #expect(try color(of: #require(store.images[tab.id])).blueComponent > 0.9)
+
+        store.update(tabs: [], maximumPixelSize: size)
         #expect(store.images.isEmpty)
     }
 
@@ -65,14 +72,6 @@ struct TabSwitcherPreviewTests {
         var value = ReaderSnapshot.initial
         value.pageIndex = pageIndex
         return value
-    }
-
-    private func wait(until loaded: () -> Bool) async throws {
-        for _ in 0..<150 {
-            if loaded() { return }
-            try await Task.sleep(for: .milliseconds(20))
-        }
-        try #require(loaded(), "The preview did not finish rendering")
     }
 
     private func color(of image: NSImage) throws -> NSColor {

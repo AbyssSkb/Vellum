@@ -3,39 +3,20 @@ import Testing
 
 @Suite("Page overview window")
 struct PageOverviewWindowTests {
-    @Test
-    func threePageWindowKeepsSelectedPageCentered() {
-        let slots = PageOverviewWindow.slots(selectedIndex: 12, pageCount: 40, visibleCount: 3)
-
-        #expect(slots[1] == 12)
-        #expect(slots == [11, 12, 13])
+    @Test(arguments: [3, 9])
+    func selectedPageStaysInCenterSlot(visibleCount: Int) {
+        let slots = PageOverviewWindow.slots(selectedIndex: 12, pageCount: 40, visibleCount: visibleCount)
+        let expected: [Int?] = visibleCount == 3 ? [11, 12, 13] : [8, 9, 10, 11, 12, 13, 14, 15, 16]
+        #expect(slots == expected)
     }
 
-    @Test
-    func threePageEdgeWindowsKeepSelectionCenteredWithEmptySlots() {
-        let firstPageSlots = PageOverviewWindow.slots(selectedIndex: 0, pageCount: 40, visibleCount: 3)
-        let lastPageSlots = PageOverviewWindow.slots(selectedIndex: 39, pageCount: 40, visibleCount: 3)
-
-        #expect(firstPageSlots == [nil, 0, 1])
-        #expect(lastPageSlots == [38, 39, nil])
-    }
-
-    @Test
-    func selectedPageStaysInCenterSlot() {
-        let slots = PageOverviewWindow.slots(selectedIndex: 12, pageCount: 40, visibleCount: 9)
-
-        #expect(slots[4] == 12)
-        #expect(slots == [8, 9, 10, 11, 12, 13, 14, 15, 16])
-    }
-
-    @Test
-    func edgePagesKeepSelectionCenteredWithEmptySlots() {
-        let firstPageSlots = PageOverviewWindow.slots(selectedIndex: 0, pageCount: 40, visibleCount: 9)
-        let lastPageSlots = PageOverviewWindow.slots(selectedIndex: 39, pageCount: 40, visibleCount: 9)
-
-        #expect(firstPageSlots[4] == 0)
-        #expect(firstPageSlots == [nil, nil, nil, nil, 0, 1, 2, 3, 4])
-        #expect(lastPageSlots[4] == 39)
-        #expect(lastPageSlots == [35, 36, 37, 38, 39, nil, nil, nil, nil])
+    @Test(arguments: [3, 9])
+    func edgePagesKeepSelectionCenteredWithEmptySlots(visibleCount: Int) {
+        let firstPageSlots = PageOverviewWindow.slots(selectedIndex: 0, pageCount: 40, visibleCount: visibleCount)
+        let lastPageSlots = PageOverviewWindow.slots(selectedIndex: 39, pageCount: 40, visibleCount: visibleCount)
+        let firstExpected: [Int?] = visibleCount == 3 ? [nil, 0, 1] : [nil, nil, nil, nil, 0, 1, 2, 3, 4]
+        let lastExpected: [Int?] = visibleCount == 3 ? [38, 39, nil] : [35, 36, 37, 38, 39, nil, nil, nil, nil]
+        #expect(firstPageSlots == firstExpected)
+        #expect(lastPageSlots == lastExpected)
     }
 }

@@ -7,8 +7,10 @@ import Testing
 @Suite("App state reader controller")
 struct AppStateReaderControllerTests {
     @Test
-    func selectedTabActivatesReaderControllerAndRoutesCommands() {
-        let appState = AppState()
+    func selectedTabActivatesReaderControllerAndRoutesCommands() throws {
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let appState = makeTestAppState(defaults: preferences.defaults)
         let tab = PDFTab(url: URL(fileURLWithPath: "/tmp/sample.pdf"), document: nil)
         let reader = RecordingReaderController()
 
@@ -59,8 +61,10 @@ struct AppStateReaderControllerTests {
     }
 
     @Test
-    func mismatchedTabDoesNotReplaceActiveReaderController() {
-        let appState = AppState()
+    func mismatchedTabDoesNotReplaceActiveReaderController() throws {
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let appState = makeTestAppState(defaults: preferences.defaults)
         let selectedTab = PDFTab(url: URL(fileURLWithPath: "/tmp/selected.pdf"), document: nil)
         let otherTab = PDFTab(url: URL(fileURLWithPath: "/tmp/other.pdf"), document: nil)
         let selectedReader = RecordingReaderController()
@@ -77,8 +81,10 @@ struct AppStateReaderControllerTests {
     }
 
     @Test
-    func changingSelectedTabClearsActiveReaderController() {
-        let appState = AppState()
+    func changingSelectedTabClearsActiveReaderController() throws {
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let appState = makeTestAppState(defaults: preferences.defaults)
         let firstTab = PDFTab(url: URL(fileURLWithPath: "/tmp/first.pdf"), document: nil)
         let secondTab = PDFTab(url: URL(fileURLWithPath: "/tmp/second.pdf"), document: nil)
         let reader = RecordingReaderController()
@@ -93,8 +99,10 @@ struct AppStateReaderControllerTests {
     }
 
     @Test
-    func activeReaderSnapshotIsSavedForSelectedTab() {
-        let appState = AppState()
+    func activeReaderSnapshotIsSavedForSelectedTab() throws {
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let appState = makeTestAppState(defaults: preferences.defaults)
         let snapshot = ReaderSnapshot(
             pageIndex: 4,
             pointOnPage: NSPoint(x: 12, y: 34),
@@ -114,10 +122,9 @@ struct AppStateReaderControllerTests {
 
     @Test
     func openingTabSwitcherRefreshesOnlyTheActiveReadingSnapshot() throws {
-        let suite = "Vellum.TabSwitcherSnapshot.\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: suite))
-        defer { defaults.removePersistentDomain(forName: suite) }
-        let appState = AppState(sessionDefaults: defaults)
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let appState = makeTestAppState(defaults: preferences.defaults)
         let snapshot = ReaderSnapshot(
             pageIndex: 4,
             pointOnPage: NSPoint(x: 12, y: 34),
@@ -142,8 +149,10 @@ struct AppStateReaderControllerTests {
     }
 
     @Test
-    func sessionSaveDoesNotCopyOldReaderSnapshotToNewlySelectedTab() {
-        let appState = AppState()
+    func sessionSaveDoesNotCopyOldReaderSnapshotToNewlySelectedTab() throws {
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let appState = makeTestAppState(defaults: preferences.defaults)
         let firstSnapshot = ReaderSnapshot(
             pageIndex: 5,
             pointOnPage: NSPoint(x: 40, y: 80),
@@ -167,8 +176,10 @@ struct AppStateReaderControllerTests {
     }
 
     @Test
-    func conversationHistoryIsScopedToActiveDocument() {
-        let appState = AppState()
+    func conversationHistoryIsScopedToActiveDocument() throws {
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let appState = makeTestAppState(defaults: preferences.defaults)
         let tab = PDFTab(url: URL(fileURLWithPath: "/tmp/current.pdf"), document: nil)
         let reader = RecordingReaderController(documentKey: "/tmp/current.pdf")
 
@@ -190,8 +201,10 @@ struct AppStateReaderControllerTests {
     }
 
     @Test
-    func explanationHistoryIncludesCurrentDocumentTransientAndAnnotationItems() {
-        let appState = AppState()
+    func explanationHistoryIncludesCurrentDocumentTransientAndAnnotationItems() throws {
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let appState = makeTestAppState(defaults: preferences.defaults)
         let tab = PDFTab(url: URL(fileURLWithPath: "/tmp/current.pdf"), document: nil)
         let reader = RecordingReaderController(
             documentKey: "/tmp/current.pdf",
@@ -238,13 +251,9 @@ struct AppStateReaderControllerTests {
     @Test(arguments: [false, true], [false, true])
     func changingDocumentsDismissesAIHistory(conversation: Bool, closesLastFile: Bool) throws {
         _ = NSApplication.shared
-        let suite = "Vellum.AIHistoryDocumentChange.\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: suite))
-        defer { defaults.removePersistentDomain(forName: suite) }
-        let appState = AppState(sessionDefaults: defaults, keyboardController: KeyboardController(
-            installsKeyMonitor: false, installsOpenURLObserver: false,
-            notificationCenter: NotificationCenter(), openURLRelay: OpenURLRelay()
-        ))
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let appState = makeTestAppState(defaults: preferences.defaults)
         let tab = PDFTab(url: URL(fileURLWithPath: "/tmp/current.pdf"), document: nil)
         let nextTab = PDFTab(url: URL(fileURLWithPath: "/tmp/next.pdf"), document: nil)
         _ = appState.tabStore.openInNewTabs(closesLastFile ? [tab] : [tab, nextTab])
@@ -285,13 +294,9 @@ struct AppStateReaderControllerTests {
     @Test
     func changingDocumentsKeepsTabSwitcherFocusSnapshot() throws {
         _ = NSApplication.shared
-        let suite = "Vellum.TabSwitcherDocumentChange.\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: suite))
-        defer { defaults.removePersistentDomain(forName: suite) }
-        let appState = AppState(sessionDefaults: defaults, keyboardController: KeyboardController(
-            installsKeyMonitor: false, installsOpenURLObserver: false,
-            notificationCenter: NotificationCenter(), openURLRelay: OpenURLRelay()
-        ))
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let appState = makeTestAppState(defaults: preferences.defaults)
         let tab = PDFTab(url: URL(fileURLWithPath: "/tmp/current.pdf"), document: nil)
         let nextTab = PDFTab(url: URL(fileURLWithPath: "/tmp/next.pdf"), document: nil)
         _ = appState.tabStore.openInNewTabs([tab, nextTab])
@@ -309,8 +314,10 @@ struct AppStateReaderControllerTests {
     }
 
     @Test
-    func emptyAIHistoryShowsReaderNotification() {
-        let appState = AppState()
+    func emptyAIHistoryShowsReaderNotification() throws {
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let appState = makeTestAppState(defaults: preferences.defaults)
         let tab = PDFTab(url: URL(fileURLWithPath: "/tmp/current.pdf"), document: nil)
         let reader = RecordingReaderController(documentKey: "/tmp/current.pdf")
 

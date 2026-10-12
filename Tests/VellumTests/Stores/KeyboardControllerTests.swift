@@ -48,7 +48,7 @@ struct KeyboardControllerTests {
     }
 
     @Test(arguments: [false, true])
-    func tabCancelsWordJumpAndRetainsTapAndHoldBehavior(holdsTab: Bool) throws {
+    func tabCancelsWordJumpAndRetainsTapAndHoldBehavior(holdsTab: Bool) async throws {
         let controller = KeyboardController(
             tabPageOverviewDelay: holdsTab ? 0.001 : 10,
             installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter
@@ -59,7 +59,7 @@ struct KeyboardControllerTests {
         #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "s", keyCode: 1)))
         #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "\t", keyCode: 48)))
         #expect(!delegate.reader.isWordJumpActive)
-        if holdsTab { try waitForPageOverview(delegate.reader) }
+        if holdsTab { try await waitForPageOverview(delegate.reader) }
         #expect(controller.handleKeyEvent(keyEvent(.keyUp, key: "\t", keyCode: 48)))
         #expect(delegate.focusSwitches == (holdsTab ? 0 : 1))
         #expect(delegate.reader.actions == (holdsTab
@@ -163,7 +163,7 @@ struct KeyboardControllerTests {
     }
 
     @Test
-    func longTabPressBeginsMovesAndFinishesPageOverview() throws {
+    func longTabPressBeginsMovesAndFinishesPageOverview() async throws {
         let controller = KeyboardController(
             tabPageOverviewDelay: 0.001,
             installsKeyMonitor: false,
@@ -174,7 +174,7 @@ struct KeyboardControllerTests {
         controller.delegate = delegate
 
         #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "\t", keyCode: 48)))
-        try waitForPageOverview(delegate.reader)
+        try await waitForPageOverview(delegate.reader)
 
         #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "l", keyCode: 37)))
         #expect(controller.handleKeyEvent(keyEvent(.keyUp, key: "l", keyCode: 37)))
@@ -190,7 +190,7 @@ struct KeyboardControllerTests {
     }
 
     @Test(arguments: [false, true])
-    func outlineTabUsesTheSameTapAndHoldGesture(holdsTab: Bool) throws {
+    func outlineTabUsesTheSameTapAndHoldGesture(holdsTab: Bool) async throws {
         let window = makeWindow()
         defer { window.close() }
         let outline = PDFOutlineKeyView(frame: window.contentView!.bounds)
@@ -211,7 +211,7 @@ struct KeyboardControllerTests {
         #expect(window.firstResponder === outline)
         #expect(delegate.focusSwitches == 0)
         if holdsTab {
-            try waitForPageOverview(delegate.reader)
+            try await waitForPageOverview(delegate.reader)
             event.key = "l"
             #expect(controller.routeKeyEvent(event))
             #expect(window.firstResponder === outline)
@@ -303,7 +303,7 @@ struct KeyboardControllerTests {
     }
 
     @Test(arguments: [false, true])
-    func escapeCancelsTabGestureAndConsumesItsRelease(active: Bool) throws {
+    func escapeCancelsTabGestureAndConsumesItsRelease(active: Bool) async throws {
         let window = makeWindow()
         defer { window.close() }
         let outline = PDFOutlineKeyView(frame: window.contentView!.bounds)
@@ -320,7 +320,7 @@ struct KeyboardControllerTests {
         event.targetWindow = window
         event.key = "\t"
         #expect(controller.routeKeyEvent(event))
-        if active { try waitForPageOverview(delegate.reader) }
+        if active { try await waitForPageOverview(delegate.reader) }
         event.key = "\u{1b}"
         #expect(controller.routeKeyEvent(event))
         #expect(window.firstResponder === outline)
@@ -342,7 +342,7 @@ struct KeyboardControllerTests {
     }
 
     @Test
-    func galleryEntryResponderChangeRetainsGestureOwnershipAndEscapeRestoresOutline() throws {
+    func galleryEntryResponderChangeRetainsGestureOwnershipAndEscapeRestoresOutline() async throws {
         let window = makeWindow()
         defer { window.close() }
         let outline = PDFOutlineKeyView(frame: window.contentView!.bounds)
@@ -362,7 +362,7 @@ struct KeyboardControllerTests {
         event.targetWindow = window
         event.key = "\t"
         #expect(controller.routeKeyEvent(event))
-        try waitForPageOverview(delegate.reader)
+        try await waitForPageOverview(delegate.reader)
         #expect(window.firstResponder === readerView)
         event.key = "l"
         #expect(controller.routeKeyEvent(event))
@@ -419,22 +419,6 @@ struct KeyboardControllerTests {
         delegate.reader.textSelectionKeyResult = false
         #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "G", keyCode: 5)))
         #expect(delegate.commands == [.lastPage])
-    }
-
-    @Test
-    func slashRoutesToSearchCommand() {
-        let controller = KeyboardController(
-            installsKeyMonitor: false,
-            installsOpenURLObserver: false,
-            notificationCenter: notificationCenter
-        )
-        let delegate = RecordingKeyboardDelegate()
-        controller.delegate = delegate
-
-        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "/", keyCode: 44)))
-
-        #expect(delegate.commands == [.beginSearch])
-        #expect(delegate.reader.actions == [])
     }
 
     @Test
@@ -512,22 +496,6 @@ struct KeyboardControllerTests {
     }
 
     @Test
-    func uppercaseTRoutesToTabSwitcherCommand() {
-        let controller = KeyboardController(
-            installsKeyMonitor: false,
-            installsOpenURLObserver: false,
-            notificationCenter: notificationCenter
-        )
-        let delegate = RecordingKeyboardDelegate()
-        controller.delegate = delegate
-
-        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "T", keyCode: 17)))
-
-        #expect(delegate.commands == [.showTabSwitcher])
-        #expect(delegate.reader.actions == [])
-    }
-
-    @Test
     func commandShortcutsPassThroughToAppMenus() {
         let controller = KeyboardController(
             installsKeyMonitor: false,
@@ -543,64 +511,66 @@ struct KeyboardControllerTests {
         #expect(delegate.reader.actions == [])
     }
 
-    @Test
-    func modifiedKeyReleaseStopsContinuousScrolling() {
-        for modifier: NSEvent.ModifierFlags in [.command, .control, .option] {
-            let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
-            let delegate = RecordingKeyboardDelegate()
-            controller.delegate = delegate
-
-            #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "j", keyCode: 38)))
-            #expect(!controller.handleKeyEvent(keyEvent(.keyUp, key: "j", keyCode: 38, modifierFlags: modifier)))
-            RunLoop.main.run(until: Date().addingTimeInterval(0.10))
-            #expect(delegate.commands == [.scrollDown])
-
-            #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "j", keyCode: 38)))
-            #expect(delegate.commands == [.scrollDown, .scrollDown])
-            #expect(controller.handleKeyEvent(keyEvent(.keyUp, key: "j", keyCode: 38)))
-        }
-    }
-
-    @Test
-    func modifierShortcutStopsContinuousScrollingWithoutBeingConsumed() {
+    @Test(arguments: [NSEvent.ModifierFlags.command, .control, .option])
+    func modifiedKeyReleaseStopsContinuousScrolling(modifier: NSEvent.ModifierFlags) async throws {
         let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
         let delegate = RecordingKeyboardDelegate()
         controller.delegate = delegate
 
         #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "j", keyCode: 38)))
+        try await waitForHeldScroll(delegate)
+        let commands = delegate.commands
+        #expect(!controller.handleKeyEvent(keyEvent(.keyUp, key: "j", keyCode: 38, modifierFlags: modifier)))
+        try await observeHeldKeyTimerTurns()
+        #expect(delegate.commands == commands)
+
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "j", keyCode: 38)))
+        #expect(delegate.commands == commands + [.scrollDown])
+        #expect(controller.handleKeyEvent(keyEvent(.keyUp, key: "j", keyCode: 38)))
+    }
+
+    @Test
+    func modifierShortcutStopsContinuousScrollingWithoutBeingConsumed() async throws {
+        let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
+        let delegate = RecordingKeyboardDelegate()
+        controller.delegate = delegate
+
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "j", keyCode: 38)))
+        try await waitForHeldScroll(delegate)
+        let commands = delegate.commands
         #expect(!controller.handleKeyEvent(keyEvent(.keyDown, key: "o", keyCode: 31, modifierFlags: [.command])))
-        RunLoop.main.run(until: Date().addingTimeInterval(0.10))
-        #expect(delegate.commands == [.scrollDown])
+        try await observeHeldKeyTimerTurns()
+        #expect(delegate.commands == commands)
+    }
+
+    @Test(arguments: [NSApplication.willResignActiveNotification, NSWindow.didResignKeyNotification])
+    func deactivationClearsScrollingAndPendingTabPress(name: Notification.Name) async throws {
+        let controller = KeyboardController(
+            tabPageOverviewDelay: 0.001,
+            installsKeyMonitor: false,
+            installsOpenURLObserver: false,
+            notificationCenter: notificationCenter
+        )
+        let delegate = RecordingKeyboardDelegate()
+        controller.delegate = delegate
+
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "j", keyCode: 38)))
+        try await waitForHeldScroll(delegate)
+        let commands = delegate.commands
+        notificationCenter.post(name: name, object: nil)
+        try await observeHeldKeyTimerTurns()
+        #expect(delegate.commands == commands)
+
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "\t", keyCode: 48)))
+        notificationCenter.post(name: name, object: nil)
+        try await observeHeldKeyTimerTurns()
+        #expect(!controller.handleKeyEvent(keyEvent(.keyUp, key: "\t", keyCode: 48)))
+        #expect(delegate.commands == commands)
+        #expect(delegate.reader.actions.isEmpty)
     }
 
     @Test
-    func deactivationClearsScrollingAndPendingTabPress() {
-        for name in [NSApplication.willResignActiveNotification, NSWindow.didResignKeyNotification] {
-            let controller = KeyboardController(
-                tabPageOverviewDelay: 0.001,
-                installsKeyMonitor: false,
-                installsOpenURLObserver: false,
-                notificationCenter: notificationCenter
-            )
-            let delegate = RecordingKeyboardDelegate()
-            controller.delegate = delegate
-
-            #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "j", keyCode: 38)))
-            notificationCenter.post(name: name, object: nil)
-            RunLoop.main.run(until: Date().addingTimeInterval(0.10))
-            #expect(delegate.commands == [.scrollDown])
-
-            #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "\t", keyCode: 48)))
-            notificationCenter.post(name: name, object: nil)
-            RunLoop.main.run(until: Date().addingTimeInterval(0.02))
-            #expect(!controller.handleKeyEvent(keyEvent(.keyUp, key: "\t", keyCode: 48)))
-            #expect(delegate.commands == [.scrollDown])
-            #expect(delegate.reader.actions.isEmpty)
-        }
-    }
-
-    @Test
-    func deactivationDismissesActivePageOverview() throws {
+    func deactivationDismissesActivePageOverview() async throws {
         let controller = KeyboardController(
             tabPageOverviewDelay: 0.001,
             installsKeyMonitor: false,
@@ -611,16 +581,16 @@ struct KeyboardControllerTests {
         controller.delegate = delegate
 
         #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "\t", keyCode: 48)))
-        try waitForPageOverview(delegate.reader)
+        try await waitForPageOverview(delegate.reader)
         notificationCenter.post(name: NSApplication.willResignActiveNotification, object: nil)
         #expect(delegate.reader.actions == [.beginPageOverview, .cancelPageOverview])
         #expect(!controller.handleKeyEvent(keyEvent(.keyUp, key: "\t", keyCode: 48)))
     }
 
     @Test
-    func changingFirstResponderStopsContinuousScrolling() {
-        _ = NSApplication.shared
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 100, height: 100), styleMask: [], backing: .buffered, defer: false)
+    func changingFirstResponderStopsContinuousScrolling() async throws {
+        let window = makeWindow()
+        defer { window.close() }
         let first = NSTextView()
         let second = NSTextView()
         window.contentView?.addSubview(first)
@@ -633,10 +603,10 @@ struct KeyboardControllerTests {
         let event = WindowKeyboardEvent()
         event.targetWindow = window
         #expect(controller.handleKeyEvent(event))
-        RunLoop.main.run(until: Date().addingTimeInterval(0.10))
+        try await waitForHeldScroll(delegate)
         let commandsBeforeFocusChange = delegate.commands
         #expect(window.makeFirstResponder(second))
-        RunLoop.main.run(until: Date().addingTimeInterval(0.10))
+        try await observeHeldKeyTimerTurns()
         #expect(delegate.commands == commandsBeforeFocusChange)
         #expect(!controller.handleKeyEvent(keyEvent(.keyUp, key: "j", keyCode: 38)))
     }
@@ -683,33 +653,36 @@ struct KeyboardControllerTests {
     }
 
     @Test(arguments: ["g", "1", "/", "T", "H", "L"])
-    func startingAnotherCommandStopsHeldScrolling(key: String) {
+    func startingAnotherCommandStopsHeldScrolling(key: String) async throws {
         let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
         let delegate = RecordingKeyboardDelegate()
         controller.delegate = delegate
         #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "j", keyCode: 38)))
+        try await waitForHeldScroll(delegate)
         #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: key, keyCode: 0)))
         let commands = delegate.commands
-        RunLoop.main.run(until: Date().addingTimeInterval(0.10))
+        try await observeHeldKeyTimerTurns()
         #expect(delegate.commands == commands)
-        #expect(commands.filter { $0 == .scrollDown }.count == 1)
+        #expect(commands.filter { $0 == .scrollDown }.count >= 2)
         #expect(!controller.handleKeyEvent(keyEvent(.keyUp, key: "j", keyCode: 38)))
     }
 
     @Test
-    func changingReaderStopsHeldScrollingBeforeItsNextTick() {
+    func changingReaderStopsHeldScrollingBeforeItsNextTick() async throws {
         let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
         let delegate = RecordingKeyboardDelegate()
         controller.delegate = delegate
         #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "j", keyCode: 38)))
+        try await waitForHeldScroll(delegate)
+        let commands = delegate.commands
         delegate.reader = RecordingKeyboardReaderController()
-        RunLoop.main.run(until: Date().addingTimeInterval(0.10))
-        #expect(delegate.commands == [.scrollDown])
+        try await observeHeldKeyTimerTurns()
+        #expect(delegate.commands == commands)
         #expect(!controller.handleKeyEvent(keyEvent(.keyUp, key: "j", keyCode: 38)))
     }
 
     @Test(arguments: ["j", "g"])
-    func blockingPresentationCancelsInputBeforeItsEditorTakesFocus(key: String) {
+    func blockingPresentationCancelsInputBeforeItsEditorTakesFocus(key: String) async throws {
         let window = makeWindow()
         defer { window.close() }
         let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
@@ -720,10 +693,11 @@ struct KeyboardControllerTests {
         event.targetWindow = window
         event.key = key
         #expect(controller.routeKeyEvent(event))
+        if key == "j" { try await waitForHeldScroll(delegate) }
         let commands = delegate.commands
         let readerActions = delegate.reader.actions
         delegate.hasBlockingReaderPresentation = true
-        RunLoop.main.run(until: Date().addingTimeInterval(0.10))
+        try await observeHeldKeyTimerTurns()
         #expect(!controller.routeKeyEvent(event))
         event.key = "j"
         #expect(!controller.routeKeyEvent(event))
@@ -739,7 +713,7 @@ struct KeyboardControllerTests {
     }
 
     @Test
-    func hidingInputWindowStopsHeldScrolling() {
+    func hidingInputWindowStopsHeldScrolling() async throws {
         let window = makeWindow()
         defer { window.close() }
         let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
@@ -749,18 +723,20 @@ struct KeyboardControllerTests {
         let event = WindowKeyboardEvent()
         event.targetWindow = window
         #expect(controller.routeKeyEvent(event))
+        try await waitForHeldScroll(delegate)
+        let commands = delegate.commands
         window.orderOut(nil)
-        RunLoop.main.run(until: Date().addingTimeInterval(0.10))
-        #expect(delegate.commands == [.scrollDown])
+        try await observeHeldKeyTimerTurns()
+        #expect(delegate.commands == commands)
         #expect(!controller.routeKeyEvent(event))
         window.orderFront(nil)
         event.eventType = .keyUp
         #expect(!controller.routeKeyEvent(event))
-        #expect(delegate.commands == [.scrollDown])
+        #expect(delegate.commands == commands)
     }
 
     @Test
-    func attachedSheetCancelsReaderPrefixesAndBlocksCommands() throws {
+    func attachedSheetCancelsReaderPrefixesAndBlocksCommands() async throws {
         let window = makeWindow()
         let sheet = makeWindow()
         sheet.orderOut(nil)
@@ -778,7 +754,7 @@ struct KeyboardControllerTests {
         event.targetWindow = window
         event.key = "g"
         #expect(controller.routeKeyEvent(event))
-        window.beginSheet(sheet)
+        window.beginSheet(sheet, completionHandler: nil)
         #expect(window.attachedSheet === sheet)
         #expect(!controller.routeKeyEvent(event))
         event.key = "j"
@@ -786,11 +762,7 @@ struct KeyboardControllerTests {
         #expect(delegate.commands.isEmpty)
         window.endSheet(sheet)
         sheet.orderOut(nil)
-        let deadline = Date().addingTimeInterval(1)
-        while window.attachedSheet != nil, Date() < deadline {
-            _ = RunLoop.main.run(mode: .default, before: deadline)
-        }
-        try #require(window.attachedSheet == nil)
+        try await waitForTestCondition("The reader sheet finishes detaching") { window.attachedSheet == nil }
         event.key = "g"
         #expect(controller.routeKeyEvent(event))
         #expect(delegate.commands.isEmpty)
@@ -946,7 +918,7 @@ struct KeyboardControllerTests {
     }
 
     @Test(arguments: [false, true])
-    func changingReaderCancelsTabOverviewOnItsStartingReader(active: Bool) throws {
+    func changingReaderCancelsTabOverviewOnItsStartingReader(active: Bool) async throws {
         let controller = KeyboardController(
             tabPageOverviewDelay: active ? 0.001 : 10,
             installsKeyMonitor: false,
@@ -958,7 +930,7 @@ struct KeyboardControllerTests {
         let startingReader = delegate.reader
         #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "\t", keyCode: 48)))
         if active {
-            try waitForPageOverview(startingReader)
+            try await waitForPageOverview(startingReader)
         }
 
         delegate.reader = RecordingKeyboardReaderController()
@@ -1079,12 +1051,25 @@ struct KeyboardControllerTests {
         return window
     }
 
-    private func waitForPageOverview(_ reader: RecordingKeyboardReaderController) throws {
-        let deadline = Date().addingTimeInterval(1)
-        while !reader.isPageOverviewActive, Date() < deadline {
-            _ = RunLoop.main.run(mode: .default, before: deadline)
+    private func waitForPageOverview(_ reader: RecordingKeyboardReaderController) async throws {
+        try await waitForTestCondition("The Tab hold timer starts the gallery") { reader.isPageOverviewActive }
+    }
+
+    private func waitForHeldScroll(_ delegate: RecordingKeyboardDelegate) async throws {
+        try await waitForTestCondition("The held-key timer repeats scrolling") {
+            delegate.commands.filter { $0 == .scrollDown }.count >= 2
         }
-        try #require(reader.isPageOverviewActive)
+    }
+
+    private func observeHeldKeyTimerTurns() async throws {
+        // Two live 24 Hz ticks prove the run loop serviced the canceled timer's next deadline.
+        var ticks = 0
+        let timer = Timer(timeInterval: 1.0 / 24.0, repeats: true) { _ in
+            MainActor.assumeIsolated { ticks += 1 }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        defer { timer.invalidate() }
+        try await waitForTestCondition("The positive-control timer advances after cancellation") { ticks >= 2 }
     }
 
     private func keyEvent(

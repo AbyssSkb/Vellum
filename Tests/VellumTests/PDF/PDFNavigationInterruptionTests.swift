@@ -23,6 +23,7 @@ struct PDFNavigationInterruptionTests {
         defer { window.close() }
         let view = VellumPDFView(frame: window.contentView!.bounds)
         window.contentView = view
+        defer { view.cancelPendingRestore(); view.stopScrollAnimation(); view.stopZoomState() }
         view.displayMode = .singlePageContinuous
         view.document = document
         let firstPage = try #require(document.page(at: 0))
@@ -32,9 +33,9 @@ struct PDFNavigationInterruptionTests {
         let margins = view.pageBreakMargins
 
         view.vimGoToLastPage()
-        await drainMainQueue()
+        await nextTestMainQueueTurn()
         view.vimGoToFirstPage()
-        await drainMainQueue()
+        await nextTestMainQueueTurn()
 
         let paper = view.convert(firstPage.bounds(for: view.displayBox), from: firstPage)
         let viewport = view.convert(clipView.bounds, from: clipView)
@@ -43,8 +44,11 @@ struct PDFNavigationInterruptionTests {
         #expect(view.pageBreakMargins.top == margins.top)
         #expect(view.pageBreakMargins.bottom == margins.bottom)
 
-        let topOrigin = clipView.bounds.origin
         let documentView = try #require(scrollView.documentView)
+        let documentPaper = view.convert(paper, to: documentView)
+        // Native positioning may round to pixels; keyboard clamping keeps the exact paper edge.
+        let topOrigin = NSPoint(x: clipView.bounds.origin.x, y: documentView.isFlipped
+            ? documentPaper.minY : documentPaper.maxY - clipView.bounds.height)
         let upward: CGFloat = documentView.isFlipped ? -1 : 1
         func scroll(_ delta: CGFloat) {
             view.vimScroll(x: 0, y: delta)
@@ -79,6 +83,7 @@ struct PDFNavigationInterruptionTests {
         view.document = document
         view.scaleFactor = 1
         view.layoutDocumentView()
+        defer { view.cancelPendingRestore(); view.stopScrollAnimation(); view.stopZoomState() }
         let clipView = try #require(view.pdfScrollView?.contentView)
         let destination = PDFDestination(page: try #require(document.page(at: 2)), at: NSPoint(x: 500, y: 600))
         let userOrigin = NSPoint(x: 123, y: 456)
@@ -92,7 +97,7 @@ struct PDFNavigationInterruptionTests {
             }
             view.cancelPendingRestore()
             clipView.scroll(to: userOrigin)
-            await drainMainQueue()
+            await nextTestMainQueueTurn()
             #expect(clipView.bounds.origin == userOrigin)
         }
 
@@ -101,15 +106,9 @@ struct PDFNavigationInterruptionTests {
             view.cancelPendingRestore()
             clipView.scroll(to: userOrigin)
         }
-        await drainMainQueue()
-        await drainMainQueue()
+        await nextTestMainQueueTurn()
+        await nextTestMainQueueTurn()
         #expect(clipView.bounds.origin == userOrigin)
     }
 
-    @MainActor
-    private func drainMainQueue() async {
-        await withCheckedContinuation { continuation in
-            DispatchQueue.main.async { continuation.resume() }
-        }
-    }
 }

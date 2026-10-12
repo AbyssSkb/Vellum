@@ -9,16 +9,27 @@ struct CodexAppServerSessionTests {
         let (directory, configuration) = try stalledServer()
         defer { try? FileManager.default.removeItem(at: directory) }
         let started = ContinuousClock.now
+        let ready = AsyncStream<Void>.makeStream()
         let request = Task {
             try await CodexAppServerAIExplanationClient().withAppServerSession(
                 configuration: configuration,
                 timeout: cancel ? 10 : 0.15
             ) { session in
-                try await session.readMessages { _ in false }
+                try await session.readMessages { message in
+                    if message["ready"] as? Bool == true {
+                        ready.continuation.yield()
+                        ready.continuation.finish()
+                    }
+                    return false
+                }
             }
         }
+        defer {
+            request.cancel()
+            ready.continuation.finish()
+        }
         if cancel {
-            try await Task.sleep(for: .milliseconds(150))
+            try await waitForServerReadiness(ready.stream)
             request.cancel()
         }
         do {
@@ -26,9 +37,9 @@ struct CodexAppServerSessionTests {
             Issue.record("A stalled server must not complete successfully")
         } catch is CancellationError {
             #expect(cancel)
-        } catch {
+        } catch AIExplanationError.transport(let message) {
             #expect(!cancel)
-            #expect(error.localizedDescription == AppUILanguage.saved().text(.codexRequestTimedOut))
+            #expect(message == AppUILanguage.saved().text(.codexRequestTimedOut))
         }
         #expect(started.duration(to: .now) < .seconds(2))
     }
@@ -50,8 +61,10 @@ struct CodexAppServerSessionTests {
                             try await session.readMessages { _ in false }
                         }
                         Issue.record("A stalled server must time out")
+                    } catch AIExplanationError.transport(let message) {
+                        #expect(message == AppUILanguage.saved().text(.codexRequestTimedOut))
                     } catch {
-                        #expect(error.localizedDescription == AppUILanguage.saved().text(.codexRequestTimedOut))
+                        Issue.record(error)
                     }
                     #expect(started.duration(to: .now) < .seconds(2))
                 }
@@ -67,16 +80,27 @@ struct CodexAppServerSessionTests {
         defer { session.stop() }
         try await waitForDescendant(in: directory)
         let started = ContinuousClock.now
+        let ready = AsyncStream<Void>.makeStream()
         let request = Task {
             try await CodexAppServerAIExplanationClient().withAppServerSession(
                 session: session,
                 timeout: cancel ? 10 : 0.15
             ) { session in
-                try await session.readMessages { _ in false }
+                try await session.readMessages { message in
+                    if message["ready"] as? Bool == true {
+                        ready.continuation.yield()
+                        ready.continuation.finish()
+                    }
+                    return false
+                }
             }
         }
+        defer {
+            request.cancel()
+            ready.continuation.finish()
+        }
         if cancel {
-            try await Task.sleep(for: .milliseconds(150))
+            try await waitForServerReadiness(ready.stream)
             request.cancel()
         }
         do {
@@ -84,9 +108,9 @@ struct CodexAppServerSessionTests {
             Issue.record("A server whose descendant holds the pipes must not complete successfully")
         } catch is CancellationError {
             #expect(cancel)
-        } catch {
+        } catch AIExplanationError.transport(let message) {
             #expect(!cancel)
-            #expect(error.localizedDescription == AppUILanguage.saved().text(.codexRequestTimedOut))
+            #expect(message == AppUILanguage.saved().text(.codexRequestTimedOut))
         }
         #expect(started.duration(to: .now) < .seconds(2))
         try await expectDescendantStopped(in: directory)
@@ -117,6 +141,7 @@ struct CodexAppServerSessionTests {
         /bin/sleep 30 &
         echo $! > '\(childPath).tmp'
         /bin/mv '\(childPath).tmp' '\(childPath)'
+        echo '{"ready":true}'
         \(sendsResponse ? "echo '{\"id\":1}'" : "")
         \(wrapperExits ? "exit 0" : "wait")
         """
@@ -124,6 +149,22 @@ struct CodexAppServerSessionTests {
         try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: executable.path)
         let configuration = try AIConfiguration(baseURLString: executable.path, model: "", apiKey: "", providerFormat: .codexCLI)
         return (directory, configuration)
+    }
+
+    private func waitForServerReadiness(_ messages: AsyncStream<Void>) async throws {
+        let ready = try await withThrowingTaskGroup(of: Bool.self) { group in
+            defer { group.cancelAll() }
+            group.addTask {
+                for await _ in messages { return true }
+                return false
+            }
+            group.addTask {
+                try await Task.sleep(for: .seconds(5))
+                return false
+            }
+            return try await group.next() ?? false
+        }
+        try #require(ready, "The request must consume the server's ready message before cancellation")
     }
 
     private func waitForDescendant(in directory: URL) async throws {
@@ -139,8 +180,8 @@ struct CodexAppServerSessionTests {
     private func expectDescendantStopped(in directory: URL) async throws {
         let pid = try descendantPID(in: directory)
         // Orphaned children need a moment to be reaped after the process group is killed.
-        for _ in 0..<20 {
-            if kill(pid, 0) != 0 { break }
+        let deadline = ContinuousClock.now + .seconds(2)
+        while kill(pid, 0) == 0, ContinuousClock.now < deadline {
             try await Task.sleep(for: .milliseconds(10))
         }
         let result = kill(pid, 0)
@@ -163,7 +204,7 @@ struct CodexAppServerSessionTests {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let executable = directory.appendingPathComponent("stalled-server")
         // A real process holding stdout open, including when sent SIGTERM.
-        try "#!/bin/sh\ntrap '' TERM\nexec /bin/sleep 3\n".write(to: executable, atomically: true, encoding: .utf8)
+        try "#!/bin/sh\ntrap '' TERM\necho '{\"ready\":true}'\nexec /bin/sleep 3\n".write(to: executable, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: executable.path)
         let configuration = try AIConfiguration(baseURLString: executable.path, model: "", apiKey: "", providerFormat: .codexCLI)
         return (directory, configuration)

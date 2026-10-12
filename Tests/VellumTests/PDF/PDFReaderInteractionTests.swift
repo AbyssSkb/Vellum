@@ -10,7 +10,7 @@ struct PDFReaderInteractionTests {
     @MainActor
     func customWordSelectionTakesReaderFocus() throws {
         let (window, reader) = try makeReader()
-        defer { window.close() }
+        defer { reader.cancelPendingRestore(); window.close() }
         let page = try #require(reader.document?.page(at: 0))
         let selection = try #require(page.selection(for: NSRange(location: 0, length: 5)))
         reader.go(to: selection)
@@ -33,10 +33,12 @@ struct PDFReaderInteractionTests {
 
     @Test
     @MainActor
-    func snapshotUpdatePreservesTextInputFocus() throws {
+    func snapshotUpdatePreservesTextInputFocus() async throws {
         let (window, reader) = try makeReader()
-        defer { window.close() }
-        let appState = AppState()
+        defer { reader.cancelPendingRestore(); window.close() }
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let appState = makeTestAppState(defaults: preferences.defaults)
         let document = try #require(reader.document)
         let tab = PDFTab(url: URL(fileURLWithPath: "/tmp/focus-test.pdf"), document: document)
         _ = appState.tabStore.openInNewTabs([tab])
@@ -46,8 +48,16 @@ struct PDFReaderInteractionTests {
         hostingView.frame = window.contentView!.bounds
         window.contentView = hostingView
         hostingView.layoutSubtreeIfNeeded()
-        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        try await waitForTestCondition("reader mounts and restores before editing") {
+            guard let mounted = appState.activeReaderController as? VellumPDFView else { return false }
+            return mounted.window === window && mounted.pendingRestoreAction == nil
+        }
         let mountedReader = try #require(appState.activeReaderController as? VellumPDFView)
+        defer {
+            mountedReader.saveBeforeDismantle = nil
+            mountedReader.cancelPendingRestore()
+            mountedReader.readerStateSaveWorkItem?.cancel()
+        }
         let editor = NSTextView(frame: NSRect(x: 0, y: 0, width: 100, height: 24))
         hostingView.addSubview(editor)
         #expect(window.makeFirstResponder(editor))
@@ -57,7 +67,8 @@ struct PDFReaderInteractionTests {
             tabID: tab.id, document: document, snapshot: snapshot, isActive: true
         ).environmentObject(appState)
         hostingView.layoutSubtreeIfNeeded()
-        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        await nextTestMainQueueTurn()
+        hostingView.layoutSubtreeIfNeeded()
 
         #expect(appState.activeReaderController === mountedReader)
         #expect(window.firstResponder === editor)
@@ -67,7 +78,7 @@ struct PDFReaderInteractionTests {
     @MainActor
     func inactiveReaderAttachmentAndOverviewDismissalPreserveResponder() throws {
         let (window, reader) = try makeReader()
-        defer { window.close() }
+        defer { reader.cancelPendingRestore(); window.close() }
         let editor = NSTextView()
         reader.addSubview(editor)
         #expect(reader.beginPageOverview())
@@ -75,7 +86,9 @@ struct PDFReaderInteractionTests {
         reader.finishPageOverview()
         #expect(window.firstResponder === editor)
 
-        let appState = AppState()
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let appState = makeTestAppState(defaults: preferences.defaults)
         reader.appState = appState
         let inactiveReader = VellumPDFView(frame: reader.bounds)
         inactiveReader.appState = reader.appState
@@ -88,7 +101,7 @@ struct PDFReaderInteractionTests {
     @MainActor
     func cancellingPageOverviewDiscardsSelectionWithoutNavigationOrFocusChange() throws {
         let (window, reader) = try makeReader()
-        defer { window.close() }
+        defer { reader.cancelPendingRestore(); window.close() }
         let document = try #require(reader.document)
         let firstPage = try #require(document.page(at: 0))
         let secondPage = PDFPage()
@@ -117,7 +130,7 @@ struct PDFReaderInteractionTests {
     @MainActor
     func vimScrollInterruptsZoomAndKeepsRepeatedMovement(delta: CGFloat) throws {
         let (window, view) = try makeReader()
-        defer { view.stopZoomState(); view.stopScrollAnimation(); window.close() }
+        defer { view.cancelPendingRestore(); view.stopZoomState(); view.stopScrollAnimation(); window.close() }
         let scrollView = try #require(view.pdfScrollView)
         view.vimZoom(to: 2)
         view.stepZoomAnimation()
@@ -150,7 +163,7 @@ struct PDFReaderInteractionTests {
     @MainActor
     func scrollWheelCancelsKeyboardAnimation(zooming: Bool) throws {
         let (window, view) = try makeReader()
-        defer { view.stopZoomState(); view.stopScrollAnimation(); window.close() }
+        defer { view.cancelPendingRestore(); view.stopZoomState(); view.stopScrollAnimation(); window.close() }
         let scrollView = try #require(view.pdfScrollView)
         if zooming {
             view.vimZoom(to: 2)
@@ -185,7 +198,7 @@ struct PDFReaderInteractionTests {
     @MainActor
     func textSelectionMovementInterruptsZoomWithoutRestoringItsAnchor() throws {
         let (window, view) = try makeReader()
-        defer { view.stopZoomState(); view.stopScrollAnimation(); window.close() }
+        defer { view.cancelPendingRestore(); view.stopZoomState(); view.stopScrollAnimation(); window.close() }
         let page = try #require(view.document?.page(at: 0))
         let selection = try #require(page.selection(for: NSRange(location: 0, length: 5)))
         view.setCurrentSelection(selection, animate: false)

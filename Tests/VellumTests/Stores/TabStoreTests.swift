@@ -116,55 +116,21 @@ struct TabStoreTests {
         #expect(store.selectedTabID == third.id)
     }
 
-    @Test
-    func closingSelectedMiddleTabSelectsRightNeighbor() {
+    @Test(arguments: [(1, true, 2), (0, false, 1), (1, false, 2)])
+    func closingTabsPreservesSelectionOrSelectsRightNeighbor(
+        closedIndex: Int, closesSelected: Bool, selectedIndex: Int
+    ) {
         var store = TabStore()
-        let first = tab(named: "first")
-        let second = tab(named: "second")
-        let third = tab(named: "third")
+        let tabs = [tab(named: "first"), tab(named: "second"), tab(named: "third")]
+        _ = store.openInNewTabs(tabs)
+        let selected = store.selectTab(tabs[1].id)
+        #expect(selected)
 
-        _ = store.openInNewTabs([first, second, third])
-        let selectedSecond = store.selectTab(second.id)
-        let closedTab = store.closeSelectedTab()
+        let closed = closesSelected ? store.closeSelectedTab() : store.closeTab(tabs[closedIndex].id)
 
-        #expect(selectedSecond)
-        #expect(closedTab)
-        #expect(store.tabs.map(\.id) == [first.id, third.id])
-        #expect(store.selectedTabID == third.id)
-    }
-
-    @Test
-    func closingNonSelectedTabKeepsCurrentSelection() {
-        var store = TabStore()
-        let first = tab(named: "first")
-        let second = tab(named: "second")
-        let third = tab(named: "third")
-
-        _ = store.openInNewTabs([first, second, third])
-        let selectedSecond = store.selectTab(second.id)
-        let closedFirst = store.closeTab(first.id)
-
-        #expect(selectedSecond)
-        #expect(closedFirst)
-        #expect(store.tabs.map(\.id) == [second.id, third.id])
-        #expect(store.selectedTabID == second.id)
-    }
-
-    @Test
-    func closingSpecificSelectedTabSelectsRightNeighbor() {
-        var store = TabStore()
-        let first = tab(named: "first")
-        let second = tab(named: "second")
-        let third = tab(named: "third")
-
-        _ = store.openInNewTabs([first, second, third])
-        let selectedSecond = store.selectTab(second.id)
-        let closedSecond = store.closeTab(second.id)
-
-        #expect(selectedSecond)
-        #expect(closedSecond)
-        #expect(store.tabs.map(\.id) == [first.id, third.id])
-        #expect(store.selectedTabID == third.id)
+        #expect(closed)
+        #expect(store.tabs.map(\.id) == tabs.enumerated().filter { $0.offset != closedIndex }.map { $0.element.id })
+        #expect(store.selectedTabID == tabs[selectedIndex].id)
     }
 
     @Test

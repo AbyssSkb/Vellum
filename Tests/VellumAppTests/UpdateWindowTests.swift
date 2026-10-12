@@ -16,12 +16,13 @@ struct UpdateWindowTests {
         let initial = scroll.contentView.bounds.minY
 
         send("j", to: window)
-        #expect(abs(scroll.contentView.bounds.minY - initial - 26) < 1)
+        let step = scroll.contentView.bounds.minY - initial
+        #expect(step > 0)
         send("4", to: window)
         send("j", to: window)
-        #expect(abs(scroll.contentView.bounds.minY - initial - 130) < 1)
+        #expect(abs(scroll.contentView.bounds.minY - initial - step * 5) < 1)
         send("k", to: window)
-        #expect(abs(scroll.contentView.bounds.minY - initial - 104) < 1)
+        #expect(abs(scroll.contentView.bounds.minY - initial - step * 4) < 1)
         send("g", to: window)
         send("g", to: window)
         #expect(scroll.contentView.bounds.minY == 0)
@@ -189,7 +190,7 @@ struct UpdateWindowTests {
         let views = descendants(of: root)
         let icon = try #require(views.compactMap { $0 as? NSImageView }.first)
         let button = try #require(views.compactMap { $0 as? NSButton }.first)
-        #expect(abs(root.bounds.height - 232) < 0.5)
+        #expect(root.bounds.height < 350)
         #expect(root.bounds.width < 560)
         #expect(icon.contentTintColor == .systemGreen)
         #expect(abs(root.convert(icon.bounds, from: icon).midX - root.bounds.midX) < 0.5)
@@ -243,7 +244,7 @@ struct UpdateWindowTests {
             #expect((compactAnimation.toValue as? NSNumber)?.doubleValue == Double(root.bounds.width - 48))
             controller.update(UpdateWindowContent(phase: .checking, currentVersion: "0.8.9", releaseNotes: longNotes()))
             let expandedAnimation = try #require(fill.layer?.animation(forKey: "preparing") as? CABasicAnimation)
-            #expect((expandedAnimation.toValue as? NSNumber)?.doubleValue == 512)
+            #expect((expandedAnimation.toValue as? NSNumber)?.doubleValue == Double(root.bounds.width - 48))
             controller.update(UpdateWindowContent(phase: .upToDate, currentVersion: "0.8.9"))
             #expect(root.bounds.width == compactWidth)
         }

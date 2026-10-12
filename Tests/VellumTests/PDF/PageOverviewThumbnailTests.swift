@@ -10,10 +10,10 @@ struct PageOverviewThumbnailTests {
     func retinaThumbnailKeepsFinePDFDetailAtItsActualPixelSize() async throws {
         let document = try #require(PDFDocument(data: Self.makePDFData(pageCount: 1, drawFineLine: true)))
         let loader = PageOverviewThumbnailLoader()
-        await withCheckedContinuation { continuation in
-            loader.update(document: document, pageIndexes: [0], selectedIndex: 0,
-                          maximumPixelSize: NSSize(width: 1224, height: 1584)) { continuation.resume() }
-        }
+        var didLoad = false
+        loader.update(document: document, pageIndexes: [0], selectedIndex: 0,
+                      maximumPixelSize: NSSize(width: 1224, height: 1584)) { didLoad = true }
+        try await waitForTestCondition("Retina thumbnail delivery") { didLoad }
         let image = try #require(loader.images[0])
         let bitmap = try #require(image.representations.first as? NSBitmapImageRep)
         #expect(bitmap.pixelsWide == 1224)
@@ -34,17 +34,17 @@ struct PageOverviewThumbnailTests {
         let document = try #require(PDFDocument(data: Self.makePDFData(pageCount: 1)))
         let queue = OperationQueue()
         let loader = PageOverviewThumbnailLoader(queue: queue)
-        await withCheckedContinuation { continuation in
-            loader.update(document: document, pageIndexes: [0], selectedIndex: 0,
-                          maximumPixelSize: NSSize(width: 612, height: 792)) { continuation.resume() }
-        }
+        var didLoad = false
+        loader.update(document: document, pageIndexes: [0], selectedIndex: 0,
+                      maximumPixelSize: NSSize(width: 612, height: 792)) { didLoad = true }
+        try await waitForTestCondition("Initial thumbnail delivery") { didLoad }
         let original = try #require(loader.images[0])
-        await withCheckedContinuation { continuation in
-            loader.update(document: document, pageIndexes: [0], selectedIndex: 0,
-                          maximumPixelSize: NSSize(width: 1224, height: 1584)) { continuation.resume() }
-            // Keep the previous preview visible while its larger replacement is generated.
-            #expect(loader.images[0] === original)
-        }
+        didLoad = false
+        loader.update(document: document, pageIndexes: [0], selectedIndex: 0,
+                      maximumPixelSize: NSSize(width: 1224, height: 1584)) { didLoad = true }
+        // Keep the previous preview visible while its larger replacement is generated.
+        #expect(loader.images[0] === original)
+        try await waitForTestCondition("Larger thumbnail delivery") { didLoad }
         let upgraded = try #require(loader.images[0])
         #expect(upgraded !== original)
         #expect(upgraded.representations.first?.pixelsWide == 1224)
@@ -54,8 +54,8 @@ struct PageOverviewThumbnailTests {
             loader.update(document: document, pageIndexes: [0], selectedIndex: 0, maximumPixelSize: size) {
                 Issue.record("An adequate cached thumbnail was rendered again")
             }
-            Self.finishBackgroundWork(in: queue)
-            await drainMainQueue()
+            try Self.finishBackgroundWork(in: queue)
+            await nextTestMainQueueTurn()
             #expect(loader.images[0] === upgraded)
         }
     }
@@ -89,11 +89,11 @@ struct PageOverviewThumbnailTests {
             return page.thumbnail(of: size, for: .cropBox)
         }
 
-        await withCheckedContinuation { continuation in
-            loader.update(document: document, pageIndexes: [0], selectedIndex: 0, maximumPixelSize: NSSize(width: 960, height: 630)) {
-                continuation.resume()
-            }
+        var didLoad = false
+        loader.update(document: document, pageIndexes: [0], selectedIndex: 0, maximumPixelSize: NSSize(width: 960, height: 630)) {
+            didLoad = true
         }
+        try await waitForTestCondition("Independent cropped thumbnail delivery") { didLoad }
 
         let image = try #require(loader.images[0])
         #expect(abs(image.size.width / image.size.height - 0.4) < 0.01)
@@ -146,9 +146,9 @@ struct PageOverviewThumbnailTests {
             #expect(page.annotations.first { $0.type == "Highlight" }?.contents == "Current highlight")
             return NSImage(size: size)
         }
-        await withCheckedContinuation { continuation in
-            loader.update(document: document, pageIndexes: [0], selectedIndex: 0, maximumPixelSize: NSSize(width: 960, height: 630)) { continuation.resume() }
-        }
+        var didLoad = false
+        loader.update(document: document, pageIndexes: [0], selectedIndex: 0, maximumPixelSize: NSSize(width: 960, height: 630)) { didLoad = true }
+        try await waitForTestCondition("Thumbnail annotation delivery") { didLoad }
         #expect(loader.images[0] != nil)
     }
 
@@ -230,11 +230,11 @@ struct PageOverviewThumbnailTests {
             return page.thumbnail(of: size, for: .cropBox)
         }
 
-        await withCheckedContinuation { continuation in
-            loader.update(document: document, pageIndexes: [0], selectedIndex: 0, maximumPixelSize: NSSize(width: 960, height: 630)) {
-                continuation.resume()
-            }
+        var didLoad = false
+        loader.update(document: document, pageIndexes: [0], selectedIndex: 0, maximumPixelSize: NSSize(width: 960, height: 630)) {
+            didLoad = true
         }
+        try await waitForTestCondition("Unlocked encrypted thumbnail delivery") { didLoad }
 
         #expect(loader.images[0] != nil)
         #expect(document.isEncrypted)
@@ -249,11 +249,11 @@ struct PageOverviewThumbnailTests {
         let document = try #require(PDFDocument(data: Self.makePDFData(pageCount: 24)))
         let loader = PageOverviewThumbnailLoader { _, size in NSImage(size: size) }
         for index in 0..<24 {
-            await withCheckedContinuation { continuation in
-                loader.update(document: document, pageIndexes: [index], selectedIndex: index, maximumPixelSize: NSSize(width: 960, height: 630)) {
-                    continuation.resume()
-                }
+            var didLoad = false
+            loader.update(document: document, pageIndexes: [index], selectedIndex: index, maximumPixelSize: NSSize(width: 960, height: 630)) {
+                didLoad = true
             }
+            try await waitForTestCondition("Thumbnail delivery for page \(index)") { didLoad }
             #expect(loader.images.count <= 9)
         }
 
@@ -273,32 +273,28 @@ struct PageOverviewThumbnailTests {
             Issue.record("A stale thumbnail reached the overview")
         }
         // Keep only main delivery pending; the worker returns and releases PDFKit resources.
-        Self.finishBackgroundWork(in: queue)
+        try Self.finishBackgroundWork(in: queue)
 
         if dismiss {
             loader.cancel()
-            await drainMainQueue()
+            await nextTestMainQueueTurn()
             #expect(loader.images.isEmpty)
         } else {
-            await withCheckedContinuation { continuation in
-                loader.update(document: document, pageIndexes: [1], selectedIndex: 1, maximumPixelSize: NSSize(width: 960, height: 630)) {
-                    continuation.resume()
-                }
+            var didLoad = false
+            loader.update(document: document, pageIndexes: [1], selectedIndex: 1, maximumPixelSize: NSSize(width: 960, height: 630)) {
+                didLoad = true
             }
+            try await waitForTestCondition("Replacement generation thumbnail delivery") { didLoad }
             #expect(loader.images[0] == nil)
             #expect(loader.images[1] != nil)
         }
     }
 
-    private static func finishBackgroundWork(in queue: OperationQueue) {
-        queue.waitUntilAllOperationsAreFinished()
-    }
-
-    @MainActor
-    private func drainMainQueue() async {
-        await withCheckedContinuation { continuation in
-            DispatchQueue.main.async { continuation.resume() }
-        }
+    private static func finishBackgroundWork(in queue: OperationQueue) throws {
+        let finished = DispatchSemaphore(value: 0)
+        queue.addOperation { finished.signal() }
+        // Hold main-queue delivery until cancellation has invalidated this generation.
+        try #require(finished.wait(timeout: .now() + 5) == .success, "Thumbnail worker did not finish")
     }
 
     private static func makePDFData(pageCount: Int, drawFineLine: Bool = false) throws -> Data {

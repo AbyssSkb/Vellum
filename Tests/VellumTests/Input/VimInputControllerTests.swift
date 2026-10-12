@@ -104,33 +104,18 @@ struct VimInputControllerTests {
         #expect(input.heldKey == nil)
     }
 
-    @Test
-    func uppercaseContinuousScrollKeysRemainUppercase() {
+    @Test(arguments: ["D", "U"])
+    func uppercaseContinuousScrollKeysRemainUppercase(key: String) {
         var input = VimInputController()
 
-        #expect(input.handleKeyDown("D", isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .continuousKey("D"))
-        #expect(input.handleKeyDown("D", isRepeat: true, hasNavigableTextSelection: false, hasTextActionTarget: false) == .handled)
-        #expect(input.handleKeyUp("D") == .stopContinuousKey)
-
-        #expect(input.handleKeyDown("U", isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .continuousKey("U"))
-        #expect(input.handleKeyUp("U") == .stopContinuousKey)
-    }
-
-    @Test
-    func uppercaseContinuousScrollStopsWhenShiftIsReleasedFirst() {
-        var input = VimInputController()
-
-        #expect(input.handleKeyDown("D", isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .continuousKey("D"))
-        #expect(input.handleKeyUp("d") == .stopContinuousKey)
-        #expect(input.heldKey == nil)
-
-        #expect(input.handleKeyDown("U", isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .continuousKey("U"))
-        #expect(input.handleKeyUp("u") == .stopContinuousKey)
+        #expect(input.handleKeyDown(key, isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .continuousKey(key))
+        #expect(input.handleKeyDown(key, isRepeat: true, hasNavigableTextSelection: false, hasTextActionTarget: false) == .handled)
+        #expect(input.handleKeyUp(key) == .stopContinuousKey)
         #expect(input.heldKey == nil)
     }
 
-    @Test(arguments: [("d", "D"), ("u", "U")])
-    func lowercaseContinuousScrollStopsWhenReleasedWithShift(key: String, releasedKey: String) {
+    @Test(arguments: [("D", "d"), ("U", "u"), ("d", "D"), ("u", "U")])
+    func continuousScrollStopsWhenShiftChangesBeforeRelease(key: String, releasedKey: String) {
         var input = VimInputController()
 
         #expect(input.handleKeyDown(key, isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .continuousKey(key))
@@ -139,21 +124,27 @@ struct VimInputControllerTests {
     }
 
     @Test
-    func copySelectionOnlyRoutesWhenSelectionIsNavigable() {
+    func copySelectionOnlyRoutesWhenThereIsATextActionTarget() {
         var input = VimInputController()
 
         #expect(input.handleKeyDown("y", isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .ignored)
         #expect(input.handleKeyDown("y", isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: true) == .command(.copySelection))
     }
 
-    @Test
-    func searchCommandsRouteWithoutSelection() {
+    @Test(arguments: [
+        ("/", VimCommand.beginSearch),
+        ("n", .searchNext),
+        ("N", .searchPrevious),
+        ("v", .materializeSearchSelection),
+        ("T", .showTabSwitcher)
+    ])
+    func searchAndSwitcherCommandsClearNumericInput(key: String, command: VimCommand) {
         var input = VimInputController()
 
-        #expect(input.handleKeyDown("/", isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .command(.beginSearch))
-        #expect(input.handleKeyDown("n", isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .command(.searchNext))
-        #expect(input.handleKeyDown("N", isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .command(.searchPrevious))
-        #expect(input.handleKeyDown("v", isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .command(.materializeSearchSelection))
+        #expect(input.handleKeyDown("2", isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .handled)
+        #expect(input.handleKeyDown(key, isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .command(command))
+        #expect(input.state.numericPrefix.isEmpty)
+        #expect(input.handleKeyDown("G", isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .command(.lastPage))
     }
 
     @Test
@@ -167,19 +158,23 @@ struct VimInputControllerTests {
     }
 
     @Test
-    func uppercaseTOpensTabSwitcherButGTStillRoutesPreviousTab() {
+    func pendingGChangesUppercaseTToPreviousTab() {
         var input = VimInputController()
 
-        #expect(input.handleKeyDown("T", isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .command(.showTabSwitcher))
         #expect(input.handleKeyDown("g", isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .handled)
         #expect(input.handleKeyDown("T", isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .command(.previousTab))
+        #expect(input.handleKeyDown("T", isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .command(.showTabSwitcher))
     }
 
-    @Test
-    func searchNavigationRepeatsRouteAsCommands() {
+    @Test(arguments: [("n", VimCommand.searchNext), ("N", .searchPrevious)])
+    func searchNavigationRepeatsClearPendingInput(key: String, command: VimCommand) {
         var input = VimInputController()
 
-        #expect(input.handleKeyDown("n", isRepeat: true, hasNavigableTextSelection: false, hasTextActionTarget: false) == .command(.searchNext))
-        #expect(input.handleKeyDown("N", isRepeat: true, hasNavigableTextSelection: false, hasTextActionTarget: false) == .command(.searchPrevious))
+        #expect(input.handleKeyDown("2", isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .handled)
+        #expect(input.handleKeyDown("g", isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .handled)
+        #expect(input.handleKeyDown(key, isRepeat: true, hasNavigableTextSelection: false, hasTextActionTarget: false) == .command(command))
+        #expect(input.state.pendingKey == nil)
+        #expect(input.state.numericPrefix.isEmpty)
+        #expect(input.handleKeyDown("G", isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .command(.lastPage))
     }
 }

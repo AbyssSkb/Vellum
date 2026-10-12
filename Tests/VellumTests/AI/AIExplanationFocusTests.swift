@@ -16,11 +16,15 @@ struct AIExplanationFocusTests {
         let outline = PDFOutlineKeyView(frame: .zero)
         reader.addSubview(outline)
         defer { reader.hideAIExplanationPopover(); window.contentView = nil; window.close() }
-        func settle() async throws {
-            reader.layoutSubtreeIfNeeded()
-            try await Task.sleep(for: .milliseconds(80))
+        func registeredWebView() async throws -> AIExplanationWebView {
+            try await waitForTestCondition("The explanation web view is registered") {
+                reader.layoutSubtreeIfNeeded()
+                return reader.aiInteraction.activeWebView != nil
+            }
+            let webView = try #require(reader.aiInteraction.activeWebView)
+            webView.stopLoading()
+            return webView
         }
-        func descendants(_ view: NSView) -> [NSView] { [view] + view.subviews.flatMap(descendants) }
         func expectFocus(_ responder: NSResponder) {
             let hasExpectedFocus = window.firstResponder === responder
             #expect(hasExpectedFocus)
@@ -28,9 +32,8 @@ struct AIExplanationFocusTests {
         let model = AIExplanationPopoverModel(title: "Explanation", text: "Beginning", isStreaming: true)
         #expect(window.makeFirstResponder(outline))
         reader.showPopover(model: model, at: nil, kind: .streaming)
-        try await settle()
+        let webView = try await registeredWebView()
         let overlay = try #require(reader.aiInteraction.explanationOverlay)
-        let webView = try #require(descendants(overlay).compactMap { $0 as? AIExplanationWebView }.first)
         let hostingView = try #require(overlay.subviews.first as? NSHostingView<AppLanguageObservedView<AIExplanationPopoverView>>)
         let oldContent = hostingView.rootView.content
         webView.webView(webView, didFinish: nil)
@@ -38,14 +41,14 @@ struct AIExplanationFocusTests {
 
         #expect(window.makeFirstResponder(outline))
         model.append(" more streamed text")
-        try await settle()
+        reader.layoutSubtreeIfNeeded()
+        await nextTestMainQueueTurn()
         webView.webView(webView, didFinish: nil)
         expectFocus(outline)
 
         let replacement = AIExplanationPopoverModel(title: "New explanation", text: "Replacement", isStreaming: true)
         reader.showPopover(model: replacement, at: nil, kind: .streaming)
-        try await settle()
-        let replacementWebView = try #require(reader.aiInteraction.activeWebView)
+        let replacementWebView = try await registeredWebView()
         let replacedWebView = replacementWebView !== webView
         #expect(replacedWebView)
         #expect(window.makeFirstResponder(outline))
@@ -60,7 +63,7 @@ struct AIExplanationFocusTests {
         _ = webView.onInitialFocus?()
         #expect(reader.aiInteraction.popoverHeightUpdateWorkItem == nil)
         #expect(reader.aiInteraction.activeExplanationModel === replacement)
-        try await settle()
+        await nextTestMainQueueTurn()
         let retainedCurrentWebView = reader.aiInteraction.activeWebView === replacementWebView
         #expect(retainedCurrentWebView)
         expectFocus(outline)
@@ -68,13 +71,13 @@ struct AIExplanationFocusTests {
         reader.hideAIExplanationPopover()
         oldContent.onWebViewReady(webView)
         _ = webView.onInitialFocus?()
-        try await settle()
+        await nextTestMainQueueTurn()
         let removedWebView = reader.aiInteraction.activeWebView == nil
         #expect(removedWebView)
         expectFocus(outline)
 
         reader.showPopover(model: AIExplanationPopoverModel(title: "Hover", text: "Saved answer"), at: nil, kind: .hover)
-        try await settle()
+        _ = try await registeredWebView()
         window.orderFront(nil)
         #expect(window.makeFirstResponder(outline))
         reader.restoreAIFloatingOverlayPresentation()
@@ -84,13 +87,9 @@ struct AIExplanationFocusTests {
     @Test
     func deferredWebFocusRetriesOnlyWhileItsOverlayStillOwnsTheResponder() async throws {
         _ = NSApplication.shared
-        let suite = "Vellum.DeferredWebFocus.\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: suite))
-        defer { defaults.removePersistentDomain(forName: suite) }
-        let appState = AppState(sessionDefaults: defaults, keyboardController: KeyboardController(
-            installsKeyMonitor: false, installsOpenURLObserver: false,
-            notificationCenter: NotificationCenter(), openURLRelay: OpenURLRelay()
-        ))
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let appState = makeTestAppState(defaults: preferences.defaults)
         let window = AIExplanationFocusWindow(contentRect: NSRect(x: 0, y: 0, width: 800, height: 600), styleMask: .borderless, backing: .buffered, defer: false)
         let otherWindow = AIExplanationFocusWindow(contentRect: NSRect(x: 0, y: 0, width: 200, height: 100), styleMask: .borderless, backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
@@ -111,14 +110,18 @@ struct AIExplanationFocusTests {
         window.orderFront(nil)
         let model = AIExplanationPopoverModel(title: "Deferred explanation", text: "Answer")
         reader.showPopover(model: model, at: nil, kind: .message)
-        reader.layoutSubtreeIfNeeded()
-        try await Task.sleep(for: .milliseconds(80))
+        try await waitForTestCondition("The deferred explanation web view is registered") {
+            reader.layoutSubtreeIfNeeded()
+            return reader.aiInteraction.activeWebView != nil
+        }
+        reader.aiInteraction.activeWebView?.stopLoading()
         let overlay = try #require(reader.aiInteraction.explanationOverlay)
         let hostingView = try #require(overlay.subviews.first as? NSHostingView<AppLanguageObservedView<AIExplanationPopoverView>>)
         reader.aiInteraction.activeWebView?.shouldFocusWhenReady = false
 
         func deferredWebView() -> AIExplanationWebView {
             let webView = AIExplanationWebView()
+            webView.stopLoading()
             hostingView.rootView.content.onWebViewReady(webView)
             overlay.addSubview(webView)
             reader.aiInteraction.activeWebView = webView

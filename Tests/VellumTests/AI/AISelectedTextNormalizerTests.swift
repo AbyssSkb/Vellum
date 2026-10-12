@@ -3,54 +3,34 @@ import Testing
 
 @Suite("AI selected text normalizer")
 struct AISelectedTextNormalizerTests {
-    @Test
-    func joinsPDFLineWrappedParagraphs() {
-        let text = """
-        This paragraph was extracted
-        as a stack of short visual
-        lines from PDFKit even though
-        it should be sent to the model
-        as one coherent paragraph.
-        """
+    @Test(arguments: [
+        (
+            """
+            This paragraph was extracted
+            as a stack of short visual
+            lines from PDFKit even though
+            it should be sent to the model
+            as one coherent paragraph.
+            """,
+            "This paragraph was extracted as a stack of short visual lines from PDFKit even though it should be sent to the model as one coherent paragraph."
+        ),
+        (
+            "The inter-\nnational result is mis-\ntranslated when broken.",
+            "The international result is mistranslated when broken."
+        ),
+        (
+            """
+            First selected paragraph
+            continues here.
 
-        let normalized = AISelectedTextNormalizer.normalized(text)
-
-        #expect(normalized == "This paragraph was extracted as a stack of short visual lines from PDFKit even though it should be sent to the model as one coherent paragraph.")
-    }
-
-    @Test
-    func removesLineEndingHyphenation() {
-        let text = "The inter-\nnational result is mis-\ntranslated when broken."
-
-        let normalized = AISelectedTextNormalizer.normalized(text)
-
-        #expect(normalized == "The international result is mistranslated when broken.")
-    }
-
-    @Test
-    func preservesParagraphBreaksFromBlankLines() {
-        let text = """
-        First selected paragraph
-        continues here.
-
-        Second selected paragraph
-        continues here.
-        """
-
-        let normalized = AISelectedTextNormalizer.normalized(text)
-
-        #expect(normalized == "First selected paragraph continues here.\n\nSecond selected paragraph continues here.")
-    }
-
-    @Test
-    func joinsCJKLinesWithoutInjectingSpaces() {
-        let text = """
-        这是一段被
-        拆成多行的中文文本
-        """
-
-        let normalized = AISelectedTextNormalizer.normalized(text)
-
-        #expect(normalized == "这是一段被拆成多行的中文文本")
+            Second selected paragraph
+            continues here.
+            """,
+            "First selected paragraph continues here.\n\nSecond selected paragraph continues here."
+        ),
+        ("这是一段被\n拆成多行的中文文本", "这是一段被拆成多行的中文文本")
+    ])
+    func normalizesVisualLinesPreservingParagraphsAndLanguage(input: String, expected: String) {
+        #expect(AISelectedTextNormalizer.normalized(input) == expected)
     }
 }

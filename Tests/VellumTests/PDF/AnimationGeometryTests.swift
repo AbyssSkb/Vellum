@@ -28,7 +28,8 @@ struct AnimationGeometryTests {
 
     @Test
     func nearTargetUsesStrictThreshold() {
-        #expect(AnimationGeometry.isNearTarget(current: 10, target: 10.4, threshold: 0.45))
-        #expect(!AnimationGeometry.isNearTarget(current: 10, target: 10.46, threshold: 0.45))
+        #expect(AnimationGeometry.isNearTarget(current: 10, target: 10.25, threshold: 0.5))
+        #expect(!AnimationGeometry.isNearTarget(current: 10, target: 10.5, threshold: 0.5))
+        #expect(!AnimationGeometry.isNearTarget(current: 10, target: 10.75, threshold: 0.5))
     }
 }

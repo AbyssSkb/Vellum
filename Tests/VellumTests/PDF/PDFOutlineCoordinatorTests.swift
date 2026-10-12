@@ -9,6 +9,9 @@ import Testing
 struct PDFOutlineCoordinatorTests {
     @Test
     func openingAndFocusingOutlineKeepsShortRootTitleInPlace() async throws {
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let appState = makeTestAppState(defaults: preferences.defaults)
         _ = NSApplication.shared
         let document = PDFDocument()
         let root = PDFOutlineItem(id: "0", title: "Scales and relationships", destination: nil,
@@ -17,28 +20,35 @@ struct PDFOutlineCoordinatorTests {
                                         pageIndex: 3, parent: root)]
         let host = NSHostingView(rootView: PDFOutlineView(
             items: [root], tabID: UUID(), documentID: ObjectIdentifier(document),
-            focusGeneration: 0, appState: makeAppState(), language: .english
+            focusGeneration: 0, appState: appState, language: .english
         ))
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 256, height: 220),
                               styleMask: .borderless, backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
         window.contentView = host
         window.orderFront(nil)
-        defer { window.close() }
+        defer {
+            window.contentView = nil
+            window.close()
+        }
         host.layoutSubtreeIfNeeded()
         func descendants(_ view: NSView) -> [NSView] { [view] + view.subviews.flatMap(descendants) }
         let outline = try #require(descendants(host).compactMap { $0 as? PDFOutlineKeyView }.first)
         let cell = try #require(outline.view(atColumn: 0, row: 0, makeIfNecessary: true) as? PDFOutlineCellView)
-        try await Task.sleep(for: .milliseconds(30))
-        host.layoutSubtreeIfNeeded()
-        let titleFrame = cell.titleView.convert(cell.titleView.bounds, to: outline)
+        cell.layoutSubtreeIfNeeded()
         let textField = try #require(cell.textField)
-        let textFrame = textField.convert(textField.bounds, to: outline)
         let font = NSFont.systemFont(ofSize: 13, weight: .medium)
         #expect(textField.font == font)
+        let titleFrame = cell.titleView.convert(cell.titleView.bounds, to: outline)
+        let textFrame = textField.convert(textField.bounds, to: outline)
+        await nextTestMainQueueTurn()
+        host.layoutSubtreeIfNeeded()
+        #expect(textField.font == font)
+        #expect(cell.titleView.convert(cell.titleView.bounds, to: outline) == titleFrame)
+        #expect(textField.convert(textField.bounds, to: outline) == textFrame)
         #expect(cell.titleView.bounds.width > cell.titleView.intrinsicContentSize.width)
         window.makeFirstResponder(outline)
-        try await Task.sleep(for: .milliseconds(30))
+        await nextTestMainQueueTurn()
         host.layoutSubtreeIfNeeded()
         #expect(textField.font == font)
         #expect(cell.titleView.convert(cell.titleView.bounds, to: outline) == titleFrame)
@@ -47,6 +57,9 @@ struct PDFOutlineCoordinatorTests {
 
     @Test
     func expandingNestedOutlineKeepsTitlesAndPageNumbersInPlace() async throws {
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let appState = makeTestAppState(defaults: preferences.defaults)
         _ = NSApplication.shared
         let document = PDFDocument()
         document.insert(PDFPage(), at: 0)
@@ -67,16 +80,19 @@ struct PDFOutlineCoordinatorTests {
         root.children = [child, rootSibling]
         let host = NSHostingView(rootView: PDFOutlineView(
             items: [root], tabID: UUID(), documentID: ObjectIdentifier(document),
-            focusGeneration: 0, appState: makeAppState(), language: .english
+            focusGeneration: 0, appState: appState, language: .english
         ))
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 256, height: 220),
                               styleMask: .borderless, backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
         window.contentView = host
         window.orderFront(nil)
-        defer { window.close() }
+        defer {
+            window.contentView = nil
+            window.close()
+        }
         host.layoutSubtreeIfNeeded()
-        try await Task.sleep(for: .milliseconds(30))
+        await nextTestMainQueueTurn()
         func descendants(_ view: NSView) -> [NSView] { [view] + view.subviews.flatMap(descendants) }
         let outline = try #require(descendants(host).compactMap { $0 as? PDFOutlineKeyView }.first)
         let firstCell = try #require(outline.view(atColumn: 0, row: 0, makeIfNecessary: true) as? PDFOutlineCellView)
@@ -87,7 +103,7 @@ struct PDFOutlineCoordinatorTests {
 
         outline.expandItem(child)
         outline.expandItem(grandchild)
-        try await Task.sleep(for: .milliseconds(30))
+        await nextTestMainQueueTurn()
         host.layoutSubtreeIfNeeded()
         #expect(outline.frameOfCell(atColumn: 0, row: 0) == firstFrame)
         #expect(firstCell.titleView.bounds.width == titleWidth)
@@ -100,18 +116,22 @@ struct PDFOutlineCoordinatorTests {
         host.layoutSubtreeIfNeeded()
         nestedCell.layoutSubtreeIfNeeded()
         #expect(nestedCell.pageNumberField.convert(nestedCell.pageNumberField.bounds, to: outline).maxX == pageRight)
-        #expect(nestedRow.roundedBackgroundRect().minX == rootRow.roundedBackgroundRect().minX + 28)
+        #expect(nestedRow.roundedBackgroundRect().minX - rootRow.roundedBackgroundRect().minX
+                == CGFloat(outline.level(forItem: grandchild)) * outline.indentationPerLevel)
         #expect(nestedRow.roundedBackgroundRect().maxX == rootRow.roundedBackgroundRect().maxX)
         let leafIndex = outline.row(forItem: grandchild.children[0])
         let leafRow = try #require(outline.rowView(atRow: leafIndex, makeIfNecessary: true) as? VellumOutlineRowView)
-        #expect(leafRow.roundedBackgroundRect().minX + 4 == outline.frameOfCell(atColumn: 0, row: leafIndex).minX - 8)
+        #expect(leafRow.roundedBackgroundRect().minX > nestedRow.roundedBackgroundRect().minX)
+        #expect(leafRow.roundedBackgroundRect().minX < outline.frameOfCell(atColumn: 0, row: leafIndex).minX)
 
         let leafGuides = leafRow.hierarchyGuideSegments()
         #expect(leafGuides.count == 4)
         #expect(leafGuides[0].start.x == outline.frameOfOutlineCell(atRow: rowIndex).midX)
         #expect(leafGuides[0].end.y == leafRow.bounds.midY)
         #expect(leafGuides[1].start.y == leafGuides[1].end.y)
-        #expect(leafGuides[1].end.x == outline.frameOfCell(atColumn: 0, row: leafIndex).minX - 11)
+        #expect(leafGuides[1].start.x == leafGuides[0].start.x)
+        #expect(leafGuides[1].end.x > leafGuides[1].start.x)
+        #expect(leafGuides[1].end.x < outline.frameOfCell(atColumn: 0, row: leafIndex).minX)
         #expect(leafGuides[2].end.y == leafRow.bounds.maxY)
         #expect(leafGuides[3].start.x == outline.frameOfOutlineCell(atRow: 0).midX)
         let lastRow = try #require(outline.rowView(atRow: outline.row(forItem: rootSibling), makeIfNecessary: true)
@@ -125,7 +145,10 @@ struct PDFOutlineCoordinatorTests {
     }
 
     @Test
-    func switchingDocumentsWithIdenticalOutlinesReplacesDestinations() {
+    func switchingDocumentsWithIdenticalOutlinesReplacesDestinations() throws {
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let appState = makeTestAppState(defaults: preferences.defaults)
         let firstDocument = PDFDocument()
         let secondDocument = PDFDocument()
         firstDocument.insert(PDFPage(), at: 0)
@@ -135,7 +158,7 @@ struct PDFOutlineCoordinatorTests {
         let tabID = UUID()
         let coordinator = PDFOutlineView.Coordinator(
             items: [firstItem], tabID: tabID, documentID: ObjectIdentifier(firstDocument),
-            appState: AppState(), language: .english
+            appState: appState, language: .english
         )
         let outlineView = PDFOutlineKeyView()
 
@@ -152,6 +175,9 @@ struct PDFOutlineCoordinatorTests {
 
     @Test
     func namedOutlineActionUsesNativeNavigationAndRecordsJumpHistory() throws {
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let appState = makeTestAppState(defaults: preferences.defaults)
         _ = NSApplication.shared
         let document = PDFDocument()
         document.insert(PDFPage(), at: 0)
@@ -171,7 +197,6 @@ struct PDFOutlineCoordinatorTests {
         reader.document = document
         reader.layoutDocumentView()
         let originalSnapshot = try #require(reader.snapshot())
-        let appState = AppState()
         appState.activeReaderController = reader
 
         #expect(item.activate(in: appState))
@@ -181,8 +206,10 @@ struct PDFOutlineCoordinatorTests {
 
     @Test
     func outlineStateBelongsToItsTabAndSurvivesSidebarRecreation() throws {
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let appState = makeTestAppState(defaults: preferences.defaults)
         _ = NSApplication.shared
-        let appState = AppState()
         let firstDocument = PDFDocument()
         let secondDocument = PDFDocument()
         firstDocument.insert(PDFPage(), at: 0)
@@ -242,9 +269,11 @@ struct PDFOutlineCoordinatorTests {
     }
 
     @Test(arguments: Reload.allCases)
-    func hiddenExpandedDescendantsSurviveReload(reload: Reload) {
+    func hiddenExpandedDescendantsSurviveReload(reload: Reload) throws {
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let appState = makeTestAppState(defaults: preferences.defaults)
         _ = NSApplication.shared
-        let appState = makeAppState()
         let firstDocument = PDFDocument()
         let secondDocument = PDFDocument()
         firstDocument.insert(PDFPage(), at: 0)
@@ -302,9 +331,11 @@ struct PDFOutlineCoordinatorTests {
     }
 
     @Test
-    func manuallyOpenedBranchDoesNotChangeSavedFoldLevel() {
+    func manuallyOpenedBranchDoesNotChangeSavedFoldLevel() throws {
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let appState = makeTestAppState(defaults: preferences.defaults)
         _ = NSApplication.shared
-        let appState = makeAppState()
         let document = PDFDocument()
         document.insert(PDFPage(), at: 0)
         let tab = PDFTab(url: nil, document: document)
@@ -337,9 +368,11 @@ struct PDFOutlineCoordinatorTests {
     }
 
     @Test
-    func logicalFoldSelectionSurvivesSidebarRecreation() {
+    func logicalFoldSelectionSurvivesSidebarRecreation() throws {
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let appState = makeTestAppState(defaults: preferences.defaults)
         _ = NSApplication.shared
-        let appState = makeAppState()
         let document = PDFDocument()
         document.insert(PDFPage(), at: 0)
         let tab = PDFTab(url: nil, document: document)
@@ -373,8 +406,10 @@ struct PDFOutlineCoordinatorTests {
 
     @Test
     func outlineToggleKeyClosesSidebarAfterItReceivesFocus() throws {
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let appState = makeTestAppState(defaults: preferences.defaults)
         _ = NSApplication.shared
-        let appState = makeAppState()
         let document = PDFDocument()
         document.insert(PDFPage(), at: 0)
         let tab = PDFTab(url: nil, document: document)
@@ -390,7 +425,10 @@ struct PDFOutlineCoordinatorTests {
         window.isReleasedWhenClosed = false
         window.contentView = outlineView
         window.orderFront(nil)
-        defer { window.close() }
+        defer {
+            window.contentView = nil
+            window.close()
+        }
         appState.readerWindow = window
         #expect(window.makeFirstResponder(nil))
 
@@ -405,8 +443,10 @@ struct PDFOutlineCoordinatorTests {
 
     @Test
     func requestedOutlineFocusWaitsForAttachmentAndCancelsAfterDetachment() async throws {
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let appState = makeTestAppState(defaults: preferences.defaults)
         _ = NSApplication.shared
-        let appState = makeAppState()
         let document = PDFDocument()
         document.insert(PDFPage(), at: 0)
         let tab = PDFTab(url: nil, document: document)
@@ -430,27 +470,29 @@ struct PDFOutlineCoordinatorTests {
         #expect(window.makeFirstResponder(field))
 
         outline.requestFocus(tabID: tab.id, documentID: ObjectIdentifier(document), generation: 1)
-        try await Task.sleep(for: .milliseconds(30))
+        await nextTestMainQueueTurn()
         var outlineIsFocused = window.firstResponder === outline
         #expect(!outlineIsFocused)
         window.contentView?.addSubview(outline)
-        try await Task.sleep(for: .milliseconds(30))
+        await nextTestMainQueueTurn()
         outlineIsFocused = window.firstResponder === outline
         #expect(!outlineIsFocused)
         window.setKeyForTesting(true)
-        try await Task.sleep(for: .milliseconds(30))
+        try await waitForTestCondition("Attached outline receives its requested focus") {
+            window.firstResponder === outline
+        }
         outlineIsFocused = window.firstResponder === outline
         #expect(outlineIsFocused)
 
         // A completed request must not reclaim focus on an unrelated view update.
         #expect(window.makeFirstResponder(field))
-        try await Task.sleep(for: .milliseconds(30))
+        await nextTestMainQueueTurn()
         outlineIsFocused = window.firstResponder === outline
         #expect(!outlineIsFocused)
         outline.requestFocus(tabID: tab.id, documentID: ObjectIdentifier(document), generation: 1)
         outline.removeFromSuperview()
         window.contentView?.addSubview(outline)
-        try await Task.sleep(for: .milliseconds(30))
+        await nextTestMainQueueTurn()
         outlineIsFocused = window.firstResponder === outline
         #expect(!outlineIsFocused)
     }
@@ -462,8 +504,10 @@ struct PDFOutlineCoordinatorTests {
 
     @Test(arguments: FocusInterruption.allCases)
     func deferredOutlineFocusCannotOverrideANewerContext(interruption: FocusInterruption) async throws {
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let appState = makeTestAppState(defaults: preferences.defaults)
         _ = NSApplication.shared
-        let appState = makeAppState()
         let document = PDFDocument()
         document.insert(PDFPage(), at: 0)
         let tab = PDFTab(url: nil, document: document)
@@ -524,15 +568,17 @@ struct PDFOutlineCoordinatorTests {
             window.contentView?.addSubview(reader)
             #expect(window.makeFirstResponder(reader))
         }
-        try await Task.sleep(for: .milliseconds(30))
+        await nextTestMainQueueTurn()
         let outlineIsFocused = window.firstResponder === outline
         #expect(!outlineIsFocused)
     }
 
     @Test
     func emptyOutlineKeepsKeyboardFocusAndDoesNotNavigateThePDF() async throws {
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let appState = makeTestAppState(defaults: preferences.defaults)
         _ = NSApplication.shared
-        let appState = makeAppState()
         let document = PDFDocument()
         for index in 0..<2 {
             let page = PDFPage()
@@ -564,8 +610,13 @@ struct PDFOutlineCoordinatorTests {
         }
         host.layoutSubtreeIfNeeded()
         reader.layoutDocumentView()
-        try await Task.sleep(for: .milliseconds(30))
         func descendants(_ view: NSView) -> [NSView] { [view] + view.subviews.flatMap(descendants) }
+        try await waitForTestCondition("Empty sidebar mounts and receives keyboard focus") {
+            host.layoutSubtreeIfNeeded()
+            return descendants(host).contains { view in
+                view is PDFOutlineKeyView && window.firstResponder === view
+            }
+        }
         let outline = try #require(descendants(host).compactMap { $0 as? PDFOutlineKeyView }.first)
         var outlineIsFocused = window.firstResponder === outline
         #expect(outlineIsFocused)
@@ -585,6 +636,9 @@ struct PDFOutlineCoordinatorTests {
 
     @Test(arguments: [false, true])
     func movingBetweenVisibleOutlineRowsPreservesTopInset(longOutline: Bool) throws {
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let appState = makeTestAppState(defaults: preferences.defaults)
         _ = NSApplication.shared
         let document = PDFDocument()
         document.insert(PDFPage(), at: 0)
@@ -596,7 +650,7 @@ struct PDFOutlineCoordinatorTests {
         } : [])
         let coordinator = PDFOutlineView.Coordinator(
             items: items, tabID: UUID(), documentID: ObjectIdentifier(document),
-            appState: makeAppState(), language: .english
+            appState: appState, language: .english
         )
         let outlineView = makeOutlineView(coordinator: coordinator)
         outlineView.headerView = nil
@@ -617,7 +671,10 @@ struct PDFOutlineCoordinatorTests {
         window.isReleasedWhenClosed = false
         window.contentView = scrollView
         window.orderFront(nil)
-        defer { window.close() }
+        defer {
+            window.contentView = nil
+            window.close()
+        }
         scrollView.layoutSubtreeIfNeeded()
         #expect(window.makeFirstResponder(outlineView))
         let initialTop = scrollView.contentView.bounds.minY
@@ -650,12 +707,6 @@ struct PDFOutlineCoordinatorTests {
             windowNumber: window?.windowNumber ?? 0, context: nil,
             characters: key, charactersIgnoringModifiers: key, isARepeat: false, keyCode: keyCode
         )!
-    }
-
-    private func makeAppState() -> AppState {
-        AppState(sessionDefaults: UserDefaults(suiteName: UUID().uuidString)!, keyboardController: KeyboardController(
-            installsKeyMonitor: false, installsOpenURLObserver: false
-        ))
     }
 
     private func makeOutlineView(coordinator: PDFOutlineView.Coordinator) -> PDFOutlineKeyView {

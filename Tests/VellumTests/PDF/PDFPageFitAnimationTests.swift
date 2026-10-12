@@ -18,10 +18,8 @@ struct PDFPageFitAnimationTests {
         view.vimZoomToFit()
         try await finishZoom(in: view)
         view.vimGoToLastPage()
-        await withCheckedContinuation { continuation in
-            DispatchQueue.main.async { continuation.resume() }
-        }
-        try await Task.sleep(for: .milliseconds(30))
+        await nextTestMainQueueTurn()
+        try await waitForNativeLayout(in: view, page: page)
 
         func gaps() -> (top: CGFloat, bottom: CGFloat, height: CGFloat) {
             let paper = view.convert(view.convert(page.bounds(for: view.displayBox), from: page), to: documentView)
@@ -37,10 +35,14 @@ struct PDFPageFitAnimationTests {
         #expect(view.animationState.zoomAnchor?.page === page)
         #expect(abs(gaps().bottom) < 0.5)
         let target = try #require(view.animationState.zoomTargetScale)
+        view.animationState.zoomTimer?.invalidate()
         var sawShrinking = false
         var sawAlignment = false
         var previousBottomGap: CGFloat = 0
         for _ in 0..<120 {
+            if view.scaleFactor == target, view.animationState.zoomPageFitPhase == .bottom {
+                try await waitForNativeLayout(in: view, page: page)
+            }
             view.animationState.lastZoomTick = Date.timeIntervalSinceReferenceDate - 1.0 / 30.0
             view.stepZoomAnimation()
             let frame = gaps()
@@ -54,13 +56,13 @@ struct PDFPageFitAnimationTests {
                 #expect(frame.bottom - previousBottomGap < max(1, (clipView.bounds.height - frame.height) * 0.5))
                 previousBottomGap = frame.bottom
             }
-            try await Task.sleep(for: .milliseconds(1))
+            await nextTestMainQueueTurn()
             if view.animationState.zoomPageFitPhase == .bottom, view.scaleFactor > target + 0.001 {
                 #expect(abs(gaps().bottom) < 0.5)
             }
-            if !view.animationState.hasActiveZoomTimer { break }
+            if view.animationState.zoomTargetScale == nil { break }
         }
-        try await Task.sleep(for: .milliseconds(30))
+        #expect(view.animationState.zoomTargetScale == nil)
         #expect(!view.animationState.hasActiveZoomTimer)
         #expect(abs(view.scaleFactor - target) < 0.001)
         #expect(abs(gaps().top) < 0.5)
@@ -77,6 +79,7 @@ struct PDFPageFitAnimationTests {
         view.scrollToDocumentEdge(.bottom)
         view.vimZoomToPageFit()
         #expect(view.animationState.zoomPageFitPhase == .bottom)
+        view.animationState.zoomTimer?.invalidate()
         view.animationState.lastZoomTick = Date.timeIntervalSinceReferenceDate - 1.0 / 30.0
         view.stepZoomAnimation()
         if aligningTop {
@@ -106,10 +109,7 @@ struct PDFPageFitAnimationTests {
         } else {
             #expect(!view.animationState.hasActiveZoomTimer)
             #expect(view.animationState.zoomTargetScale == nil)
-            await withCheckedContinuation { continuation in
-                DispatchQueue.main.async { continuation.resume() }
-            }
-            try await Task.sleep(for: .milliseconds(30))
+            await nextTestMainQueueTurn()
             let origin = try #require(view.pdfScrollView?.contentView.bounds.origin)
             view.stepZoomAnimation()
             #expect(view.pdfScrollView?.contentView.bounds.origin == origin)
@@ -120,10 +120,9 @@ struct PDFPageFitAnimationTests {
     func replacingDocumentCancelsPendingTopAlignment() async throws {
         let (window, initialView, _) = try makeReader(rotation: 90, pageCount: 3)
         let document = try #require(initialView.document)
-        let defaults = try #require(UserDefaults(suiteName: "PageFitReplacement.\(UUID().uuidString)"))
-        let appState = AppState(sessionDefaults: defaults, keyboardController: KeyboardController(
-            installsKeyMonitor: false, installsOpenURLObserver: false
-        ))
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let appState = makeTestAppState(defaults: preferences.defaults)
         let tab = PDFTab(url: URL(fileURLWithPath: "/tmp/page-fit-replacement.pdf"), document: document)
         _ = appState.tabStore.openInNewTabs([tab])
         let hostingView = NSHostingView(rootView: PDFReader(
@@ -132,9 +131,12 @@ struct PDFPageFitAnimationTests {
         window.contentView = hostingView
         defer { window.close() }
         hostingView.layoutSubtreeIfNeeded()
-        try await Task.sleep(for: .milliseconds(30))
+        try await waitForTestCondition("Page-fit replacement reader is mounted and restored") {
+            guard let reader = appState.activeReaderController as? VellumPDFView else { return false }
+            return reader.window === window && reader.pendingRestoreAction == nil
+        }
         let view = try #require(appState.activeReaderController as? VellumPDFView)
-        defer { view.cancelPendingRestore(); view.stopZoomState(); view.stopScrollAnimation() }
+        defer { view.saveBeforeDismantle = nil; PDFReader.dismantleNSView(view, coordinator: ()) }
         #expect(view.applyWidthFitScaleNow())
         view.scrollToDocumentEdge(.bottom)
         view.vimZoomToPageFit()
@@ -150,22 +152,106 @@ struct PDFPageFitAnimationTests {
             tabID: tab.id, document: replacement, snapshot: nil, isActive: true
         ).environmentObject(appState)
         hostingView.layoutSubtreeIfNeeded()
-        try await Task.sleep(for: .milliseconds(30))
-        #expect(view.document === replacement)
+        try await waitForTestCondition("Reader mounts the replacement PDF document") {
+            view.document === replacement
+        }
         #expect(!timer.isValid)
         #expect(view.animationState.zoomPageFitPhase == nil)
         #expect(view.animationState.zoomTargetScale == nil)
     }
 
+    @Test(arguments: [false, true]) @MainActor
+    func newInteractionCancelsFinalPageFitTick(newZoom: Bool) async throws {
+        let (window, view, page) = try makeCenteredReader()
+        defer { view.stopZoomState(); view.stopScrollAnimation(); window.close() }
+        view.vimZoomToPageFit()
+        let target = try #require(view.animationState.zoomTargetScale)
+        view.applyZoomScale(target * 1.0005)
+        view.stepZoomAnimation()
+        #expect(view.scaleFactor == target)
+        #expect(view.animationState.hasActiveZoomTimer)
+
+        if newZoom {
+            view.vimZoom(to: target * 2)
+            #expect(view.animationState.zoomPageFitPhase == nil)
+            try await finishZoom(in: view)
+            let center = view.convert(view.pageCenterDestination(for: page).point, from: page)
+            #expect(abs(center.y - view.bounds.midY) < 1)
+        } else {
+            let scrollView = try #require(view.pdfScrollView)
+            view.vimScroll(x: 0, y: 100)
+            let targetOrigin = try #require(view.animationState.scrollTargetOrigin)
+            #expect(!view.animationState.hasActiveZoomTimer)
+            #expect(view.animationState.zoomPageFitPhase == nil)
+            view.animationState.scrollTimer?.invalidate()
+            for _ in 0..<60 {
+                view.animationState.lastScrollTick = Date.timeIntervalSinceReferenceDate - 1.0 / 30.0
+                view.stepScrollAnimation(in: scrollView)
+                await nextTestMainQueueTurn()
+                if view.animationState.scrollTargetOrigin == nil { break }
+            }
+            #expect(view.animationState.scrollTargetOrigin == nil)
+            #expect(abs(scrollView.contentView.bounds.origin.y - targetOrigin.y) < 0.001)
+        }
+    }
+
     @MainActor
     private func finishZoom(in view: VellumPDFView) async throws {
+        view.animationState.zoomTimer?.invalidate()
         for _ in 0..<120 {
+            if let target = view.animationState.zoomTargetScale,
+               view.scaleFactor == target,
+               view.animationState.zoomPageFitPhase != .aligningTop,
+               let page = view.animationState.zoomAnchor?.page {
+                try await waitForNativeLayout(in: view, page: page)
+            }
             view.animationState.lastZoomTick = Date.timeIntervalSinceReferenceDate - 1.0 / 30.0
             view.stepZoomAnimation()
-            try await Task.sleep(for: .milliseconds(1))
-            if !view.animationState.hasActiveZoomTimer { break }
+            await nextTestMainQueueTurn()
+            if view.animationState.zoomTargetScale == nil { break }
         }
-        try await Task.sleep(for: .milliseconds(30))
+        try #require(view.animationState.zoomTargetScale == nil)
+    }
+
+    @MainActor
+    private func waitForNativeLayout(in view: VellumPDFView, page: PDFPage) async throws {
+        let scrollView = try #require(view.pdfScrollView)
+        let documentView = try #require(scrollView.documentView)
+        func geometry() -> [NSRect] {
+            [view.convert(view.convert(page.bounds(for: view.displayBox), from: page), to: documentView),
+             documentView.bounds, scrollView.contentView.bounds]
+        }
+        var previous = geometry()
+        var quietSince = ContinuousClock.now
+        // PDFKit magnification can enqueue layout beyond the next main-queue turn.
+        try await waitForTestCondition("Native PDF paper and viewport layout settles") {
+            let current = geometry()
+            if current != previous {
+                previous = current
+                quietSince = ContinuousClock.now
+            }
+            return quietSince.duration(to: ContinuousClock.now) >= .milliseconds(30)
+        }
+    }
+
+    @MainActor
+    private func makeCenteredReader() throws -> (NSWindow, VellumPDFView, PDFPage) {
+        let (window, view, _) = try makeReader(rotation: 0, pageCount: 3)
+        let document = PDFDocument()
+        for index in 0..<3 {
+            let page = PDFPage()
+            page.setBounds(NSRect(x: 0, y: 0, width: 2_000, height: 2_400), for: .mediaBox)
+            page.setBounds(index == 1
+                ? NSRect(x: 40, y: 60, width: 1_000, height: 1_400)
+                : NSRect(x: 0, y: 0, width: 2_000, height: 2_400), for: .cropBox)
+            document.insert(page, at: index)
+        }
+        view.document = document
+        view.scaleFactor = 1
+        view.layoutDocumentView()
+        let page = try #require(document.page(at: 1))
+        view.centerBothAxes(on: view.pageCenterDestination(for: page))
+        return (window, view, page)
     }
 
     @MainActor

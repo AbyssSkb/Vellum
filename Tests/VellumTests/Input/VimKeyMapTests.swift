@@ -16,14 +16,11 @@ struct VimKeyMapTests {
         #expect(VimKeyMap.continuousCommand(for: "=") == .zoomIn)
     }
 
-    @Test
-    func uppercaseDAndUAreExtraLargeContinuousScrollKeys() {
-        #expect(VimKeyMap.normalizedContinuousKey("D") == "D")
-        #expect(VimKeyMap.normalizedContinuousKey("U") == "U")
-        #expect(VimKeyMap.isContinuousKey("D"))
-        #expect(VimKeyMap.isContinuousKey("U"))
-        #expect(VimKeyMap.continuousCommand(for: "D") == .extraLargeScrollDown)
-        #expect(VimKeyMap.continuousCommand(for: "U") == .extraLargeScrollUp)
+    @Test(arguments: [("D", VimCommand.extraLargeScrollDown), ("U", .extraLargeScrollUp)])
+    func uppercaseExtraLargeScrollKeysRemainContinuous(key: String, command: VimCommand) {
+        #expect(VimKeyMap.normalizedContinuousKey(key) == key)
+        #expect(VimKeyMap.isContinuousKey(key))
+        #expect(VimKeyMap.continuousCommand(for: key) == command)
     }
 
     @Test

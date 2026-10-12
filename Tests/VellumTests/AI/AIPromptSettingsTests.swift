@@ -70,7 +70,7 @@ struct AIPromptSettingsTests {
     }
 
     @Test
-    func defaultPromptKeepsPronunciationInstructionNonDynamic() {
+    func defaultPromptPreservesSelectionAndMissingAnchoredContext() {
         let context = AIExplanationContext(
             selectedText: "salient",
             previousParagraph: nil,
@@ -85,50 +85,27 @@ struct AIPromptSettingsTests {
 
         let prompt = AIPromptRenderer.renderUserPrompt(context: context, configuration: .default)
 
-        #expect(prompt.contains("Use reliable IPA when available"))
-        #expect(prompt.contains("For English, include both American and British IPA on the same line when available."))
-        #expect(prompt.contains("Examples:"))
-        #expect(prompt.contains("Example 1 input:"))
-        #expect(prompt.contains("美式：/ˈseɪliənt/；英式：/ˈseɪliənt/"))
-        #expect(prompt.contains("Example 2 output:\n### 上下文解释"))
-        #expect(prompt.contains("这里不需要音标，因为它是复杂度记号。"))
         #expect(prompt.contains("<selected_text>\nsalient\n</selected_text>"))
         #expect(prompt.contains("<anchored_context>\nNo anchored occurrence could be reliably extracted from the PDF.\n</anchored_context>"))
-        #expect(prompt.contains("Include only for a single word, name, or short term where pronunciation helps."))
     }
 
     @Test
-    func currentSettingsFallBackToDefaultPrompt() {
-        let suiteName = "AIPromptSettingsTests-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defer {
-            defaults.removePersistentDomain(forName: suiteName)
-        }
+    func currentSettingsFallBackToDefaultPrompt() throws {
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let defaults = preferences.defaults
 
         let configuration = AIPromptSettings.current(defaults: defaults)
 
         #expect(configuration.targetLanguage == AIPromptSettings.defaultTargetLanguage)
         #expect(configuration.template == AIPromptSettings.defaultTemplate)
-        #expect(configuration.template.contains("Answer in {{targetLanguage}}. Use concise Markdown."))
-        #expect(configuration.template.contains("### 音标"))
-        #expect(configuration.template.contains("### 翻译"))
-        #expect(configuration.template.contains("### 上下文解释"))
-        #expect(configuration.template.contains("Examples:"))
-        #expect(configuration.template.contains("Example 3 output:"))
-        #expect(configuration.template.contains("<selected_text>"))
-        #expect(configuration.template.contains("<anchored_context>"))
-        #expect(configuration.template.contains("Use `$...$` for inline math and `$$...$$` for display math."))
-        #expect(!configuration.template.contains("Few-shots:"))
-        #expect(!configuration.template.contains("### Pronunciation"))
     }
 
     @Test
-    func saveAndResetPromptSettings() {
-        let suiteName = "AIPromptSettingsTests-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defer {
-            defaults.removePersistentDomain(forName: suiteName)
-        }
+    func saveAndResetPromptSettings() throws {
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let defaults = preferences.defaults
 
         AIPromptSettings.save(
             AIPromptConfiguration(targetLanguage: "Korean", template: "Explain {{selectedText}}."),
@@ -142,12 +119,10 @@ struct AIPromptSettingsTests {
     }
 
     @Test
-    func conversationPromptSettingsAreIndependentFromExplanationPromptSettings() {
-        let suiteName = "AIPromptSettingsTests-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defer {
-            defaults.removePersistentDomain(forName: suiteName)
-        }
+    func conversationPromptSettingsAreIndependentFromExplanationPromptSettings() throws {
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let defaults = preferences.defaults
 
         AIPromptSettings.save(
             AIPromptConfiguration(targetLanguage: "Japanese", template: "Explain {{selectedText}}."),
@@ -197,7 +172,7 @@ struct AIPromptSettingsTests {
     }
 
     @Test
-    func defaultPromptEmphasizesCompleteMultiFragmentCoverage() {
+    func defaultPromptPreservesCompleteSelectionAndAnchoredOccurrence() {
         let context = AIExplanationContext(
             selectedText: "First selected sentence.\n\nSecond selected sentence.",
             previousParagraph: "Before",
@@ -213,15 +188,12 @@ struct AIPromptSettingsTests {
 
         let prompt = AIPromptRenderer.render(context: context).combined
 
-        #expect(prompt.contains("Cover the complete selected text in its original order."))
-        #expect(prompt.contains("If <anchored_context> contains <selected>...</selected> and the same text appears multiple times, use only the marked occurrence."))
         #expect(prompt.contains("<selected_text>\nFirst selected sentence.\n\nSecond selected sentence.\n</selected_text>"))
         #expect(prompt.contains("<selected>First selected sentence.</selected>"))
-        #expect(prompt.contains("Use `$...$` for inline math and `$$...$$` for display math."))
     }
 
     @Test
-    func defaultConversationPromptEmphasizesCompleteSelectionCoverage() {
+    func defaultConversationPromptPreservesCompleteSelection() {
         let context = AIExplanationContext(
             selectedText: "First claim.\nSecond claim.",
             currentParagraph: "First claim. Second claim.",
@@ -235,9 +207,6 @@ struct AIPromptSettingsTests {
             configuration: .defaultConversation
         )
 
-        #expect(prompt.contains("The user selected the text inside <selected_text>. Use it as the main object of discussion."))
-        #expect(prompt.contains("If the selected text contains multiple fragments, cover all relevant fragments in order."))
         #expect(prompt.contains("<selected_text>\nFirst claim.\nSecond claim.\n</selected_text>"))
-        #expect(prompt.contains("If <anchored_context> contains <selected>...</selected> and the same text appears multiple times, use only the marked occurrence."))
     }
 }

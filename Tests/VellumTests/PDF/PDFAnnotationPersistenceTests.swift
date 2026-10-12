@@ -93,7 +93,9 @@ struct PDFAnnotationPersistenceTests {
         #expect(!fixture.persistence.hasUnprotectedChanges)
         #expect(fixture.persistence.hasUnsavedChanges)
 
-        let appState = AppState()
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let appState = makeTestAppState(defaults: preferences.defaults)
         let tab = PDFTab(url: fixture.url, document: fixture.document)
         _ = appState.tabStore.openInNewTabs([tab])
         #expect(appState.canCloseTab(tab.id))
@@ -198,7 +200,9 @@ struct PDFAnnotationPersistenceTests {
             try? FileManager.default.removeItem(at: first.directory)
             try? FileManager.default.removeItem(at: second.directory)
         }
-        let appState = AppState()
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let appState = makeTestAppState(defaults: preferences.defaults)
         let firstTab = PDFTab(url: first.url, document: first.document)
         let secondTab = PDFTab(url: second.url, document: second.document)
         _ = appState.tabStore.openInNewTabs([firstTab, secondTab])
@@ -230,7 +234,9 @@ struct PDFAnnotationPersistenceTests {
         let fixture = try makeFixture()
         defer { try? FileManager.default.removeItem(at: fixture.directory) }
         addHighlight(to: fixture.document, text: "Saved before close")
-        let appState = AppState()
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let appState = makeTestAppState(defaults: preferences.defaults)
         let tab = PDFTab(url: fixture.url, document: fixture.document)
         _ = appState.tabStore.openInNewTabs([tab])
         fixture.persistence.save(fixture.document) {}

@@ -54,12 +54,8 @@ struct SearchCommandTests {
         field.stringValue = "alpha"
         field.delegate?.controlTextDidChange?(Notification(name: NSControl.textDidChangeNotification, object: field))
 
-        let deadline = ContinuousClock.now.advanced(by: .seconds(5))
-        while !escaped && ContinuousClock.now < deadline {
-            try await Task.sleep(for: .milliseconds(10))
-        }
-        try #require(escaped, "highlighted: \(view.highlightedSelections?.count ?? 0); visible: \(controller.hasVisibleHighlights); target: \(controller.hasTextTarget); field: \(field.stringValue)")
-        for _ in 0..<10 { await Task.yield() }
+        try await waitForTestCondition("Escape dismisses the first progressive search publication") { escaped }
+        await nextTestMainQueueTurn()
         #expect(!controller.hasVisibleHighlights)
         #expect(view.highlightedSelections?.isEmpty == true)
 
@@ -193,28 +189,16 @@ struct SearchCommandTests {
         #expect(index == 0)
     }
 
-    @Test
-    func anchoredMoveAdvancesWhenAnchorResolvesToCurrentNextResult() {
+    @Test(arguments: [SearchResultNavigator.Direction.next, .previous])
+    func anchoredMoveAdvancesWhenAnchorResolvesToCurrentResult(direction: SearchResultNavigator.Direction) {
         let index = SearchResultNavigator.resolvedAnchoredMoveIndex(
             anchoredIndex: 2,
             activeIndex: 2,
             resultCount: 5,
-            direction: .next
+            direction: direction
         )
 
-        #expect(index == 3)
-    }
-
-    @Test
-    func anchoredMoveAdvancesWhenAnchorResolvesToCurrentPreviousResult() {
-        let index = SearchResultNavigator.resolvedAnchoredMoveIndex(
-            anchoredIndex: 2,
-            activeIndex: 2,
-            resultCount: 5,
-            direction: .previous
-        )
-
-        #expect(index == 1)
+        #expect(index == (direction == .next ? 3 : 1))
     }
 
     @Test
@@ -343,41 +327,19 @@ struct SearchCommandTests {
         #expect(PDFSearchController.index(of: activeMatch, in: results) == 1)
     }
 
-    @Test
-    func readingAnchorUsesVisualTopInFlippedViewport() {
-        #expect(SearchReadingAnchor.pointY(visibleMinY: 100, visibleHeight: 900, isFlipped: true) == 100)
+    @Test(arguments: [false, true])
+    func readingAnchorUsesVisualTop(isFlipped: Bool) {
+        #expect(SearchReadingAnchor.pointY(visibleMinY: 100, visibleHeight: 900, isFlipped: isFlipped)
+                == (isFlipped ? 100 : 1000))
     }
 
-    @Test
-    func readingAnchorUsesVisualTopInNonFlippedViewport() {
-        #expect(SearchReadingAnchor.pointY(visibleMinY: 100, visibleHeight: 900, isFlipped: false) == 1000)
-    }
-
-    @Test
-    func fieldEditorCommandsMapEnterAndEscape() {
-        #expect(
-            SearchCommandEditingCommand.action(
-                for: #selector(NSResponder.insertNewline(_:))
-            ) == .commit
-        )
-        #expect(
-            SearchCommandEditingCommand.action(
-                for: #selector(NSResponder.insertNewlineIgnoringFieldEditor(_:))
-            ) == .commit
-        )
-        #expect(
-            SearchCommandEditingCommand.action(
-                for: #selector(NSResponder.cancelOperation(_:))
-            ) == .cancel
-        )
-    }
-
-    @Test
-    func unrelatedFieldEditorCommandsAreIgnored() {
-        #expect(
-            SearchCommandEditingCommand.action(
-                for: #selector(NSResponder.moveDown(_:))
-            ) == nil
-        )
+    @Test(arguments: [
+        (#selector(NSResponder.insertNewline(_:)), SearchCommandEditingAction.commit as SearchCommandEditingAction?),
+        (#selector(NSResponder.insertNewlineIgnoringFieldEditor(_:)), .commit),
+        (#selector(NSResponder.cancelOperation(_:)), .cancel),
+        (#selector(NSResponder.moveDown(_:)), nil)
+    ])
+    func fieldEditorCommandsMapToTheirAction(selector: Selector, expected: SearchCommandEditingAction?) {
+        #expect(SearchCommandEditingCommand.action(for: selector) == expected)
     }
 }

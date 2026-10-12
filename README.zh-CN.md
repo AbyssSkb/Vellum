@@ -79,7 +79,7 @@ AI 辅助是可选的实验性功能。配置与使用方法请见[使用指南]
 ```sh
 git clone https://github.com/AbyssSkb/Vellum.git
 cd Vellum
-swift test --no-parallel
+scripts/test.sh
 scripts/package-app.sh
 open dist/Vellum.app
 ```

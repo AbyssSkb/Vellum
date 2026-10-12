@@ -11,6 +11,12 @@ struct PDFZoomLifecycleTests {
         let previousView = makeReader()
         let previousWindow = makeWindow()
         previousWindow.contentView = previousView
+        defer {
+            previousView.cancelPendingRestore()
+            previousView.stopZoomState()
+            previousView.stopScrollAnimation()
+            previousWindow.close()
+        }
         if zoomed {
             previousView.scaleFactor = 1.5
             previousView.layoutDocumentView()
@@ -33,13 +39,10 @@ struct PDFZoomLifecycleTests {
         let window = makeWindow()
         window.setContentSize(NSSize(width: 1_000, height: 600))
         window.contentView = view
-        defer { view.cancelPendingRestore(); window.close() }
-        for _ in 0..<30 {
-            if view.pendingRestoreAction == nil { break }
-            try await Task.sleep(for: .milliseconds(50))
+        defer { view.cancelPendingRestore(); view.stopZoomState(); view.stopScrollAnimation(); window.close() }
+        try await waitForTestCondition("Reader restores the saved viewport after mounting") {
+            view.pendingRestoreAction == nil
         }
-
-        #expect(view.pendingRestoreAction == nil)
         let clip = try #require(view.pdfScrollView?.contentView)
         #expect(abs(clip.bounds.origin.y - savedOrigin.y) < 1)
         if zoomed {
@@ -62,13 +65,10 @@ struct PDFZoomLifecycleTests {
         container.addSubview(view)
         let window = makeWindow()
         window.contentView = container
-        defer { view.cancelPendingRestore(); window.close() }
-        for _ in 0..<30 {
-            if view.pendingRestoreAction == nil { break }
-            try await Task.sleep(for: .milliseconds(50))
+        defer { view.cancelPendingRestore(); view.stopZoomState(); view.stopScrollAnimation(); window.close() }
+        try await waitForTestCondition("Initial restore completes after attaching the reader hierarchy") {
+            view.pendingRestoreAction == nil
         }
-
-        #expect(view.pendingRestoreAction == nil)
         #expect(view.scaleFactor < 1)
     }
 

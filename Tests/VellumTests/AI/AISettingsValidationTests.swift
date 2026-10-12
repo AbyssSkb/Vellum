@@ -95,70 +95,31 @@ struct AISettingsValidationTests {
         #expect(validation.codexSettings == codexSettings)
     }
 
-    @Test
-    func unsupportedSavedDepthIsReportedWithoutChangingConfiguration() throws {
+    @Test(arguments: [
+        ("codex-model", "xhigh" as String?, "xhigh" as String?),
+        ("codex-model", nil, nil),
+        ("custom-model", "xhigh", nil),
+        ("", "medium", nil)
+    ])
+    func depthValidationRequiresExplicitKnownModelAndUnsupportedEffort(
+        model: String, effort: String?, unsupported: String?
+    ) throws {
         let validation = AISettingsValidation()
         let request = validation.begin(fetchingModels: true)
         validation.finish(request, status: .success("Settings loaded"), codexSettings: codexSettings)
         let configuration = try AIConfiguration(
             baseURLString: "/usr/local/bin/codex",
-            model: "codex-model",
+            model: model,
             apiKey: "",
             providerFormat: .codexCLI,
-            reasoningEffort: "xhigh"
+            reasoningEffort: effort
         )
 
-        #expect(validation.unsupportedReasoningEffort(configuration: configuration) == "xhigh")
-        #expect(configuration.reasoningEffort == "xhigh")
-    }
-
-    @Test
-    func lowLevelUnspecifiedDepthDoesNotInventAnInheritedSetting() throws {
-        let validation = AISettingsValidation()
-        let request = validation.begin(fetchingModels: true)
-        validation.finish(request, status: .success("Settings loaded"), codexSettings: codexSettings)
-        let configuration = try AIConfiguration(
-            baseURLString: "/usr/local/bin/codex",
-            model: "codex-model",
-            apiKey: "",
-            providerFormat: .codexCLI
-        )
-
-        #expect(validation.unsupportedReasoningEffort(configuration: configuration) == nil)
-        #expect(configuration.reasoningEffort == nil)
-    }
-
-    @Test
-    func unrecognizedModelDoesNotInventSupportedDepths() throws {
-        let validation = AISettingsValidation()
-        let request = validation.begin(fetchingModels: true)
-        validation.finish(request, status: .success("Settings loaded"), codexSettings: codexSettings)
-        let configuration = try AIConfiguration(
-            baseURLString: "/usr/local/bin/codex",
-            model: "custom-model",
-            apiKey: "",
-            providerFormat: .codexCLI,
-            reasoningEffort: "xhigh"
-        )
-
-        #expect(validation.unsupportedReasoningEffort(configuration: configuration) == nil)
-        #expect(validation.codexSettings?.model(for: configuration) == nil)
-    }
-
-    @Test
-    func blankModelDoesNotUseCatalogDefaultForDepthValidation() throws {
-        let validation = AISettingsValidation()
-        let request = validation.begin(fetchingModels: true)
-        validation.finish(request, status: .success("Models loaded"), codexSettings: codexSettings)
-        let configuration = try AIConfiguration(
-            baseURLString: "/usr/local/bin/codex",
-            model: "",
-            apiKey: "",
-            providerFormat: .codexCLI,
-            reasoningEffort: "medium"
-        )
-        #expect(validation.unsupportedReasoningEffort(configuration: configuration) == nil)
-        #expect(validation.codexSettings?.model(for: configuration) == nil)
+        #expect(validation.unsupportedReasoningEffort(configuration: configuration) == unsupported)
+        #expect(configuration.reasoningEffort == effort)
+        if model == "custom-model" || model.isEmpty {
+            #expect(validation.codexSettings?.model(for: configuration) == nil)
+        }
     }
 
     private var codexSettings: CodexSettingsSnapshot {

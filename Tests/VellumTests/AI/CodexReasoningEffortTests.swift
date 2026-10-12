@@ -23,9 +23,9 @@ struct CodexReasoningEffortTests {
     func applicationProfileDefaultsReachActualFunctionRequests(profile: AIConfigurationProfile) async throws {
         let server = try fakeServer()
         defer { try? FileManager.default.removeItem(at: server.directory) }
-        let suiteName = "VellumTests.CodexDepth.\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: suiteName))
-        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let defaults = preferences.defaults
         defaults.set("codex-cli", forKey: profile.providerIDKey)
         defaults.set(server.configuration.codexExecutablePath, forKey: profile.baseURLKey(for: "codex-cli"))
         defaults.set("gpt-test", forKey: profile.modelKey(for: "codex-cli"))
@@ -72,7 +72,7 @@ struct CodexReasoningEffortTests {
     private func recordedRequests(in directory: URL) throws -> [[String: Any]] {
         try String(contentsOf: directory.appendingPathComponent("requests"), encoding: .utf8)
             .split(separator: "\n")
-            .compactMap { CodexAppServerMessageParser.message(from: String($0)) }
+            .map { try #require(CodexAppServerMessageParser.message(from: String($0))) }
     }
 
     private func fakeServer(reasoningEffort: String? = nil) throws -> (directory: URL, configuration: AIConfiguration) {

@@ -4,7 +4,7 @@
 - Commit completed, verified changes as focused commits, unless the user explicitly asks not to commit.
 - Keep each commit focused on one theme. Bug fixes, refactors, and feature work should be committed separately.
 - Before pushing, review local unpushed commits and consolidate related iterations into focused commits when appropriate. Keep independent changes separate and preserve the final file contents.
-- Run relevant tests before packaging; use `swift test --no-parallel` for the full suite because AppKit/PDFKit tests share application focus and the main run loop.
+- Run relevant tests before packaging through `scripts/test.sh` (use `--filter` for focused checks). It isolates AI logs and runs serially because AppKit/PDFKit tests share application focus and the main run loop.
 - After packaging succeeds, provide the local app for the user to test. Publish a new version after the user confirms that local testing passed.
 - Build and open each local preview at a fresh app path with an independent bundle identifier and preferences, keeping existing Vellum instances running.
 - Use an ephemeral signing key for isolated local update fixtures and the CI signing key for production releases.

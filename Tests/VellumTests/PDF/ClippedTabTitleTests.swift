@@ -7,9 +7,41 @@ import Testing
 @MainActor
 @Suite("Clipped tab title")
 struct ClippedTabTitleTests {
-    @Test
+    @Test(.enabled("Requires Reduce Motion") {
+        await MainActor.run { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
+    },
+          arguments: [false, true])
+    func activatedOrHoveredTitlesStayReadableWithReducedMotion(hovered: Bool) async throws {
+        _ = NSApplication.shared
+        let title = "A long document filename that cannot fit inside this tab.pdf"
+        let host = NSHostingView(rootView: ClippedTabTitle(title: title, isSelected: !hovered, isHovered: hovered)
+            .frame(width: 100, height: 20))
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 100, height: 20),
+                              styleMask: .borderless, backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentView = host
+        window.orderFront(nil)
+        defer {
+            window.contentView = nil
+            window.close()
+        }
+        host.layoutSubtreeIfNeeded()
+        await nextTestMainQueueTurn()
+        func descendants(_ view: NSView) -> [NSView] { [view] + view.subviews.flatMap(descendants) }
+        let view = try #require(descendants(host).compactMap { $0 as? PDFOutlineTitleView }.first)
+        #expect(view.textField.stringValue == title)
+        #expect(view.toolTip == title)
+        #expect(view.textField.lineBreakMode == .byTruncatingTail)
+        #expect(view.textField.textColor == VellumColors.foreground)
+        let layer = try #require(view.textField.layer)
+        #expect(!layer.isHidden)
+        #expect(layer.animation(forKey: "outlineTitleScroll") == nil)
+    }
+
+    @Test(.enabled("Requires marquee animations") {
+        await MainActor.run { !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
+    })
     func initialZeroWidthWaitsForLayoutAndHeightChangesPreserveSinglePlayback() throws {
-        guard !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else { return }
         _ = NSApplication.shared
         let view = PDFOutlineTitleView(frame: .zero)
         view.repeatsMarquee = false
@@ -23,7 +55,10 @@ struct ClippedTabTitleTests {
         window.isReleasedWhenClosed = false
         window.contentView = container
         window.orderFront(nil)
-        defer { window.close() }
+        defer {
+            window.contentView = nil
+            window.close()
+        }
         let layer = try #require(view.textField.layer)
         let key = "outlineTitleScroll"
         #expect(layer.animation(forKey: key) == nil)
@@ -45,7 +80,9 @@ struct ClippedTabTitleTests {
         #expect(!layer.isHidden)
     }
 
-    @Test
+    @Test(.enabled("Requires marquee animations") {
+        await MainActor.run { !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
+    })
     func clippedTitlesPlayOnceOnActivationAndHoverWithoutReplayingDuringUpdates() async throws {
         _ = NSApplication.shared
         let title = "A long document filename that cannot fit inside this tab.pdf"
@@ -58,13 +95,16 @@ struct ClippedTabTitleTests {
         window.isReleasedWhenClosed = false
         window.contentView = host
         window.orderFront(nil)
-        defer { window.close() }
+        defer {
+            window.contentView = nil
+            window.close()
+        }
 
         func update(selected: Bool, hovered: Bool, name: String? = nil) async throws {
             host.rootView = ClippedTabTitle(title: name ?? title, isSelected: selected, isHovered: hovered)
                 .frame(width: 100, height: 20)
             host.layoutSubtreeIfNeeded()
-            try await Task.sleep(for: .milliseconds(30))
+            await nextTestMainQueueTurn()
             host.layoutSubtreeIfNeeded()
         }
         func descendants(_ view: NSView) -> [NSView] { [view] + view.subviews.flatMap(descendants) }
@@ -79,12 +119,6 @@ struct ClippedTabTitleTests {
         #expect(view.textField.stringValue == title)
         #expect(view.textField.textColor == VellumColors.foreground)
         #expect(!view.repeatsMarquee)
-
-        if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
-            #expect(!layer.isHidden)
-            #expect(layer.animation(forKey: animationKey) == nil)
-            return
-        }
 
         func animation() throws -> CAAnimation {
             try #require(layer.animation(forKey: animationKey)?.copy() as? CAAnimation)

@@ -7,95 +7,140 @@ import Testing
 @Suite("PDF search focus")
 struct PDFSearchFocusTests {
     @Test
-    func searchRestoresItsPaneAndKeepsNewerFocusRequests() async throws {
-        _ = NSApplication.shared
-        let data = NSMutableData()
-        var mediaBox = CGRect(x: 0, y: 0, width: 612, height: 792)
-        let consumer = try #require(CGDataConsumer(data: data as CFMutableData))
-        let context = try #require(CGContext(consumer: consumer, mediaBox: &mediaBox, nil))
-        context.beginPDFPage(nil)
-        NSGraphicsContext.saveGraphicsState()
-        NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: false)
-        ("alpha" as NSString).draw(at: NSPoint(x: 72, y: 720), withAttributes: [.font: NSFont.systemFont(ofSize: 18)])
-        NSGraphicsContext.restoreGraphicsState()
-        context.endPDFPage()
-        context.closePDF()
+    func unicodeCaretUsesUTF16AndIMEKeepsEnterAndEscape() async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        try #require(fixture.window.makeFirstResponder(fixture.outline))
+        let field = try fixture.begin()
+        field.stringValue = "🧭e\u{301}标题"
+        let editor = try await fixture.focusedEditor(for: field)
+        #expect(editor.selectedRange == NSRange(location: field.stringValue.utf16.count, length: 0))
 
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 900, height: 600), styleMask: .borderless, backing: .buffered, defer: false)
-        window.isReleasedWhenClosed = false
-        defer { window.close() }
-        let container = try #require(window.contentView)
-        let reader = VellumPDFView(frame: NSRect(x: 200, y: 0, width: 700, height: 600))
-        let document = try #require(PDFDocument(data: data as Data))
-        reader.document = document
-        let outline = PDFOutlineKeyView(frame: NSRect(x: 0, y: 0, width: 200, height: 600))
-        container.addSubview(reader)
-        container.addSubview(outline)
-        func fields(in view: NSView) -> [NSTextField] {
-            (view as? NSTextField).map { [$0] } ?? view.subviews.flatMap { fields(in: $0) }
+        editor.setMarkedText("测", selectedRange: NSRange(location: 1, length: 0),
+                             replacementRange: NSRange(location: NSNotFound, length: 0))
+        try #require(editor.hasMarkedText())
+        for selector in [#selector(NSResponder.insertNewline(_:)), #selector(NSResponder.cancelOperation(_:))] {
+            #expect(field.delegate?.control?(field, textView: editor, doCommandBy: selector) == false)
+            #expect(fixture.window.firstResponder === editor)
         }
+        editor.unmarkText()
+        #expect(try #require(fixture.reader.searchController).handleEscape())
+        #expect(fixture.window.firstResponder === fixture.outline)
+    }
+
+    @Test
+    func committingAndReopeningSearchRestoreTheOutlinePane() async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        try #require(fixture.window.makeFirstResponder(fixture.outline))
+        let field = try fixture.begin()
+        let editor = try await fixture.focusedEditor(for: field)
+        field.stringValue = "alpha"
+        field.delegate?.controlTextDidChange?(Notification(name: NSControl.textDidChangeNotification, object: field))
+        #expect(field.delegate?.control?(field, textView: editor, doCommandBy: #selector(NSResponder.insertNewline(_:))) == true)
+        let controller = try #require(fixture.reader.searchController)
+        try await waitForTestCondition("Committed search returns focus to outline") {
+            controller.hasVisibleHighlights && fixture.window.firstResponder === fixture.outline
+        }
+
+        let reopened = try fixture.begin()
+        _ = try await fixture.focusedEditor(for: reopened)
+        #expect(controller.handleEscape())
+        #expect(fixture.window.firstResponder === fixture.outline)
+    }
+
+    @Test
+    func removedReturnPaneFallsBackToReader() async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        try #require(fixture.window.makeFirstResponder(fixture.outline))
+        _ = try await fixture.focusedEditor(for: fixture.begin())
+        fixture.outline.removeFromSuperview()
+        #expect(try #require(fixture.reader.searchController).handleEscape())
+        #expect(fixture.window.firstResponder === fixture.reader)
+    }
+
+    @Test
+    func newerFocusRequestSurvivesSearchDismissal() async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        try #require(fixture.window.makeFirstResponder(fixture.outline))
+        _ = try await fixture.focusedEditor(for: fixture.begin())
+        let otherEditor = NSTextView(frame: .zero)
+        fixture.container.addSubview(otherEditor)
+        try #require(fixture.window.makeFirstResponder(otherEditor))
+        #expect(try #require(fixture.reader.searchController).handleEscape())
+        #expect(fixture.window.firstResponder === otherEditor)
+    }
+
+    @Test
+    func clearingSearchCancelsItsQueuedFocusRequest() async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let otherEditor = NSTextView(frame: .zero)
+        fixture.container.addSubview(otherEditor)
+        try #require(fixture.window.makeFirstResponder(otherEditor))
+        _ = try fixture.begin()
+        try #require(fixture.reader.searchController).clear()
+        await nextTestMainQueueTurn()
+        #expect(fixture.window.firstResponder === otherEditor)
+    }
+
+    @MainActor
+    private struct Fixture {
+        let window: NSWindow
+        let container: NSView
+        let reader: VellumPDFView
+        let outline: PDFOutlineKeyView
+
+        init() throws {
+            _ = NSApplication.shared
+            let data = NSMutableData()
+            var mediaBox = CGRect(x: 0, y: 0, width: 612, height: 792)
+            let consumer = try #require(CGDataConsumer(data: data as CFMutableData))
+            let context = try #require(CGContext(consumer: consumer, mediaBox: &mediaBox, nil))
+            context.beginPDFPage(nil)
+            NSGraphicsContext.saveGraphicsState()
+            NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: false)
+            ("alpha" as NSString).draw(at: NSPoint(x: 72, y: 720), withAttributes: [.font: NSFont.systemFont(ofSize: 18)])
+            NSGraphicsContext.restoreGraphicsState()
+            context.endPDFPage()
+            context.closePDF()
+
+            let document = try #require(PDFDocument(data: data as Data))
+            window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 900, height: 600),
+                              styleMask: .borderless, backing: .buffered, defer: false)
+            window.isReleasedWhenClosed = false
+            container = try #require(window.contentView)
+            reader = VellumPDFView(frame: NSRect(x: 200, y: 0, width: 700, height: 600))
+            reader.document = document
+            outline = PDFOutlineKeyView(frame: NSRect(x: 0, y: 0, width: 200, height: 600))
+            container.addSubview(reader)
+            container.addSubview(outline)
+        }
+
         func begin() throws -> NSTextField {
             reader.beginSearchCommand()
             return try #require(fields(in: reader).first { $0.isEditable })
         }
-        func settle() async throws { try await Task.sleep(for: .milliseconds(50)) }
-        func expectFocus(_ responder: NSResponder) {
-            let hasExpectedFocus = window.firstResponder === responder
-            #expect(hasExpectedFocus)
-        }
 
-        #expect(window.makeFirstResponder(outline))
-        let unicodeField = try begin()
-        unicodeField.stringValue = "🧭e\u{301}标题"
-        try await settle()
-        let unicodeEditor = try #require(unicodeField.currentEditor())
-        expectFocus(unicodeEditor)
-        #expect(unicodeEditor.selectedRange == NSRange(location: unicodeField.stringValue.utf16.count, length: 0))
-        let controller = try #require(reader.searchController)
-        defer { controller.clear() }
-        if let markedEditor = unicodeEditor as? NSTextView {
-            markedEditor.setMarkedText("测", selectedRange: NSRange(location: 1, length: 0), replacementRange: NSRange(location: NSNotFound, length: 0))
-            for selector in [#selector(NSResponder.insertNewline(_:)), #selector(NSResponder.cancelOperation(_:))] {
-                #expect(unicodeField.delegate?.control?(unicodeField, textView: markedEditor, doCommandBy: selector) == false)
-                expectFocus(markedEditor)
+        func focusedEditor(for field: NSTextField) async throws -> NSTextView {
+            try await waitForTestCondition("Search field editor receives focus") {
+                guard let editor = field.currentEditor() else { return false }
+                return window.firstResponder === editor
             }
-            markedEditor.unmarkText()
+            return try #require(field.currentEditor() as? NSTextView)
         }
-        #expect(controller.handleEscape())
-        expectFocus(outline)
 
-        let field = try begin()
-        try await settle()
-        field.stringValue = "alpha"
-        field.delegate?.controlTextDidChange?(Notification(name: NSControl.textDidChangeNotification, object: field))
-        let editor = try #require(field.currentEditor() as? NSTextView)
-        #expect(field.delegate?.control?(field, textView: editor, doCommandBy: #selector(NSResponder.insertNewline(_:))) == true)
-        try await settle()
-        #expect(controller.hasVisibleHighlights)
-        expectFocus(outline)
+        func cleanUp() {
+            reader.searchController?.clear()
+            reader.stopScrollAnimation()
+            reader.stopZoomState()
+            window.close()
+        }
 
-        _ = try begin()
-        try await settle()
-        #expect(controller.handleEscape())
-        expectFocus(outline)
-
-        _ = try begin()
-        try await settle()
-        outline.removeFromSuperview()
-        #expect(controller.handleEscape())
-        expectFocus(reader)
-
-        let otherEditor = NSTextView(frame: .zero)
-        container.addSubview(otherEditor)
-        _ = try begin()
-        try await settle()
-        #expect(window.makeFirstResponder(otherEditor))
-        #expect(controller.handleEscape())
-        expectFocus(otherEditor)
-
-        _ = try begin()
-        controller.clear()
-        try await settle()
-        expectFocus(otherEditor)
+        private func fields(in view: NSView) -> [NSTextField] {
+            (view as? NSTextField).map { [$0] } ?? view.subviews.flatMap { fields(in: $0) }
+        }
     }
 }

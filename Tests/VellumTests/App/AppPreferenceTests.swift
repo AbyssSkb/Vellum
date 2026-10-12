@@ -5,8 +5,10 @@ import Testing
 @Suite("App preferences")
 struct AppPreferenceTests {
     @Test
-    func defaultPDFOpenModeFallsBackToCurrentTab() {
-        let defaults = isolatedDefaults()
+    func defaultPDFOpenModeFallsBackToCurrentTab() throws {
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let defaults = preferences.defaults
 
         #expect(DefaultPDFOpenModePreference.saved(in: defaults) == .currentTab)
         #expect(AppPreferences.defaultPDFOpenMode(in: defaults) == .currentTab)
@@ -17,8 +19,10 @@ struct AppPreferenceTests {
     }
 
     @Test
-    func openFileZoomBehaviorFallsBackToFitWidth() {
-        let defaults = isolatedDefaults()
+    func openFileZoomBehaviorFallsBackToFitWidth() throws {
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let defaults = preferences.defaults
 
         #expect(AppPreferences.openFileZoomBehavior(in: defaults) == .fitWidth)
 
@@ -30,8 +34,10 @@ struct AppPreferenceTests {
     }
 
     @Test
-    func aiPronunciationAccentFallsBackToAmerican() {
-        let defaults = isolatedDefaults()
+    func aiPronunciationAccentFallsBackToAmerican() throws {
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let defaults = preferences.defaults
 
         #expect(AppPreferences.aiExplanationAutoPronunciationAccent(in: defaults) == .american)
         #expect(AIPronunciationAccentPreference.american.languageCode == "en-US")
@@ -45,8 +51,10 @@ struct AppPreferenceTests {
     }
 
     @Test
-    func booleanPreferencesUseExpectedDefaults() {
-        let defaults = isolatedDefaults()
+    func booleanPreferencesUseExpectedDefaults() throws {
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let defaults = preferences.defaults
 
         #expect(AppPreferences.automaticallyChecksForUpdates(in: defaults))
         #expect(AppPreferences.doubleClickTranslatesSelection(in: defaults))
@@ -55,8 +63,10 @@ struct AppPreferenceTests {
     }
 
     @Test
-    func appLanguageUsesSavedValueAndSystemFallback() {
-        let defaults = isolatedDefaults()
+    func appLanguageUsesSavedValueAndSystemFallback() throws {
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let defaults = preferences.defaults
 
         #expect(AppUILanguage.systemDefault(preferredLanguages: ["zh-Hans-CN"]) == .chinese)
         #expect(AppUILanguage.systemDefault(preferredLanguages: ["en-US"]) == .english)
@@ -78,8 +88,10 @@ struct AppPreferenceTests {
     }
 
     @Test
-    func sessionPersistenceRoundTripsTabsAndSnapshots() {
-        let defaults = isolatedDefaults()
+    func sessionPersistenceRoundTripsTabsAndSnapshots() throws {
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let defaults = preferences.defaults
         let selectedID = UUID()
         let snapshot = ReaderSnapshot(
             pageIndex: 3,
@@ -107,10 +119,4 @@ struct AppPreferenceTests {
         #expect(session?.tabs.last?.snapshot == snapshot)
     }
 
-    private func isolatedDefaults() -> UserDefaults {
-        let name = "VellumTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
-        defaults.removePersistentDomain(forName: name)
-        return defaults
-    }
 }

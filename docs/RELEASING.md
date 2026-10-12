@@ -17,7 +17,7 @@ For end-to-end updater tests, sign local fixtures with a temporary Ed25519 key a
 
 Publish the release after the user confirms that local testing passed. Production releases use the default app name and bundle identifier. Release titles, notes, and commit subjects are written in English.
 
-Run `swift test --no-parallel` before publishing. The AppKit/PDFKit tests share application focus and the main run loop. Check README, user guides, and GitHub About against the final features; keep AI positioned as an optional experiment.
+Run `scripts/test.sh` before publishing. It isolates AI logs and runs serially because AppKit/PDFKit tests share application focus and the main run loop. Check README, user guides, and GitHub About against the final features; keep AI positioned as an optional experiment.
 
 The release workflow packages a universal macOS app, creates the DMG, and publishes a signed Sparkle appcast at:
 
