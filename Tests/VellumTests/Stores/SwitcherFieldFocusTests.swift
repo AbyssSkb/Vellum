@@ -30,7 +30,7 @@ struct SwitcherFieldFocusTests {
         func fields(in view: NSView) -> [NSTextField] {
             (view as? NSTextField).map { [$0] } ?? view.subviews.flatMap { fields(in: $0) }
         }
-        let field = try #require(fields(in: host).first { $0.isEditable })
+        let field = try #require(fields(in: host).first { $0.isEditable } as? ListSearchTextField)
         field.stringValue = "🧭e\u{301}标题"
         field.delegate?.controlTextDidChange?(Notification(name: NSControl.textDidChangeNotification, object: field))
         try await waitForTestCondition("The switcher field did not receive initial focus") {
