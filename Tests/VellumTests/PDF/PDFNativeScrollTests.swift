@@ -114,7 +114,8 @@ struct PDFNativeScrollTests {
         defer { view.cancelPendingRestore(); view.stopZoomState(); view.stopScrollAnimation(); window.close() }
         let firstPage = try #require(view.document?.page(at: 0))
         #expect(view.applyWidthFitScaleNow(for: firstPage))
-        view.scrollToDocumentEdge(.top)
+        try await waitForNativeLayout(in: view, page: firstPage)
+        view.vimGoToFirstPage()
         try await waitForNativeLayout(in: view, page: firstPage)
         let scrollView = try #require(view.pdfScrollView)
         let clipView = scrollView.contentView
@@ -134,7 +135,8 @@ struct PDFNativeScrollTests {
         defer { view.cancelPendingRestore(); view.stopZoomState(); view.stopScrollAnimation(); window.close() }
         let firstPage = try #require(view.document?.page(at: 0))
         #expect(view.applyWidthFitScaleNow(for: firstPage))
-        view.scrollToDocumentEdge(.top)
+        try await waitForNativeLayout(in: view, page: firstPage)
+        view.vimGoToFirstPage()
         try await waitForNativeLayout(in: view, page: firstPage)
         let scrollView = try #require(view.pdfScrollView)
         let clipView = scrollView.contentView
@@ -170,8 +172,9 @@ struct PDFNativeScrollTests {
         defer { view.cancelPendingRestore(); view.stopZoomState(); view.stopScrollAnimation(); window.close() }
         let firstPage = try #require(view.document?.page(at: 0))
         #expect(view.applyWidthFitScaleNow(for: firstPage))
-        view.scrollToDocumentEdge(atBottom ? .bottom : .top)
         let edgePage = try #require(view.document?.page(at: atBottom ? view.document!.pageCount - 1 : 0))
+        try await waitForNativeLayout(in: view, page: edgePage)
+        if atBottom { view.vimGoToLastPage() } else { view.vimGoToFirstPage() }
         try await waitForNativeLayout(in: view, page: edgePage)
         let scrollView = try #require(view.pdfScrollView)
         let clipView = scrollView.contentView
@@ -226,8 +229,9 @@ struct PDFNativeScrollTests {
         }
         let firstPage = try #require(view.document?.page(at: 0))
         if scenario != "shortPage" { #expect(view.applyWidthFitScaleNow(for: firstPage)) }
-        view.scrollToDocumentEdge(atBottom ? .bottom : .top)
         let edgePage = try #require(view.document?.page(at: atBottom ? view.document!.pageCount - 1 : 0))
+        try await waitForNativeLayout(in: view, page: edgePage)
+        if atBottom { view.vimGoToLastPage() } else { view.vimGoToFirstPage() }
         try await waitForNativeLayout(in: view, page: edgePage)
         let scrollView = try #require(view.pdfScrollView)
         let clipView = scrollView.contentView
@@ -311,8 +315,9 @@ struct PDFNativeScrollTests {
         let document = try #require(view.document)
         let firstPage = try #require(document.page(at: 0))
         #expect(view.applyWidthFitScaleNow(for: firstPage))
-        view.scrollToDocumentEdge(atBottom ? .bottom : .top)
         let page = try #require(document.page(at: atBottom ? document.pageCount - 1 : 0))
+        try await waitForNativeLayout(in: view, page: page)
+        if atBottom { view.vimGoToLastPage() } else { view.vimGoToFirstPage() }
         try await waitForNativeLayout(in: view, page: page)
         let scrollView = try #require(view.pdfScrollView)
         let clipView = scrollView.contentView
