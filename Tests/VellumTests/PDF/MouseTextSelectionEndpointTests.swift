@@ -50,6 +50,47 @@ struct MouseTextSelectionEndpointTests {
     }
 
     @Test
+    @MainActor
+    func repeatedHitsReuseGeometryAndDocumentChangesRebuildIt() throws {
+        let original = try makeSimplePDFDocument()
+        let data = try #require(original.dataRepresentation())
+        let document = try #require(PDFDocument(data: data))
+        let delegate = MouseSelectionPageDelegate()
+        document.delegate = delegate
+        let page = try withExtendedLifetime(delegate) {
+            try #require(document.page(at: 0) as? MouseSelectionCountingPage)
+        }
+        let view = VellumPDFView(frame: .zero)
+        view.document = document
+        let bounds = try #require(page.selection(for: NSRange(location: 0, length: 1))?.bounds(for: page))
+        page.selectionReadCount = 0
+
+        let first = try #require(view.mouseTextSelectionEndpoint(
+            on: page, pageIndex: 0, pointOnPage: center(of: bounds), requiresCharacterHit: true
+        ))
+        #expect(first.lowerOffset == 0 && first.upperOffset == 1)
+        #expect(page.selectionReadCount > 0)
+        page.selectionReadCount = 0
+
+        let repeated = try #require(view.mouseTextSelectionEndpoint(
+            on: page, pageIndex: 0, pointOnPage: center(of: bounds), requiresCharacterHit: true
+        ))
+        #expect(repeated.lowerOffset == first.lowerOffset && repeated.upperOffset == first.upperOffset)
+        #expect(page.selectionReadCount == 0)
+
+        let replacement = PDFDocument()
+        document.removePage(at: 0)
+        replacement.insert(page, at: 0)
+        view.document = replacement
+        page.selectionReadCount = 0
+        let rebuilt = try #require(view.mouseTextSelectionEndpoint(
+            on: page, pageIndex: 0, pointOnPage: center(of: bounds), requiresCharacterHit: true
+        ))
+        #expect(rebuilt.lowerOffset == first.lowerOffset && rebuilt.upperOffset == first.upperOffset)
+        #expect(page.selectionReadCount > 0)
+    }
+
+    @Test
     func endpointRangeIncludesCharactersInReverseDrags() throws {
         let anchor = MouseTextSelectionEndpoint(pageIndex: 0, lowerOffset: 30, upperOffset: 31)
         let extent = MouseTextSelectionEndpoint(pageIndex: 0, lowerOffset: 10, upperOffset: 11)
@@ -154,6 +195,21 @@ struct MouseTextSelectionEndpointTests {
             (lineTemplate.replacingOccurrences(of: "Line 1", with: "Line \(lineNumber)"),
              NSPoint(x: 72, y: 720 - lineNumber * 27))
         }])
+    }
+}
+
+private final class MouseSelectionPageDelegate: NSObject, PDFDocumentDelegate {
+    func classForPage() -> AnyClass {
+        MouseSelectionCountingPage.self
+    }
+}
+
+private final class MouseSelectionCountingPage: PDFPage {
+    var selectionReadCount = 0
+
+    override func selection(for range: NSRange) -> PDFSelection? {
+        selectionReadCount += 1
+        return super.selection(for: range)
     }
 }
 

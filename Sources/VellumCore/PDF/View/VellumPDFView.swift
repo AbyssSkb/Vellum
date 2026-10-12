@@ -36,10 +36,16 @@ struct MouseTextSelectionEndpoint {
     }
 }
 
-private struct MouseTextSelectionLineCacheKey: Hashable {
-    let pageID: ObjectIdentifier
-    let pageIndex: Int
+private final class MouseTextSelectionCachedLines {
+    weak var page: PDFPage?
     let characterCount: Int
+    let value: [VimTextLine]
+
+    init(page: PDFPage, characterCount: Int, value: [VimTextLine]) {
+        self.page = page
+        self.characterCount = characterCount
+        self.value = value
+    }
 }
 
 final class VellumPDFView: PDFView {
@@ -72,8 +78,13 @@ final class VellumPDFView: PDFView {
     var pendingRestoreAction: PendingRestoreAction?
     var textSelectionNavigationState: VimTextSelectionNavigationState?
     let textSelectionCache = PDFTextSelectionCache()
-    private var mouseTextSelectionCacheDocumentID: ObjectIdentifier?
-    private var mouseTextSelectionLineCache: [MouseTextSelectionLineCacheKey: [VimTextLine]] = [:]
+    private weak var mouseTextSelectionCacheDocument: PDFDocument?
+    private let mouseTextSelectionLineCache: NSCache<NSNumber, MouseTextSelectionCachedLines> = {
+        let cache = NSCache<NSNumber, MouseTextSelectionCachedLines>()
+        cache.countLimit = 12
+        cache.totalCostLimit = 8 * 1024 * 1024
+        return cache
+    }()
     var pageOverviewController: PageOverviewController?
     var finishingPageOverviewGeneration: Int?
     var searchController: PDFSearchController?
@@ -560,14 +571,6 @@ final class VellumPDFView: PDFView {
     }
 
     private func trackMouseTextSelection(from mouseDownEvent: NSEvent) -> Bool {
-        guard let document else { return false }
-
-        let documentID = ObjectIdentifier(document)
-        if mouseTextSelectionCacheDocumentID != documentID {
-            mouseTextSelectionCacheDocumentID = documentID
-            mouseTextSelectionLineCache.removeAll()
-        }
-
         guard mouseDownEvent.clickCount == 1,
               mouseDownEvent.modifierFlags.intersection([.command, .control, .option]).isEmpty,
               let window,
@@ -764,13 +767,16 @@ final class VellumPDFView: PDFView {
         on page: PDFPage,
         pageIndex: Int
     ) -> [VimTextLine] {
-        let cacheKey = MouseTextSelectionLineCacheKey(
-            pageID: ObjectIdentifier(page),
-            pageIndex: pageIndex,
-            characterCount: page.numberOfCharacters
-        )
-        if let cachedLines = mouseTextSelectionLineCache[cacheKey] {
-            return cachedLines
+        if mouseTextSelectionCacheDocument !== document {
+            mouseTextSelectionCacheDocument = document
+            mouseTextSelectionLineCache.removeAllObjects()
+        }
+        let cacheKey = NSNumber(value: pageIndex)
+        let characterCount = page.numberOfCharacters
+        if let cached = mouseTextSelectionLineCache.object(forKey: cacheKey),
+           cached.page === page,
+           cached.characterCount == characterCount {
+            return cached.value
         }
 
         let pageText = page.string as NSString?
@@ -832,7 +838,11 @@ final class VellumPDFView: PDFView {
                 )
             }
         }
-        mouseTextSelectionLineCache[cacheKey] = lines
+        mouseTextSelectionLineCache.setObject(
+            MouseTextSelectionCachedLines(page: page, characterCount: characterCount, value: lines),
+            forKey: cacheKey,
+            cost: lines.reduce(0) { $0 + $1.characters.count * 64 }
+        )
         return lines
     }
 
