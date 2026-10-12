@@ -5,6 +5,88 @@ import Testing
 @Suite("AI settings validation")
 struct AISettingsValidationTests {
     @Test
+    func newerRequestCancelsSuspendedWorkAndStaleCompletionKeepsItsTask() async throws {
+        let validation = AISettingsValidation()
+        defer { validation.invalidate() }
+        var oldStarted = false
+        var oldCancelled = false
+        validation.start { request in
+            oldStarted = true
+            do {
+                try await Task.sleep(for: .seconds(60))
+            } catch {
+                oldCancelled = Task.isCancelled
+                validation.finish(request, status: .failure("Old request cancelled"))
+            }
+        }
+        try await waitForTestCondition("The original request started") { oldStarted }
+
+        var newStarted = false
+        var newCancelled = false
+        let newRequest = validation.start(fetchingModels: true) { request in
+            newStarted = true
+            do {
+                try await Task.sleep(for: .seconds(60))
+            } catch {
+                newCancelled = Task.isCancelled
+                validation.finish(request, status: .failure("New request cancelled"))
+            }
+        }
+        try await waitForTestCondition("The replacement started and cancelled the original") {
+            oldCancelled && newStarted
+        }
+        #expect(validation.isCurrent(newRequest))
+        #expect(validation.isFetchingModels)
+
+        validation.invalidate()
+        try await waitForTestCondition("The replacement task is still owned and can be cancelled") { newCancelled }
+        #expect(validation.status == .idle)
+        #expect(!validation.isFetchingModels)
+    }
+
+    @Test
+    func invalidatingModelTestCancelsWorkWithoutClearingCatalog() async throws {
+        let validation = AISettingsValidation()
+        defer { validation.invalidate() }
+        let catalogRequest = validation.begin(fetchingModels: true)
+        validation.finish(catalogRequest, status: .success("Catalog"), models: ["current-model"])
+        var started = false
+        var cancelled = false
+        validation.start { request in
+            started = true
+            do {
+                try await Task.sleep(for: .seconds(60))
+            } catch {
+                cancelled = Task.isCancelled
+                validation.finish(request, status: .failure("Cancelled model test"))
+            }
+        }
+        try await waitForTestCondition("The model test started") { started }
+
+        validation.invalidate(clearModels: false)
+        try await waitForTestCondition("Model edits cancel the model test") { cancelled }
+        #expect(validation.status == .idle)
+        #expect(!validation.isTesting)
+        #expect(validation.availableModels == ["current-model"])
+    }
+
+    @Test
+    func startedRequestPublishesCompletedResultAndClearsBusyState() async throws {
+        let validation = AISettingsValidation()
+        let request = validation.start(fetchingModels: true) { request in
+            await nextTestMainQueueTurn()
+            validation.finish(request, status: .success("Catalog"), models: ["current-model"])
+        }
+        #expect(validation.isFetchingModels)
+        try await waitForTestCondition("The owned request finished") { !validation.isFetchingModels }
+
+        #expect(!validation.isCurrent(request))
+        #expect(!validation.isTesting)
+        #expect(validation.status == .success("Catalog"))
+        #expect(validation.availableModels == ["current-model"])
+    }
+
+    @Test
     func invalidatedRequestCannotPublishOldModelsOrStatus() {
         let validation = AISettingsValidation()
         let request = validation.begin(fetchingModels: true)
@@ -83,16 +165,31 @@ struct AISettingsValidationTests {
     }
 
     @Test
-    func editingModelDoesNotRestartIndependentCatalogRead() {
+    func editingModelDoesNotRestartIndependentCatalogRead() async throws {
         let validation = AISettingsValidation()
-        let request = validation.begin(fetchingModels: true)
+        defer { validation.invalidate() }
+        var started = false
+        var cancelled = false
+        let request = validation.start(fetchingModels: true) { request in
+            started = true
+            do {
+                try await Task.sleep(for: .seconds(60))
+            } catch {
+                cancelled = Task.isCancelled
+                validation.finish(request, status: .failure("Cancelled catalog"))
+            }
+        }
+        try await waitForTestCondition("The catalog request started") { started }
 
         validation.invalidate(clearModels: false)
+        await nextTestMainQueueTurn()
         #expect(validation.isCurrent(request))
         #expect(validation.isFetchingModels)
+        #expect(!cancelled)
 
-        validation.finish(request, status: .success("Settings loaded"), codexSettings: codexSettings)
-        #expect(validation.codexSettings == codexSettings)
+        validation.invalidate()
+        try await waitForTestCondition("Changing providers cancels the catalog request") { cancelled }
+        #expect(validation.status == .idle)
     }
 
     @Test(arguments: [

@@ -8,12 +8,28 @@ final class AISettingsValidation: ObservableObject {
     @Published private(set) var isTesting = false
     @Published private(set) var isFetchingModels = false
     private var requestID: UUID?
+    private var requestTask: Task<Void, Never>?
 
     func begin(fetchingModels: Bool = false) -> UUID {
+        requestTask?.cancel()
+        requestTask = nil
         let id = UUID()
         requestID = id
         isTesting = !fetchingModels
         isFetchingModels = fetchingModels
+        return id
+    }
+
+    @discardableResult
+    func start(
+        fetchingModels: Bool = false,
+        operation: @escaping @MainActor (UUID) async -> Void
+    ) -> UUID {
+        let id = begin(fetchingModels: fetchingModels)
+        requestTask = Task { @MainActor in
+            guard isCurrent(id) else { return }
+            await operation(id)
+        }
         return id
     }
 
@@ -29,6 +45,7 @@ final class AISettingsValidation: ObservableObject {
     ) {
         guard isCurrent(id) else { return }
         requestID = nil
+        requestTask = nil
         self.status = status
         if let models { availableModels = models }
         if let codexSettings { self.codexSettings = codexSettings }
@@ -38,6 +55,8 @@ final class AISettingsValidation: ObservableObject {
 
     func invalidate(clearModels: Bool = true) {
         if !clearModels && isFetchingModels { return }
+        requestTask?.cancel()
+        requestTask = nil
         requestID = nil
         status = .idle
         isTesting = false
@@ -60,10 +79,7 @@ final class AISettingsValidation: ObservableObject {
 
 extension AIProviderSettingsDetailView {
     func testConnection() {
-        let requestID = validation.begin()
-
-        Task { @MainActor in
-            guard validation.isCurrent(requestID) else { return }
+        validation.start { requestID in
             do {
                 let configuration = try currentConfiguration(requireModel: false)
                 validation.status = .working(configuration.providerFormat.usesCodexExecutable ? language.text(.checkingCodex) : language.text(.checkingEndpoint))
@@ -76,10 +92,7 @@ extension AIProviderSettingsDetailView {
     }
 
     func fetchModels() {
-        let requestID = validation.begin(fetchingModels: true)
-
-        Task { @MainActor in
-            guard validation.isCurrent(requestID) else { return }
+        validation.start(fetchingModels: true) { requestID in
             do {
                 let configuration = try currentConfiguration(requireModel: false)
                 validation.status = .working(language.text(.fetchingModels))
@@ -96,10 +109,7 @@ extension AIProviderSettingsDetailView {
 
 extension AISettingsDetailView {
     func testFunction() {
-        let requestID = validation.begin()
-
-        Task { @MainActor in
-            guard validation.isCurrent(requestID) else { return }
+        validation.start { requestID in
             do {
                 let configuration = try currentConfiguration(requireModel: !selectedPreset.format.usesCodexExecutable)
                 if let effort = validation.unsupportedReasoningEffort(configuration: configuration) {
@@ -119,10 +129,7 @@ extension AISettingsDetailView {
     }
 
     func fetchModels() {
-        let requestID = validation.begin(fetchingModels: true)
-
-        Task { @MainActor in
-            guard validation.isCurrent(requestID) else { return }
+        validation.start(fetchingModels: true) { requestID in
             do {
                 let configuration = try currentConfiguration(requireModel: false)
                 validation.status = .working(language.text(.fetchingModels))
