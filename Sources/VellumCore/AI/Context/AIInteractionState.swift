@@ -3,10 +3,8 @@ import PDFKit
 
 @MainActor
 final class AIInteractionState {
-    var explanationPopover: NSPopover?
     var explanationOverlay: NSView?
     var activeExplanationModel: AIExplanationPopoverModel?
-    var conversationPopover: NSPopover?
     var conversationOverlay: NSView?
     var activeConversationModel: AIConversationPopoverModel?
     var activeSelection: PDFSelection?
@@ -32,10 +30,8 @@ final class AIInteractionState {
     var floatingOverlayLifecycleObservers: [NSObjectProtocol] = []
 
     var isActive: Bool {
-        explanationPopover?.isShown == true
-            || explanationOverlay?.superview != nil
+        explanationOverlay?.superview != nil
             || activeExplanationModel != nil
-            || conversationPopover?.isShown == true
             || conversationOverlay?.superview != nil
             || activeConversationModel != nil
     }
@@ -63,8 +59,6 @@ final class AIInteractionState {
         popoverHeightUpdateWorkItem?.cancel()
         popoverHeightUpdateWorkItem = nil
         pendingPopoverContentHeight = nil
-        explanationPopover?.close()
-        explanationPopover = nil
         if let floatingOverlayDismissMonitor {
             NSEvent.removeMonitor(floatingOverlayDismissMonitor)
         }
@@ -74,8 +68,6 @@ final class AIInteractionState {
         explanationOverlay?.removeFromSuperview()
         explanationOverlay = nil
         activeExplanationModel = nil
-        conversationPopover?.close()
-        conversationPopover = nil
         conversationOverlay?.removeFromSuperview()
         conversationOverlay = nil
         activeConversationModel = nil

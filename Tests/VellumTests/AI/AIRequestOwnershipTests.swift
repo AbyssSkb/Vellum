@@ -100,11 +100,11 @@ struct AIRequestOwnershipTests {
         let firstClient = ControlledAIClient()
         let secondClient = ControlledAIClient()
         let configuration = try Self.configuration()
-        fixture.view.showAIConversationPopover(model: firstModel, at: nil)
+        fixture.view.showAIConversationPopover(model: firstModel)
         fixture.view.startAIConversationMessage("old question", model: firstModel, configuration: configuration, using: firstClient)
         try await firstClient.waitUntilStarted()
         let firstTask = try #require(fixture.view.aiInteraction.conversationTask)
-        fixture.view.showAIConversationPopover(model: secondModel, at: nil)
+        fixture.view.showAIConversationPopover(model: secondModel)
         fixture.view.startAIConversationMessage("new question", model: secondModel, configuration: configuration, using: secondClient)
         try await secondClient.waitUntilStarted()
         let secondTask = try #require(fixture.view.aiInteraction.conversationTask)
@@ -180,7 +180,7 @@ struct AIRequestOwnershipTests {
         let client = ControlledAIClient()
         if conversation {
             let model = AIConversationPopoverModel(context: Self.context())
-            mountedReader.showAIConversationPopover(model: model, at: nil)
+            mountedReader.showAIConversationPopover(model: model)
             mountedReader.startAIConversationMessage("Question", model: model, configuration: try Self.configuration(), using: client)
         } else {
             mountedReader.startAIExplanation(for: selection, context: Self.context(), configuration: try Self.configuration(), annotations: [annotation], using: client)

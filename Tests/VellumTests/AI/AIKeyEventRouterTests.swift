@@ -41,7 +41,7 @@ struct AIKeyEventRouterTests {
         let view = VellumPDFView(frame: window.contentView!.bounds)
         window.contentView = view
         defer { view.hideAIExplanationPopover(); window.contentView = nil; window.close() }
-        view.showPopover(model: AIExplanationPopoverModel(title: "test", isStreaming: true), at: nil, kind: .streaming)
+        view.showPopover(model: AIExplanationPopoverModel(title: "test", isStreaming: true), kind: .streaming)
         let request = Task<Void, Never> {}
         view.aiInteraction.explanationTask = request
         view.aiInteraction.explanationRequestID = UUID()
@@ -185,7 +185,7 @@ struct AIKeyEventRouterTests {
         let view = VellumPDFView(frame: window.contentView!.bounds)
         defer { view.hideAIExplanationPopover(); window.contentView = nil; window.close() }
         window.contentView = view
-        view.showPopover(model: AIExplanationPopoverModel(title: "test"), at: nil, kind: .hover)
+        view.showPopover(model: AIExplanationPopoverModel(title: "test"), kind: .hover)
         view.startAIContinuousScroll("j", keyCode: 38)
         NotificationCenter.default.post(name: NSApplication.willResignActiveNotification, object: nil)
         #expect(view.aiInteraction.continuousScrollKey == nil)

@@ -190,7 +190,7 @@ struct AIConversationComposerTests {
         window.contentView = view
         weak var overlay: NSView?
         autoreleasepool {
-            view.showAIConversationPopover(model: AIConversationPopoverModel(context: Self.context()), at: nil)
+            view.showAIConversationPopover(model: AIConversationPopoverModel(context: Self.context()))
             overlay = view.aiInteraction.conversationOverlay
             #expect(overlay != nil)
             view.dismissActiveAIInteraction(clearSelection: true)

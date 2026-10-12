@@ -129,22 +129,6 @@ enum AIExplanationPopoverKind {
     case message
     case streaming
 
-    var behavior: NSPopover.Behavior {
-        switch self {
-        case .hover:
-            return .applicationDefined
-        case .message, .streaming:
-            return .transient
-        }
-    }
-
-    var animates: Bool {
-        switch self {
-        case .hover, .message, .streaming:
-            return true
-        }
-    }
-
     var shouldFocusWebView: Bool {
         switch self {
         case .hover:

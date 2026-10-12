@@ -31,7 +31,7 @@ struct AIExplanationFocusTests {
         }
         let model = AIExplanationPopoverModel(title: "Explanation", text: "Beginning", isStreaming: true)
         #expect(window.makeFirstResponder(outline))
-        reader.showPopover(model: model, at: nil, kind: .streaming)
+        reader.showPopover(model: model, kind: .streaming)
         let webView = try await registeredWebView()
         let overlay = try #require(reader.aiInteraction.explanationOverlay)
         let hostingView = try #require(overlay.subviews.first as? NSHostingView<AppLanguageObservedView<AIExplanationPopoverView>>)
@@ -47,7 +47,7 @@ struct AIExplanationFocusTests {
         expectFocus(outline)
 
         let replacement = AIExplanationPopoverModel(title: "New explanation", text: "Replacement", isStreaming: true)
-        reader.showPopover(model: replacement, at: nil, kind: .streaming)
+        reader.showPopover(model: replacement, kind: .streaming)
         let replacementWebView = try await registeredWebView()
         let replacedWebView = replacementWebView !== webView
         #expect(replacedWebView)
@@ -76,7 +76,7 @@ struct AIExplanationFocusTests {
         #expect(removedWebView)
         expectFocus(outline)
 
-        reader.showPopover(model: AIExplanationPopoverModel(title: "Hover", text: "Saved answer"), at: nil, kind: .hover)
+        reader.showPopover(model: AIExplanationPopoverModel(title: "Hover", text: "Saved answer"), kind: .hover)
         _ = try await registeredWebView()
         window.orderFront(nil)
         #expect(window.makeFirstResponder(outline))
@@ -109,7 +109,7 @@ struct AIExplanationFocusTests {
         }
         window.orderFront(nil)
         let model = AIExplanationPopoverModel(title: "Deferred explanation", text: "Answer")
-        reader.showPopover(model: model, at: nil, kind: .message)
+        reader.showPopover(model: model, kind: .message)
         try await waitForTestCondition("The deferred explanation web view is registered") {
             reader.layoutSubtreeIfNeeded()
             return reader.aiInteraction.activeWebView != nil

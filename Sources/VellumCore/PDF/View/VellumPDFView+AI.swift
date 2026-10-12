@@ -52,7 +52,7 @@ extension VellumPDFView {
             return
         }
 
-        showAIExplanationPopover(explanation, at: point, annotation: annotation, hoverKey: hoverKey)
+        showAIExplanationPopover(explanation, annotation: annotation, hoverKey: hoverKey)
     }
 
     func aiExplanationAnnotation(at pointInView: NSPoint) -> PDFAnnotation? {
@@ -70,7 +70,6 @@ extension VellumPDFView {
 
     func showAIExplanationPopover(
         _ explanation: String,
-        at point: NSPoint,
         annotation: PDFAnnotation,
         hoverKey: String
     ) {
@@ -82,7 +81,6 @@ extension VellumPDFView {
         )
         showPopover(
             model: model,
-            at: explanationPopoverAnchorRect(for: annotation, explanation: explanation, fallbackPoint: point),
             kind: .hover
         )
         clearSuppressedHoverExplanation()
@@ -91,7 +89,7 @@ extension VellumPDFView {
         aiInteraction.hoveredKey = hoverKey
     }
 
-    func showAIMessage(_ message: String, at rect: NSRect? = nil) {
+    func showAIMessage(_ message: String) {
         showAIToast(message)
         clearSuppressedHoverExplanation()
         aiInteraction.hoveredAnnotation = nil
@@ -153,8 +151,7 @@ extension VellumPDFView {
 
     func showStreamingAIExplanationPopover(
         title: String,
-        pronunciationSpeechText: String?,
-        at rect: NSRect?
+        pronunciationSpeechText: String?
     ) -> AIExplanationPopoverModel? {
         let model = AIExplanationPopoverModel(
             title: title,
@@ -162,7 +159,7 @@ extension VellumPDFView {
             initialHeight: AIExplanationPopoverMetrics.streamingMinimumHeight,
             pronunciationSpeechText: pronunciationSpeechText
         )
-        showPopover(model: model, at: rect, kind: .streaming)
+        showPopover(model: model, kind: .streaming)
         clearSuppressedHoverExplanation()
         aiInteraction.hoveredAnnotation = nil
         aiInteraction.hoveredText = nil
@@ -172,7 +169,6 @@ extension VellumPDFView {
 
     func showPopover(
         model: AIExplanationPopoverModel,
-        at rect: NSRect?,
         kind: AIExplanationPopoverKind
     ) {
         guard window != nil else { return }
@@ -257,8 +253,7 @@ extension VellumPDFView {
     }
 
     func showAIConversationPopover(
-        model: AIConversationPopoverModel,
-        at rect: NSRect?
+        model: AIConversationPopoverModel
     ) {
         guard window != nil else { return }
         cancelPendingHoverPopoverHide()
@@ -552,27 +547,6 @@ extension VellumPDFView {
         aiInteraction.clearSuppressedHover()
     }
 
-    func explanationPopoverAnchorRect(
-        for annotation: PDFAnnotation,
-        explanation: String,
-        fallbackPoint: NSPoint
-    ) -> NSRect {
-        guard let page = annotation.page else {
-            return AIExplanationGeometry.fallbackAnchorRect(at: fallbackPoint)
-        }
-
-        let annotations = explanationAnnotations(matching: explanation, on: page)
-        let sourceAnnotations = annotations.isEmpty ? [annotation] : annotations
-        let regions = sourceAnnotations.flatMap(HighlightGeometry.regions)
-
-        guard let pageRect = AIExplanationGeometry.groupBounds(for: regions, fallbackBounds: annotation.bounds),
-              let viewRect = viewRect(for: pageRect, on: page) else {
-            return AIExplanationGeometry.fallbackAnchorRect(at: fallbackPoint)
-        }
-
-        return AIExplanationGeometry.popoverAnchorRect(from: viewRect)
-    }
-
     func explanationAnnotations(matching explanation: String, on page: PDFPage) -> [PDFAnnotation] {
         page.annotations.filter { annotation in
             annotation.type == "Highlight"
@@ -651,11 +625,7 @@ extension VellumPDFView {
             return explanationOverlay.frame.insetBy(dx: -3, dy: -3).contains(point)
         }
 
-        guard let popoverWindow = aiInteraction.explanationPopover?.contentViewController?.view.window else {
-            return false
-        }
-
-        return popoverWindow.frame.insetBy(dx: -3, dy: -3).contains(NSEvent.mouseLocation)
+        return false
     }
 
     func mouseIsHoveringExplanationGroup(_ hoverKey: String) -> Bool {
@@ -848,35 +818,14 @@ extension VellumPDFView {
             initialHeight: AIExplanationPopoverMetrics.estimatedHeight(for: item.explanation),
             pronunciationSpeechText: item.selectedText
         )
-        showPopover(model: model, at: centeredPopoverRect(), kind: .message)
+        showPopover(model: model, kind: .message)
     }
 
     func restoreAIConversation(_ item: AIConversationHistoryItem) {
         let model = AIConversationPopoverModel(context: item.context, historyID: item.id)
         model.messages = item.messages
         model.refreshPreferredHeight()
-        showAIConversationPopover(model: model, at: centeredPopoverRect())
-    }
-
-    func selectionPopoverRect(for selection: PDFSelection?) -> NSRect? {
-        guard let selection else { return nil }
-
-        let lineSelections = selection.selectionsByLine()
-        let selections = lineSelections.isEmpty ? [selection] : lineSelections
-
-        for lineSelection in selections {
-            for page in lineSelection.pages {
-                guard let bounds = HighlightGeometry.tightBounds(for: lineSelection, on: page),
-                      let viewRect = viewRect(for: bounds, on: page) else { continue }
-                return viewRect
-            }
-        }
-
-        return nil
-    }
-
-    func centeredPopoverRect() -> NSRect {
-        NSRect(x: bounds.midX, y: bounds.midY, width: 1, height: 1)
+        showAIConversationPopover(model: model)
     }
 
     private var backingScale: CGFloat {

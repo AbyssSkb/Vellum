@@ -15,10 +15,7 @@ struct AIExplanationGeometryTests {
     }
 
     @Test
-    func groupBoundsUsesFallbackWhenRegionsAreEmpty() {
-        let fallback = NSRect(x: 4, y: 8, width: 20, height: 12)
-
-        #expect(AIExplanationGeometry.groupBounds(for: [], fallbackBounds: fallback) == fallback)
+    func emptyRegionsHaveNoGroupBounds() {
         #expect(AIExplanationGeometry.groupBounds(for: []) == nil)
     }
 
@@ -32,15 +29,4 @@ struct AIExplanationGeometryTests {
         #expect(!AIExplanationGeometry.hoverContains(NSPoint(x: 45.1, y: 38), in: bounds))
     }
 
-    @Test
-    func popoverAnchorExpandsViewRectAndFallbackIsPointSized() {
-        #expect(
-            AIExplanationGeometry.popoverAnchorRect(from: NSRect(x: 10, y: 20, width: 30, height: 10))
-                == NSRect(x: 7, y: 17, width: 36, height: 16)
-        )
-        #expect(
-            AIExplanationGeometry.fallbackAnchorRect(at: NSPoint(x: 3, y: 4))
-                == NSRect(x: 3, y: 4, width: 1, height: 1)
-        )
-    }
 }

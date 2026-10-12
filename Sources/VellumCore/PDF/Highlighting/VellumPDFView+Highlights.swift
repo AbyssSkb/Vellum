@@ -146,8 +146,7 @@ extension VellumPDFView {
         aiInteraction.clearActiveRequest()
         let popoverModel = showStreamingAIExplanationPopover(
             title: context.selectedText.aiPopoverTitle,
-            pronunciationSpeechText: context.selectedText,
-            at: nil
+            pronunciationSpeechText: context.selectedText
         )
         aiInteraction.activeSelection = selection.copy() as? PDFSelection ?? selection
         let requestID = UUID()
@@ -238,7 +237,7 @@ extension VellumPDFView {
         }
 
         let model = AIConversationPopoverModel(context: context)
-        showAIConversationPopover(model: model, at: nil)
+        showAIConversationPopover(model: model)
         aiInteraction.activeSelection = selection.copy() as? PDFSelection ?? selection
     }
 
