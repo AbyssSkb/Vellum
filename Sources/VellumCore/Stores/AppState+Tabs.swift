@@ -43,7 +43,7 @@ extension AppState {
             return
         }
 
-        guard let tab = pdfCoordinator.openTab(for: url) else { return }
+        guard let tab = openTabRestoringSession(for: url) else { return }
         if let selectedTabID, !canCloseTab(selectedTabID) { return }
 
         tabStore.openInCurrentTab(tab)
@@ -64,7 +64,7 @@ extension AppState {
                 }
                 _ = tabStore.selectTab(existingTab.id)
                 didOpenTab = true
-            } else if let tab = pdfCoordinator.openTab(for: url) {
+            } else if let tab = openTabRestoringSession(for: url) {
                 _ = tabStore.openInNewTabs([tab])
                 didOpenTab = true
             }
@@ -75,6 +75,21 @@ extension AppState {
         if selectedTabID != previousSelectedTabID || didReloadSelectedTab {
             prepareForSelectedReaderChange()
         }
+    }
+
+    private func openTabRestoringSession(for url: URL) -> PDFTab? {
+        guard var tab = pdfCoordinator.openTab(for: url) else { return nil }
+        let canonicalURL = url.standardizedFileURL.resolvingSymlinksInPath()
+        guard var snapshot = unresolvedSession?.tabs.first(where: {
+            URL(fileURLWithPath: $0.path).standardizedFileURL.resolvingSymlinksInPath() == canonicalURL
+        })?.snapshot else { return tab }
+        if let document = tab.document,
+           document.pageCount > 0, snapshot.pageIndex >= document.pageCount {
+            snapshot.pageIndex = document.pageCount - 1
+            snapshot.scrollOrigin = nil
+        }
+        tab.snapshot = snapshot
+        return tab
     }
 
     private func reloadTabIfNeeded(_ tab: PDFTab, from url: URL) -> Bool {

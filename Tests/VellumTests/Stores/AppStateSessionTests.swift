@@ -1,4 +1,5 @@
 @preconcurrency import AppKit
+import PDFKit
 import Testing
 @testable import VellumCore
 
@@ -58,8 +59,8 @@ struct AppStateSessionTests {
         ))
     }
 
-    @Test
-    func recoveredCanonicalFileDoesNotReturnAfterExplicitClose() throws {
+    @Test(arguments: [false, true])
+    func recoveredCanonicalFileRestoresSnapshotAndDoesNotReturnAfterExplicitClose(newTabs: Bool) throws {
         let recovered = URL(fileURLWithPath: "/tmp/vellum-session-recovered.pdf")
         let alias = URL(fileURLWithPath: "/tmp/subdirectory/../vellum-session-recovered.pdf")
         let missing = URL(fileURLWithPath: "/tmp/vellum-session-still-missing.pdf")
@@ -75,8 +76,19 @@ struct AppStateSessionTests {
 
         state.restorePreviousTabsIfNeeded()
         loader.loadableURLs = [recovered]
-        state.openInNewTabs(urls: [alias])
+        reopen(state, url: alias, newTabs: newTabs)
         #expect(state.tabs.count == 1)
+        #expect(state.selectedTab?.snapshot == snapshot(page: 4))
+        let savedSession = try #require(AppSessionPersistence.load(defaults: defaults))
+        #expect(savedSession.tabs == [
+            PersistedPDFTab(path: alias.standardizedFileURL.path, snapshot: snapshot(page: 4)),
+            missingTab
+        ])
+        #expect(state.unresolvedSession?.tabs == [missingTab])
+
+        let restoredState = appState(defaults: defaults, loader: loader)
+        restoredState.restorePreviousTabsIfNeeded()
+        #expect(restoredState.selectedTab?.snapshot == snapshot(page: 4))
 
         state.closeSelectedTab()
 
@@ -84,6 +96,82 @@ struct AppStateSessionTests {
         #expect(AppSessionPersistence.load(defaults: defaults) == PersistedAppSession(
             tabs: [missingTab], selectedURLPath: missing.path
         ))
+    }
+
+    @Test(arguments: [false, true])
+    func failedRecoveryAttemptRetainsPendingSnapshot(newTabs: Bool) throws {
+        let missing = URL(fileURLWithPath: "/tmp/vellum-session-missing.pdf")
+        let alias = URL(fileURLWithPath: "/tmp/subdirectory/../vellum-session-missing.pdf")
+        let session = PersistedAppSession(tabs: [
+            PersistedPDFTab(path: missing.path, snapshot: snapshot(page: 9))
+        ], selectedURLPath: missing.path)
+        let (defaults, suiteName) = try sessionDefaults(session)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let state = appState(defaults: defaults, loader: SessionPDFTabLoader())
+
+        state.restorePreviousTabsIfNeeded()
+        reopen(state, url: alias, newTabs: newTabs)
+        state.saveCurrentSession()
+
+        #expect(state.tabs.isEmpty)
+        #expect(state.unresolvedSession == session)
+        #expect(AppSessionPersistence.load(defaults: defaults) == session)
+    }
+
+    @Test
+    func rejectedCurrentTabReplacementKeepsPendingSnapshot() throws {
+        let recovered = URL(fileURLWithPath: "/tmp/vellum-session-recovered.pdf")
+        let session = PersistedAppSession(tabs: [
+            PersistedPDFTab(path: recovered.path, snapshot: snapshot(page: 4))
+        ], selectedURLPath: recovered.path)
+        let (defaults, suiteName) = try sessionDefaults(session)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let loader = SessionPDFTabLoader()
+        let state = appState(defaults: defaults, loader: loader)
+        state.restorePreviousTabsIfNeeded()
+        let document = PDFDocument()
+        document.insert(PDFPage(), at: 0)
+        let current = PDFTab(url: nil, document: document)
+        _ = state.tabStore.openInNewTabs([current])
+        let persistence = PDFAnnotationPersistence(url: URL(fileURLWithPath: "/tmp/vellum-missing-\(UUID().uuidString).pdf"))
+        PDFAnnotationPersistence.register(document, state: persistence)
+        persistence.save(document) {}
+        persistence.flush()
+        try #require(persistence.hasUnprotectedChanges)
+        persistence.isPresentingRecovery = true
+        loader.loadableURLs = [recovered]
+
+        state.openInCurrentTab(url: recovered)
+
+        #expect(state.selectedTabID == current.id)
+        #expect(state.unresolvedSession == session)
+        #expect(AppSessionPersistence.load(defaults: defaults) == session)
+    }
+
+    @Test(arguments: [false, true])
+    func recoveredShorterFileClampsPageAndRetainsZoom(newTabs: Bool) throws {
+        let recovered = URL(fileURLWithPath: "/tmp/vellum-session-recovered.pdf")
+        var expected = snapshot(page: 9)
+        let session = PersistedAppSession(tabs: [
+            PersistedPDFTab(path: recovered.path, snapshot: expected)
+        ], selectedURLPath: recovered.path)
+        let (defaults, suiteName) = try sessionDefaults(session)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let loader = SessionPDFTabLoader()
+        let state = appState(defaults: defaults, loader: loader)
+        state.restorePreviousTabsIfNeeded()
+        let document = PDFDocument()
+        document.insert(PDFPage(), at: 0)
+        document.insert(PDFPage(), at: 1)
+        loader.document = document
+        loader.loadableURLs = [recovered]
+        expected.pageIndex = 1
+        expected.scrollOrigin = nil
+
+        reopen(state, url: recovered, newTabs: newTabs)
+
+        #expect(state.selectedTab?.snapshot == expected)
+        #expect(AppSessionPersistence.load(defaults: defaults)?.tabs.first?.snapshot == expected)
     }
 
     @Test
@@ -122,6 +210,14 @@ struct AppStateSessionTests {
         return (defaults, suiteName)
     }
 
+    private func reopen(_ state: AppState, url: URL, newTabs: Bool) {
+        if newTabs {
+            state.openInNewTabs(urls: [url])
+        } else {
+            state.openInCurrentTab(url: url)
+        }
+    }
+
     private func appState(defaults: UserDefaults, loader: SessionPDFTabLoader) -> AppState {
         AppState(
             sessionDefaults: defaults,
@@ -148,6 +244,7 @@ struct AppStateSessionTests {
 
 private final class SessionPDFTabLoader: PDFTabLoading {
     var loadableURLs: [URL]
+    var document: PDFDocument?
     private(set) var requestedURLs: [URL] = []
 
     init(loadableURLs: [URL] = []) {
@@ -159,6 +256,6 @@ private final class SessionPDFTabLoader: PDFTabLoading {
         guard loadableURLs.contains(where: {
             $0.standardizedFileURL.resolvingSymlinksInPath() == url.standardizedFileURL.resolvingSymlinksInPath()
         }) else { return nil }
-        return PDFTab(url: url, document: nil, snapshot: .initial)
+        return PDFTab(url: url, document: document, snapshot: .initial)
     }
 }
