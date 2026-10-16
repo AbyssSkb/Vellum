@@ -1,0 +1,54 @@
+name: Test
+
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: macOS ${{ matrix.macos }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - macos: "15"
+            runner: macos-15
+          - macos: "26"
+            runner: macos-26
+          - macos: "27"
+            runner: xcode-27
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6.0.2
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Verify test environment
+        shell: bash
+        env:
+          EXPECTED_MACOS_MAJOR: ${{ matrix.macos }}
+        run: |
+          sw_vers
+          xcodebuild -version
+          swift --version
+          MACOS_VERSION="$(sw_vers -productVersion)"
+          if [[ "${MACOS_VERSION%%.*}" != "$EXPECTED_MACOS_MAJOR" ]]; then
+            echo "::error::Expected macOS $EXPECTED_MACOS_MAJOR, found $MACOS_VERSION."
+            exit 1
+          fi
+
+      - name: Run tests
+        run: scripts/test.sh
