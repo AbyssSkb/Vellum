@@ -115,12 +115,7 @@ struct PDFNativeScrollTests {
                     #expect(abs(clipView.bounds.origin.y - origin.y) < 0.001)
                 }
                 let wheelDirection: Int32 = edge == .top ? 60 : -60
-                try sendNativeScroll(wheelDirection, to: scrollView, phase: .began)
-                for _ in 0..<8 { try sendNativeScroll(wheelDirection, to: scrollView, phase: .changed) }
-                try sendNativeScroll(0, to: scrollView, phase: .ended)
-                try sendNativeScroll(wheelDirection, to: scrollView, momentum: .begin)
-                for _ in 0..<8 { try sendNativeScroll(wheelDirection, to: scrollView, momentum: .continuous) }
-                try sendNativeScroll(0, to: scrollView, momentum: .end)
+                for _ in 0..<8 { try sendNativeWheel(wheelDirection, to: scrollView) }
                 await nextTestMainQueueTurn()
                 let deferredBounds = clipView.constrainBoundsRect(NSRect(
                     origin: NSPoint(x: origin.x, y: origin.y + outwardCoordinate * 30), size: clipView.bounds.size
@@ -129,10 +124,9 @@ struct PDFNativeScrollTests {
                 scrollView.reflectScrolledClipView(clipView)
                 try await waitForSettlement(of: clipView, at: origin.y)
                 if edge == .top, paper.height > viewport.height + 0.5 {
-                    try sendNativeScroll(-wheelDirection, to: scrollView, phase: .began)
+                    try sendNativeWheel(-wheelDirection, to: scrollView)
                     #expect(abs(clipView.bounds.origin.y - origin.y) > 1)
-                    try sendNativeScroll(wheelDirection * 2, to: scrollView, phase: .changed)
-                    try sendNativeScroll(0, to: scrollView, phase: .ended)
+                    try sendNativeWheel(wheelDirection * 2, to: scrollView)
                     try await waitForSettlement(of: clipView, at: origin.y)
                 }
             }
@@ -152,11 +146,11 @@ struct PDFNativeScrollTests {
         let clipView = scrollView.contentView
         let origin = try paperEdgeOrigin(in: view, page: firstPage, atBottom: false)
 
-        try sendNativeScroll(-60, to: scrollView)
+        try sendNativeWheel(-60, to: scrollView)
         #expect(abs(clipView.bounds.origin.y - origin.y) > 1)
-        try sendNativeScroll(120, to: scrollView)
+        try sendNativeWheel(120, to: scrollView)
         try await waitForSettlement(of: clipView, at: origin.y)
-        for _ in 0..<8 { try sendNativeScroll(60, to: scrollView) }
+        for _ in 0..<8 { try sendNativeWheel(60, to: scrollView) }
         try await waitForSettlement(of: clipView, at: origin.y)
     }
 
@@ -222,9 +216,9 @@ struct PDFNativeScrollTests {
             #expect(abs(clipView.bounds.origin.y - origin.y) > 1)
         }
         NotificationCenter.default.post(name: NSScrollView.willStartLiveScrollNotification, object: scrollView)
-        try sendNativeScroll((atBottom ? -60 : 60), to: scrollView, phase: .began)
-        try sendNativeScroll((atBottom ? -60 : 60), to: scrollView, phase: .changed)
-        if terminalWheelReachesScrollView { try sendNativeScroll(0, to: scrollView, phase: .ended) }
+        try trackScrollPhase(in: scrollView, phase: .began)
+        try trackScrollPhase(in: scrollView, phase: .changed)
+        if terminalWheelReachesScrollView { try trackScrollPhase(in: scrollView, phase: .ended) }
         NotificationCenter.default.post(name: NSScrollView.didEndLiveScrollNotification, object: scrollView)
         nativeLayoutMovesOutsidePaper()
         try await waitForSettlement(of: clipView, at: origin.y)
@@ -233,6 +227,35 @@ struct PDFNativeScrollTests {
             nativeLayoutMovesOutsidePaper()
             try await waitForSettlement(of: clipView, at: origin.y)
         }
+    }
+
+    @Test(arguments: [false, true], [false, true]) @MainActor
+    func activeScrollPhaseDefersSettlementUntilItsTerminalEvent(atBottom: Bool, momentum: Bool) async throws {
+        let (window, view, _) = try makeReader()
+        defer { view.cancelPendingRestore(); view.stopZoomState(); view.stopScrollAnimation(); window.close() }
+        let firstPage = try #require(view.document?.page(at: 0))
+        #expect(view.applyWidthFitScaleNow(for: firstPage))
+        let edgePage = try #require(view.document?.page(at: atBottom ? view.document!.pageCount - 1 : 0))
+        if atBottom { view.vimGoToLastPage() } else { view.vimGoToFirstPage() }
+        try await waitForNativeLayout(in: view, page: edgePage)
+        let scrollView = try #require(view.pdfScrollView)
+        let clipView = scrollView.contentView
+        let documentView = try #require(scrollView.documentView)
+        let edge = try paperEdgeOrigin(in: view, page: edgePage, atBottom: atBottom)
+        let outward: CGFloat = atBottom == documentView.isFlipped ? 1 : -1
+
+        try trackScrollPhase(in: scrollView, phase: momentum ? nil : .began, momentum: momentum ? .begin : .none)
+        let outside = clipView.constrainBoundsRect(NSRect(
+            origin: NSPoint(x: edge.x, y: edge.y + outward * 30), size: clipView.bounds.size
+        )).origin
+        clipView.scroll(to: outside)
+        scrollView.reflectScrolledClipView(clipView)
+        #expect(abs(clipView.bounds.origin.y - edge.y) > 1)
+        try trackScrollPhase(in: scrollView, phase: momentum ? nil : .changed, momentum: momentum ? .continuous : .none)
+        try await waitForSettlement(of: clipView, at: outside.y, quietInterval: 0.25)
+
+        try trackScrollPhase(in: scrollView, phase: momentum ? nil : .ended, momentum: momentum ? .end : .none)
+        try await waitForSettlement(of: clipView, at: edge.y)
     }
 
     @Test(.enabled("Requires native scroll animations") {
@@ -319,9 +342,7 @@ struct PDFNativeScrollTests {
                 isIntermediate(clipView.bounds.origin.y)
             }
             if scenario == "scroll" {
-                for phase in [CGScrollPhase.began, .ended] {
-                    try sendNativeScroll(phase == .began ? (atBottom ? 60 : -60) : 0, to: scrollView, phase: phase)
-                }
+                try sendNativeWheel(atBottom ? 60 : -60, to: scrollView)
                 let inward = clipView.bounds.origin.y
                 #expect(abs(inward - edge.y) > gap)
                 try await waitForSettlement(of: clipView, at: inward, quietInterval: 0.25)
@@ -413,10 +434,44 @@ struct PDFNativeScrollTests {
     }
 
     @MainActor
-    private func sendNativeScroll(
-        _ delta: Int32, to scrollView: NSScrollView, phase: CGScrollPhase? = nil,
+    private func sendNativeWheel(_ delta: Int32, to scrollView: NSScrollView) throws {
+        _ = Self.nativeEventLoop
+        scrollView.scrollWheel(with: try scrollEvent(delta))
+    }
+
+    @MainActor private static let nativeEventLoop: Void = {
+        let application = NSApplication.shared
+        guard !application.isRunning else { return }
+        // Initialize AppKit's event thread before delivering synthetic native wheel events.
+        RunLoop.main.perform(inModes: [.default]) {
+            MainActor.assumeIsolated {
+                application.stop(nil)
+                let wake = NSEvent.otherEvent(
+                    with: .applicationDefined, location: .zero, modifierFlags: [], timestamp: 0,
+                    windowNumber: 0, context: nil, subtype: 0, data1: 0, data2: 0
+                )!
+                application.postEvent(wake, atStart: false)
+            }
+        }
+        application.run()
+    }()
+
+    @MainActor
+    private func trackScrollPhase(
+        in scrollView: NSScrollView, phase: CGScrollPhase? = nil,
         momentum: CGMomentumScrollPhase = .none
     ) throws {
+        // Test Vellum's phase handling with controlled clip movement and native wheel delivery separately.
+        PDFNativeScrollBoundsConstraint.withNativeScroll(
+            on: scrollView, event: try scrollEvent(0, phase: phase, momentum: momentum)
+        ) {}
+    }
+
+    @MainActor
+    private func scrollEvent(
+        _ delta: Int32, phase: CGScrollPhase? = nil,
+        momentum: CGMomentumScrollPhase = .none
+    ) throws -> NSEvent {
         let cgEvent = try #require(CGEvent(
             scrollWheelEvent2Source: nil, units: .pixel,
             wheelCount: 1, wheel1: delta, wheel2: 0, wheel3: 0
@@ -428,7 +483,7 @@ struct PDFNativeScrollTests {
             cgEvent.setIntegerValueField(.scrollWheelEventScrollPhase, value: Int64(phase.rawValue))
         }
         cgEvent.setIntegerValueField(.scrollWheelEventMomentumPhase, value: Int64(momentum.rawValue))
-        scrollView.scrollWheel(with: try #require(NSEvent(cgEvent: cgEvent)))
+        return try #require(NSEvent(cgEvent: cgEvent))
     }
 
     @MainActor
