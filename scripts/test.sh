@@ -5,11 +5,35 @@ TEST_WORKSPACE="$(mktemp -d "${TMPDIR:-/tmp}/vellum-tests.XXXXXX")"
 trap 'rm -rf "$TEST_WORKSPACE"' EXIT
 export VELLUM_AI_LOG_DIR="$TEST_WORKSPACE/ai-logs"
 
-# AppKit/PDFKit fixtures share application focus and the main run loop.
-swift test --no-parallel --xunit-output "$TEST_WORKSPACE/results.xml" "$@"
+run_tests() {
+    local results_dir test_status=0
+    results_dir="$(mktemp -d "$TEST_WORKSPACE/results.XXXXXX")"
+    # AppKit/PDFKit fixtures share application focus and the main run loop.
+    swift test --no-parallel --xunit-output "$results_dir/results.xml" "$@" || test_status=$?
 
-# A test process can exit successfully before Swift Testing finishes its run.
-if ! /usr/bin/xmllint --noout "$TEST_WORKSPACE/results-swift-testing.xml"; then
-    echo "error: Swift Testing exited without a complete test report." >&2
+    # A test process can exit successfully before Swift Testing finishes its run.
+    if ! /usr/bin/xmllint --noout "$results_dir/results-swift-testing.xml"; then
+        echo "error: Swift Testing exited without a complete test report." >&2
+        return 1
+    fi
+    return "$test_status"
+}
+
+if [[ $# -gt 0 ]]; then
+    run_tests "$@"
+    exit
+fi
+
+# Separate AppKit test targets so one target cannot stop another's main run loop.
+swift test list > "$TEST_WORKSPACE/tests.txt"
+cut -d. -f1 "$TEST_WORKSPACE/tests.txt" | sort -u > "$TEST_WORKSPACE/targets.txt"
+if [[ ! -s "$TEST_WORKSPACE/targets.txt" ]]; then
+    echo "error: No test targets found." >&2
     exit 1
 fi
+
+test_status=0
+while IFS= read -r test_target; do
+    run_tests --skip-build --filter "^${test_target}[.]" || test_status=1
+done < "$TEST_WORKSPACE/targets.txt"
+exit "$test_status"
