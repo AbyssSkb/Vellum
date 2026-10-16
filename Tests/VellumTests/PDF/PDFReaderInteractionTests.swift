@@ -262,7 +262,9 @@ struct PDFReaderInteractionTests {
         #expect(view.animationState.zoomTargetScale == nil)
         #expect(view.animationState.zoomAnchor == nil)
         let target = try #require(view.animationState.scrollTargetOrigin)
-        #expect(abs(target.y - origin.y - 2 * delta) < 0.5)
+        let documentView = try #require(scrollView.documentView)
+        let documentDelta = documentView.isFlipped ? -delta : delta
+        #expect(abs(target.y - origin.y - 2 * documentDelta) < 0.5)
         #expect(view.animationState.hasActiveScrollTimer)
         for _ in 0..<60 {
             view.stepZoomAnimation()

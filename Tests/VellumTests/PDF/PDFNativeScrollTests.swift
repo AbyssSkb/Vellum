@@ -5,6 +5,36 @@ import Testing
 
 @Suite("PDF native scroll settlement")
 struct PDFNativeScrollTests {
+    @Test(arguments: ["j", "k", "d", "u", "D", "U"]) @MainActor
+    func vimKeysMoveInReadingDirection(key: String) async throws {
+        let (window, view, page) = try makeReader()
+        defer { view.cancelPendingRestore(); view.stopZoomState(); view.stopScrollAnimation(); window.close() }
+        try await waitForNativeLayout(in: view, page: page)
+        view.centerBothAxes(on: view.pageCenterDestination(for: page))
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let appState = makeTestAppState(defaults: preferences.defaults)
+        let tab = PDFTab(url: URL(fileURLWithPath: "/tmp/scroll-direction.pdf"), document: view.document)
+        _ = appState.tabStore.openInNewTabs([tab])
+        appState.setActiveReaderController(view, for: tab.id)
+        let scrollView = try #require(view.pdfScrollView)
+        let before = try #require(view.currentPageState()).pointOnPage.y
+
+        VimCommandDispatcher().perform(try #require(VimKeyMap.command(for: key)), on: appState)
+        view.animationState.scrollTimer?.invalidate()
+        for _ in 0..<60 {
+            view.animationState.lastScrollTick = Date.timeIntervalSinceReferenceDate - 1.0 / 30.0
+            view.stepScrollAnimation(in: scrollView)
+        }
+
+        let after = try #require(view.currentPageState()).pointOnPage.y
+        if ["j", "d", "D"].contains(key) {
+            #expect(after < before)
+        } else {
+            #expect(after > before)
+        }
+    }
+
     @Test(arguments: [0, 90, 180, 270], [1, 3]) @MainActor
     func documentEdgesAlignPaperAndPreventFurtherOutwardScrolling(rotation: Int, pageCount: Int) async throws {
         _ = NSApplication.shared
@@ -63,7 +93,8 @@ struct PDFNativeScrollTests {
                 #expect(abs(gap) < 0.5)
 
                 let origin = clipView.bounds.origin
-                let outward: CGFloat = (edge == .top) == documentView.isFlipped ? -1 : 1
+                let outward: CGFloat = edge == .top ? 1 : -1
+                let outwardCoordinate = documentView.isFlipped ? -outward : outward
                 for distance in [CGFloat(60), clipView.bounds.height / 2, clipView.bounds.height] {
                     view.vimScroll(x: 0, y: outward * distance)
                     view.animationState.scrollTimer?.invalidate()
@@ -74,7 +105,7 @@ struct PDFNativeScrollTests {
                     #expect(abs(clipView.bounds.origin.y - origin.y) < 0.001)
                 }
                 if paper.height >= viewport.height - 0.5 {
-                    clipView.scroll(to: NSPoint(x: origin.x, y: origin.y + outward * 30))
+                    clipView.scroll(to: NSPoint(x: origin.x, y: origin.y + outwardCoordinate * 30))
                     view.vimScroll(x: 0, y: outward * 60)
                     view.animationState.scrollTimer?.invalidate()
                     for _ in 0..<60 {
@@ -92,7 +123,7 @@ struct PDFNativeScrollTests {
                 try sendNativeScroll(0, to: scrollView, momentum: .end)
                 await nextTestMainQueueTurn()
                 let deferredBounds = clipView.constrainBoundsRect(NSRect(
-                    origin: NSPoint(x: origin.x, y: origin.y + outward * 30), size: clipView.bounds.size
+                    origin: NSPoint(x: origin.x, y: origin.y + outwardCoordinate * 30), size: clipView.bounds.size
                 ))
                 clipView.scroll(to: deferredBounds.origin)
                 scrollView.reflectScrolledClipView(clipView)

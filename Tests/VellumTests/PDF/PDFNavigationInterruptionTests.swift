@@ -49,7 +49,6 @@ struct PDFNavigationInterruptionTests {
         // Native positioning may round to pixels; keyboard clamping keeps the exact paper edge.
         let topOrigin = NSPoint(x: clipView.bounds.origin.x, y: documentView.isFlipped
             ? documentPaper.minY : documentPaper.maxY - clipView.bounds.height)
-        let upward: CGFloat = documentView.isFlipped ? -1 : 1
         func scroll(_ delta: CGFloat) {
             view.vimScroll(x: 0, y: delta)
             for _ in 0..<60 {
@@ -58,13 +57,13 @@ struct PDFNavigationInterruptionTests {
             }
         }
         for distance in [CGFloat(60), clipView.bounds.height / 2, clipView.bounds.height] {
-            scroll(upward * distance)
+            scroll(distance)
             #expect(abs(clipView.bounds.origin.y - topOrigin.y) < 0.001)
             #expect(abs(clipView.bounds.origin.x - topOrigin.x) < 0.001)
         }
-        scroll(-upward * 60)
+        scroll(-60)
         #expect(abs(clipView.bounds.origin.y - topOrigin.y) > 50)
-        scroll(upward * clipView.bounds.height / 2)
+        scroll(clipView.bounds.height / 2)
         #expect(abs(clipView.bounds.origin.y - topOrigin.y) < 0.001)
     }
 

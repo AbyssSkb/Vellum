@@ -143,7 +143,6 @@ struct PDFZoomLayoutTests {
         view.document = document
         let scrollView = try #require(view.pdfScrollView)
         let clipView = scrollView.contentView
-        let documentView = try #require(scrollView.documentView)
 
         for index in 0..<pageCount {
             let page = try #require(document.page(at: index))
@@ -179,8 +178,7 @@ struct PDFZoomLayoutTests {
 
             if index == 0 || index == pageCount - 1 {
                 let origin = clipView.bounds.origin
-                let upward: CGFloat = documentView.isFlipped ? -1 : 1
-                let direction = index == 0 ? upward : -upward
+                let direction: CGFloat = index == 0 ? 1 : -1
                 for distance in [CGFloat(60), clipView.bounds.height / 2, clipView.bounds.height] {
                     view.vimScroll(x: 0, y: direction * distance)
                     view.animationState.scrollTimer?.invalidate()

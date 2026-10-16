@@ -12,6 +12,8 @@ extension VellumPDFView {
         let maxX = max(0, documentSize.width - clipView.bounds.width)
         let verticalRange = verticalScrollRange(in: scrollView)
         let origin = animationState.scrollTargetOrigin ?? clipView.bounds.origin
+        // Keyboard deltas use positive y for up; PDFKit's document coordinates can be flipped.
+        let verticalDelta = scrollView.documentView?.isFlipped == true ? -y : y
         let next = NSPoint(
             x: ScrollGeometry.nextCoordinate(
                 origin: origin.x,
@@ -20,7 +22,7 @@ extension VellumPDFView {
                 viewportLength: clipView.bounds.width,
                 maxValue: maxX
             ),
-            y: y == 0 ? origin.y : min(max(origin.y + y, verticalRange.lowerBound), verticalRange.upperBound)
+            y: y == 0 ? origin.y : min(max(origin.y + verticalDelta, verticalRange.lowerBound), verticalRange.upperBound)
         )
         animationState.scrollTargetOrigin = next
         ensureScrollAnimation(in: scrollView)
