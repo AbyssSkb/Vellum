@@ -33,14 +33,15 @@ struct SearchCommandTests {
         let (view, controller, field, pages) = try makeCountingSearchReader(texts: ["alpha", "alpha", "alpha"])
         defer { controller.clear() }
         var committedPartialPreview = false
+        let commitPartialPreview: @MainActor () -> Void = {
+            guard !committedPartialPreview, controller.hasVisibleHighlights,
+                  pages[0].stringReads > 0, pages[1].stringReads == 0 else { return }
+            committedPartialPreview = true
+            commit(field)
+            #expect(pages.allSatisfy { $0.stringReads > 0 && $0.characterBoundsReads > 0 })
+        }
         let observation = view.observe(\.highlightedSelections, options: [.new]) { _, _ in
-            MainActor.assumeIsolated {
-                guard !committedPartialPreview, controller.hasVisibleHighlights,
-                      pages[0].stringReads > 0, pages[1].stringReads == 0 else { return }
-                committedPartialPreview = true
-                commit(field)
-                #expect(pages.allSatisfy { $0.stringReads > 0 && $0.characterBoundsReads > 0 })
-            }
+            MainActor.assumeIsolated { commitPartialPreview() }
         }
         defer { observation.invalidate() }
 
