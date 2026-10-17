@@ -42,13 +42,21 @@ final class PDFAnnotationPersistence: @unchecked Sendable {
         }
     }
 
-    // Independent PDFKit copies belong only to the serial writer after capture.
+    // Independent annotation copies belong only to the serial writer after capture.
     private struct Snapshot: @unchecked Sendable {
         let highlights: [[PDFAnnotation]]
-        let unlockedDocument: PDFDocument?
+        let encryptedData: Data?
 
         @MainActor
         init(document: PDFDocument) throws {
+            if document.isEncrypted {
+                // shortcut: Serialize on the main actor until PDFKit copies preserve edits without sharing live state.
+                guard !document.isLocked, let data = document.dataRepresentation() else { throw SaveError.unreadable }
+                encryptedData = data
+                highlights = []
+                return
+            }
+            encryptedData = nil
             // ponytail: Vellum edits highlights only; expand this snapshot when another annotation editor is added.
             highlights = try (0..<document.pageCount).map { index in
                 guard let page = document.page(at: index) else { throw SaveError.unreadable }
@@ -56,22 +64,6 @@ final class PDFAnnotationPersistence: @unchecked Sendable {
                     guard let copy = annotation.copy() as? PDFAnnotation else { throw SaveError.unreadable }
                     return copy
                 }
-            }
-            if document.isEncrypted {
-                let popups = try (0..<document.pageCount).map { index in
-                    guard let page = document.page(at: index) else { throw SaveError.unreadable }
-                    return PDFPopupSnapshot.capture(from: page)
-                }
-                guard !document.isLocked,
-                      let copy = document.copy() as? PDFDocument,
-                      !copy.isLocked else { throw SaveError.unreadable }
-                for (index, snapshots) in popups.enumerated() {
-                    guard let page = copy.page(at: index),
-                          PDFPopupSnapshot.restore(snapshots, to: page) else { throw SaveError.unreadable }
-                }
-                unlockedDocument = copy
-            } else {
-                unlockedDocument = nil
             }
         }
     }
@@ -185,7 +177,9 @@ final class PDFAnnotationPersistence: @unchecked Sendable {
         guard destination != url else { throw SaveError.fileChanged }
         let currentRevision = lock.withLock { revision }
         let targetSignature = try? FileSignature(url: destination)
-        _ = try Self.writeAtomically(document, to: destination) {
+        _ = try Self.writeAtomically(to: destination, write: { temporary in
+            guard document.write(to: temporary) else { throw SaveError.writeFailed("") }
+        }) {
             guard (try? FileSignature(url: destination)) == targetSignature else { throw SaveError.fileChanged }
         }
         lock.withLock { copiedRevision = currentRevision }
@@ -195,24 +189,27 @@ final class PDFAnnotationPersistence: @unchecked Sendable {
         do {
             guard let diskSignature else { throw SaveError.unreadable }
             guard (try? FileSignature(url: url)) == diskSignature else { throw SaveError.fileChanged }
-            let independentDocument: PDFDocument
-            if let unlockedDocument = snapshot.unlockedDocument {
-                independentDocument = unlockedDocument
+            let writeTemporary: (URL) throws -> Void
+            if let encryptedData = snapshot.encryptedData {
+                writeTemporary = { try encryptedData.write(to: $0) }
             } else {
-                guard let reopenedDocument = PDFDocument(url: url),
-                      !reopenedDocument.isLocked else { throw SaveError.unreadable }
-                independentDocument = reopenedDocument
-            }
-            guard independentDocument.pageCount == snapshot.highlights.count else { throw SaveError.unreadable }
-            for (index, highlights) in snapshot.highlights.enumerated() {
-                guard let page = independentDocument.page(at: index) else { throw SaveError.unreadable }
-                for annotation in page.annotations where annotation.type == "Highlight" { page.removeAnnotation(annotation) }
-                for annotation in highlights {
-                    guard let copy = annotation.copy() as? PDFAnnotation else { throw SaveError.unreadable }
-                    page.addAnnotation(copy)
+                guard let independentDocument = PDFDocument(url: url),
+                      !independentDocument.isLocked,
+                      independentDocument.pageCount == snapshot.highlights.count else { throw SaveError.unreadable }
+                for (index, highlights) in snapshot.highlights.enumerated() {
+                    guard let page = independentDocument.page(at: index) else { throw SaveError.unreadable }
+                    for annotation in page.annotations where annotation.type == "Highlight" { page.removeAnnotation(annotation) }
+                    for annotation in highlights {
+                        // PDFKit can omit copied annotations when saving a reopened document.
+                        let copy = PDFAnnotation(bounds: annotation.bounds, forType: .highlight, withProperties: annotation.annotationKeyValues)
+                        page.addAnnotation(copy)
+                    }
+                }
+                writeTemporary = { temporary in
+                    guard independentDocument.write(to: temporary) else { throw SaveError.writeFailed("") }
                 }
             }
-            self.diskSignature = try Self.writeAtomically(independentDocument, to: url) {
+            self.diskSignature = try Self.writeAtomically(to: url, write: writeTemporary) {
                 guard (try? FileSignature(url: self.url)) == diskSignature else { throw SaveError.fileChanged }
             }
             lock.withLock {
@@ -225,8 +222,8 @@ final class PDFAnnotationPersistence: @unchecked Sendable {
     }
 
     private static func writeAtomically(
-        _ document: PDFDocument,
         to destination: URL,
+        write: (URL) throws -> Void,
         validateDestination: () throws -> Void
     ) throws -> FileSignature {
         let manager = FileManager.default
@@ -235,7 +232,7 @@ final class PDFAnnotationPersistence: @unchecked Sendable {
         }
         let temporary = destination.deletingLastPathComponent().appendingPathComponent(".vellum-\(UUID().uuidString).pdf")
         defer { try? manager.removeItem(at: temporary) }
-        guard document.write(to: temporary) else { throw SaveError.writeFailed("") }
+        try write(temporary)
         let writtenSignature = try FileSignature(url: temporary)
         try validateDestination()
         if manager.fileExists(atPath: destination.path) {

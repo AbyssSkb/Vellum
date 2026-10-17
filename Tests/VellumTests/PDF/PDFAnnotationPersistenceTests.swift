@@ -6,12 +6,15 @@ import Testing
 @Suite("PDF annotation persistence")
 @MainActor
 struct PDFAnnotationPersistenceTests {
-    @Test
-    func serialSavesKeepLatestAnnotationAndMetadata() throws {
+    @Test(arguments: [false, true])
+    func serialSavesKeepLatestAnnotationAndMetadata(explicitQuadrilaterals: Bool) throws {
         let fixture = try makeFixture()
         defer { try? FileManager.default.removeItem(at: fixture.directory) }
         let page = try #require(fixture.document.page(at: 0))
         let annotation = PDFAnnotation(bounds: NSRect(x: 20, y: 40, width: 80, height: 12), forType: .highlight, withProperties: nil)
+        if explicitQuadrilaterals {
+            annotation.quadrilateralPoints = HighlightGeometry.quadrilateralPoints(for: annotation.bounds)
+        }
         annotation.contents = AIExplanationAnnotation.encode("First explanation")
         annotation.userName = "Original author"
         HighlightAnnotationMetadata.setGroupID("highlight-group", for: annotation)
@@ -25,6 +28,8 @@ struct PDFAnnotationPersistenceTests {
         let saved = try #require(PDFDocument(url: fixture.url)?.page(at: 0)?.annotations.first)
         #expect(AIExplanationAnnotation.decode(saved.contents) == "Latest explanation")
         #expect(saved.userName == "Original author")
+        #expect(saved.bounds == annotation.bounds)
+        #expect(saved.quadrilateralPoints == annotation.quadrilateralPoints)
         #expect(HighlightAnnotationMetadata.groupID(for: saved) == "highlight-group")
         #expect(!fixture.persistence.hasUnsavedChanges)
         #expect(fixture.persistence.failure == nil)
@@ -118,6 +123,20 @@ struct PDFAnnotationPersistenceTests {
             let page = PDFPage()
             page.setBounds(NSRect(x: 0, y: 0, width: 612, height: 792), for: .mediaBox)
             fixtureDocument.insert(page, at: 0)
+            let lastPage = PDFPage()
+            lastPage.setBounds(NSRect(x: 0, y: 0, width: 400, height: 600), for: .mediaBox)
+            fixtureDocument.insert(lastPage, at: 1)
+            let outlineRoot = PDFOutline()
+            let outline = PDFOutline()
+            outline.label = "Second page"
+            let outlineDestination = PDFDestination(page: lastPage, at: NSPoint(x: 21, y: 34))
+            outlineDestination.zoom = 1.5
+            outline.destination = outlineDestination
+            outlineRoot.insertChild(outline, at: 0)
+            fixtureDocument.outlineRoot = outlineRoot
+            let internalLink = PDFAnnotation(bounds: NSRect(x: 30, y: 60, width: 100, height: 14), forType: .link, withProperties: nil)
+            internalLink.action = PDFActionGoTo(destination: PDFDestination(page: page, at: .zero))
+            lastPage.addAnnotation(internalLink)
             let originalHighlight = PDFAnnotation(bounds: NSRect(x: 20, y: 40, width: 80, height: 12), forType: .highlight, withProperties: nil)
             originalHighlight.contents = "Saved highlight"
             originalHighlight.userName = "Saved author"
@@ -149,14 +168,24 @@ struct PDFAnnotationPersistenceTests {
             link.action = PDFActionURL(url: URL(string: "https://example.com/foreign")!)
             page.addAnnotation(link)
             let didWrite = encrypted
-                ? fixtureDocument.write(to: url, withOptions: [.ownerPasswordOption: "owner", .userPasswordOption: "reader"])
+                ? fixtureDocument.write(to: url, withOptions: [
+                    .ownerPasswordOption: "owner",
+                    .userPasswordOption: "reader",
+                    .accessPermissionsOption: NSNumber(value: 1 << 6)
+                ])
                 : fixtureDocument.write(to: url)
             guard didWrite else { throw CocoaError(.fileWriteUnknown) }
         }.value
         let document = try #require(PDFDocumentLoader().tab(for: url)?.document)
         #expect(document.isEncrypted == encrypted)
         #expect(document.isLocked == encrypted)
-        if encrypted { #expect(document.unlock(withPassword: "reader")) }
+        if encrypted {
+            #expect(document.unlock(withPassword: "reader"))
+            #expect(document.allowsCommenting)
+            #expect(!document.allowsDocumentAssembly)
+        }
+        #expect(document.outlineRoot?.child(at: 0)?.destination?.page === document.page(at: 1))
+        #expect((document.page(at: 1)?.annotations.first?.action as? PDFActionGoTo)?.destination.page === document.page(at: 0))
         let originalPermissions = document.accessPermissions
         let foreignAnnotations = foreignAnnotationState(document)
         #expect(foreignAnnotations.map(\.type) == ["Text", "Popup", "Text", "Popup", "Link"])
@@ -170,8 +199,12 @@ struct PDFAnnotationPersistenceTests {
         editedHighlight.color = .cyan
         addHighlight(to: document, text: "Added highlight")
 
-        for text in ["Current highlight", "Latest highlight"] {
+        for text in ["Current highlight", "Latest highlight", nil] {
             editedHighlight.contents = text
+            if text == nil {
+                let page = try #require(document.page(at: 0))
+                for highlight in page.annotations where highlight.type == "Highlight" { page.removeAnnotation(highlight) }
+            }
             persistence.save(document) {}
             await Task.detached(priority: .utility) { persistence.flush() }.value
 
@@ -180,10 +213,25 @@ struct PDFAnnotationPersistenceTests {
             let reopened = try #require(PDFDocument(url: url))
             #expect(reopened.isEncrypted == encrypted)
             #expect(reopened.isLocked == encrypted)
-            if encrypted { #expect(reopened.unlock(withPassword: "reader")) }
+            if encrypted {
+                #expect(reopened.unlock(withPassword: "reader"))
+                #expect(reopened.allowsCommenting)
+                #expect(!reopened.allowsDocumentAssembly)
+            }
             #expect(reopened.accessPermissions == originalPermissions)
             #expect(foreignAnnotationState(reopened) == foreignAnnotations)
+            #expect(reopened.pageCount == 2)
+            #expect(reopened.page(at: 0)?.bounds(for: .mediaBox) == NSRect(x: 0, y: 0, width: 612, height: 792))
+            #expect(reopened.page(at: 1)?.bounds(for: .mediaBox) == NSRect(x: 0, y: 0, width: 400, height: 600))
+            #expect(reopened.outlineRoot?.child(at: 0)?.destination?.page === reopened.page(at: 1))
+            #expect(reopened.outlineRoot?.child(at: 0)?.destination?.point == NSPoint(x: 21, y: 34))
+            #expect(reopened.outlineRoot?.child(at: 0)?.destination?.zoom == 1.5)
+            #expect((reopened.page(at: 1)?.annotations.first?.action as? PDFActionGoTo)?.destination.page === reopened.page(at: 0))
             let highlights = try #require(reopened.page(at: 0)?.annotations.filter { $0.type == "Highlight" })
+            guard let text else {
+                #expect(highlights.isEmpty)
+                continue
+            }
             #expect(highlights.count == 2)
             let savedHighlight = try #require(highlights.first(where: { $0.contents == text }))
             #expect(savedHighlight.userName == "Current author")
