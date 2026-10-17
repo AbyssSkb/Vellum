@@ -26,8 +26,9 @@ if [[ -n "$requested_output" && "$requested_output" != /* ]]; then
   requested_output="$PWD/$requested_output"
 fi
 cd "$ROOT_DIR"
-swift build --configuration debug --target VellumCore
-bin_dir="$(swift build --configuration debug --show-bin-path)"
+# shortcut: The probe links native object maps; migrate when this deprecated backend is removed.
+swift build --build-system native --configuration debug --target VellumCore
+bin_dir="$(swift build --build-system native --configuration debug --show-bin-path)"
 if [[ -n "$requested_output" ]]; then
   mkdir -- "$requested_output"
   output_dir="$(CDPATH= cd -- "$requested_output" && pwd)"
