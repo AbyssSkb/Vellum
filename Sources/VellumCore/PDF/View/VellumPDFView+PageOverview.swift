@@ -159,6 +159,7 @@ final class PageOverviewOverlayView: NSView {
     private let thumbnails: PageOverviewThumbnailLoader
     private let backdrop = CALayer()
     private var entryPageRect: NSRect?
+    private let readerPageSize: NSSize?
     private var presented = false
     private var papers: [Int: CALayer] = [:]
     private let positionLabel = NSTextField(labelWithString: "")
@@ -175,6 +176,7 @@ final class PageOverviewOverlayView: NSView {
         self.selectedIndex = selectedIndex
         self.visibleCount = columns
         self.entryPageRect = entryPageRect
+        self.readerPageSize = entryPageRect?.size
         self.thumbnails = thumbnailLoader ?? PageOverviewThumbnailLoader()
         super.init(frame: .zero)
         wantsLayer = true
@@ -238,8 +240,14 @@ final class PageOverviewOverlayView: NSView {
             removeFromSuperview()
             return
         }
+        let returnSize = pageRect?.size ?? .zero
+        let returnRasterScale = min(1, max(bounds.width, bounds.height) * 2 / max(returnSize.width, returnSize.height, 1))
+            * (window?.backingScaleFactor ?? 2)
         guard let pageRect, !pageRect.isEmpty, let selectedPaper = papers[selectedIndex],
-              selectedPaper.sublayers?.first?.contents != nil,
+              let contents = selectedPaper.sublayers?.first?.contents,
+              CFGetTypeID(contents as CFTypeRef) == CGImage.typeID,
+              CGFloat((contents as! CGImage).width) + 1 >= ceil(pageRect.width * returnRasterScale),
+              CGFloat((contents as! CGImage).height) + 1 >= ceil(pageRect.height * returnRasterScale),
               paperSize(for: selectedIndex).width > 0 else {
             NSAnimationContext.runAnimationGroup({ context in
                 context.duration = 0.2
@@ -550,19 +558,23 @@ final class PageOverviewOverlayView: NSView {
 
     private func updateThumbnails() {
         guard !dismissed, let window, bounds.width > 24, bounds.height > 24 else { return }
-        var sizes = visibleIndexes.map { paperSize(for: $0) }
-        if let entryPageRect {
-            // ponytail: cap the entry raster at two viewports; use tiles for deeper zoom detail.
+        let sizes = visibleIndexes.map { paperSize(for: $0) }
+        let maximumSize = NSSize(width: sizes.map(\.width).max() ?? 1,
+                                 height: sizes.map(\.height).max() ?? 1)
+        var selectedSize = maximumSize
+        if let readerPageSize {
+            // shortcut: cap the reader raster at two viewports; use tiles for deeper zoom detail.
             let limit = max(bounds.width, bounds.height) * 2
-            sizes.append(NSSize(width: min(entryPageRect.width, limit), height: min(entryPageRect.height, limit)))
+            selectedSize.width = max(selectedSize.width, min(readerPageSize.width, limit))
+            selectedSize.height = max(selectedSize.height, min(readerPageSize.height, limit))
         }
         let scale = window.backingScaleFactor
         thumbnails.update(
             document: document,
             pageIndexes: [selectedIndex] + visibleIndexes.filter { $0 != selectedIndex },
             selectedIndex: selectedIndex,
-            maximumPixelSize: NSSize(width: (sizes.map(\.width).max() ?? 1) * scale,
-                                     height: (sizes.map(\.height).max() ?? 1) * scale)
+            maximumPixelSize: NSSize(width: maximumSize.width * scale, height: maximumSize.height * scale),
+            selectedMaximumPixelSize: NSSize(width: selectedSize.width * scale, height: selectedSize.height * scale)
         ) { [weak self] in
             self?.layoutPapers(animated: true)
         }

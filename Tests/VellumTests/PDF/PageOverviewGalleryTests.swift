@@ -7,6 +7,145 @@ import Testing
 @MainActor
 @Suite("Page overview gallery")
 struct PageOverviewGalleryTests {
+    @Test(arguments: [800.0, 6000.0])
+    func entryResolutionOnlyUpgradesTheSelectedPage(entryWidth: Double) async throws {
+        _ = NSApplication.shared
+        let document = PDFDocument()
+        let pageSize = NSSize(width: 612, height: 792)
+        for index in 0..<3 {
+            let page = PDFPage()
+            page.setBounds(NSRect(origin: .zero, size: pageSize), for: .mediaBox)
+            document.insert(page, at: index)
+        }
+        let loader = PageOverviewThumbnailLoader { _, size in NSImage(size: size) }
+        let entry = NSRect(x: -40, y: -180, width: entryWidth, height: entryWidth * 792 / 612)
+        let overlay = PageOverviewOverlayView(document: document, selectedIndex: 1, columns: 3,
+                                              entryPageRect: entry, thumbnailLoader: loader)
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1000, height: 700),
+                              styleMask: .borderless, backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentView = overlay
+        window.orderFront(nil)
+        defer { overlay.dismiss(animated: false); window.contentView = nil; window.close() }
+        try await waitForTestCondition("Selected and neighboring gallery requests complete") {
+            loader.images.count == 3
+        }
+
+        let backingScale = window.backingScaleFactor
+        let ordinary = overlay.paperSize(for: 1)
+        let normalPixels = NSSize(width: ceil(ordinary.width * backingScale),
+                                  height: ceil(ordinary.height * backingScale))
+        let limit = max(overlay.bounds.width, overlay.bounds.height) * 2
+        let selectedScale = min(max(ordinary.width, min(entry.width, limit)) / pageSize.width,
+                                max(ordinary.height, min(entry.height, limit)) / pageSize.height) * backingScale
+        let selectedPixels = NSSize(width: ceil(pageSize.width * selectedScale),
+                                    height: ceil(pageSize.height * selectedScale))
+        #expect(loader.images[1]?.size == selectedPixels)
+        #expect(loader.images[0]?.size == normalPixels)
+        #expect(loader.images[2]?.size == normalPixels)
+
+        let original = try #require(loader.images[1])
+        overlay.update(selectedIndex: 2)
+        try await waitForTestCondition("Promoted neighbor gains reader-resolution detail") {
+            loader.images[2]?.size == selectedPixels
+        }
+        let promoted = try #require(loader.images[2])
+        overlay.update(selectedIndex: 2)
+        await nextTestMainQueueTurn()
+        #expect(loader.images[2] === promoted)
+        #expect(loader.images[1] !== original)
+    }
+
+    @Test
+    func browsingKeepsReaderResolutionOnlyForTheCurrentPage() async throws {
+        _ = NSApplication.shared
+        let document = PDFDocument()
+        for index in 0..<8 {
+            let page = PDFPage()
+            page.setBounds(NSRect(x: 0, y: 0, width: 612, height: 792), for: .mediaBox)
+            document.insert(page, at: index)
+        }
+        let queue = OperationQueue()
+        let loader = PageOverviewThumbnailLoader(queue: queue) { _, size in NSImage(size: size) }
+        let overlay = PageOverviewOverlayView(document: document, selectedIndex: 0, columns: 3,
+                                              entryPageRect: NSRect(x: 0, y: 0, width: 6000, height: 8000),
+                                              thumbnailLoader: loader)
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1000, height: 700),
+                              styleMask: .borderless, backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentView = overlay
+        window.orderFront(nil)
+        defer { overlay.dismiss(animated: false); window.contentView = nil; window.close() }
+        let ordinary = overlay.paperSize(for: 0)
+        let normalPixels = NSSize(width: ceil(ordinary.width * window.backingScaleFactor),
+                                  height: ceil(ordinary.height * window.backingScaleFactor))
+
+        for selectedIndex in 0...6 {
+            if selectedIndex > 0 { overlay.update(selectedIndex: selectedIndex) }
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                queue.addOperation { continuation.resume() }
+            }
+            await nextTestMainQueueTurn()
+            let selected = try #require(loader.images[selectedIndex])
+            #expect(selected.size.width > normalPixels.width)
+            #expect(loader.images.count <= 9)
+            for (index, image) in loader.images where index != selectedIndex {
+                #expect(image.size == normalPixels, "Page \(index) retained reader-resolution pixels after selecting \(selectedIndex)")
+            }
+        }
+    }
+
+    @Test(.enabled("Requires gallery animations") {
+        await MainActor.run { !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
+    })
+    func pendingReaderResolutionFadesOutWithoutEnlargingThePreview() async throws {
+        _ = NSApplication.shared
+        let document = PDFDocument()
+        for index in 0..<3 {
+            let page = PDFPage()
+            page.setBounds(NSRect(x: 0, y: 0, width: 612, height: 792), for: .mediaBox)
+            document.insert(page, at: index)
+        }
+        let queue = OperationQueue()
+        let loader = PageOverviewThumbnailLoader(queue: queue)
+        let target = NSRect(x: -40, y: -180, width: 800, height: 800 * 792 / 612)
+        let overlay = PageOverviewOverlayView(document: document, selectedIndex: 1, columns: 3,
+                                              entryPageRect: target, thumbnailLoader: loader)
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 400, height: 300),
+                              styleMask: .borderless, backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        let host = NSView(frame: window.contentView!.bounds)
+        window.contentView = host
+        overlay.frame = host.bounds
+        host.addSubview(overlay)
+        window.orderFront(nil)
+        defer {
+            queue.isSuspended = false
+            overlay.dismiss(animated: false)
+            window.contentView = nil
+            window.close()
+        }
+        try await waitForTestCondition("Gallery previews load before the upgrade is blocked") {
+            loader.images.count == 3
+        }
+        queue.isSuspended = true
+        overlay.update(selectedIndex: 2)
+        let selected = try #require(overlay.layer?.sublayers?.first { $0.name == "page-2" })
+        let image = try #require(selected.sublayers?.first { $0.name == "thumbnail" })
+        try #require(image.contents != nil)
+        let position = selected.position
+        let transform = selected.transform
+
+        overlay.dismiss(to: target)
+
+        #expect(selected.position == position)
+        #expect(CATransform3DEqualToTransform(selected.transform, transform))
+        #expect(overlay.layer?.animation(forKey: "galleryExitFade") == nil)
+        try await waitForTestCondition("Pending reader-resolution work does not delay dismissal") {
+            overlay.superview == nil
+        }
+    }
+
     @Test
     func previewsGrowWithViewportAndKeepEachPageAspectRatio() {
         let document = PDFDocument()
@@ -155,8 +294,9 @@ struct PageOverviewGalleryTests {
             document.insert(page, at: index)
         }
         let loader = PageOverviewThumbnailLoader()
+        let target = NSRect(x: -40, y: -180, width: 800, height: 800 * 792 / 612)
         let overlay = PageOverviewOverlayView(document: document, selectedIndex: 1, columns: 3,
-                                              thumbnailLoader: loader)
+                                              entryPageRect: target, thumbnailLoader: loader)
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1000, height: 700),
                               styleMask: .borderless, backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
@@ -172,7 +312,6 @@ struct PageOverviewGalleryTests {
         let selected = try #require(overlay.layer?.sublayers?.first { $0.name == "page-1" })
         let neighbor = try #require(overlay.layer?.sublayers?.first { $0.name == "page-0" })
         let backdrop = try #require(overlay.layer?.sublayers?.first { $0.zPosition == -1 })
-        let target = NSRect(x: -40, y: -180, width: 800, height: 800 * 792 / 612)
         let image = try #require(selected.sublayers?.first { $0.name == "thumbnail" })
         let scale = target.width / image.bounds.width
 

@@ -54,17 +54,24 @@ final class PageOverviewThumbnailLoader {
         pageIndexes: [Int],
         selectedIndex: Int,
         maximumPixelSize: NSSize,
+        selectedMaximumPixelSize: NSSize? = nil,
         didLoad: @escaping @MainActor @Sendable () -> Void
     ) {
         cancel()
         // Retain at most nine nearby pages while moving through a long document.
-        images = images.filter { abs($0.key - selectedIndex) <= 4 }
+        images = images.filter { index, image in
+            guard abs(index - selectedIndex) <= 4 else { return false }
+            guard selectedMaximumPixelSize != nil, index != selectedIndex else { return true }
+            let size = Self.pixelSize(of: image)
+            return size.width <= maximumPixelSize.width + 1 && size.height <= maximumPixelSize.height + 1
+        }
         imagePixelSizes = imagePixelSizes.filter { images[$0.key] != nil }
         let url = document.documentURL
         let requests = pageIndexes.compactMap { index -> Request? in
             guard abs(index - selectedIndex) <= 4,
                   let page = document.page(at: index) else { return nil }
             let size = PDFPageDisplayGeometry(page: page, box: .cropBox).bounds.size
+            let maximumPixelSize = index == selectedIndex ? selectedMaximumPixelSize ?? maximumPixelSize : maximumPixelSize
             guard size.width > 0, size.height > 0,
                   maximumPixelSize.width > 0, maximumPixelSize.height > 0 else { return nil }
             let scale = min(maximumPixelSize.width / size.width, maximumPixelSize.height / size.height)
