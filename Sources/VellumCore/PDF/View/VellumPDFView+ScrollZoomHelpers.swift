@@ -375,8 +375,9 @@ extension VellumPDFView {
         let top = documentView.isFlipped ? firstPaper.minY : firstPaper.maxY - clipView.bounds.height
         let bottom = documentView.isFlipped ? lastPaper.maxY - clipView.bounds.height : lastPaper.minY
         let origin = clipView.bounds.origin.y
-        // A document shorter than the viewport is already fully visible.
-        guard documentView.isFlipped ? top < bottom : bottom < top else {
+        // PDFKit can leave a fitted page fractionally taller than its viewport.
+        let overflow = documentView.isFlipped ? bottom - top : top - bottom
+        guard overflow > 0.5 else {
             let pinned = min(max(origin, min(top, bottom)), max(top, bottom))
             return pinned...pinned
         }
