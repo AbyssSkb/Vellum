@@ -21,7 +21,7 @@ Run `scripts/test.sh` before publishing. It isolates AI logs and runs serially b
 
 GitHub Actions runs the test suite on macOS 15, 26, and 27 for branch pushes, pull requests, and manual runs. macOS 27 uses the `xcode-27` preview runner label. Each job verifies the actual OS version, and release packaging starts only after all three jobs pass.
 
-The release workflow packages a universal macOS app, creates the DMG, and publishes a signed Sparkle appcast at:
+The release workflow packages a universal macOS app, creates an LZMA-compressed DMG (ULMO), and publishes a signed Sparkle appcast at:
 
 `https://github.com/AbyssSkb/Vellum/releases/latest/download/appcast.xml`
 

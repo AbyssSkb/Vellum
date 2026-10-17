@@ -151,7 +151,7 @@ jobs:
             -volname Vellum \
             -srcfolder dist/dmg-root \
             -ov \
-            -format UDZO \
+            -format ULMO \
             "dist/${{ steps.version.outputs.archive_name }}.dmg"
           if [[ "$SIGNING_AVAILABLE" == "true" ]]; then
             codesign --force --timestamp --sign "$CODE_SIGN_IDENTITY" "dist/${{ steps.version.outputs.archive_name }}.dmg"
