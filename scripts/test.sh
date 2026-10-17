@@ -24,16 +24,16 @@ if [[ $# -gt 0 ]]; then
     exit
 fi
 
-# Separate AppKit test targets so one target cannot stop another's main run loop.
+# Fresh processes bound PDFKit's background analysis and isolate AppKit run loops.
 swift test list > "$TEST_WORKSPACE/tests.txt"
-cut -d. -f1 "$TEST_WORKSPACE/tests.txt" | sort -u > "$TEST_WORKSPACE/targets.txt"
-if [[ ! -s "$TEST_WORKSPACE/targets.txt" ]]; then
-    echo "error: No test targets found." >&2
+cut -d/ -f1 "$TEST_WORKSPACE/tests.txt" | sort -u > "$TEST_WORKSPACE/suites.txt"
+if [[ ! -s "$TEST_WORKSPACE/suites.txt" ]]; then
+    echo "error: No test suites found." >&2
     exit 1
 fi
 
 test_status=0
-while IFS= read -r test_target; do
-    run_tests --skip-build --filter "^${test_target}[.]" || test_status=1
-done < "$TEST_WORKSPACE/targets.txt"
+while IFS= read -r test_suite; do
+    run_tests --skip-build --filter "^${test_suite//./[.]}/" || test_status=1
+done < "$TEST_WORKSPACE/suites.txt"
 exit "$test_status"
