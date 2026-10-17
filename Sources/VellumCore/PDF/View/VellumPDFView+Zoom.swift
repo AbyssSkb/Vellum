@@ -11,6 +11,7 @@ extension VellumPDFView {
     func vimZoom(to targetScale: CGFloat) {
         completePendingRestoreBeforeUserInteraction()
         cancelPendingRestore()
+        searchController?.markReaderNavigated()
         stopScrollAnimation()
         animationState.zoomPageFitPhase = nil
         autoScales = false
@@ -22,6 +23,7 @@ extension VellumPDFView {
     func vimZoomToFit() {
         completePendingRestoreBeforeUserInteraction()
         cancelPendingRestore()
+        searchController?.markReaderNavigated()
         stopScrollAnimation()
         animationState.zoomPageFitPhase = nil
         guard let anchor = centerDestination() ?? currentDestination,
@@ -39,6 +41,7 @@ extension VellumPDFView {
     func vimZoomToPageFit() {
         completePendingRestoreBeforeUserInteraction()
         cancelPendingRestore()
+        searchController?.markReaderNavigated()
         stopScrollAnimation()
         guard let scrollView = pdfScrollView else { return }
         func bottomIsPinned(_ page: PDFPage) -> Bool {

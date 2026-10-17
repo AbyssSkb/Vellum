@@ -5,6 +5,52 @@ import Testing
 
 @Suite("PDF search geometry")
 struct PDFSearchGeometryTests {
+    @Test(arguments: ["z", "0", "=", "-"], [false, true]) @MainActor
+    func keyboardZoomCancelsPendingSearchJumps(key: String, afterPartialPreview: Bool) async throws {
+        let (window, view) = try makeReader(pageCount: 3, wordPage: afterPartialPreview ? 0 : 1)
+        defer { view.searchController?.clear(); view.stopZoomState(); window.close() }
+        view.beginSearchCommand()
+        let controller = try #require(view.searchController)
+        let field = try #require(searchField(in: view))
+        var startedZoom = false
+        var targetScale: CGFloat?
+        let commitThenZoom: @MainActor () -> Void = {
+            startedZoom = true
+            #expect(controller.isSearchPending)
+            _ = field.delegate?.control?(field, textView: NSTextView(), doCommandBy: #selector(NSResponder.insertNewline(_:)))
+            switch key {
+            case "z": view.vimZoomToFit()
+            case "0": view.vimZoomToPageFit()
+            case "=": view.vimZoom(by: 1.1)
+            default: view.vimZoom(by: 1 / 1.1)
+            }
+            targetScale = view.animationState.zoomTargetScale
+            // Keep the zoom in progress while the remaining search batches finish.
+            view.animationState.zoomTimer?.invalidate()
+        }
+        let observation = view.observe(\.highlightedSelections, options: [.new]) { _, _ in
+            MainActor.assumeIsolated {
+                guard afterPartialPreview, !startedZoom, controller.hasVisibleHighlights else { return }
+                commitThenZoom()
+            }
+        }
+        defer { observation.invalidate() }
+
+        enter("alpha", into: field)
+        if !afterPartialPreview { commitThenZoom() }
+
+        try await waitForTestCondition("Search completes without interrupting keyboard zoom") {
+            startedZoom && !controller.isSearchPending
+        }
+        await nextTestMainQueueTurn()
+        let target = try #require(targetScale)
+        #expect(target != view.scaleFactor)
+        #expect(view.animationState.zoomTargetScale == target)
+        #expect(view.animationState.zoomAnchor != nil)
+        #expect(view.currentPage === view.document?.page(at: 0))
+        #expect(view.jumpBackStack.isEmpty)
+    }
+
     @Test(arguments: [false, true]) @MainActor
     func readerNavigationCancelsPendingSearchJumps(afterPartialPreview: Bool) async throws {
         let (window, view) = try makeReader(pageCount: 3, wordPage: afterPartialPreview ? 0 : 1)
