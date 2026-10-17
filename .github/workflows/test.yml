@@ -52,3 +52,11 @@ jobs:
 
       - name: Run tests
         run: scripts/test.sh
+
+      - name: Upload failed test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: test-diagnostics-macos-${{ matrix.macos }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/vellum-tests.*/results.*/
+          retention-days: 7
