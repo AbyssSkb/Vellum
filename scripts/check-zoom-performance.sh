@@ -56,7 +56,7 @@ for object in map.values.compactMap({ $0["object"] }).sorted() {
 }
 ' "$bin_dir/VellumCore.build/output-file-map.json" "${3:-50}")
 [[ ${#objects[@]} -gt 0 ]] || { echo "VellumCore object map is empty" >&2; exit 1; }
-xcrun swiftc -parse-as-library -swift-version 6 -target "$(uname -m)-apple-macos14.0" \
+xcrun swiftc -parse-as-library -swift-version 6 -target "$(uname -m)-apple-macos15.0" \
   -g -I "$bin_dir/Modules" "$ROOT_DIR/scripts/zoom-performance-probe.swift" \
   "${objects[@]}" -o "$executable"
 if [[ "$mode" == self-test ]]; then
@@ -71,7 +71,7 @@ for entry in \
   "CFBundleIdentifier=com.abyssskb.vellum.zoom-performance.$(uuidgen | tr '[:upper:]' '[:lower:]')" \
   "CFBundlePackageType=APPL" \
   "CFBundleVersion=1" \
-  "LSMinimumSystemVersion=14.0" \
+  "LSMinimumSystemVersion=15.0" \
   "ProbePDF=$output_dir/input.pdf" \
   "ProbeResult=$output_dir/result.json" \
   "ProbeGapLimit=${3:-50}" \

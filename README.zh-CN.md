@@ -74,7 +74,7 @@ AI 辅助是可选的实验性功能。配置与使用方法请见[使用指南]
 
 ## 从源码构建
 
-需要 macOS 14 或更新版本，以及 Swift 6.2 工具链。发布包支持 Apple silicon 与 Intel Mac。
+需要 macOS 15 或更新版本，以及 Swift 6.2 工具链。发布包支持 Apple silicon 与 Intel Mac。
 
 ```sh
 git clone https://github.com/AbyssSkb/Vellum.git

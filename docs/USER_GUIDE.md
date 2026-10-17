@@ -2,7 +2,7 @@
 
 [简体中文](USER_GUIDE.zh-CN.md) | English · [README](../README.md)
 
-Vellum is a native macOS PDF reader with keyboard navigation, an immersive page gallery, searchable tabs, outlines, and highlights. It requires macOS 14 or later and runs on Apple silicon and Intel Macs.
+Vellum is a native macOS PDF reader with keyboard navigation, an immersive page gallery, searchable tabs, outlines, and highlights. It requires macOS 15 or later and runs on Apple silicon and Intel Macs.
 
 ![The Vellum reader](images/vellum-reader.png)
 

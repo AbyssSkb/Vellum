@@ -87,7 +87,7 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
     <key>SURequireSignedFeed</key>
     <true/>
     <key>LSMinimumSystemVersion</key>
-    <string>14.0</string>
+    <string>15.0</string>
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>NSAppTransportSecurity</key>

@@ -2,7 +2,7 @@
 
 简体中文 | [English](USER_GUIDE.md) · [README](../README.zh-CN.md)
 
-Vellum 是一款原生 macOS PDF 阅读器，支持键盘导航、沉浸画廊、可搜索的标签切换器、目录和高亮。要求 macOS 14 或更新版本，支持 Apple silicon 和 Intel Mac。
+Vellum 是一款原生 macOS PDF 阅读器，支持键盘导航、沉浸画廊、可搜索的标签切换器、目录和高亮。要求 macOS 15 或更新版本，支持 Apple silicon 和 Intel Mac。
 
 ![Vellum 阅读界面](images/vellum-reader.png)
 

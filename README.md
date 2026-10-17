@@ -74,7 +74,7 @@ Sparkle handles automatic updates, with checks enabled by default. A new version
 
 ## Build from source
 
-Requires macOS 14 or later and a Swift 6.2 toolchain. Release downloads support Apple silicon and Intel Macs.
+Requires macOS 15 or later and a Swift 6.2 toolchain. Release downloads support Apple silicon and Intel Macs.
 
 ```sh
 git clone https://github.com/AbyssSkb/Vellum.git
