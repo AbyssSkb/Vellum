@@ -1,62 +1,68 @@
 name: Test
 
 on:
-  push:
-    branches:
-      - "**"
-  pull_request:
   workflow_dispatch:
-  workflow_call:
 
 permissions:
   contents: read
 
 jobs:
-  test:
-    name: macOS ${{ matrix.macos }}
-    runs-on: ${{ matrix.runner }}
+  native-scroll:
+    name: macOS 15 native scroll (${{ matrix.layout }})
+    runs-on: macos-15
     timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - macos: "15"
-            runner: macos-15
-          - macos: "26"
-            runner: macos-26
-          - macos: "27"
-            runner: xcode-27
+        layout: [document, legacy]
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v6.0.2
 
-      - name: Select Xcode
+      - name: Select original failing toolchain
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: latest-stable
+          xcode-version: '26.3'
 
-      - name: Verify test environment
+      - name: Verify environment
         shell: bash
-        env:
-          EXPECTED_MACOS_MAJOR: ${{ matrix.macos }}
         run: |
           sw_vers
           xcodebuild -version
           swift --version
-          MACOS_VERSION="$(sw_vers -productVersion)"
-          if [[ "${MACOS_VERSION%%.*}" != "$EXPECTED_MACOS_MAJOR" ]]; then
-            echo "::error::Expected macOS $EXPECTED_MACOS_MAJOR, found $MACOS_VERSION."
-            exit 1
-          fi
+          version="$(sw_vers -productVersion)"
+          [[ "${version%%.*}" == 15 ]]
 
-      - name: Run tests
-        run: scripts/test.sh
+      - name: Restore the original layout observations for the control
+        if: matrix.layout == 'legacy'
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('Tests/VellumTests/PDF/PDFNativeScrollTests.swift')
+          source = path.read_text()
+          current = 'return [paper, clipView.bounds, documentView.bounds, documentView.frame,\n                    view.convert(paper, to: documentView)]'
+          assert source.count(current) == 1
+          path.write_text(source.replace(current, 'return [paper, clipView.bounds]'))
+          PY
+          git diff -- Tests/VellumTests/PDF/PDFNativeScrollTests.swift
 
-      - name: Upload failed test diagnostics
+      - name: Repeat the original native scroll suite until first failure
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in {1..20}; do
+            printf 'Native scroll reproduction attempt %s of 20\n' "$attempt"
+            args=(--filter '^VellumTests[.]PDFNativeScrollTests/')
+            if (( attempt > 1 )); then args=(--skip-build "${args[@]}"); fi
+            scripts/test.sh "${args[@]}"
+          done
+
+      - name: Upload first-failure diagnostics
         if: failure()
         uses: actions/upload-artifact@v7.0.2
         with:
-          name: test-diagnostics-macos-${{ matrix.macos }}-${{ github.run_attempt }}
+          name: native-scroll-first-failure-${{ matrix.layout }}
           path: ${{ runner.temp }}/vellum-tests.*/results.*/
           retention-days: 7
