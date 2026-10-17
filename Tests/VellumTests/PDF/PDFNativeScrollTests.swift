@@ -88,31 +88,44 @@ struct PDFNativeScrollTests {
                 let page = edge == .top ? firstPage : lastPage
                 let paper = view.convert(page.bounds(for: view.displayBox), from: page)
                 let viewport = view.convert(clipView.bounds, from: clipView)
+                func geometryDescription() -> String {
+                    let paperInDocument = view.convert(view.convert(page.bounds(for: view.displayBox), from: page), to: documentView)
+                    return "scale=\(view.scaleFactor), range=\(view.verticalScrollRange(in: scrollView)), clip=\(clipView.bounds), document=\(documentView.bounds), documentFrame=\(documentView.frame), paper=\(paperInDocument)"
+                }
+                let context = "rotation=\(rotation), pages=\(pageCount), fit=\(fit), edge=\(edge), scale=\(view.scaleFactor)"
+                let baselineGeometry = geometryDescription()
                 let gap = (edge == .top) == view.isFlipped
                     ? paper.minY - viewport.minY : viewport.maxY - paper.maxY
-                #expect(abs(gap) < 0.5)
+                #expect(abs(gap) < 0.5, Comment(rawValue: "\(context), baseline: \(baselineGeometry)"))
 
                 let origin = clipView.bounds.origin
                 let outward: CGFloat = edge == .top ? 1 : -1
                 let outwardCoordinate = documentView.isFlipped ? -outward : outward
                 for distance in [CGFloat(60), clipView.bounds.height / 2, clipView.bounds.height] {
                     view.vimScroll(x: 0, y: outward * distance)
+                    let requestedTarget = view.animationState.scrollTargetOrigin
                     view.animationState.scrollTimer?.invalidate()
                     for _ in 0..<60 {
                         view.animationState.lastScrollTick = Date.timeIntervalSinceReferenceDate - 1.0 / 30.0
                         view.stepScrollAnimation(in: scrollView)
                     }
-                    #expect(abs(clipView.bounds.origin.y - origin.y) < 0.001)
+                    #expect(abs(clipView.bounds.origin.y - origin.y) < 0.001, Comment(rawValue:
+                        "\(context), distance=\(distance), origin=\(origin), requestedTarget=\(String(describing: requestedTarget)), baseline: \(baselineGeometry), after: \(geometryDescription())"
+                    ))
                 }
                 if paper.height >= viewport.height - 0.5 {
                     clipView.scroll(to: NSPoint(x: origin.x, y: origin.y + outwardCoordinate * 30))
+                    let displacedGeometry = geometryDescription()
                     view.vimScroll(x: 0, y: outward * 60)
+                    let requestedTarget = view.animationState.scrollTargetOrigin
                     view.animationState.scrollTimer?.invalidate()
                     for _ in 0..<60 {
                         view.animationState.lastScrollTick = Date.timeIntervalSinceReferenceDate - 1.0 / 30.0
                         view.stepScrollAnimation(in: scrollView)
                     }
-                    #expect(abs(clipView.bounds.origin.y - origin.y) < 0.001)
+                    #expect(abs(clipView.bounds.origin.y - origin.y) < 0.001, Comment(rawValue:
+                        "\(context), origin=\(origin), requestedTarget=\(String(describing: requestedTarget)), baseline: \(baselineGeometry), displaced: \(displacedGeometry), after: \(geometryDescription())"
+                    ))
                 }
                 let wheelDirection: Int32 = edge == .top ? 60 : -60
                 for _ in 0..<8 { try sendNativeWheel(wheelDirection, to: scrollView) }
@@ -122,12 +135,16 @@ struct PDFNativeScrollTests {
                 ))
                 clipView.scroll(to: deferredBounds.origin)
                 scrollView.reflectScrolledClipView(clipView)
-                try await waitForSettlement(of: clipView, at: origin.y)
+                try await waitForSettlement(of: clipView, at: origin.y, diagnostics: {
+                    "\(context), baseline: \(baselineGeometry), after: \(geometryDescription())"
+                })
                 if edge == .top, paper.height > viewport.height + 0.5 {
                     try sendNativeWheel(-wheelDirection, to: scrollView)
                     #expect(abs(clipView.bounds.origin.y - origin.y) > 1)
                     try sendNativeWheel(wheelDirection * 2, to: scrollView)
-                    try await waitForSettlement(of: clipView, at: origin.y)
+                    try await waitForSettlement(of: clipView, at: origin.y, diagnostics: {
+                        "\(context), baseline: \(baselineGeometry), after: \(geometryDescription())"
+                    })
                 }
             }
         }
@@ -417,16 +434,19 @@ struct PDFNativeScrollTests {
     private func waitForNativeLayout(in view: VellumPDFView, page: PDFPage) async throws {
         let scrollView = try #require(view.pdfScrollView)
         let clipView = scrollView.contentView
-        var previousPaper = view.convert(page.bounds(for: view.displayBox), from: page)
-        var previousViewport = clipView.bounds
+        let documentView = try #require(scrollView.documentView)
+        func geometry() -> [NSRect] {
+            let paper = view.convert(page.bounds(for: view.displayBox), from: page)
+            return [paper, clipView.bounds, documentView.bounds, documentView.frame,
+                    view.convert(paper, to: documentView)]
+        }
+        var previous = geometry()
         var quietSince = ProcessInfo.processInfo.systemUptime
         try await waitForTestCondition("PDFKit finishes native magnification and viewport layout") {
-            let paper = view.convert(page.bounds(for: view.displayBox), from: page)
-            let viewport = clipView.bounds
+            let current = geometry()
             let now = ProcessInfo.processInfo.systemUptime
-            if paper != previousPaper || viewport != previousViewport {
-                previousPaper = paper
-                previousViewport = viewport
+            if current != previous {
+                previous = current
                 quietSince = now
             }
             return now - quietSince >= 0.04
@@ -487,7 +507,10 @@ struct PDFNativeScrollTests {
     }
 
     @MainActor
-    private func waitForSettlement(of clipView: NSClipView, at targetY: CGFloat, quietInterval: TimeInterval = 0.08) async throws {
+    private func waitForSettlement(
+        of clipView: NSClipView, at targetY: CGFloat, quietInterval: TimeInterval = 0.08,
+        diagnostics: () -> String = { "" }
+    ) async throws {
         var lastY = clipView.bounds.origin.y
         var quietSince = ProcessInfo.processInfo.systemUptime
         // A quiet interval also observes deferred writes when the first sample is already at the edge.
@@ -502,7 +525,7 @@ struct PDFNativeScrollTests {
                 return abs(currentY - targetY) < 0.001 && now - quietSince >= quietInterval
             }
         } catch {
-            Issue.record("Native settlement expected y=\(targetY), actual y=\(clipView.bounds.origin.y)")
+            Issue.record("Native settlement expected y=\(targetY), actual y=\(clipView.bounds.origin.y). \(diagnostics())")
             throw error
         }
         #expect(abs(clipView.bounds.origin.y - targetY) < 0.001)
