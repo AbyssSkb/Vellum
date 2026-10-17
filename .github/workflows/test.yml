@@ -20,6 +20,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - macos: "14"
+            runner: macos-14
           - macos: "15"
             runner: macos-15
           - macos: "26"
@@ -34,7 +36,18 @@ jobs:
       - name: Select Xcode
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: latest-stable
+          xcode-version: ${{ matrix.macos == '14' && '16.2' || 'latest-stable' }}
+
+      - name: Install Swift 6.2.4 for macOS 14
+        if: matrix.macos == '14'
+        shell: bash
+        run: |
+          TOOLCHAIN_PACKAGE="$RUNNER_TEMP/swift-6.2.4.pkg"
+          curl --fail --location --retry 3 \
+            https://download.swift.org/swift-6.2.4-release/xcode/swift-6.2.4-RELEASE/swift-6.2.4-RELEASE-osx.pkg \
+            --output "$TOOLCHAIN_PACKAGE"
+          sudo installer -pkg "$TOOLCHAIN_PACKAGE" -target /
+          echo "/Library/Developer/Toolchains/swift-6.2.4-RELEASE.xctoolchain/usr/bin" >> "$GITHUB_PATH"
 
       - name: Verify test environment
         shell: bash

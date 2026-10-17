@@ -19,7 +19,9 @@ Publish the release after the user confirms that local testing passed. Productio
 
 Run `scripts/test.sh` before publishing. It isolates AI logs and runs serially because AppKit/PDFKit tests share application focus and the main run loop. Full runs use a separate process for each app test and core test suite to isolate window lifecycles and bound PDFKit's background analysis. Incomplete test reports fail the run. Pass `--filter` for a focused run; select one app test method at a time when checking window lifecycles. Check README, user guides, and GitHub About against the final features; keep AI positioned as an optional experiment.
 
-GitHub Actions runs the test suite on macOS 15, 26, and 27 for branch pushes, pull requests, and manual runs. macOS 27 uses the `xcode-27` preview runner label. Each job verifies the actual OS version, and release packaging starts only after all three jobs pass.
+GitHub Actions runs the test suite on macOS 14, 15, 26, and 27 for branch pushes, pull requests, and manual runs. macOS 14 uses Xcode 16.2 with the standalone Swift 6.2.4 toolchain; macOS 27 uses the `xcode-27` preview runner label. Each job verifies the actual OS version, and release packaging starts only after all four jobs pass.
+
+GitHub will retire its hosted macOS 14 runners on November 2, 2026, with scheduled brownouts before that date. Move the macOS 14 job to a Sonoma runner before retirement to retain minimum-system coverage. See the [runner deprecation schedule](https://github.com/actions/runner-images/issues/13518).
 
 The release workflow packages a universal macOS app, creates the DMG, and publishes a signed Sparkle appcast at:
 
