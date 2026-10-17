@@ -29,7 +29,7 @@ struct SearchCommandTests {
 
     @Test
     @MainActor
-    func committingPartialPreviewFinishesUnscannedPages() async throws {
+    func committingPartialPreviewContinuesWithoutScanningSynchronously() async throws {
         let (view, controller, field, pages) = try makeCountingSearchReader(texts: ["alpha", "alpha", "alpha"])
         defer { controller.clear() }
         var committedPartialPreview = false
@@ -37,8 +37,11 @@ struct SearchCommandTests {
             guard !committedPartialPreview, controller.hasVisibleHighlights,
                   pages[0].stringReads > 0, pages[1].stringReads == 0 else { return }
             committedPartialPreview = true
+            let stringReads = pages.map(\.stringReads)
+            let boundsReads = pages.map(\.characterBoundsReads)
             commit(field)
-            #expect(pages.allSatisfy { $0.stringReads > 0 && $0.characterBoundsReads > 0 })
+            #expect(pages.map(\.stringReads) == stringReads)
+            #expect(pages.map(\.characterBoundsReads) == boundsReads)
         }
         let observation = view.observe(\.highlightedSelections, options: [.new]) { _, _ in
             MainActor.assumeIsolated { commitPartialPreview() }
@@ -47,8 +50,74 @@ struct SearchCommandTests {
 
         enter("alpha", into: field)
 
-        try await waitForTestCondition("Return finishes the first partial preview") { committedPartialPreview }
+        try await waitForTestCondition("Return commits the first partial preview") { committedPartialPreview }
+        try await waitForTestCondition("Committed preview scans the remaining pages") {
+            pages.allSatisfy { $0.stringReads > 0 && $0.characterBoundsReads > 0 }
+        }
         #expect(controller.hasVisibleHighlights)
+    }
+
+    @Test(arguments: [PDFSearchController.Direction.next, .previous])
+    @MainActor
+    func movingPartialPreviewContinuesWithoutScanningSynchronously(direction: PDFSearchController.Direction) async throws {
+        let (view, controller, field, pages) = try makeCountingSearchReader(texts: ["alpha", "alpha", "alpha"])
+        defer { controller.clear() }
+        var movedPartialPreview = false
+        let movePartialPreview: @MainActor () -> Void = {
+            guard !movedPartialPreview, controller.hasVisibleHighlights,
+                  pages[0].stringReads > 0, pages[1].stringReads == 0 else { return }
+            movedPartialPreview = true
+            let stringReads = pages.map(\.stringReads)
+            let boundsReads = pages.map(\.characterBoundsReads)
+            controller.move(direction)
+            let stringReadsAfterMove = pages.map(\.stringReads)
+            let boundsReadsAfterMove = pages.map(\.characterBoundsReads)
+            #expect(stringReadsAfterMove == stringReads)
+            #expect(boundsReadsAfterMove == boundsReads)
+        }
+        let observation = view.observe(\.highlightedSelections, options: [.new]) { _, _ in
+            MainActor.assumeIsolated { movePartialPreview() }
+        }
+        defer { observation.invalidate() }
+
+        enter("alpha", into: field)
+
+        try await waitForTestCondition("Movement queues during the partial preview") { movedPartialPreview }
+        try await waitForTestCondition("Search movement scans the remaining pages") {
+            pages.allSatisfy { $0.stringReads > 0 && $0.characterBoundsReads > 0 }
+        }
+        #expect(controller.hasVisibleHighlights)
+    }
+
+    @Test(arguments: [false, true])
+    @MainActor
+    func dismissingPartialPreviewCancelsPendingCommitAndMoves(clear: Bool) async throws {
+        let (view, controller, field, pages) = try makeCountingSearchReader(texts: ["alpha", "alpha", "alpha"])
+        defer { controller.clear() }
+        var dismissed = false
+        let observation = view.observe(\.highlightedSelections, options: [.new]) { _, _ in
+            MainActor.assumeIsolated {
+                guard !dismissed, controller.hasVisibleHighlights else { return }
+                dismissed = true
+                commit(field)
+                controller.move(.next)
+                if clear {
+                    controller.clear()
+                } else {
+                    #expect(controller.handleEscape())
+                }
+            }
+        }
+        defer { observation.invalidate() }
+
+        enter("alpha", into: field)
+
+        try await waitForTestCondition("Partial search is dismissed") { dismissed }
+        await nextTestMainQueueTurn()
+        #expect(pages[1].stringReads == 0)
+        #expect(!controller.hasVisibleHighlights)
+        #expect(view.highlightedSelections?.isEmpty == true)
+        #expect(controller.canHandleEscape == !clear)
     }
 
     @Test
@@ -66,7 +135,8 @@ struct SearchCommandTests {
 
         commit(field)
 
-        #expect(replacementPage.stringReads > 0)
+        #expect(replacementPage.stringReads == 0)
+        try await waitForTestCondition("Replacement search scans its document") { replacementPage.stringReads > 0 }
         #expect(!controller.hasVisibleHighlights)
     }
 
@@ -125,8 +195,10 @@ struct SearchCommandTests {
         #expect(view.highlightedSelections?.isEmpty == true)
 
         view.vimSearchNext()
-        #expect(controller.hasVisibleHighlights)
-        #expect(controller.activeSearchSelection?.pages.first === document.page(at: 1))
+        try await waitForTestCondition("Next resumes the search and advances to the next page") {
+            controller.hasVisibleHighlights
+                && controller.activeSearchSelection?.pages.first === document.page(at: 1)
+        }
     }
 
     @Test

@@ -39,6 +39,7 @@ struct PDFReaderReloadTests {
         let searchOverlay = try #require(reader.subviews.first { searchField(in: $0) != nil })
         enter("alpha", into: try #require(searchField(in: reader)))
         reader.vimSearchNext()
+        try await waitForTestCondition("Original document search completes") { !oldSearchController.isSearchPending }
         try #require(oldSearchController.hasVisibleHighlights)
         try #require(reader.beginPageOverview())
         let overviewOverlay = try #require(reader.pageOverviewController?.overlay)
@@ -89,6 +90,7 @@ struct PDFReaderReloadTests {
         #expect(newSearchController !== oldSearchController)
         enter("beta", into: try #require(searchField(in: reader)))
         reader.vimSearchNext()
+        try await waitForTestCondition("Replacement document search completes") { !newSearchController.isSearchPending }
         #expect(newSearchController.activeSearchSelection?.string == "beta")
         #expect(newSearchController.activeSearchSelection?.pages.first === replacement.page(at: 0))
     }

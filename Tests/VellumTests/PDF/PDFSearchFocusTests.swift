@@ -6,6 +6,28 @@ import Testing
 @MainActor
 @Suite("PDF search focus")
 struct PDFSearchFocusTests {
+    @Test(arguments: [false, true])
+    func noMatchCommitKeepsTheQueryEditable(previewComplete: Bool) async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        try #require(fixture.window.makeFirstResponder(fixture.outline))
+        let field = try fixture.begin()
+        let editor = try await fixture.focusedEditor(for: field)
+        field.stringValue = "missing"
+        field.delegate?.controlTextDidChange?(Notification(name: NSControl.textDidChangeNotification, object: field))
+        let controller = try #require(fixture.reader.searchController)
+        if previewComplete {
+            try await waitForTestCondition("Preview completes without matching text") { !controller.isSearchPending }
+        }
+
+        #expect(field.delegate?.control?(field, textView: editor, doCommandBy: #selector(NSResponder.insertNewline(_:))) == true)
+
+        try await waitForTestCondition("Committed search completes without matching text") { !controller.isSearchPending }
+        #expect(fixture.window.firstResponder === editor)
+        #expect(!field.isHiddenOrHasHiddenAncestor)
+        #expect(!controller.hasVisibleHighlights)
+    }
+
     @Test
     func unicodeCaretUsesUTF16AndIMEKeepsEnterAndEscape() async throws {
         let fixture = try Fixture()

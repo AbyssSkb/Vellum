@@ -5,6 +5,126 @@ import Testing
 
 @Suite("PDF search geometry")
 struct PDFSearchGeometryTests {
+    @Test(arguments: [false, true]) @MainActor
+    func readerNavigationCancelsPendingSearchJumps(afterPartialPreview: Bool) async throws {
+        let (window, view) = try makeReader(pageCount: 3, wordPage: afterPartialPreview ? 0 : 1)
+        defer { view.searchController?.clear(); window.close() }
+        view.beginSearchCommand()
+        let controller = try #require(view.searchController)
+        let field = try #require(searchField(in: view))
+        var navigated = false
+        let commitThenNavigate: @MainActor () -> Void = {
+            navigated = true
+            _ = field.delegate?.control?(field, textView: NSTextView(), doCommandBy: #selector(NSResponder.insertNewline(_:)))
+            controller.move(.next)
+            view.vimGoToLastPage()
+        }
+        let observation = view.observe(\.highlightedSelections, options: [.new]) { _, _ in
+            MainActor.assumeIsolated {
+                guard afterPartialPreview, !navigated, controller.hasVisibleHighlights else { return }
+                commitThenNavigate()
+            }
+        }
+        defer { observation.invalidate() }
+
+        enter("alpha", into: field)
+        if !afterPartialPreview { commitThenNavigate() }
+
+        try await waitForTestCondition("Search completes after explicit reader navigation") {
+            navigated && !controller.isSearchPending
+        }
+        await nextTestMainQueueTurn()
+        #expect(view.currentPage === view.document?.page(at: 2))
+        #expect(view.jumpBackStack.count == 1)
+    }
+
+    @Test @MainActor
+    func unchangedViewportDoesNotResubmitSearchHighlights() async throws {
+        let (window, view) = try makeReader(pageCount: 1, wordPage: 0)
+        defer { view.searchController?.clear(); window.close() }
+        view.beginSearchCommand()
+        let controller = try #require(view.searchController)
+        enter("alpha", into: try #require(searchField(in: view)))
+        try await waitForTestCondition("Search highlights the matching page") {
+            view.highlightedSelections?.count == 1
+        }
+        let activeSelection = try #require(controller.activeSearchSelection)
+        controller.refreshVisibleMatches()
+        var highlightWrites = 0
+        let observation = view.observe(\.highlightedSelections, options: [.new]) { _, _ in
+            MainActor.assumeIsolated { highlightWrites += 1 }
+        }
+        defer { observation.invalidate() }
+
+        for _ in 0..<100 { controller.refreshVisibleMatches() }
+
+        #expect(highlightWrites == 0)
+        #expect(controller.activeSearchSelection === activeSelection)
+        #expect(view.highlightedSelections?.count == 1)
+    }
+
+    @Test(arguments: [PDFSearchController.Direction.next, .previous]) @MainActor
+    func pendingSearchMovesAccumulateBeforeOneFinalJump(direction: PDFSearchController.Direction) async throws {
+        let (window, view) = try makeReader(pageCount: 3, wordPage: nil)
+        defer { view.searchController?.clear(); window.close() }
+        let original = try #require(view.snapshot())
+        view.beginSearchCommand()
+        let controller = try #require(view.searchController)
+        var queuedMoves = false
+        let queueMoves: @MainActor () -> Void = {
+            guard !queuedMoves, controller.hasVisibleHighlights else { return }
+            queuedMoves = true
+            controller.move(direction)
+            controller.move(direction)
+            let stayedOnFirstPage = controller.activeSearchSelection?.pages.first === view.document?.page(at: 0)
+            #expect(stayedOnFirstPage)
+        }
+        let observation = view.observe(\.highlightedSelections, options: [.new]) { _, _ in
+            MainActor.assumeIsolated { queueMoves() }
+        }
+        defer { observation.invalidate() }
+
+        enter("alpha", into: try #require(searchField(in: view)))
+
+        let expectedPage = direction == .next ? 2 : 1
+        try await waitForTestCondition("Queued search moves apply to all results") {
+            controller.activeSearchSelection?.pages.first === view.document?.page(at: expectedPage)
+                && !view.jumpBackStack.isEmpty
+        }
+        let source = try #require(view.jumpBackStack.last)
+        #expect(source.pageIndex == original.pageIndex)
+        #expect(source.pointOnPage == original.pointOnPage)
+        #expect(view.jumpBackStack.count == 1)
+    }
+
+    @Test @MainActor
+    func replacingQueryCancelsPendingCommitAndMoves() async throws {
+        let (window, view) = try makeReader(pageCount: 3, wordPage: 0)
+        defer { view.searchController?.clear(); window.close() }
+        view.beginSearchCommand()
+        let controller = try #require(view.searchController)
+        let field = try #require(searchField(in: view))
+        var replacedQuery = false
+        let observation = view.observe(\.highlightedSelections, options: [.new]) { _, _ in
+            MainActor.assumeIsolated {
+                guard !replacedQuery, controller.hasVisibleHighlights else { return }
+                replacedQuery = true
+                _ = field.delegate?.control?(field, textView: NSTextView(), doCommandBy: #selector(NSResponder.insertNewline(_:)))
+                controller.move(.next)
+                enter("other", into: field)
+            }
+        }
+        defer { observation.invalidate() }
+
+        enter("alpha", into: field)
+
+        try await waitForTestCondition("Replacement query completes at its first result") {
+            replacedQuery && !controller.isSearchPending
+                && controller.activeSearchSelection?.pages.first === view.document?.page(at: 1)
+        }
+        #expect(view.jumpBackStack.isEmpty)
+    }
+
     @Test @MainActor
     func committedSearchRecordsPositionBeforePreview() async throws {
         let (window, view) = try makeReader(pageCount: 3, wordPage: 2)
