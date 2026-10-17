@@ -12,7 +12,7 @@ cleanup() {
 trap cleanup EXIT
 export VELLUM_AI_LOG_DIR="$TEST_WORKSPACE/ai-logs"
 
-# Native SwiftPM emits the aggregate test bundle and its description metadata.
+# shortcut: Native SwiftPM supplies bundle metadata; migrate when this deprecated backend is removed.
 build_args=(--build-tests --build-system native)
 test_args=()
 skip_build=false
