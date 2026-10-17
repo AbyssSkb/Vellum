@@ -12,7 +12,8 @@ cleanup() {
 trap cleanup EXIT
 export VELLUM_AI_LOG_DIR="$TEST_WORKSPACE/ai-logs"
 
-build_args=(--build-tests)
+# Native SwiftPM emits the aggregate test bundle and its description metadata.
+build_args=(--build-tests --build-system native)
 test_args=()
 skip_build=false
 while [[ $# -gt 0 ]]; do
