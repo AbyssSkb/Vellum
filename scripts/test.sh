@@ -24,16 +24,23 @@ if [[ $# -gt 0 ]]; then
     exit
 fi
 
-# Fresh processes bound PDFKit's background analysis and isolate AppKit run loops.
+# Isolate app window lifecycles and bound PDFKit's background analysis.
 swift test list > "$TEST_WORKSPACE/tests.txt"
-cut -d/ -f1 "$TEST_WORKSPACE/tests.txt" | sort -u > "$TEST_WORKSPACE/suites.txt"
-if [[ ! -s "$TEST_WORKSPACE/suites.txt" ]]; then
-    echo "error: No test suites found." >&2
+awk -F/ '{
+    if ($1 ~ /^VellumAppTests[.]/) {
+        sub(/\(.*/, "[(]", $2)
+        print $1 "/" $2
+    } else {
+        print $1 "/"
+    }
+}' "$TEST_WORKSPACE/tests.txt" | sort -u > "$TEST_WORKSPACE/filters.txt"
+if [[ ! -s "$TEST_WORKSPACE/filters.txt" ]]; then
+    echo "error: No tests found." >&2
     exit 1
 fi
 
 test_status=0
-while IFS= read -r test_suite; do
-    run_tests --skip-build --filter "^${test_suite//./[.]}/" || test_status=1
-done < "$TEST_WORKSPACE/suites.txt"
+while IFS= read -r test_filter; do
+    run_tests --skip-build --filter "^${test_filter//./[.]}" || test_status=1
+done < "$TEST_WORKSPACE/filters.txt"
 exit "$test_status"
