@@ -35,6 +35,55 @@ struct PDFNativeScrollTests {
         }
     }
 
+    @Test @MainActor
+    func outwardScrollCorrectsFractionalPaperGapAndPreservesAlignedOrigin() async throws {
+        _ = NSApplication.shared
+        let document = PDFDocument()
+        let page = PDFPage()
+        page.setBounds(NSRect(x: 0, y: 0, width: 800, height: 1_100), for: .mediaBox)
+        page.setBounds(NSRect(x: 40, y: 60, width: 600, height: 900), for: .cropBox)
+        document.insert(page, at: 0)
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),
+                              styleMask: .borderless, backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        let view = VellumPDFView(frame: window.contentView!.bounds)
+        window.contentView = view
+        defer { view.cancelPendingRestore(); view.stopZoomState(); view.stopScrollAnimation(); window.close() }
+        view.displayMode = .singlePageContinuous
+        view.document = document
+        view.autoScales = false
+        view.scaleFactor = 1.2
+        view.layoutDocumentView()
+        view.applyZoomScale(2.0 / 3.0)
+        try await waitForNativeLayout(in: view, page: page)
+        #expect(abs(view.scaleFactor - 2.0 / 3.0) < 0.000001)
+        let scrollView = try #require(view.pdfScrollView)
+        let clipView = scrollView.contentView
+        let documentView = try #require(scrollView.documentView)
+        let paper = view.convert(view.convert(page.bounds(for: view.displayBox), from: page), to: documentView)
+        let paperEdge = documentView.isFlipped ? paper.minY : paper.maxY - clipView.bounds.height
+        let outward: CGFloat = documentView.isFlipped ? -1 : 1
+        let unalignedY = paperEdge + outward * 0.25
+        clipView.scroll(to: NSPoint(x: clipView.bounds.origin.x, y: unalignedY))
+        #expect(abs(clipView.bounds.origin.y - unalignedY) < 0.001)
+
+        for _ in 0..<2 {
+            view.vimScroll(x: 0, y: 60)
+            let target = try #require(view.animationState.scrollTargetOrigin)
+            #expect(abs(target.y - paperEdge) < 0.001)
+            view.animationState.scrollTimer?.invalidate()
+            for _ in 0..<60 {
+                view.animationState.lastScrollTick = Date.timeIntervalSinceReferenceDate - 1.0 / 30.0
+                view.stepScrollAnimation(in: scrollView)
+            }
+            #expect(abs(clipView.bounds.origin.y - paperEdge) < 0.001)
+        }
+        #expect(abs(abs(clipView.bounds.origin.y - unalignedY) - 0.25) < 0.001)
+        clipView.scroll(to: NSPoint(x: clipView.bounds.origin.x, y: unalignedY))
+        view.scrollToDocumentEdge(.top)
+        #expect(abs(clipView.bounds.origin.y - paperEdge) < 0.001)
+    }
+
     @Test(arguments: [0, 90, 180, 270], [1, 3]) @MainActor
     func documentEdgesAlignPaperAndPreventFurtherOutwardScrolling(rotation: Int, pageCount: Int) async throws {
         _ = NSApplication.shared
@@ -88,19 +137,25 @@ struct PDFNativeScrollTests {
                 let page = edge == .top ? firstPage : lastPage
                 let paper = view.convert(page.bounds(for: view.displayBox), from: page)
                 let viewport = view.convert(clipView.bounds, from: clipView)
+                let gap = (edge == .top) == view.isFlipped
+                    ? paper.minY - viewport.minY : viewport.maxY - paper.maxY
+                #expect(abs(gap) < 0.5)
+
+                let navigationOrigin = clipView.bounds.origin
+                let outward: CGFloat = edge == .top ? 1 : -1
+                let outwardCoordinate = documentView.isFlipped ? -outward : outward
+                let baselineClipHeight = clipView.bounds.height
+                let derivedBaselineEdgeY = navigationOrigin.y - outwardCoordinate * gap * baselineClipHeight / viewport.height
+                // Settled PDFKit layout can leave a fractional gap at the navigated paper edge.
+                view.scrollToDocumentEdge(edge)
+                let origin = clipView.bounds.origin
+                try #require(abs(origin.y - derivedBaselineEdgeY) < 0.001)
+                let context = "rotation=\(rotation), pages=\(pageCount), fit=\(fit), edge=\(edge), targetScale=\(target)"
+                let baselineGeometry = "navigationOrigin=\(navigationOrigin), alignedOrigin=\(origin), navigationPaperInPDFView=\(paper), navigationViewportInPDFView=\(viewport), navigationGap=\(gap), clipHeight=\(baselineClipHeight), derivedEdgeY=\(derivedBaselineEdgeY)"
                 func geometryDescription() -> String {
                     let paperInDocument = view.convert(view.convert(page.bounds(for: view.displayBox), from: page), to: documentView)
                     return "scale=\(view.scaleFactor), range=\(view.verticalScrollRange(in: scrollView)), clip=\(clipView.bounds), document=\(documentView.bounds), documentFrame=\(documentView.frame), paper=\(paperInDocument)"
                 }
-                let context = "rotation=\(rotation), pages=\(pageCount), fit=\(fit), edge=\(edge), scale=\(view.scaleFactor)"
-                let baselineGeometry = geometryDescription()
-                let gap = (edge == .top) == view.isFlipped
-                    ? paper.minY - viewport.minY : viewport.maxY - paper.maxY
-                #expect(abs(gap) < 0.5, Comment(rawValue: "\(context), baseline: \(baselineGeometry)"))
-
-                let origin = clipView.bounds.origin
-                let outward: CGFloat = edge == .top ? 1 : -1
-                let outwardCoordinate = documentView.isFlipped ? -outward : outward
                 for distance in [CGFloat(60), clipView.bounds.height / 2, clipView.bounds.height] {
                     view.vimScroll(x: 0, y: outward * distance)
                     let requestedTarget = view.animationState.scrollTargetOrigin
@@ -109,13 +164,17 @@ struct PDFNativeScrollTests {
                         view.animationState.lastScrollTick = Date.timeIntervalSinceReferenceDate - 1.0 / 30.0
                         view.stepScrollAnimation(in: scrollView)
                     }
-                    #expect(abs(clipView.bounds.origin.y - origin.y) < 0.001, Comment(rawValue:
-                        "\(context), distance=\(distance), origin=\(origin), requestedTarget=\(String(describing: requestedTarget)), baseline: \(baselineGeometry), after: \(geometryDescription())"
-                    ))
+                    let afterOrigin = clipView.bounds.origin
+                    let drift = abs(afterOrigin.y - origin.y)
+                    var diagnostics = ""
+                    if drift >= 0.001 {
+                        diagnostics = "\(context), distance=\(distance), afterOrigin=\(afterOrigin), requestedTarget=\(String(describing: requestedTarget)), baseline: \(baselineGeometry), after: \(geometryDescription())"
+                    }
+                    #expect(drift < 0.001, Comment(rawValue: diagnostics))
                 }
                 if paper.height >= viewport.height - 0.5 {
                     clipView.scroll(to: NSPoint(x: origin.x, y: origin.y + outwardCoordinate * 30))
-                    let displacedGeometry = geometryDescription()
+                    let displacedOrigin = clipView.bounds.origin
                     view.vimScroll(x: 0, y: outward * 60)
                     let requestedTarget = view.animationState.scrollTargetOrigin
                     view.animationState.scrollTimer?.invalidate()
@@ -123,9 +182,13 @@ struct PDFNativeScrollTests {
                         view.animationState.lastScrollTick = Date.timeIntervalSinceReferenceDate - 1.0 / 30.0
                         view.stepScrollAnimation(in: scrollView)
                     }
-                    #expect(abs(clipView.bounds.origin.y - origin.y) < 0.001, Comment(rawValue:
-                        "\(context), origin=\(origin), requestedTarget=\(String(describing: requestedTarget)), baseline: \(baselineGeometry), displaced: \(displacedGeometry), after: \(geometryDescription())"
-                    ))
+                    let afterOrigin = clipView.bounds.origin
+                    let drift = abs(afterOrigin.y - origin.y)
+                    var diagnostics = ""
+                    if drift >= 0.001 {
+                        diagnostics = "\(context), afterOrigin=\(afterOrigin), requestedTarget=\(String(describing: requestedTarget)), baseline: \(baselineGeometry), displacedOrigin=\(displacedOrigin), after: \(geometryDescription())"
+                    }
+                    #expect(drift < 0.001, Comment(rawValue: diagnostics))
                 }
                 let wheelDirection: Int32 = edge == .top ? 60 : -60
                 for _ in 0..<8 { try sendNativeWheel(wheelDirection, to: scrollView) }
