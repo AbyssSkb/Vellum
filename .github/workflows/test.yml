@@ -8,15 +8,13 @@ permissions:
 
 jobs:
   native-scroll:
-    name: macOS 15 native scroll (original 2563351)
+    name: macOS 15 exact paper-edge baseline with original layout wait
     runs-on: macos-15
     timeout-minutes: 20
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v6.0.2
-        with:
-          ref: 2563351804c515b0a84565a09823ea80de56d518
 
       - name: Select original failing toolchain
         uses: maxim-lobanov/setup-xcode@v1
@@ -31,6 +29,19 @@ jobs:
           swift --version
           version="$(sw_vers -productVersion)"
           [[ "${version%%.*}" == 15 ]]
+
+      - name: Restore the original layout observations for the control
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('Tests/VellumTests/PDF/PDFNativeScrollTests.swift')
+          source = path.read_text()
+          current = 'return [paper, clipView.bounds, documentView.bounds, documentView.frame,\n                    view.convert(paper, to: documentView)]'
+          assert source.count(current) == 1
+          path.write_text(source.replace(current, 'return [paper, clipView.bounds]'))
+          PY
+          git diff -- Tests/VellumTests/PDF/PDFNativeScrollTests.swift
 
       - name: Repeat the original native scroll suite until first failure
         shell: bash
