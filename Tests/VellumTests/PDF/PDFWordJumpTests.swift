@@ -198,7 +198,10 @@ struct PDFWordJumpTests {
                 height: abs(firstCorner.y - oppositeCorner.y)
             )
             let actual = try #require(target.rects.first)
-            #expect(actual == expected)
+            #expect(abs(actual.minX - expected.minX) < 0.000001)
+            #expect(abs(actual.minY - expected.minY) < 0.000001)
+            #expect(abs(actual.width - expected.width) < 0.000001)
+            #expect(abs(actual.height - expected.height) < 0.000001)
             let displayedSize = rotation % 180 == 0 ? bounds.size : NSSize(width: bounds.height, height: bounds.width)
             #expect(abs(actual.width - displayedSize.width * view.scaleFactor) < 0.001)
             #expect(abs(actual.height - displayedSize.height * view.scaleFactor) < 0.001)
@@ -278,7 +281,10 @@ struct PDFWordJumpTests {
         view.document = document
         view.autoScales = false
         view.scaleFactor = 1
+        view.layoutSubtreeIfNeeded()
+        view.pdfScrollView?.layoutSubtreeIfNeeded()
         view.layoutDocumentView()
+        view.goToFirstPage(nil)
         view.scrollToDocumentEdge(.top)
         await nextTestMainQueueTurn()
         let firstPage = try #require(document.page(at: 0))

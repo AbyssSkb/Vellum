@@ -33,15 +33,15 @@ struct ZoomGeometryTests {
     }
 
     @Test
-    func pageFitScaleUsesSmallerAxisScale() {
-        let scale = ZoomGeometry.pageFitScale(
+    func pageFitScaleUsesSmallerAxisScale() throws {
+        let scale = try #require(ZoomGeometry.pageFitScale(
             viewportSize: NSSize(width: 800, height: 600),
             pageSize: NSSize(width: 400, height: 900),
             minimum: 0.1,
             maximum: 8
-        )
+        ))
 
-        #expect(scale == 600.0 / 900.0)
+        #expect(abs(scale - 600.0 / 900.0) < 0.000001)
     }
 
     @Test

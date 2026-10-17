@@ -42,7 +42,10 @@ struct PDFSearchGeometryTests {
         let (window, view) = try makeReader(pageCount: 6, wordPage: nil, pageSize: NSSize(width: 400, height: 400))
         defer { view.searchController?.clear(); window.close() }
         view.scaleFactor = 0.4
+        view.layoutSubtreeIfNeeded()
+        view.pdfScrollView?.layoutSubtreeIfNeeded()
         view.layoutDocumentView()
+        view.goToFirstPage(nil)
         view.scrollToDocumentEdge(.top)
         view.beginSearchCommand()
         let controller = try #require(view.searchController)
@@ -158,7 +161,10 @@ struct PDFSearchGeometryTests {
         view.document = PDFDocument(data: data as Data)
         view.autoScales = false
         view.scaleFactor = 1
+        view.layoutSubtreeIfNeeded()
+        view.pdfScrollView?.layoutSubtreeIfNeeded()
         view.layoutDocumentView()
+        view.goToFirstPage(nil)
         view.scrollToDocumentEdge(.top)
         return (window, view)
     }

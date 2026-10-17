@@ -104,8 +104,10 @@ struct PageOverviewThumbnailTests {
     @Test
     @MainActor
     func currentHighlightsKeepNativeNotesPopupsAndLinks() async throws {
-        let original = try #require(PDFDocument(data: Self.makePDFData(pageCount: 1)))
-        let originalPage = try #require(original.page(at: 0))
+        let original = PDFDocument()
+        let originalPage = PDFPage()
+        originalPage.setBounds(NSRect(x: 0, y: 0, width: 612, height: 792), for: .mediaBox)
+        original.insert(originalPage, at: 0)
         let note = PDFAnnotation(bounds: NSRect(x: 20, y: 40, width: 80, height: 12), forType: .text, withProperties: nil)
         note.contents = "External note"
         note.userName = "External author"
@@ -158,8 +160,10 @@ struct PageOverviewThumbnailTests {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("overview-encrypted-\(UUID()).pdf")
         defer { try? FileManager.default.removeItem(at: url) }
         let didWrite = try await Task.detached {
-            let original = try #require(PDFDocument(data: Self.makePDFData(pageCount: 1)))
-            let originalPage = try #require(original.page(at: 0))
+            let original = PDFDocument()
+            let originalPage = PDFPage()
+            originalPage.setBounds(NSRect(x: 0, y: 0, width: 612, height: 792), for: .mediaBox)
+            original.insert(originalPage, at: 0)
             let highlight = PDFAnnotation(
                 bounds: NSRect(x: 40, y: 50, width: 80, height: 20),
                 forType: .highlight,

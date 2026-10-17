@@ -69,6 +69,7 @@ struct TabSwitcherInteractionTests {
 
         fixture.state.selectTab(nextTab.id)
         fixture.state.setActiveReaderController(nextReader, for: nextTab.id)
+        await fixture.drainUpdates()
         try await waitForTestCondition("External selection did not release the field and focus the new reader") {
             !fixture.state.isTabSwitcherPresented && field.window == nil
                 && fixture.window.firstResponder === nextReader
@@ -93,6 +94,7 @@ struct TabSwitcherInteractionTests {
         #expect(fixture.state.isTabSwitcherPresented)
 
         fixture.state.closeSelectedTab()
+        await fixture.drainUpdates()
         try await waitForTestCondition("Closing the last file did not release the switcher editor") {
             !fixture.state.isTabSwitcherPresented && field.window == nil
                 && fixture.window.firstResponder !== editor
