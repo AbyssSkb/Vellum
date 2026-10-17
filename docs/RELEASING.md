@@ -31,6 +31,41 @@ Automatic checks and background downloads are enabled by default. Once an update
 
 The app's `CFBundleVersion` and `CFBundleShortVersionString` both use the release version.
 
+## Keyboard zoom performance check
+
+Run the foreground probe with a local PDF that reproduces the problem:
+
+```sh
+scripts/check-zoom-performance.sh "/path/to/document.pdf"
+```
+
+The runner creates a fresh output directory under `.build` containing a copy of the PDF, an isolated probe app, and `result.json`. It opens the app, waits for completion, validates the JSON result, and returns a nonzero status for a failed or invalid run. Keep the probe in the foreground and unobscured, and avoid keyboard input, mouse input, or window resizing until it finishes. Existing Vellum instances can remain open.
+
+The probe mounts the full reader, fits the first page to the window width, and warms up for 12 seconds. Use a portrait PDF whose first page contains the viewport center at width fit. It then tests single `=` and `-` presses, two-second holds in both directions, and ten rapid presses at 100 ms intervals. A 120 Hz sampler measures main-run-loop and model-geometry gaps. Missing results, loss of foreground visibility, resizing, or a sequence without actual zoom changes fail validation.
+
+To choose a fresh output directory and a maximum gap in milliseconds, pass both after the PDF path. The default gap limit is 50 ms:
+
+```sh
+scripts/check-zoom-performance.sh "/path/to/document.pdf" ".build/zoom-check-001" 50
+```
+
+For UI automation, build the isolated app without launching it:
+
+```sh
+scripts/check-zoom-performance.sh --build-only "/path/to/document.pdf" ".build/zoom-check-002" 50
+```
+
+Open the generated app with the UI automation tool, then validate `result.json` and propagate its status:
+
+```sh
+".build/zoom-check-002/Vellum Zoom Performance Check.app/Contents/MacOS/ZoomPerformanceProbe" \
+  --check-result ".build/zoom-check-002/result.json"
+```
+
+Check the result logic without opening a window with `scripts/check-zoom-performance.sh --self-test`.
+
+Compare runs using the same PDF, display, hardware, and window size. Use the original reproducing document for regression checks; lightweight PDFs may pass both implementations. Calibrate the gap limit manually for that setup; these measurements describe main-thread responsiveness and page geometry rather than delivered pixel frames or GPU presentation. This manual check runs independently of `scripts/test.sh` and GitHub Actions. Keep diagnostic PDFs local and untracked.
+
 ## Sparkle signing key
 
 `Resources/UpdateSigningPublicKey.txt` contains the public Ed25519 key embedded in every app. The corresponding private key is stored in the macOS Keychain and the GitHub Actions secret `SPARKLE_PRIVATE_KEY`. Keep a secure backup of the private key; subsequent updates use the same key.
