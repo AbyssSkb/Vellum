@@ -71,9 +71,21 @@ struct PDFZoomLayoutTests {
         let anchor = try #require(view.centerDestination())
         view.animationState.zoomAnchor = anchor
         #expect(anchor.page === page)
+        view.minScaleFactor = 0.5
+        view.maxScaleFactor = 3
+        let initialScale = view.scaleFactor
+        let initialPaper = view.convert(page.bounds(for: view.displayBox), from: page)
+        let scales: [(requested: CGFloat, expected: CGFloat)] = [
+            (1.2, 1.2), (1.8, 1.8), (2.4, 2.4), (1.6, 1.6), (0.8, 0.8), (0.25, 0.5), (4, 3)
+        ]
 
-        for scale: CGFloat in [1.2, 1.8, 2.4, 1.6, 0.8] {
-            view.applyZoomScale(scale)
+        for (requestedScale, expectedScale) in scales {
+            view.applyZoomScale(requestedScale)
+            #expect(abs(view.scaleFactor - expectedScale) < 0.000001)
+            #expect(abs(try #require(view.snapshot()).scaleFactor - expectedScale) < 0.000001)
+            let paper = view.convert(page.bounds(for: view.displayBox), from: page)
+            #expect(abs(paper.width - initialPaper.width * expectedScale / initialScale) < 1)
+            #expect(abs(paper.height - initialPaper.height * expectedScale / initialScale) < 1)
             let point = view.convert(anchor.point, from: page)
             #expect(abs(point.x - view.bounds.midX) < 1)
             #expect(abs(point.y - view.bounds.midY) < 1)

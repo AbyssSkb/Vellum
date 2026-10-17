@@ -173,8 +173,13 @@ extension VellumPDFView {
         autoScales = false
         let nextScale = clampedScale(scale)
         if scaleFactor != nextScale {
-            // PDFKit updates magnification and page tiling when scaleFactor changes.
-            scaleFactor = nextScale
+            // Native magnification avoids PDFView's per-frame page layout and retiling.
+            if let scrollView = pdfScrollView {
+                let clipBounds = scrollView.contentView.bounds
+                scrollView.setMagnification(nextScale, centeredAt: NSPoint(x: clipBounds.midX, y: clipBounds.midY))
+            } else {
+                scaleFactor = nextScale
+            }
         }
 
         if let zoomAnchor = animationState.zoomAnchor {
