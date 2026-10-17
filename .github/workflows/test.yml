@@ -49,7 +49,9 @@ jobs:
           set -euo pipefail
           for attempt in {1..20}; do
             printf 'Native scroll reproduction attempt %s of 20\n' "$attempt"
-            args=(--filter '^VellumTests[.]PDFNativeScrollTests/')
+            # Preserve the original warm-up order; regular CI runs the new replay.
+            args=(--filter '^VellumTests[.]PDFNativeScrollTests/'
+                  --skip 'outwardScrollCorrectsFractionalPaperGapAndPreservesAlignedOrigin')
             if (( attempt > 1 )); then args=(--skip-build "${args[@]}"); fi
             scripts/test.sh "${args[@]}"
           done
