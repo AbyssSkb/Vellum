@@ -6,6 +6,49 @@ import Testing
 @Suite("PDF annotation persistence")
 @MainActor
 struct PDFAnnotationPersistenceTests {
+    @Test
+    func saveCapturesIndependentHighlightValuesWithoutCopyingAnnotationObjects() throws {
+        let fixture = try makeFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.directory) }
+        let page = try #require(fixture.document.page(at: 0))
+        let bounds = NSRect(x: 20, y: 40, width: 80, height: 12)
+        let annotation = CaptureCountingAnnotation(bounds: bounds, forType: .highlight, withProperties: nil)
+        annotation.contents = "Captured note"
+        annotation.userName = "Captured author"
+        annotation.color = .cyan
+        annotation.quadrilateralPoints = HighlightGeometry.quadrilateralPoints(for: bounds)
+        annotation.shouldDisplay = true
+        annotation.shouldPrint = true
+        HighlightAnnotationMetadata.setGroupID("captured-group", for: annotation)
+        page.addAnnotation(annotation)
+
+        fixture.persistence.save(fixture.document) {}
+
+        // Object copying is the measured slow path for documents with many highlights.
+        #expect(annotation.copyCalls == 0)
+        annotation.contents = "Changed after capture"
+        annotation.userName = "Changed author"
+        annotation.color = .magenta
+        annotation.bounds = NSRect(x: 100, y: 200, width: 90, height: 20)
+        annotation.quadrilateralPoints = HighlightGeometry.quadrilateralPoints(for: annotation.bounds)
+        annotation.shouldDisplay = false
+        annotation.shouldPrint = false
+        HighlightAnnotationMetadata.setGroupID("changed-group", for: annotation)
+        fixture.persistence.flush()
+
+        let saved = try #require(PDFDocument(url: fixture.url)?.page(at: 0)?.annotations.first)
+        #expect(saved.contents == "Captured note")
+        #expect(saved.userName == "Captured author")
+        #expect(HighlightGeometry.colorsMatch(saved.color, .cyan))
+        #expect(saved.bounds == bounds)
+        #expect(saved.quadrilateralPoints == HighlightGeometry.quadrilateralPoints(for: bounds))
+        #expect(saved.shouldDisplay)
+        #expect(saved.shouldPrint)
+        #expect(HighlightAnnotationMetadata.groupID(for: saved) == "captured-group")
+        #expect(fixture.persistence.failure == nil)
+        #expect(!fixture.persistence.hasUnsavedChanges)
+    }
+
     @Test(arguments: [false, true])
     func serialSavesKeepLatestAnnotationAndMetadata(explicitQuadrilaterals: Bool) throws {
         let fixture = try makeFixture()
@@ -341,5 +384,14 @@ struct PDFAnnotationPersistenceTests {
         let note = PDFAnnotation(bounds: NSRect(x: 30, y: 60, width: 100, height: 14), forType: .highlight, withProperties: nil)
         note.contents = text
         document.page(at: 0)?.addAnnotation(note)
+    }
+}
+
+private final class CaptureCountingAnnotation: PDFAnnotation {
+    var copyCalls = 0
+
+    override func copy(with zone: NSZone? = nil) -> Any {
+        copyCalls += 1
+        return super.copy(with: zone)
     }
 }

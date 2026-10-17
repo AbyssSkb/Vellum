@@ -42,9 +42,9 @@ final class PDFAnnotationPersistence: @unchecked Sendable {
         }
     }
 
-    // Independent annotation copies belong only to the serial writer after capture.
+    // PDFKit deep-copies annotationKeyValues without copying the annotation object or its page.
     private struct Snapshot: @unchecked Sendable {
-        let highlights: [[PDFAnnotation]]
+        let highlights: [[(bounds: CGRect, properties: [AnyHashable: Any])]]
         let encryptedData: Data?
 
         @MainActor
@@ -60,9 +60,8 @@ final class PDFAnnotationPersistence: @unchecked Sendable {
             // ponytail: Vellum edits highlights only; expand this snapshot when another annotation editor is added.
             highlights = try (0..<document.pageCount).map { index in
                 guard let page = document.page(at: index) else { throw SaveError.unreadable }
-                return try page.annotations.filter { $0.type == "Highlight" }.map { annotation in
-                    guard let copy = annotation.copy() as? PDFAnnotation else { throw SaveError.unreadable }
-                    return copy
+                return page.annotations.filter { $0.type == "Highlight" }.map { annotation in
+                    (bounds: annotation.bounds, properties: annotation.annotationKeyValues)
                 }
             }
         }
@@ -201,7 +200,7 @@ final class PDFAnnotationPersistence: @unchecked Sendable {
                     for annotation in page.annotations where annotation.type == "Highlight" { page.removeAnnotation(annotation) }
                     for annotation in highlights {
                         // PDFKit can omit copied annotations when saving a reopened document.
-                        let copy = PDFAnnotation(bounds: annotation.bounds, forType: .highlight, withProperties: annotation.annotationKeyValues)
+                        let copy = PDFAnnotation(bounds: annotation.bounds, forType: .highlight, withProperties: annotation.properties)
                         page.addAnnotation(copy)
                     }
                 }
