@@ -165,7 +165,7 @@ Choose a color from the circular swatches in the tab bar, or press `c` to cycle 
 | `c` | Cycle highlight color |
 | `y` | Copy the selection |
 | `d` | Delete highlights intersecting the text selection |
-| `gm` | Search highlights in the current PDF |
+| `M` | Search highlights in the current PDF |
 | `gn` / `gN` | Select the next / previous highlight in document order |
 
 The highlight list includes ordinary highlights and highlights with saved AI answers. Type original text or a page number to filter it, use `↑` / `↓` to select a row, and press `Enter` to jump to the passage. `Esc` returns to your previous focus. A selected passage supports the existing `y`, `a`, `i`, and `d` actions. Highlights without extractable text can still be located, but text actions require a text layer.

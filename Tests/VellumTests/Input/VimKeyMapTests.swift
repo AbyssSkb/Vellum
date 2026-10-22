@@ -84,6 +84,14 @@ struct VimKeyMapTests {
     }
 
     @Test
+    func uppercaseMOpensHighlightsWithoutAddingAHighlight() {
+        #expect(VimKeyMap.command(for: "M") == .showHighlights)
+        #expect(VimKeyMap.command(for: "m") == .highlightSelection)
+        #expect(VimKeyMap.lowercaseFallback(for: "M") == nil)
+        #expect(VimKeyMap.isHandledKey("M", hasNavigableTextSelection: false, hasTextActionTarget: false))
+    }
+
+    @Test
     func materializeSearchSelectionKeyIsHandledWithoutSelection() {
         #expect(VimKeyMap.isHandledKey("v", hasNavigableTextSelection: false, hasTextActionTarget: false))
         #expect(VimKeyMap.command(for: "v") == .materializeSearchSelection)

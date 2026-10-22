@@ -197,7 +197,7 @@ struct VimInputControllerTests {
         #expect(input.handleKey("n") == .command(.counted(.searchNext, VimInputController.maximumRepeatCount)))
     }
 
-    @Test(arguments: [("m", VimCommand.highlightSelection), ("x", .closeTab), ("o", .open), ("F", .beginLinkJump)])
+    @Test(arguments: [("m", VimCommand.highlightSelection), ("M", .showHighlights), ("x", .closeTab), ("o", .open), ("F", .beginLinkJump)])
     func actionCommandsExecuteOnlyOnceAndConsumeCounts(key: String, command: VimCommand) {
         var input = VimInputController()
         _ = input.handleKey("9")
@@ -205,11 +205,19 @@ struct VimInputControllerTests {
         #expect(input.state.numericPrefix.isEmpty)
     }
 
-    @Test(arguments: [("m", VimCommand.showHighlights), ("n", .nextHighlight), ("N", .previousHighlight), ("t", .nextTab), ("T", .previousTab)])
+    @Test(arguments: [("n", VimCommand.nextHighlight), ("N", .previousHighlight), ("t", .nextTab), ("T", .previousTab)])
     func gPrefixRoutesNavigationWithoutTriggeringTheBareKey(key: String, command: VimCommand) {
         var input = VimInputController()
         _ = input.handleKey("g")
         #expect(input.handleKeyDown(key, isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .command(command))
+        #expect(input.state.pendingKey == nil)
+    }
+
+    @Test
+    func gPrefixDoesNotAliasTheHighlightsShortcut() {
+        var input = VimInputController()
+        _ = input.handleKey("g")
+        #expect(input.handleKey("m") == .ignored)
         #expect(input.state.pendingKey == nil)
     }
 }

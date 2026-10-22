@@ -34,7 +34,7 @@ Hold `Tab` to enter the immersive gallery, with a large current-page preview bet
 
 Search with `/`, move through matches with `n` and `N`, and press `v` to select a match. Copy with `y` or highlight with `m`; five highlight colors are available. Annotations save back to the PDF automatically, with recovery options if the file cannot be saved or has changed on disk.
 
-Revisit highlights with `gn` / `gN`, or use `gm` to search highlighted text and page numbers. Press `Enter` to return to a passage, ready to copy, explain, or delete its highlight.
+Revisit highlights with `gn` / `gN`, or use `M` to search highlighted text and page numbers. Press `Enter` to return to a passage, ready to copy, explain, or delete its highlight.
 
 ![Search matches with a compact query field and result counter](docs/images/vellum-search.png)
 
@@ -68,7 +68,7 @@ AI assistance is optional and experimental. See the [user guide](docs/USER_GUIDE
 | `s` | Type a visible word prefix and its label to select |
 | `F` | Label and follow visible PDF links |
 | `m`, `c`, `y` | Highlight, change highlight color, copy |
-| `gm`, `gn` / `gN` | Search highlights; next / previous highlight |
+| `M`, `gn` / `gN` | Search highlights; next / previous highlight |
 
 Letter shortcuts apply to the focused reading surface. The [user guide](docs/USER_GUIDE.md) covers selection, outline folds, focus behavior, and the full shortcut set.
 

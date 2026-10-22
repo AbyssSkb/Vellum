@@ -103,8 +103,6 @@ struct VimInputController {
                 return .command(.nextTab)
             case "T":
                 return .command(.previousTab)
-            case "m":
-                return .command(.showHighlights)
             case "n":
                 return .command(.nextHighlight)
             case "N":

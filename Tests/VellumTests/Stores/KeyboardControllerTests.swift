@@ -939,7 +939,7 @@ struct KeyboardControllerTests {
     @Test(arguments: [
         ("H", VimCommand.previousTab), ("L", .nextTab), ("o", .open), ("O", .openInNewTab),
         ("x", .closeTab), ("X", .restoreClosedTab), ("T", .showTabSwitcher), ("/", .beginSearch),
-        ("A", .showAIExplanationHistory), ("I", .showAIConversationHistory),
+        ("A", .showAIExplanationHistory), ("I", .showAIConversationHistory), ("M", .showHighlights),
         ("[", .previousTab), ("]", .nextTab), ("n", .searchNext), ("N", .searchPrevious)
     ])
     func outlineGlobalCommandsWaitForLocalOutlineHandling(key: String, command: VimCommand) {
