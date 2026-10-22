@@ -6,6 +6,47 @@ import Testing
 @MainActor
 @Suite("PDF highlight navigation")
 struct PDFHighlightNavigationTests {
+    @Test(arguments: ["centered", "zoomedVisible", "zoomedOffscreen"], [false, true])
+    func highlightJumpOnlyMovesHorizontallyForOffscreenTargets(scenario: String, textless: Bool) async throws {
+        let (window, view) = try await makeReader()
+        defer { close(window, view) }
+        if textless {
+            let page = try #require(view.document?.page(at: 1))
+            page.addAnnotation(PDFAnnotation(bounds: NSRect(x: 72, y: 300, width: 60, height: 20),
+                                             forType: .highlight, withProperties: nil))
+        } else {
+            _ = try highlight("beta", on: 1, in: view)
+        }
+        view.scaleFactor = scenario == "centered" ? 1 : 2
+        view.layoutDocumentView()
+        await nextTestMainQueueTurn()
+        let scrollView = try #require(view.pdfScrollView)
+        let clip = scrollView.contentView
+        if scenario != "centered" {
+            clip.scroll(to: NSPoint(x: scenario == "zoomedOffscreen" ? 100 : 40, y: clip.bounds.origin.y))
+        }
+        let originX = clip.bounds.origin.x
+        let item = try #require(view.highlightListItems().first)
+        let annotation = try #require(item.annotations.first)
+        let page = try #require(annotation.page)
+        let targetBounds = textless
+            ? annotation.bounds
+            : try #require(page.selection(for: NSRange(location: 0, length: 4))).bounds(for: page)
+        let documentView = try #require(scrollView.documentView)
+        let target = view.convert(view.convert(targetBounds, from: page), to: documentView)
+        #expect((target.minX >= clip.bounds.minX && target.maxX <= clip.bounds.maxX) == (scenario != "zoomedOffscreen"))
+
+        view.vimSelectHighlight(item)
+        await nextTestMainQueueTurn()
+
+        #expect(view.currentSelection?.string == (textless ? nil : "beta"))
+        #expect(target.minX >= clip.bounds.minX && target.maxX <= clip.bounds.maxX)
+        if scenario != "zoomedOffscreen" {
+            #expect(abs(clip.bounds.origin.x - originX) < 0.5,
+                    "Highlight jump moved x from \(originX) to \(clip.bounds.origin.x), scenario=\(scenario)")
+        }
+    }
+
     @Test
     func multilineAndMultipageHighlightsProduceOneCompleteSearchableItem() throws {
         let document = try makeTextPDF(pages: [

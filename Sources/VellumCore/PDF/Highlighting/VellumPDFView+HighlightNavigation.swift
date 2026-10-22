@@ -68,18 +68,21 @@ extension VellumPDFView {
         stopZoomState()
         textSelectionNavigationState = nil
         let selection = selectionForHighlights(item.annotations)
+        let horizontalOrigin = horizontalOriginIfVisible(selection?.bounds(for: page) ?? annotation.bounds, on: page)
         setCurrentSelection(selection, animate: false)
         if let selection {
             go(to: selection)
         } else {
             go(to: annotation.bounds, on: page)
         }
+        restoreHorizontalOrigin(horizontalOrigin)
         let generation = restoreGeneration
         highlightNavigationAnchor = (annotation, generation)
         DispatchQueue.main.async { [weak self] in
             guard let self, self.document === document, self.restoreGeneration == generation,
                   annotation.page === page, page.annotations.contains(where: { $0 === annotation }) else { return }
             if let selection { self.go(to: selection) } else { self.go(to: annotation.bounds, on: page) }
+            self.restoreHorizontalOrigin(horizontalOrigin)
             self.scheduleReadingPositionReport(userNavigated: true)
         }
         focus()

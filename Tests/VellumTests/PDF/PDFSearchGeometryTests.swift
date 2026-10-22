@@ -5,6 +5,38 @@ import Testing
 
 @Suite("PDF search geometry")
 struct PDFSearchGeometryTests {
+    @Test(arguments: ["centered", "zoomedVisible", "zoomedOffscreen"]) @MainActor
+    func searchOnlyMovesHorizontallyForOffscreenMatches(scenario: String) async throws {
+        let (window, view) = try makeReader(pageCount: 2, wordPage: 1)
+        defer { view.searchController?.clear(); view.stopZoomState(); window.close() }
+        view.scaleFactor = scenario == "centered" ? 1 : 2
+        view.layoutDocumentView()
+        await nextTestMainQueueTurn()
+        let scrollView = try #require(view.pdfScrollView)
+        let clip = scrollView.contentView
+        if scenario != "centered" {
+            clip.scroll(to: NSPoint(x: scenario == "zoomedOffscreen" ? 100 : 40, y: clip.bounds.origin.y))
+        }
+        let originX = clip.bounds.origin.x
+        let page = try #require(view.document?.page(at: 1))
+        let selection = try #require(page.selection(for: NSRange(location: 0, length: 5)))
+        let documentView = try #require(scrollView.documentView)
+        let target = view.convert(view.convert(selection.bounds(for: page), from: page), to: documentView)
+        #expect((target.minX >= clip.bounds.minX && target.maxX <= clip.bounds.maxX) == (scenario != "zoomedOffscreen"))
+        view.beginSearchCommand()
+        let controller = try #require(view.searchController)
+        enter("alpha", into: try #require(searchField(in: view)))
+        try await waitForTestCondition("Search reveals its result on the next page") {
+            !controller.isSearchPending && controller.activeSearchSelection?.pages.first === view.document?.page(at: 1)
+        }
+        await nextTestMainQueueTurn()
+        #expect(target.minX >= clip.bounds.minX && target.maxX <= clip.bounds.maxX)
+        if scenario != "zoomedOffscreen" {
+            #expect(abs(clip.bounds.origin.x - originX) < 0.5,
+                    "Search moved x from \(originX) to \(clip.bounds.origin.x), scenario=\(scenario)")
+        }
+    }
+
     @Test(arguments: ["z", "0", "=", "-"], [false, true]) @MainActor
     func keyboardZoomCancelsPendingSearchJumps(key: String, afterPartialPreview: Bool) async throws {
         let (window, view) = try makeReader(pageCount: 3, wordPage: afterPartialPreview ? 0 : 1)

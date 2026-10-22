@@ -65,20 +65,23 @@ enum ScrollGeometry {
         let maxOriginY = max(documentBounds.minY, documentBounds.maxY - visibleRect.height)
         var nextOrigin = visibleRect.origin
 
-        if targetRect.minX < comfortableRect.minX {
-            nextOrigin.x += targetRect.minX - comfortableRect.minX
-        } else if targetRect.maxX > comfortableRect.maxX {
-            nextOrigin.x += targetRect.maxX - comfortableRect.maxX
+        if documentBounds.width > visibleRect.width {
+            if targetRect.minX < comfortableRect.minX {
+                nextOrigin.x += targetRect.minX - comfortableRect.minX
+            } else if targetRect.maxX > comfortableRect.maxX {
+                nextOrigin.x += targetRect.maxX - comfortableRect.maxX
+            }
+            nextOrigin.x = min(max(documentBounds.minX, nextOrigin.x), maxOriginX)
         }
 
-        if targetRect.minY < comfortableRect.minY {
-            nextOrigin.y += targetRect.minY - comfortableRect.minY
-        } else if targetRect.maxY > comfortableRect.maxY {
-            nextOrigin.y += targetRect.maxY - comfortableRect.maxY
+        if documentBounds.height > visibleRect.height {
+            if targetRect.minY < comfortableRect.minY {
+                nextOrigin.y += targetRect.minY - comfortableRect.minY
+            } else if targetRect.maxY > comfortableRect.maxY {
+                nextOrigin.y += targetRect.maxY - comfortableRect.maxY
+            }
+            nextOrigin.y = min(max(documentBounds.minY, nextOrigin.y), maxOriginY)
         }
-
-        nextOrigin.x = min(max(documentBounds.minX, nextOrigin.x), maxOriginX)
-        nextOrigin.y = min(max(documentBounds.minY, nextOrigin.y), maxOriginY)
 
         guard abs(nextOrigin.x - visibleRect.origin.x) > 0.5
             || abs(nextOrigin.y - visibleRect.origin.y) > 0.5 else { return nil }

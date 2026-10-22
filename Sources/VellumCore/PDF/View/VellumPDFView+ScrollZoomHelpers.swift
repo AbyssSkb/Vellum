@@ -6,6 +6,15 @@ extension VellumPDFView {
         pdfScrollView?.contentView.bounds.origin.x
     }
 
+    func horizontalOriginIfVisible(_ rect: NSRect, on page: PDFPage) -> CGFloat? {
+        guard let scrollView = pdfScrollView, let documentView = scrollView.documentView,
+              let rectInView = viewRect(for: rect, on: page) else { return nil }
+        let target = convert(rectInView, to: documentView)
+        let viewport = scrollView.contentView.bounds
+        guard target.minX >= viewport.minX, target.maxX <= viewport.maxX else { return nil }
+        return viewport.origin.x
+    }
+
     func restoreHorizontalOrigin(_ originX: CGFloat?) {
         guard let originX, let scrollView = pdfScrollView else { return }
 

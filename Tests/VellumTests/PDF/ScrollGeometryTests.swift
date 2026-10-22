@@ -65,6 +65,25 @@ struct ScrollGeometryTests {
     }
 
     @Test
+    func comfortableVisibleOriginPreservesCenteredUnscrollableAxes() {
+        let verticalScroll = ScrollGeometry.comfortableVisibleOrigin(
+            currentOrigin: NSPoint(x: -90, y: 0),
+            visibleSize: NSSize(width: 800, height: 240),
+            documentBounds: NSRect(x: 0, y: 0, width: 620, height: 1_000),
+            targetRect: NSRect(x: 120, y: 400, width: 20, height: 20)
+        )
+        #expect(verticalScroll == NSPoint(x: -90, y: 213.6))
+
+        let horizontalScroll = ScrollGeometry.comfortableVisibleOrigin(
+            currentOrigin: NSPoint(x: 0, y: -90),
+            visibleSize: NSSize(width: 240, height: 800),
+            documentBounds: NSRect(x: 0, y: 0, width: 1_000, height: 620),
+            targetRect: NSRect(x: 400, y: 120, width: 20, height: 20)
+        )
+        #expect(horizontalScroll == NSPoint(x: 208.8, y: -90))
+    }
+
+    @Test
     func comfortableVisibleOriginClampsToDocumentBounds() {
         let nextOrigin = ScrollGeometry.comfortableVisibleOrigin(
             currentOrigin: NSPoint(x: 480, y: 570),

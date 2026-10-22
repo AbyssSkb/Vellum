@@ -618,7 +618,11 @@ final class PDFSearchController {
         }
         pdfView.stopScrollAnimation()
         pdfView.stopZoomState()
+        let horizontalOrigin = selection.pages.first.flatMap { page in
+            pdfView.horizontalOriginIfVisible(selection.bounds(for: page), on: page)
+        }
         pdfView.go(to: selection)
+        pdfView.restoreHorizontalOrigin(horizontalOrigin)
 
         let generation = searchGeneration
         let restoreGeneration = pdfView.restoreGeneration
@@ -627,6 +631,7 @@ final class PDFSearchController {
                   self.searchGeneration == generation,
                   pdfView.restoreGeneration == restoreGeneration else { return }
             pdfView.go(to: selection)
+            pdfView.restoreHorizontalOrigin(horizontalOrigin)
             self.shouldAnchorNextMove = false
             if recordJump, let page = selection.pages.first {
                 let geometry = PDFPageDisplayGeometry(page: page, box: pdfView.displayBox)
