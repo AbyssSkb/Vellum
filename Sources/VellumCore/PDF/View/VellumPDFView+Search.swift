@@ -213,6 +213,12 @@ extension VellumPDFView {
         searchController?.move(.previous)
     }
 
+    func vimSearchBy(_ delta: Int) {
+        guard delta != 0 else { return }
+        let count = Int(min(delta.magnitude, UInt(VimInputController.maximumRepeatCount)))
+        searchController?.move(delta > 0 ? .next : .previous, count: count)
+    }
+
     func vimMaterializeSearchSelection() {
         searchController?.materializeActiveMatch()
     }
@@ -265,7 +271,7 @@ final class PDFSearchController {
     private var lastJumpCheckpointTime: Date?
     private var pageTextCache: [Int: String] = [:]
     private var pendingSearchJumpSource: ReaderSnapshot?
-    private var pendingMoves: [Direction] = []
+    private var pendingMoves: [(direction: Direction, count: Int)] = []
     private var shouldCommitAfterSearch = false
     nonisolated(unsafe) private var visiblePagesObserver: NSObjectProtocol?
 
@@ -354,14 +360,15 @@ final class PDFSearchController {
         overlay.focus()
     }
 
-    func move(_ direction: Direction) {
+    func move(_ direction: Direction, count: Int = 1) {
+        guard count > 0 else { return }
         guard continueSearchIfNeeded() else {
-            if isSearchPending { pendingMoves.append(direction) }
+            if isSearchPending { pendingMoves.append((direction, count)) }
             return
         }
         guard !results.isEmpty else { return }
 
-        moveSelection(direction)
+        moveSelection(direction, count: count)
         materializeVisibleMatchesAroundActive()
         applyVisibleHighlights()
         ensureMiniOverlay()
@@ -369,7 +376,7 @@ final class PDFSearchController {
         jumpToSelectedMatch(recordJump: true)
     }
 
-    private func moveSelection(_ direction: Direction) {
+    private func moveSelection(_ direction: Direction, count: Int = 1) {
         areMatchesVisible = true
         if shouldAnchorNextMove {
             activeIndex = SearchResultNavigator.resolvedAnchoredMoveIndex(
@@ -385,6 +392,15 @@ final class PDFSearchController {
                 activeIndex = (current + 1) % results.count
             case .previous:
                 activeIndex = (current + results.count - 1) % results.count
+            }
+        }
+        if let current = activeIndex {
+            let remaining = (count - 1) % results.count
+            switch direction {
+            case .next:
+                activeIndex = (current + remaining) % results.count
+            case .previous:
+                activeIndex = (current + results.count - remaining) % results.count
             }
         }
         shouldAnchorNextMove = false
@@ -801,7 +817,7 @@ final class PDFSearchController {
             pendingMoves.removeAll()
             shouldCommitAfterSearch = false
             if !results.isEmpty {
-                for direction in moves { moveSelection(direction) }
+                for move in moves { moveSelection(move.direction, count: move.count) }
             }
         }
         if areMatchesVisible {

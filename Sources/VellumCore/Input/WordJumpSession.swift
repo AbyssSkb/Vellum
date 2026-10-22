@@ -11,6 +11,7 @@ struct WordJumpSession {
     }
 
     private let words: [String]
+    let labelsOnly: Bool
     private(set) var query = ""
     private(set) var labelPrefix = ""
     private(set) var matches: [Match] = []
@@ -19,8 +20,10 @@ struct WordJumpSession {
         matches.filter { labelPrefix.isEmpty || $0.label.hasPrefix(labelPrefix) }
     }
 
-    init(words: [String]) {
+    init(words: [String], labelsOnly: Bool = false) {
         self.words = words.map { $0.lowercased() }
+        self.labelsOnly = labelsOnly
+        if labelsOnly { updateMatches() }
     }
 
     mutating func input(_ key: String) -> Action {
@@ -51,20 +54,21 @@ struct WordJumpSession {
         }
 
         labelPrefix = ""
+        guard !labelsOnly else { return .updated }
         query += key
         updateMatches()
         return .updated
     }
 
     private mutating func updateMatches() {
-        guard !query.isEmpty else {
+        guard labelsOnly || !query.isEmpty else {
             matches = []
             return
         }
 
         let prefix = query.lowercased()
-        let indices = words.indices.filter { words[$0].hasPrefix(prefix) }
-        let continuations = Set(indices.compactMap { words[$0].dropFirst(prefix.count).first })
+        let indices = words.indices.filter { labelsOnly || words[$0].hasPrefix(prefix) }
+        let continuations = labelsOnly ? [] : Set(indices.compactMap { words[$0].dropFirst(prefix.count).first })
         let alphabet = Array("asdfghjklqwertyuiopzxcvbnm").filter { !continuations.contains($0) }
         guard !alphabet.isEmpty, alphabet.count > 1 || indices.count <= 1 else {
             matches = indices.map { Match(wordIndex: $0, label: "") }

@@ -30,9 +30,11 @@ extension AppState {
         outlineReadingDestination = nil
         outlineReadingItemID = nil
         keyboardController.cancelInput()
-        if isAIConversationHistoryPresented || isAIExplanationHistoryPresented {
+        if isAIConversationHistoryPresented || isAIExplanationHistoryPresented || isHighlightsPresented {
             isAIConversationHistoryPresented = false
             isAIExplanationHistoryPresented = false
+            isHighlightsPresented = false
+            highlightItems = []
             restoreFocusAfterSwitcher()
         } else {
             focusActiveReaderSoon()
@@ -62,7 +64,7 @@ extension AppState {
     }
 
     var hasBlockingReaderPresentation: Bool {
-        isTabSwitcherPresented || isAIConversationHistoryPresented || isAIExplanationHistoryPresented
+        isTabSwitcherPresented || isAIConversationHistoryPresented || isAIExplanationHistoryPresented || isHighlightsPresented
             || NSApp?.modalWindow != nil || readerWindow?.attachedSheet != nil
     }
 
@@ -72,7 +74,7 @@ extension AppState {
 
     func rememberFocusBeforeSwitcher() {
         keyboardController.cancelInput()
-        if !isTabSwitcherPresented && !isAIConversationHistoryPresented && !isAIExplanationHistoryPresented {
+        if !isTabSwitcherPresented && !isAIConversationHistoryPresented && !isAIExplanationHistoryPresented && !isHighlightsPresented {
             let responder = readerWindow?.firstResponder
             if let editor = responder as? NSTextView, editor.isFieldEditor,
                let field = editor.delegate as? NSTextField {

@@ -33,15 +33,34 @@ struct AIExplanationHistorySwitcherOverlay: View {
     }
 }
 
+struct HighlightSwitcherOverlay: View {
+    @Environment(\.appUILanguage) private var language
+    @EnvironmentObject private var appState: AppState
+
+    var body: some View {
+        AIHistorySwitcherOverlay(
+            mode: .highlights,
+            items: appState.highlightItems.map { AIHistorySwitcherItem($0, language: language) },
+            onDismiss: appState.hideHighlights,
+            onOpen: { item in
+                guard let highlight = appState.highlightItems.first(where: { $0.id == item.id }) else { return }
+                appState.openHighlight(highlight)
+            }
+        )
+    }
+}
+
 private struct AIHistorySwitcherOverlay: View {
     enum Mode {
         case conversation
         case explanation
+        case highlights
 
         var systemImage: String {
             switch self {
             case .conversation: return "bubble.left.and.bubble.right"
             case .explanation: return "sparkles"
+            case .highlights: return "highlighter"
             }
         }
 
@@ -49,6 +68,7 @@ private struct AIHistorySwitcherOverlay: View {
             switch self {
             case .conversation: return language.text(.aiConversationHistory)
             case .explanation: return language.text(.aiExplanationHistory)
+            case .highlights: return language.text(.highlights)
             }
         }
 
@@ -56,13 +76,15 @@ private struct AIHistorySwitcherOverlay: View {
             switch self {
             case .conversation: return language.text(.searchAIConversations)
             case .explanation: return language.text(.searchAIExplanations)
+            case .highlights: return language.text(.searchHighlights)
             }
         }
 
-        func emptyText(in language: AppUILanguage) -> String {
+        func emptyText(in language: AppUILanguage, hasItems: Bool) -> String {
             switch self {
             case .conversation: return language.text(.noMatchingAIConversations)
             case .explanation: return language.text(.noMatchingAIExplanations)
+            case .highlights: return language.text(hasItems ? .noMatchingHighlights : .noHighlightsInFile)
             }
         }
     }
@@ -149,6 +171,7 @@ private struct AIHistorySwitcherOverlay: View {
                 font: .systemFont(ofSize: 14, weight: .medium),
                 canFocus: { [weak appState] in
                     appState?.isAIConversationHistoryPresented == true || appState?.isAIExplanationHistoryPresented == true
+                        || appState?.isHighlightsPresented == true
                 },
                 onMoveUp: { moveSelection(.up) },
                 onMoveDown: { moveSelection(.down) },
@@ -212,7 +235,7 @@ private struct AIHistorySwitcherOverlay: View {
                 .foregroundStyle(VellumColors.mutedColor)
                 .frame(width: 22)
 
-            Text(mode.emptyText(in: language))
+            Text(mode.emptyText(in: language, hasItems: !items.isEmpty))
                 .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(VellumColors.mutedColor)
 
@@ -264,6 +287,14 @@ private struct AIHistorySwitcherItem: Identifiable, Equatable {
         id = item.id
         title = item.selectedText.aiHistorySwitcherTitle
         preview = item.explanation
+        searchableText = item.searchableText
+    }
+
+    @MainActor
+    init(_ item: HighlightListItem, language: AppUILanguage) {
+        id = item.id
+        title = item.text.isEmpty ? language.text(.highlightWithoutText) : item.text.aiHistorySwitcherTitle
+        preview = item.pageNumbers.map { language.text(.outlinePage($0)) }.joined(separator: " · ")
         searchableText = item.searchableText
     }
 }

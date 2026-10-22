@@ -45,12 +45,20 @@ extension AppState: VimCommandTarget {
         activeReaderController?.beginWordJumpCommand()
     }
 
+    func beginLinkJump() {
+        activeReaderController?.beginLinkJumpCommand()
+    }
+
     func searchNext() {
         activeReaderController?.vimSearchNext()
     }
 
     func searchPrevious() {
         activeReaderController?.vimSearchPrevious()
+    }
+
+    func searchBy(_ delta: Int) {
+        activeReaderController?.vimSearchBy(delta)
     }
 
     func materializeSearchSelection() {

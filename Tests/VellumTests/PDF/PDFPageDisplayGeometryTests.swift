@@ -94,13 +94,13 @@ struct PDFPageDisplayGeometryTests {
         }
         view.centerBothAxes(on: PDFDestination(page: sourcePage, at: sourcePoint))
 
-        for delta in [1, -1] {
+        for delta in [1, -1, Int.max, Int.min] {
             view.vimMoveByPage(delta)
             await nextTestMainQueueTurn()
             let state = try #require(view.currentPageState())
-            #expect(state.pageIndex == (delta == 1 ? 1 : 0))
-            let expectedPoint = delta == 1 ? targetPoint : sourcePoint
-            let cropSize = delta == 1 ? NSSize(width: 1_600, height: 1_000) : NSSize(width: 800, height: 1_200)
+            #expect(state.pageIndex == (delta > 0 ? 1 : 0))
+            let expectedPoint = delta > 0 ? targetPoint : sourcePoint
+            let cropSize = delta > 0 ? NSSize(width: 1_600, height: 1_000) : NSSize(width: 800, height: 1_200)
             #expect(abs(state.pointOnPage.x - expectedPoint.x) / cropSize.width < 0.005)
             #expect(abs(state.pointOnPage.y - expectedPoint.y) / cropSize.height < 0.005)
         }

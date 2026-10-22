@@ -26,8 +26,10 @@ struct AppStateReaderControllerTests {
         appState.jumpForward()
         appState.beginSearch()
         appState.beginWordJump()
+        appState.beginLinkJump()
         appState.searchNext()
         appState.searchPrevious()
+        appState.searchBy(3)
         appState.materializeSearchSelection()
         appState.copySelection()
         appState.highlightSelection()
@@ -47,8 +49,10 @@ struct AppStateReaderControllerTests {
             .jumpForward,
             .beginSearch,
             .beginWordJump,
+            .beginLinkJump,
             .searchNext,
             .searchPrevious,
+            .searchBy(3),
             .materializeSearchSelection,
             .copySelection,
             .highlightSelection,
@@ -411,6 +415,11 @@ private final class RecordingReaderController: ReaderController {
         isWordJumpActive = true
     }
 
+    func beginLinkJumpCommand() {
+        actions.append(.beginLinkJump)
+        isWordJumpActive = true
+    }
+
     func handleWordJumpKey(_ event: NSEvent) -> Bool {
         isWordJumpActive
     }
@@ -483,6 +492,10 @@ private final class RecordingReaderController: ReaderController {
         actions.append(.searchPrevious)
     }
 
+    func vimSearchBy(_ delta: Int) {
+        actions.append(.searchBy(delta))
+    }
+
     func vimMaterializeSearchSelection() {
         actions.append(.materializeSearchSelection)
     }
@@ -530,8 +543,10 @@ private final class RecordingReaderController: ReaderController {
         case jumpForward
         case beginSearch
         case beginWordJump
+        case beginLinkJump
         case searchNext
         case searchPrevious
+        case searchBy(Int)
         case materializeSearchSelection
         case copySelection
         case highlightSelection

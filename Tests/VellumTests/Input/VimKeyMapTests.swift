@@ -75,6 +75,15 @@ struct VimKeyMapTests {
     }
 
     @Test
+    func uppercaseFStartsLinkHintsAndLowercaseFStillTurnsThePage() {
+        #expect(VimKeyMap.command(for: "F") == .beginLinkJump)
+        #expect(VimKeyMap.command(for: "f") == .pageDown)
+        #expect(VimKeyMap.lowercaseFallback(for: "F") == nil)
+        #expect(VimKeyMap.isHandledKey("F", hasNavigableTextSelection: false, hasTextActionTarget: false))
+        #expect(!VimKeyMap.isContinuousKey("F"))
+    }
+
+    @Test
     func materializeSearchSelectionKeyIsHandledWithoutSelection() {
         #expect(VimKeyMap.isHandledKey("v", hasNavigableTextSelection: false, hasTextActionTarget: false))
         #expect(VimKeyMap.command(for: "v") == .materializeSearchSelection)

@@ -1,4 +1,5 @@
 struct VimInputController {
+    static let maximumRepeatCount = 1000
     private(set) var state = VimKeyState()
 
     var heldKey: String? {
@@ -17,16 +18,25 @@ struct VimInputController {
         state.heldKey = key
     }
 
+    mutating func consumeRepeatCount() -> Int {
+        defer { state.clearPendingInput() }
+        guard !state.numericPrefix.isEmpty else { return 1 }
+        return min(Int(state.numericPrefix) ?? Self.maximumRepeatCount, Self.maximumRepeatCount)
+    }
+
     mutating func handleKeyDown(
         _ key: String,
         isRepeat: Bool,
         hasNavigableTextSelection: Bool,
         hasTextActionTarget: Bool
     ) -> VimInputAction {
+        if !isRepeat, state.pendingKey == "g", key == "N" {
+            return handleKey(key, hasNavigableTextSelection: hasNavigableTextSelection, hasTextActionTarget: hasTextActionTarget)
+        }
         if isRepeat, ["G", "H", "L", "X", "O"].contains(key) {
             return .handled
         }
-        if let action = handleUppercaseCommand(key) {
+        if (!isRepeat || key != "N"), let action = handleUppercaseCommand(key) {
             state.clearPendingInput()
             return action
         }
@@ -50,8 +60,12 @@ struct VimInputController {
             )
         }
 
-        state.clearPendingInput()
         let normalizedKey = VimKeyMap.normalizedContinuousKey(key)
+        if !isRepeat, !state.numericPrefix.isEmpty,
+           let command = VimKeyMap.continuousCommand(for: normalizedKey), command.acceptsCount {
+            return commandAction(command)
+        }
+        state.clearPendingInput()
         if state.heldKey == normalizedKey {
             return .handled
         }
@@ -89,6 +103,12 @@ struct VimInputController {
                 return .command(.nextTab)
             case "T":
                 return .command(.previousTab)
+            case "m":
+                return .command(.showHighlights)
+            case "n":
+                return .command(.nextHighlight)
+            case "N":
+                return .command(.previousHighlight)
             default:
                 return .ignored
             }
@@ -108,18 +128,25 @@ struct VimInputController {
             return .command(.lastPage)
         default:
             if let command = VimKeyMap.command(for: key) {
-                state.clearPendingInput()
-                return .command(command)
+                return commandAction(command)
             }
 
-            state.numericPrefix = ""
-            guard let fallback = VimKeyMap.lowercaseFallback(for: key) else { return .ignored }
+            guard let fallback = VimKeyMap.lowercaseFallback(for: key) else {
+                state.clearPendingInput()
+                return .ignored
+            }
             return handleKey(
                 fallback,
                 hasNavigableTextSelection: hasNavigableTextSelection,
                 hasTextActionTarget: hasTextActionTarget
             )
         }
+    }
+
+    private mutating func commandAction(_ command: VimCommand) -> VimInputAction {
+        let hasCount = !state.numericPrefix.isEmpty
+        let count = consumeRepeatCount()
+        return .command(hasCount && command.acceptsCount ? .counted(command, count) : command)
     }
 
     private mutating func handleUppercaseCommand(_ key: String) -> VimInputAction? {
@@ -142,8 +169,7 @@ struct VimInputController {
             state.numericPrefix = ""
             return .command(.openInNewTab)
         case "N":
-            state.numericPrefix = ""
-            return .command(.searchPrevious)
+            return commandAction(.searchPrevious)
         default:
             return nil
         }

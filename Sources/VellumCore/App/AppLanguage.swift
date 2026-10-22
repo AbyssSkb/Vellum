@@ -232,6 +232,14 @@ public enum AppText {
     case wordJump
     case wordJumpTypeHint
     case wordJumpNoText
+    case linkJump
+    case linkJumpTypeHint
+    case linkJumpNoLinks
+    case highlights
+    case searchHighlights
+    case noMatchingHighlights
+    case noHighlightsInFile
+    case highlightWithoutText
     case selected
     case selectHighlightColorHint
     case settings
@@ -495,6 +503,14 @@ public extension AppText {
         case .wordJump: return "Select word"
         case .wordJumpTypeHint: return "Type a word prefix"
         case .wordJumpNoText: return "No selectable text on screen"
+        case .linkJump: return "Follow link"
+        case .linkJumpTypeHint: return "Type a label · Esc to cancel"
+        case .linkJumpNoLinks: return "No links in view"
+        case .highlights: return "Highlights"
+        case .searchHighlights: return "Search highlighted text or page…"
+        case .noMatchingHighlights: return "No matching highlights"
+        case .noHighlightsInFile: return "No highlights in this PDF"
+        case .highlightWithoutText: return "Highlight without extractable text"
         case .selected: return "Selected"
         case .selectHighlightColorHint: return "Select this highlight color"
         case .settings: return "Settings"
@@ -749,6 +765,14 @@ public extension AppText {
         case .wordJump: return "定位单词"
         case .wordJumpTypeHint: return "输入单词开头"
         case .wordJumpNoText: return "屏幕内没有可选文字"
+        case .linkJump: return "打开链接"
+        case .linkJumpTypeHint: return "输入标签 · Esc 取消"
+        case .linkJumpNoLinks: return "当前视野内没有链接"
+        case .highlights: return "高亮"
+        case .searchHighlights: return "搜索高亮原文或页码…"
+        case .noMatchingHighlights: return "没有匹配的高亮"
+        case .noHighlightsInFile: return "当前 PDF 没有高亮"
+        case .highlightWithoutText: return "无可提取文字的高亮"
         case .selected: return "已选"
         case .selectHighlightColorHint: return "选择这个高亮颜色"
         case .settings: return "设置"

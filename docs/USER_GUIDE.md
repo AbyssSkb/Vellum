@@ -51,6 +51,12 @@ Short taps move the page; holding a scroll or zoom key continues the movement.
 
 Page jumps and outline destinations are included in jump history. Numeric page jumps use the PDF's one-based page position. Fitting preserves the page's proportions: `z` fills the reading width, while `0` keeps the whole page visible. General settings let you choose Fit width or Fit page when opening a file.
 
+Reader motions accept counts: `10j` scrolls ten steps, `5f` moves five pages, and `3n` / `3N` move three search matches forward / backward. Page movement stops at the first or last page; search wraps through the results. With text selected, `3w` repeats the word motion three times; counts also apply to `h` / `j` / `k` / `l` / `b` / `e`. Counts execute once, up to 1,000 steps per command. Bare scroll keys still support holding. `Esc` clears a pending count, and `12G` / `12gg` remain absolute page jumps.
+
+### Follow PDF links
+
+Press `F` in the reader to label links currently in view. Type a label to follow that link, use `Backspace` to correct a partial label, or press `Esc` to cancel. `Enter` follows the first remaining link. Internal links use the reading history, so `Control-O` returns to the source; web links open through the system's URL handler. Scrolling, resizing, or zooming cancels the labels. This uses links embedded in the PDF; plain reference text without a link is not detected.
+
 ## Browse the contents
 
 Press `t` to show or hide the contents sidebar. Opening it focuses the outline and aligns its cursor with the current reading section; closing it focuses the reader. A quick tap on plain `Tab` switches focus between the reader and outline, opening the sidebar if it is hidden. These focus switches keep the sidebar visible and preserve the browsing cursor.
@@ -159,6 +165,10 @@ Choose a color from the circular swatches in the tab bar, or press `c` to cycle 
 | `c` | Cycle highlight color |
 | `y` | Copy the selection |
 | `d` | Delete highlights intersecting the text selection |
+| `gm` | Search highlights in the current PDF |
+| `gn` / `gN` | Select the next / previous highlight in document order |
+
+The highlight list includes ordinary highlights and highlights with saved AI answers. Type original text or a page number to filter it, use `↑` / `↓` to select a row, and press `Enter` to jump to the passage. `Esc` returns to your previous focus. A selected passage supports the existing `y`, `a`, `i`, and `d` actions. Highlights without extractable text can still be located, but text actions require a text layer.
 
 Annotations save automatically to the PDF in the background. If saving fails or the file changes on disk, Vellum preserves the in-memory annotations and offers **Retry** or **Save a Copy**. Closing the tab or quitting waits for pending changes to be saved or copied.
 

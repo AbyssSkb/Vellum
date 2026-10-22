@@ -9,8 +9,10 @@ public final class AppState: ObservableObject {
     @Published var isTabSwitcherPresented = false
     @Published var isAIConversationHistoryPresented = false
     @Published var isAIExplanationHistoryPresented = false
+    @Published var isHighlightsPresented = false
     @Published var aiConversationHistory: [AIConversationHistoryItem] = []
     @Published var aiExplanationHistory: [AIExplanationHistoryItem] = []
+    @Published var highlightItems: [HighlightListItem] = []
     @Published var outlineFocusGeneration = 0
     var outlineReadingDestination: PDFDestination?
     @Published var outlineReadingItemID: String?

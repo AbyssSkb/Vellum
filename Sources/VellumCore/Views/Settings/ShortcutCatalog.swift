@@ -35,7 +35,9 @@ enum ShortcutCatalog {
                 ShortcutItem(keys: ["h", "l"], action: "Horizontal scroll"),
                 ShortcutItem(keys: ["f", "b"], action: "Move exactly one page"),
                 ShortcutItem(keys: ["Space"], action: "Move forward one page"),
+                ShortcutItem(keys: ["10j", "5f", "3n"], action: "Repeat a reader motion with a count (up to 1,000)"),
                 ShortcutItem(keys: ["gg", "G", "[num]G", "[num]gg"], action: "Jump to first, last, or numbered page"),
+                ShortcutItem(keys: ["F"], action: "Type a visible PDF link's label to follow it"),
                 ShortcutItem(keys: ["Ctrl O", "Ctrl I"], action: "Jump backward or forward")
             ]
         ),
@@ -82,6 +84,8 @@ enum ShortcutCatalog {
                 ShortcutItem(keys: ["y"], action: "Copy selected text"),
                 ShortcutItem(keys: ["c"], action: "Cycle highlight color"),
                 ShortcutItem(keys: ["d"], action: "Delete highlight under selection"),
+                ShortcutItem(keys: ["gm"], action: "Search highlighted text or page number"),
+                ShortcutItem(keys: ["gn", "gN"], action: "Select next or previous highlight"),
                 ShortcutItem(keys: ["a"], action: "Explain selected text or highlight"),
                 ShortcutItem(keys: ["A"], action: "Search AI explanations"),
                 ShortcutItem(keys: ["i"], action: "Chat with AI about selection"),
@@ -115,6 +119,7 @@ enum ShortcutCatalog {
                 ShortcutItem(keys: ["s"], action: "Type a visible word prefix, then its label to select"),
                 ShortcutItem(keys: ["h", "j", "k", "l"], action: "Move selection endpoint"),
                 ShortcutItem(keys: ["w", "b", "e"], action: "Move by word"),
+                ShortcutItem(keys: ["3w", "3j"], action: "Repeat a selection motion with a count"),
                 ShortcutItem(keys: ["Esc"], action: "Clear text selection")
             ]
         ),
@@ -171,7 +176,9 @@ enum ShortcutCatalog {
                 ShortcutItem(keys: ["h", "l"], action: "横向滚动"),
                 ShortcutItem(keys: ["f", "b"], action: "精确翻一页"),
                 ShortcutItem(keys: ["Space"], action: "向前翻一页"),
+                ShortcutItem(keys: ["10j", "5f", "3n"], action: "按次数执行正文移动（最多 1,000 次）"),
                 ShortcutItem(keys: ["gg", "G", "[num]G", "[num]gg"], action: "跳到首页、末页或指定页"),
+                ShortcutItem(keys: ["F"], action: "输入可见 PDF 链接的标签以打开"),
                 ShortcutItem(keys: ["Ctrl O", "Ctrl I"], action: "向后或向前跳转")
             ]
         ),
@@ -218,6 +225,8 @@ enum ShortcutCatalog {
                 ShortcutItem(keys: ["y"], action: "复制选中文本"),
                 ShortcutItem(keys: ["c"], action: "切换高亮颜色"),
                 ShortcutItem(keys: ["d"], action: "删除选中位置下的高亮"),
+                ShortcutItem(keys: ["gm"], action: "搜索高亮原文或页码"),
+                ShortcutItem(keys: ["gn", "gN"], action: "选中下一条或上一条高亮"),
                 ShortcutItem(keys: ["a"], action: "解释选中文本或高亮"),
                 ShortcutItem(keys: ["A"], action: "搜索 AI 解释历史"),
                 ShortcutItem(keys: ["i"], action: "围绕选中文本进行 AI 对话"),
@@ -251,6 +260,7 @@ enum ShortcutCatalog {
                 ShortcutItem(keys: ["s"], action: "输入可见单词的开头，再按标签选中"),
                 ShortcutItem(keys: ["h", "j", "k", "l"], action: "移动选择端点"),
                 ShortcutItem(keys: ["w", "b", "e"], action: "按单词移动"),
+                ShortcutItem(keys: ["3w", "3j"], action: "按次数调整选区"),
                 ShortcutItem(keys: ["Esc"], action: "清除文本选择")
             ]
         ),

@@ -61,8 +61,8 @@ public struct ContentView: View {
                     .background(VellumColors.backgroundDeepColor)
                 }
 
-                .allowsHitTesting(!appState.isTabSwitcherPresented)
-                .accessibilityHidden(appState.isTabSwitcherPresented)
+                .allowsHitTesting(!appState.isTabSwitcherPresented && !appState.isHighlightsPresented)
+                .accessibilityHidden(appState.isTabSwitcherPresented || appState.isHighlightsPresented)
 
                 if appState.isTabSwitcherPresented {
                     TabSwitcherOverlay()
@@ -78,6 +78,10 @@ public struct ContentView: View {
 
                 if appState.isAIExplanationHistoryPresented {
                     AIExplanationHistorySwitcherOverlay()
+                }
+
+                if appState.isHighlightsPresented {
+                    HighlightSwitcherOverlay()
                 }
             }
             .overlay(alignment: .top) {

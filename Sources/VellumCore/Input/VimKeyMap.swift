@@ -30,7 +30,7 @@ enum VimKeyMap {
         hasTextActionTarget: Bool
     ) -> Bool {
         switch key {
-        case "g", "G", "H", "L", "O", "N", "T", "A", "I", "/", "s", "a", "c", "i", "j", "k", "d", "u", "D", "U", "h", "l", "m", "n", " ", "f", "b", "v", "+", "=", "-", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "z", "o", "t", "x", "]", "[":
+        case "g", "G", "H", "L", "O", "N", "T", "A", "I", "F", "/", "s", "a", "c", "i", "j", "k", "d", "u", "D", "U", "h", "l", "m", "n", " ", "f", "b", "v", "+", "=", "-", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "z", "o", "t", "x", "]", "[":
             return true
         case "S":
             return false
@@ -47,6 +47,7 @@ enum VimKeyMap {
     }
 
     static func lowercaseFallback(for key: String) -> String? {
+        guard key != "F" else { return nil }
         let lowered = key.lowercased()
         guard lowered != key else { return nil }
 
@@ -66,6 +67,8 @@ enum VimKeyMap {
             return .beginSearch
         case "s":
             return .beginWordJump
+        case "F":
+            return .beginLinkJump
         case "n":
             return .searchNext
         case "N":

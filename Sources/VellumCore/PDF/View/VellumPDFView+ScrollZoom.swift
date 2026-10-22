@@ -31,8 +31,10 @@ extension VellumPDFView {
     func vimMoveByPage(_ delta: Int) {
         completePendingRestoreBeforeUserInteraction()
         guard let document,
-              let pageState = currentPageState(),
-              let targetPage = document.page(at: pageState.pageIndex + delta) else { return }
+              let pageState = currentPageState() else { return }
+        let targetIndex = pageState.pageIndex + min(max(delta, -pageState.pageIndex), document.pageCount - 1 - pageState.pageIndex)
+        guard targetIndex != pageState.pageIndex,
+              let targetPage = document.page(at: targetIndex) else { return }
         let previous = readingDestination()
 
         searchController?.markReaderNavigated()

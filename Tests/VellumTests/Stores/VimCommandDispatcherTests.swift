@@ -51,6 +51,7 @@ struct VimCommandDispatcherTests {
         dispatcher.perform(.jumpForward, on: target)
         dispatcher.perform(.beginSearch, on: target)
         dispatcher.perform(.beginWordJump, on: target)
+        dispatcher.perform(.beginLinkJump, on: target)
         dispatcher.perform(.searchNext, on: target)
         dispatcher.perform(.searchPrevious, on: target)
         dispatcher.perform(.materializeSearchSelection, on: target)
@@ -73,6 +74,7 @@ struct VimCommandDispatcherTests {
             .jumpForward,
             .beginSearch,
             .beginWordJump,
+            .beginLinkJump,
             .searchNext,
             .searchPrevious,
             .materializeSearchSelection
@@ -88,6 +90,9 @@ struct VimCommandDispatcherTests {
         dispatcher.perform(.toggleOutline, on: target)
         dispatcher.perform(.copySelection, on: target)
         dispatcher.perform(.highlightSelection, on: target)
+        dispatcher.perform(.showHighlights, on: target)
+        dispatcher.perform(.nextHighlight, on: target)
+        dispatcher.perform(.previousHighlight, on: target)
         dispatcher.perform(.cycleHighlightColor, on: target)
         dispatcher.perform(.explainHighlightSelection, on: target)
         dispatcher.perform(.startAIConversation, on: target)
@@ -102,6 +107,9 @@ struct VimCommandDispatcherTests {
             .toggleOutline,
             .copySelection,
             .highlightSelection,
+            .showHighlights,
+            .nextHighlight,
+            .previousHighlight,
             .cycleHighlightColor,
             .explainHighlightSelection,
             .startAIConversation,
@@ -112,6 +120,31 @@ struct VimCommandDispatcherTests {
             .zoomPageFit,
             .zoomFit
         ])
+    }
+
+    @Test
+    func countedNavigationUsesOneCombinedReaderAction() {
+        let dispatcher = VimCommandDispatcher()
+        let target = RecordingVimCommandTarget()
+        dispatcher.perform(.counted(.pageDown, 5), on: target)
+        dispatcher.perform(.counted(.pageUp, 4), on: target)
+        dispatcher.perform(.counted(.scrollDown, 10), on: target)
+        dispatcher.perform(.counted(.searchNext, 3), on: target)
+        dispatcher.perform(.counted(.searchPrevious, 2), on: target)
+        #expect(target.actions == [
+            .moveByPage(5), .moveByPage(-4),
+            .scroll(x: 0, y: -VimCommandMetrics.lineScrollDelta * 10),
+            .searchBy(3), .searchBy(-2)
+        ])
+    }
+
+    @Test
+    func hugeCountsAreBoundedAndActionsAreNeverRepeated() {
+        let dispatcher = VimCommandDispatcher()
+        let target = RecordingVimCommandTarget()
+        dispatcher.perform(.counted(.pageDown, Int.max), on: target)
+        dispatcher.perform(.counted(.closeTab, 5), on: target)
+        #expect(target.actions == [.moveByPage(VimInputController.maximumRepeatCount), .closeTab])
     }
 }
 
@@ -183,12 +216,20 @@ private final class RecordingVimCommandTarget: VimCommandTarget {
         actions.append(.beginWordJump)
     }
 
+    func beginLinkJump() {
+        actions.append(.beginLinkJump)
+    }
+
     func searchNext() {
         actions.append(.searchNext)
     }
 
     func searchPrevious() {
         actions.append(.searchPrevious)
+    }
+
+    func searchBy(_ delta: Int) {
+        actions.append(.searchBy(delta))
     }
 
     func materializeSearchSelection() {
@@ -205,6 +246,18 @@ private final class RecordingVimCommandTarget: VimCommandTarget {
 
     func highlightSelection() {
         actions.append(.highlightSelection)
+    }
+
+    func showHighlights() {
+        actions.append(.showHighlights)
+    }
+
+    func nextHighlight() {
+        actions.append(.nextHighlight)
+    }
+
+    func previousHighlight() {
+        actions.append(.previousHighlight)
     }
 
     func cycleHighlightColor() {
@@ -256,12 +309,17 @@ private final class RecordingVimCommandTarget: VimCommandTarget {
         case jumpForward
         case beginSearch
         case beginWordJump
+        case beginLinkJump
         case searchNext
         case searchPrevious
+        case searchBy(Int)
         case materializeSearchSelection
         case toggleOutline
         case copySelection
         case highlightSelection
+        case showHighlights
+        case nextHighlight
+        case previousHighlight
         case cycleHighlightColor
         case explainHighlightSelection
         case startAIConversation

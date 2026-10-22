@@ -89,6 +89,7 @@ final class VellumPDFView: PDFView {
     var finishingPageOverviewGeneration: Int?
     var searchController: PDFSearchController?
     var wordJumpController: PDFWordJumpController?
+    var highlightNavigationAnchor: (annotation: PDFAnnotation, generation: Int)?
 
     override var acceptsFirstResponder: Bool { true }
 
@@ -148,6 +149,10 @@ final class VellumPDFView: PDFView {
     }
 
     func handleTextSelectionKey(_ rawKey: String, eventType: NSEvent.EventType) -> Bool {
+        handleTextSelectionKey(rawKey, eventType: eventType, count: 1)
+    }
+
+    func handleTextSelectionKey(_ rawKey: String, eventType: NSEvent.EventType, count: Int) -> Bool {
         let key = rawKey.lowercased()
 
         if key == "\u{1b}" {
@@ -172,7 +177,7 @@ final class VellumPDFView: PDFView {
             stopScrollAnimation()
             stopZoomState()
             let previous = readingDestination()
-            _ = vimNavigateTextSelection(key)
+            _ = vimNavigateTextSelection(key, count: count)
             scheduleReadingPositionReport(userNavigated: readingPositionChanged(from: previous))
             return true
         case .keyUp:

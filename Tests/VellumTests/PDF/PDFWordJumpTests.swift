@@ -6,6 +6,140 @@ import Testing
 @Suite("PDF word jump")
 struct PDFWordJumpTests {
     @Test @MainActor
+    func linkHintsIncludeVisibleActionsWithoutRequiringATextLayer() async throws {
+        let (window, view) = try await makeReader(pages: [[], []])
+        defer { window.close() }
+        let page = try #require(view.document?.page(at: 0))
+        let nextPage = try #require(view.document?.page(at: 1))
+        let visible = PDFAnnotation(bounds: NSRect(x: 72, y: 650, width: 80, height: 18), forType: .link, withProperties: nil)
+        visible.url = URL(string: "https://example.com/reference")
+        page.addAnnotation(visible)
+        let hidden = PDFAnnotation(bounds: NSRect(x: 72, y: 610, width: 80, height: 18), forType: .link, withProperties: nil)
+        hidden.url = visible.url
+        hidden.shouldDisplay = false
+        page.addAnnotation(hidden)
+        let below = PDFAnnotation(bounds: NSRect(x: 72, y: 100, width: 80, height: 18), forType: .link, withProperties: nil)
+        below.url = visible.url
+        page.addAnnotation(below)
+        let empty = PDFAnnotation(bounds: NSRect(x: 72, y: 570, width: 80, height: 18), forType: .link, withProperties: nil)
+        page.addAnnotation(empty)
+        let otherPage = PDFAnnotation(bounds: visible.bounds, forType: .link, withProperties: nil)
+        otherPage.url = visible.url
+        nextPage.addAnnotation(otherPage)
+
+        view.beginLinkJumpCommand()
+        let controller = try #require(view.wordJumpController)
+        #expect(controller.targets.count == 1)
+        #expect(controller.targets.first?.link === visible)
+        #expect(controller.session.matches.count == 1)
+        #expect(controller.session.query.isEmpty)
+        try send("\u{1b}", to: view)
+        #expect(!view.isWordJumpActive)
+    }
+
+    @Test(arguments: [0, 90, 180, 270]) @MainActor
+    func linkHintsRespectPageCropAndRotation(rotation: Int) async throws {
+        let (window, view) = try await makeReader(pages: [[]])
+        defer { window.close() }
+        let page = try #require(view.document?.page(at: 0))
+        page.setBounds(NSRect(x: 100, y: 100, width: 400, height: 600), for: .cropBox)
+        page.rotation = rotation
+        view.displayBox = .cropBox
+        view.scaleFactor = 0.45
+        view.layoutDocumentView()
+        view.scrollToDocumentEdge(.top)
+        let visible = PDFAnnotation(bounds: NSRect(x: 80, y: 650, width: 80, height: 18), forType: .link, withProperties: nil)
+        visible.url = URL(string: "https://example.com/reference")
+        page.addAnnotation(visible)
+        let outside = PDFAnnotation(bounds: NSRect(x: 20, y: 650, width: 60, height: 18), forType: .link, withProperties: nil)
+        outside.url = visible.url
+        page.addAnnotation(outside)
+
+        view.beginLinkJumpCommand()
+        let targets = try #require(view.wordJumpController).targets
+        #expect(targets.count == 1)
+        let target = try #require(targets.first)
+        #expect(target.link === visible)
+        let cropped = visible.bounds.intersection(page.bounds(for: .cropBox))
+        let expected = try #require(view.viewRect(for: cropped, on: page)).intersection(view.wordJumpViewport)
+        #expect(target.rects == [expected])
+        #expect(target.rotation == rotation)
+    }
+
+    @Test(arguments: [false, true]) @MainActor
+    func choosingAnInternalLinkRecordsAndRestoresTheReadingPosition(useAction: Bool) async throws {
+        let (window, view) = try await makeReader(pages: [[("source", NSPoint(x: 72, y: 650))], [], []])
+        defer { window.close() }
+        let page = try #require(view.document?.page(at: 0))
+        let destinationPage = try #require(view.document?.page(at: 2))
+        let destination = PDFDestination(page: destinationPage, at: NSPoint(x: 72, y: 650))
+        let link = PDFAnnotation(bounds: NSRect(x: 72, y: 650, width: 80, height: 18), forType: .link, withProperties: nil)
+        if useAction {
+            link.action = PDFActionGoTo(destination: destination)
+        } else {
+            link.destination = destination
+        }
+        page.addAnnotation(link)
+        view.setCurrentSelection(page.selection(for: NSRange(location: 0, length: 6)), animate: false)
+        try #require(view.hasNavigableTextSelection)
+        view.beginLinkJumpCommand()
+        let before = try #require(view.snapshot())
+        let match = try #require(view.wordJumpController?.session.matches.first)
+        for character in match.label { try send(String(character), to: view) }
+        #expect(!view.isWordJumpActive)
+        #expect(!view.hasNavigableTextSelection)
+        #expect(view.jumpBackStack == [before])
+        await nextTestMainQueueTurn()
+        await nextTestMainQueueTurn()
+        try await waitForTestCondition("The chosen internal link reaches its destination") {
+            view.currentPage === destinationPage
+        }
+        view.vimJumpBack()
+        try await waitForTestCondition("Jump back restores the link source") {
+            guard let restored = view.snapshot() else { return false }
+            return restored.pageIndex == before.pageIndex && view.isSameJumpLocation(restored, before)
+        }
+    }
+
+    @Test(arguments: ["scroll", "zoom", "document"]) @MainActor
+    func linkHintsCancelWhenTheirTargetsBecomeStale(change: String) async throws {
+        let (window, view) = try await makeReader(pages: [[], []])
+        defer { window.close() }
+        let page = try #require(view.document?.page(at: 0))
+        let link = PDFAnnotation(bounds: NSRect(x: 72, y: 650, width: 80, height: 18), forType: .link, withProperties: nil)
+        link.destination = PDFDestination(page: try #require(view.document?.page(at: 1)), at: .zero)
+        page.addAnnotation(link)
+        view.beginLinkJumpCommand()
+        let label = try #require(view.wordJumpController?.session.matches.first).label
+        switch change {
+        case "scroll": view.scrollToDocumentEdge(.bottom)
+        case "zoom": view.scaleFactor *= 1.5
+        default: view.document = PDFDocument()
+        }
+        _ = view.handleWordJumpKey(try event(label, in: window))
+        #expect(!view.isWordJumpActive)
+        #expect(view.jumpBackStack.isEmpty)
+    }
+
+    @Test @MainActor
+    func pagesWithoutLinksRemainCancellableAndPreserveTheSelection() async throws {
+        let (window, view) = try await makeReader(pages: [[("alpha", NSPoint(x: 72, y: 650))]])
+        defer { window.close() }
+        let page = try #require(view.document?.page(at: 0))
+        let selection = try #require(page.selection(for: NSRange(location: 0, length: 5)))
+        view.setCurrentSelection(selection, animate: false)
+        view.beginLinkJumpCommand()
+        #expect(view.isWordJumpActive)
+        #expect(view.wordJumpController?.targets.isEmpty == true)
+        try send("a", to: view)
+        try send("\r", to: view)
+        #expect(view.currentSelection?.string == "alpha")
+        try send("\u{1b}", to: view)
+        #expect(!view.isWordJumpActive)
+        #expect(view.currentSelection?.string == "alpha")
+    }
+
+    @Test @MainActor
     func onlyWordsIntersectingTheViewportReceiveTargets() async throws {
         let (window, view) = try await makeReader(pages: [
             [("visible", NSPoint(x: 72, y: 650)), ("below", NSPoint(x: 72, y: 100))],
@@ -188,7 +322,7 @@ struct PDFWordJumpTests {
         let targets = try #require(view.wordJumpController).targets
         #expect(Set(targets.map(\.word)) == ["alpha", "beta"])
         for target in targets {
-            let bounds = target.selection.bounds(for: page)
+            let bounds = try #require(target.selection).bounds(for: page)
             let firstCorner = view.convert(NSPoint(x: bounds.minX, y: bounds.minY), from: page)
             let oppositeCorner = view.convert(NSPoint(x: bounds.maxX, y: bounds.maxY), from: page)
             let expected = NSRect(

@@ -34,6 +34,7 @@ final class KeyboardController {
     private let openURLRelay: OpenURLRelay
     nonisolated(unsafe) private var keyMonitor: Any?
     private var vimInput = VimInputController()
+    private var completedSequenceKey: String?
     nonisolated(unsafe) private var heldKeyTimer: Timer?
     nonisolated(unsafe) private var tabPageOverviewTimer: Timer?
     nonisolated(unsafe) private var lifecycleObservers: [NSObjectProtocol] = []
@@ -97,6 +98,17 @@ final class KeyboardController {
             inputReader = delegate?.activeReaderController
         }
 
+        if let completedSequenceKey, key.lowercased() == completedSequenceKey.lowercased() {
+            if event.type == .keyUp {
+                self.completedSequenceKey = nil
+                return true
+            }
+            if event.isARepeat { return true }
+        }
+        if event.type == .keyDown, !event.isARepeat {
+            completedSequenceKey = nil
+        }
+
         if inputReader?.isWordJumpActive == true {
             if key == "\t", event.type == .keyDown {
                 inputReader?.cancelWordJump()
@@ -124,6 +136,17 @@ final class KeyboardController {
             stopHeldKeyTimer()
             vimInput.clearPendingInput()
             return true
+        }
+
+        if event.type == .keyDown, !vimInput.state.numericPrefix.isEmpty,
+           key != "H", key != "L", ["h", "j", "k", "l", "w", "b", "e"].contains(key.lowercased()),
+           let reader = delegate?.activeReaderController, reader.hasNavigableTextSelection {
+            let count = vimInput.consumeRepeatCount()
+            if reader.handleTextSelectionKey(key, eventType: event.type, count: count) {
+                stopHeldKeyTimer()
+                completedSequenceKey = key
+                return true
+            }
         }
 
         if key != "H", key != "L",
@@ -309,14 +332,19 @@ final class KeyboardController {
         let hasTextActionTarget = hasNavigableTextSelection
             || delegate?.activeReaderController?.hasSearchTextTarget == true
 
-        return applyVimInputAction(
-            vimInput.handleKeyDown(
-                key,
-                isRepeat: isRepeat,
-                hasNavigableTextSelection: hasNavigableTextSelection,
-                hasTextActionTarget: hasTextActionTarget
-            )
+        let completesGSequence = vimInput.state.pendingKey == "g"
+        let action = vimInput.handleKeyDown(
+            key,
+            isRepeat: isRepeat,
+            hasNavigableTextSelection: hasNavigableTextSelection,
+            hasTextActionTarget: hasTextActionTarget
         )
+        let handled = applyVimInputAction(action)
+        if case .command(let command) = action {
+            if case .counted(_, _) = command { completedSequenceKey = key }
+            if completesGSequence { completedSequenceKey = key }
+        }
+        return handled
     }
 
     private func handleKeyUp(_ key: String) -> Bool {
@@ -487,7 +515,7 @@ final class KeyboardController {
 
     private var hasInputSequence: Bool {
         vimInput.state.pendingKey != nil || !vimInput.state.numericPrefix.isEmpty
-            || vimInput.heldKey != nil || tabPageOverviewArmed || tabPageOverviewActive
+            || vimInput.heldKey != nil || completedSequenceKey != nil || tabPageOverviewArmed || tabPageOverviewActive
             || inputReader?.isWordJumpActive == true
     }
 
@@ -495,6 +523,7 @@ final class KeyboardController {
         inputReader?.cancelWordJump()
         stopHeldKeyTimer()
         vimInput.clearPendingInput()
+        completedSequenceKey = nil
         tabPageOverviewTimer?.invalidate()
         tabPageOverviewTimer = nil
         tabPageOverviewArmed = false
@@ -531,7 +560,7 @@ final class KeyboardController {
         case .command(let command):
             stopHeldKeyTimer()
             delegate?.handleVimCommand(command)
-            if command == .beginWordJump {
+            if command == .beginWordJump || command == .beginLinkJump {
                 inputResponder = inputWindow?.firstResponder
             }
             return true

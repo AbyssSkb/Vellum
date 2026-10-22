@@ -18,11 +18,13 @@ protocol ReaderController: AnyObject {
     func cancelPageOverview()
     func beginSearchCommand()
     func beginWordJumpCommand()
+    func beginLinkJumpCommand()
     func handleWordJumpKey(_ event: NSEvent) -> Bool
     func cancelWordJump()
     func handleAIKeyEvent(_ event: NSEvent) -> Bool
     func handleTextSelectionKeyEvent(_ event: NSEvent) -> Bool
     func handleTextSelectionKey(_ rawKey: String, eventType: NSEvent.EventType) -> Bool
+    func handleTextSelectionKey(_ rawKey: String, eventType: NSEvent.EventType, count: Int) -> Bool
     func vimDeleteHighlightsForSelection() -> Bool
     func vimScroll(x: CGFloat, y: CGFloat)
     func vimMoveByPage(_ delta: Int)
@@ -35,9 +37,13 @@ protocol ReaderController: AnyObject {
     func vimJumpForward()
     func vimSearchNext()
     func vimSearchPrevious()
+    func vimSearchBy(_ delta: Int)
     func vimMaterializeSearchSelection()
     func vimCopySelection()
     func vimHighlightSelection(color: NSColor)
+    func highlightListItems() -> [HighlightListItem]
+    func vimSelectHighlight(_ item: HighlightListItem)
+    func vimNavigateHighlight(_ direction: Int)
     func vimExplainSelectedHighlight()
     func vimStartAIConversation()
     func aiExplanationHistoryItems() -> [AIExplanationHistoryItem]
@@ -50,6 +56,25 @@ protocol ReaderController: AnyObject {
 }
 
 extension ReaderController {
+    func handleTextSelectionKey(_ rawKey: String, eventType: NSEvent.EventType, count: Int) -> Bool {
+        var handled = false
+        for _ in 0..<max(0, min(count, VimInputController.maximumRepeatCount)) {
+            guard handleTextSelectionKey(rawKey, eventType: eventType) else { break }
+            handled = true
+        }
+        return handled
+    }
+
+    func vimSearchBy(_ delta: Int) {
+        for _ in 0..<min(delta.magnitude, UInt(VimInputController.maximumRepeatCount)) {
+            if delta > 0 { vimSearchNext() } else { vimSearchPrevious() }
+        }
+    }
+
+    func highlightListItems() -> [HighlightListItem] { [] }
+    func vimSelectHighlight(_ item: HighlightListItem) {}
+    func vimNavigateHighlight(_ direction: Int) {}
+
     func cancelPageOverview() {
         finishPageOverview()
     }

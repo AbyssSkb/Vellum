@@ -5,6 +5,26 @@ import Testing
 @Suite("PDF link navigation")
 struct PDFLinkNavigationTests {
     @Test
+    func linkActionsResolveDestinationsURLsAndNamedActions() throws {
+        let destination = PDFDestination(page: PDFPage(), at: NSPoint(x: 20, y: 30))
+        let internalLink = PDFAnnotation(bounds: .zero, forType: .link, withProperties: nil)
+        internalLink.destination = destination
+        let resolved = try #require(PDFLinkNavigation.action(for: internalLink) as? PDFActionGoTo).destination
+        #expect(resolved.page === destination.page)
+        #expect(resolved.point == destination.point)
+
+        let url = try #require(URL(string: "https://example.com/reference"))
+        let externalLink = PDFAnnotation(bounds: .zero, forType: .link, withProperties: nil)
+        externalLink.url = url
+        #expect((PDFLinkNavigation.action(for: externalLink) as? PDFActionURL)?.url == url)
+
+        let namedLink = PDFAnnotation(bounds: .zero, forType: .link, withProperties: nil)
+        namedLink.action = PDFActionNamed(name: .nextPage)
+        #expect((PDFLinkNavigation.action(for: namedLink) as? PDFActionNamed)?.name == .nextPage)
+        #expect(PDFLinkNavigation.action(for: PDFAnnotation(bounds: .zero, forType: .link, withProperties: nil)) == nil)
+    }
+
+    @Test
     func destinationLinkRecordsJumpSource() {
         let page = PDFPage()
         let annotation = PDFAnnotation(bounds: .zero, forType: .link, withProperties: nil)

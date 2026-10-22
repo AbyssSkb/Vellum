@@ -15,6 +15,11 @@ extension VellumPDFView {
         wordJumpController?.begin()
     }
 
+    func beginLinkJumpCommand() {
+        if wordJumpController == nil { wordJumpController = PDFWordJumpController(pdfView: self) }
+        wordJumpController?.begin(links: true)
+    }
+
     func handleWordJumpKey(_ event: NSEvent) -> Bool {
         wordJumpController?.handleKey(event) ?? false
     }
@@ -23,9 +28,12 @@ extension VellumPDFView {
 }
 
 struct PDFWordJumpTarget {
-    let selection: PDFSelection
+    let selection: PDFSelection?
     let word: String
     let rects: [NSRect]
+    let link: PDFAnnotation?
+
+    var rotation: Int { selection?.pages.first?.rotation ?? link?.page?.rotation ?? 0 }
 }
 
 enum WordJumpLabelGeometry {
@@ -94,7 +102,7 @@ final class PDFWordJumpController {
 
     init(pdfView: VellumPDFView) { self.pdfView = pdfView }
 
-    func begin() {
+    func begin(links: Bool = false) {
         cancel()
         guard let pdfView, let document = pdfView.document else { return }
         pdfView.completePendingRestoreBeforeUserInteraction()
@@ -107,8 +115,8 @@ final class PDFWordJumpController {
         self.document = document
         viewport = pdfView.wordJumpViewport
         scale = pdfView.scaleFactor
-        targets = visibleWords(in: pdfView, document: document)
-        session = WordJumpSession(words: targets.map(\.word))
+        targets = links ? visibleLinks(in: pdfView, document: document) : visibleWords(in: pdfView, document: document)
+        session = WordJumpSession(words: targets.map(\.word), labelsOnly: links)
         let overlay = WordJumpOverlayView(frame: pdfView.bounds)
         overlay.autoresizingMask = [.width, .height]
         pdfView.addSubview(overlay)
@@ -128,11 +136,16 @@ final class PDFWordJumpController {
         case .cancelled:
             cancel()
         case .selected(let index):
-            let selection = targets[index].selection
+            let target = targets[index]
             cancel()
-            selection.color = nil
-            pdfView?.textSelectionNavigationState = nil
-            pdfView?.setCurrentSelection(selection, animate: false)
+            if let link = target.link, let action = PDFLinkNavigation.action(for: link) {
+                pdfView?.clearTextSelectionForVimNavigation()
+                pdfView?.vimPerformPDFAction(action)
+            } else if let selection = target.selection {
+                selection.color = nil
+                pdfView?.textSelectionNavigationState = nil
+                pdfView?.setCurrentSelection(selection, animate: false)
+            }
             pdfView?.focus()
         }
         return true
@@ -174,16 +187,34 @@ final class PDFWordJumpController {
                 }.filter { !$0.isEmpty && $0.intersects(viewport) }
                 guard !rects.isEmpty else { continue }
                 let word = text.substring(with: range).filter { $0.isLetter || $0.isNumber || $0 == "_" }
-                targets.append(PDFWordJumpTarget(selection: selection, word: word, rects: rects))
+                targets.append(PDFWordJumpTarget(selection: selection, word: word, rects: rects, link: nil))
             }
         }
         return targets
+    }
+
+    private func visibleLinks(in pdfView: VellumPDFView, document: PDFDocument) -> [PDFWordJumpTarget] {
+        pdfView.visiblePages.sorted(by: { document.index(for: $0) < document.index(for: $1) }).flatMap { page in
+            page.annotations.compactMap { annotation in
+                guard annotation.type == "Link", annotation.shouldDisplay,
+                      PDFLinkNavigation.action(for: annotation) != nil else { return nil }
+                let bounds = annotation.bounds.intersection(page.bounds(for: pdfView.displayBox))
+                guard !bounds.isEmpty, let rect = pdfView.viewRect(for: bounds, on: page),
+                      rect.intersects(viewport) else { return nil }
+                let text = page.selection(for: bounds)?.string?.trimmingCharacters(in: .whitespacesAndNewlines)
+                let title = text.flatMap { $0.isEmpty ? nil : $0 }
+                    ?? annotation.url?.absoluteString ?? AppUILanguage.saved().text(.linkJump)
+                return PDFWordJumpTarget(selection: nil, word: title,
+                                         rects: [rect.intersection(viewport)], link: annotation)
+            }
+        }
     }
 
     private func refreshOverlay() {
         guard let overlay else { return }
         overlay.targets = targets
         overlay.session = session
+        overlay.setAccessibilityLabel(AppUILanguage.saved().text(session.labelsOnly ? .linkJump : .wordJump))
         overlay.needsDisplay = true
         overlay.setAccessibilityValue(overlay.statusText + ". " + session.displayedMatches.map {
             "\($0.label): \(targets[$0.wordIndex].word)"
@@ -203,6 +234,12 @@ private final class WordJumpOverlayView: NSView {
 
     private func statusText(labelPrefix: String, count: Int) -> String {
         let language = AppUILanguage.saved()
+        if session.labelsOnly {
+            let detail = targets.isEmpty ? language.text(.linkJumpNoLinks)
+                : language.text(.linkJumpTypeHint) + (labelPrefix.isEmpty ? "" : "  →  " + labelPrefix)
+                    + "  ·  " + String(count)
+            return "\(language.text(.linkJump))   \(detail)"
+        }
         let detail = targets.isEmpty ? language.text(.wordJumpNoText)
             : session.query.isEmpty ? language.text(.wordJumpTypeHint)
             : session.query + (labelPrefix.isEmpty ? "" : "  →  " + labelPrefix)
@@ -241,7 +278,7 @@ private final class WordJumpOverlayView: NSView {
         let candidates = session.matches.compactMap { match -> (index: Int, word: NSRect, size: NSSize)? in
             guard !match.label.isEmpty, let rect = targets[match.wordIndex].rects.first else { return nil }
             let word = convert(rect, from: superview)
-            let rotation = targets[match.wordIndex].selection.pages.first?.rotation ?? 0
+            let rotation = targets[match.wordIndex].rotation
             let font = NSFont.monospacedSystemFont(ofSize: WordJumpLabelGeometry.fontSize(for: word, rotation: rotation), weight: .bold)
             let textSize = (match.label as NSString).size(withAttributes: [.font: font])
             return (match.wordIndex, word,
@@ -281,7 +318,7 @@ private final class WordJumpOverlayView: NSView {
                   let word = targets[match.wordIndex].rects.first else { continue }
             let rect = convert(word, from: superview)
             let label = String(match.label.dropFirst(session.labelPrefix.count)) as NSString
-            let rotation = targets[match.wordIndex].selection.pages.first?.rotation ?? 0
+            let rotation = targets[match.wordIndex].rotation
             let fontSize = WordJumpLabelGeometry.fontSize(for: rect, rotation: rotation)
             let attributes: [NSAttributedString.Key: Any] = [
                 .font: NSFont.monospacedSystemFont(ofSize: fontSize, weight: .bold),

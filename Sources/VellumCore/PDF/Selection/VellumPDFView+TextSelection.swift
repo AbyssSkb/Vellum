@@ -3,7 +3,7 @@ import PDFKit
 
 extension VellumPDFView {
     @discardableResult
-    func vimNavigateTextSelection(_ key: String) -> Bool {
+    func vimNavigateTextSelection(_ key: String, count: Int = 1) -> Bool {
         let key = key.lowercased()
         guard ["h", "j", "k", "l", "w", "b", "e"].contains(key),
               let document,
@@ -34,71 +34,77 @@ extension VellumPDFView {
         }
 
         guard var state = textSelectionNavigationState else { return false }
-        var nextExtent: Int?
-        var nextExtentCaret: VimTextCaret?
-        var movementDirection = 0
+        let useVisualSelection = key == "j" || key == "k"
         var scrollCaretAfterSelection: VimTextCaret?
-        var useVisualSelection = false
+        var didMove = false
+        for _ in 0..<min(max(count, 1), VimInputController.maximumRepeatCount) {
+            var nextExtent: Int?
+            var nextExtentCaret: VimTextCaret?
+            var movementDirection = 0
 
-        switch key {
-        case "h":
-            nextExtent = state.extentOffset - 1
-            movementDirection = -1
-            state.preferredX = nil
-        case "l":
-            nextExtent = state.extentOffset + 1
-            movementDirection = 1
-            state.preferredX = nil
-        case "b":
-            nextExtent = wordBackwardOffset(from: state.extentOffset, in: document, pageStarts: pageStarts)
-            movementDirection = -1
-            state.preferredX = nil
-        case "w":
-            nextExtent = wordForwardOffset(from: state.extentOffset, in: document, pageStarts: pageStarts)
-            movementDirection = 1
-            state.preferredX = nil
-        case "e":
-            nextExtent = wordEndOffset(from: state.extentOffset, in: document, pageStarts: pageStarts)
-            movementDirection = 1
-            state.preferredX = nil
-        case "j", "k":
-            useVisualSelection = true
-            let verticalMove = verticalSelectionCaret(
-                from: state.extentCaret,
-                fallbackExtentOffset: state.extentOffset,
-                anchorOffset: state.anchorOffset,
-                anchorCaret: state.anchorCaret,
-                direction: key == "j" ? 1 : -1,
-                preferredX: state.preferredX,
+            switch key {
+            case "h":
+                nextExtent = state.extentOffset - 1
+                movementDirection = -1
+                state.preferredX = nil
+            case "l":
+                nextExtent = state.extentOffset + 1
+                movementDirection = 1
+                state.preferredX = nil
+            case "b":
+                nextExtent = wordBackwardOffset(from: state.extentOffset, in: document, pageStarts: pageStarts)
+                movementDirection = -1
+                state.preferredX = nil
+            case "w":
+                nextExtent = wordForwardOffset(from: state.extentOffset, in: document, pageStarts: pageStarts)
+                movementDirection = 1
+                state.preferredX = nil
+            case "e":
+                nextExtent = wordEndOffset(from: state.extentOffset, in: document, pageStarts: pageStarts)
+                movementDirection = 1
+                state.preferredX = nil
+            case "j", "k":
+                let verticalMove = verticalSelectionCaret(
+                    from: state.extentCaret,
+                    fallbackExtentOffset: state.extentOffset,
+                    anchorOffset: state.anchorOffset,
+                    anchorCaret: state.anchorCaret,
+                    direction: key == "j" ? 1 : -1,
+                    preferredX: state.preferredX,
+                    pageStarts: pageStarts
+                )
+                nextExtent = verticalMove?.caret.offset
+                nextExtentCaret = verticalMove?.caret
+                state.preferredX = verticalMove?.preferredX ?? state.preferredX
+                movementDirection = key == "j" ? 1 : -1
+            default:
+                return false
+            }
+
+            guard var extent = nextExtent else { break }
+            extent = min(max(extent, 0), totalLength)
+            if !useVisualSelection, extent == state.anchorOffset {
+                extent = min(max(state.anchorOffset + movementDirection, 0), totalLength)
+            }
+            if useVisualSelection {
+                guard nextExtentCaret != nil,
+                      !sameVisualCaret(nextExtentCaret, state.anchorCaret) else { break }
+            } else {
+                guard extent != state.anchorOffset else { break }
+            }
+
+            let caret = nextExtentCaret ?? textCaret(
+                atInsertionOffset: extent,
+                preferTrailingEdge: extent >= state.anchorOffset,
                 pageStarts: pageStarts
             )
-            nextExtent = verticalMove?.caret.offset
-            nextExtentCaret = verticalMove?.caret
-            scrollCaretAfterSelection = verticalMove?.caret
-            state.preferredX = verticalMove?.preferredX ?? state.preferredX
-            movementDirection = key == "j" ? 1 : -1
-        default:
-            return false
+            guard extent != state.extentOffset || (useVisualSelection && !sameVisualCaret(caret, state.extentCaret)) else { break }
+            state.extentOffset = extent
+            state.extentCaret = caret
+            scrollCaretAfterSelection = nextExtentCaret
+            didMove = true
         }
-
-        guard var extent = nextExtent else { return false }
-        extent = min(max(extent, 0), totalLength)
-        if !useVisualSelection, extent == state.anchorOffset {
-            extent = min(max(state.anchorOffset + movementDirection, 0), totalLength)
-        }
-        if useVisualSelection {
-            guard nextExtentCaret != nil,
-                  !sameVisualCaret(nextExtentCaret, state.anchorCaret) else { return true }
-        } else {
-            guard extent != state.anchorOffset else { return true }
-        }
-
-        state.extentOffset = extent
-        state.extentCaret = nextExtentCaret ?? textCaret(
-            atInsertionOffset: state.extentOffset,
-            preferTrailingEdge: state.extentOffset >= state.anchorOffset,
-            pageStarts: pageStarts
-        )
+        guard didMove else { return true }
 
         let didApplySelection = useVisualSelection
             ? applyVisualTextSelection(anchorCaret: state.anchorCaret, extentCaret: state.extentCaret, pageStarts: pageStarts)

@@ -1,4 +1,5 @@
-enum VimCommand: Equatable {
+enum VimCommand: Equatable, Sendable {
+    indirect case counted(VimCommand, Int)
     case open
     case openInNewTab
     case closeTab
@@ -23,12 +24,16 @@ enum VimCommand: Equatable {
     case jumpForward
     case beginSearch
     case beginWordJump
+    case beginLinkJump
     case searchNext
     case searchPrevious
     case materializeSearchSelection
     case toggleOutline
     case copySelection
     case highlightSelection
+    case showHighlights
+    case nextHighlight
+    case previousHighlight
     case cycleHighlightColor
     case explainHighlightSelection
     case startAIConversation
@@ -38,4 +43,15 @@ enum VimCommand: Equatable {
     case zoomOut
     case zoomPageFit
     case zoomFit
+
+    var acceptsCount: Bool {
+        switch self {
+        case .scrollDown, .scrollUp, .largeScrollDown, .largeScrollUp,
+             .extraLargeScrollDown, .extraLargeScrollUp, .scrollLeft, .scrollRight,
+             .pageDown, .pageUp, .searchNext, .searchPrevious:
+            return true
+        default:
+            return false
+        }
+    }
 }

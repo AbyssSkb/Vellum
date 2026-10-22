@@ -3,7 +3,14 @@ import Foundation
 @MainActor
 struct VimCommandDispatcher {
     func perform(_ command: VimCommand, on target: VimCommandTarget) {
+        perform(command, count: 1, on: target)
+    }
+
+    private func perform(_ command: VimCommand, count: Int, on target: VimCommandTarget) {
         switch command {
+        case .counted(let command, let requestedCount):
+            let count = min(max(requestedCount, 1), VimInputController.maximumRepeatCount)
+            perform(command, count: command.acceptsCount ? count : 1, on: target)
         case .open:
             target.openPDFInCurrentTab()
         case .openInNewTab:
@@ -19,25 +26,25 @@ struct VimCommandDispatcher {
         case .showTabSwitcher:
             target.showTabSwitcher()
         case .scrollDown:
-            target.scrollBy(x: 0, y: -VimCommandMetrics.lineScrollDelta)
+            target.scrollBy(x: 0, y: -VimCommandMetrics.lineScrollDelta * CGFloat(count))
         case .scrollUp:
-            target.scrollBy(x: 0, y: VimCommandMetrics.lineScrollDelta)
+            target.scrollBy(x: 0, y: VimCommandMetrics.lineScrollDelta * CGFloat(count))
         case .largeScrollDown:
-            target.scrollBy(x: 0, y: -VimCommandMetrics.largeScrollDelta)
+            target.scrollBy(x: 0, y: -VimCommandMetrics.largeScrollDelta * CGFloat(count))
         case .largeScrollUp:
-            target.scrollBy(x: 0, y: VimCommandMetrics.largeScrollDelta)
+            target.scrollBy(x: 0, y: VimCommandMetrics.largeScrollDelta * CGFloat(count))
         case .extraLargeScrollDown:
-            target.scrollBy(x: 0, y: -VimCommandMetrics.extraLargeScrollDelta)
+            target.scrollBy(x: 0, y: -VimCommandMetrics.extraLargeScrollDelta * CGFloat(count))
         case .extraLargeScrollUp:
-            target.scrollBy(x: 0, y: VimCommandMetrics.extraLargeScrollDelta)
+            target.scrollBy(x: 0, y: VimCommandMetrics.extraLargeScrollDelta * CGFloat(count))
         case .scrollLeft:
-            target.scrollBy(x: -VimCommandMetrics.horizontalScrollDelta, y: 0)
+            target.scrollBy(x: -VimCommandMetrics.horizontalScrollDelta * CGFloat(count), y: 0)
         case .scrollRight:
-            target.scrollBy(x: VimCommandMetrics.horizontalScrollDelta, y: 0)
+            target.scrollBy(x: VimCommandMetrics.horizontalScrollDelta * CGFloat(count), y: 0)
         case .pageDown:
-            target.moveByPage(1)
+            target.moveByPage(count)
         case .pageUp:
-            target.moveByPage(-1)
+            target.moveByPage(-count)
         case .firstPage:
             target.goToFirstPage()
         case .lastPage:
@@ -52,10 +59,12 @@ struct VimCommandDispatcher {
             target.beginSearch()
         case .beginWordJump:
             target.beginWordJump()
+        case .beginLinkJump:
+            target.beginLinkJump()
         case .searchNext:
-            target.searchNext()
+            if count == 1 { target.searchNext() } else { target.searchBy(count) }
         case .searchPrevious:
-            target.searchPrevious()
+            if count == 1 { target.searchPrevious() } else { target.searchBy(-count) }
         case .materializeSearchSelection:
             target.materializeSearchSelection()
         case .toggleOutline:
@@ -64,6 +73,12 @@ struct VimCommandDispatcher {
             target.copySelection()
         case .highlightSelection:
             target.highlightSelection()
+        case .showHighlights:
+            target.showHighlights()
+        case .nextHighlight:
+            target.nextHighlight()
+        case .previousHighlight:
+            target.previousHighlight()
         case .cycleHighlightColor:
             target.cycleHighlightColor()
         case .explainHighlightSelection:
@@ -104,12 +119,17 @@ protocol VimCommandTarget {
     func jumpForward()
     func beginSearch()
     func beginWordJump()
+    func beginLinkJump()
     func searchNext()
     func searchPrevious()
+    func searchBy(_ delta: Int)
     func materializeSearchSelection()
     func toggleOutlineSidebar()
     func copySelection()
     func highlightSelection()
+    func showHighlights()
+    func nextHighlight()
+    func previousHighlight()
     func cycleHighlightColor()
     func explainHighlightSelection()
     func startAIConversation()

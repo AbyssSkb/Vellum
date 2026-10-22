@@ -60,13 +60,13 @@ struct VimInputControllerTests {
     }
 
     @Test
-    func continuousCommandCancelsNumericPrefix() {
+    func continuousCommandConsumesNumericPrefixAsOneCountedMove() {
         var input = VimInputController()
 
         #expect(input.handleKeyDown("1", isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .handled)
         #expect(input.handleKeyDown("2", isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .handled)
-        #expect(input.handleKeyDown("j", isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .continuousKey("j"))
-        #expect(input.handleKeyUp("j") == .stopContinuousKey)
+        #expect(input.handleKeyDown("j", isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .command(.counted(.scrollDown, 12)))
+        #expect(input.handleKeyUp("j") == .ignored)
         #expect(input.handleKeyDown("G", isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .command(.lastPage))
     }
 
@@ -75,8 +75,7 @@ struct VimInputControllerTests {
         ("H", .previousTab),
         ("L", .nextTab),
         ("X", .restoreClosedTab),
-        ("O", .openInNewTab),
-        ("N", .searchPrevious)
+        ("O", .openInNewTab)
     ])
     func uppercaseCommandCancelsPendingGCommand(key: String, command: VimCommand) {
         var input = VimInputController()
@@ -133,8 +132,6 @@ struct VimInputControllerTests {
 
     @Test(arguments: [
         ("/", VimCommand.beginSearch),
-        ("n", .searchNext),
-        ("N", .searchPrevious),
         ("v", .materializeSearchSelection),
         ("T", .showTabSwitcher)
     ])
@@ -176,5 +173,43 @@ struct VimInputControllerTests {
         #expect(input.state.pendingKey == nil)
         #expect(input.state.numericPrefix.isEmpty)
         #expect(input.handleKeyDown("G", isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .command(.lastPage))
+    }
+
+    @Test(arguments: [
+        ("n", VimCommand.searchNext), ("N", .searchPrevious),
+        ("f", .pageDown), ("b", .pageUp), (" ", .pageDown),
+        ("j", .scrollDown), ("k", .scrollUp), ("h", .scrollLeft), ("l", .scrollRight),
+        ("d", .largeScrollDown), ("u", .largeScrollUp),
+        ("D", .extraLargeScrollDown), ("U", .extraLargeScrollUp)
+    ])
+    func navigationCommandsConsumeCounts(key: String, command: VimCommand) {
+        var input = VimInputController()
+        _ = input.handleKey("3")
+        #expect(input.handleKeyDown(key, isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .command(.counted(command, 3)))
+        #expect(input.state.numericPrefix.isEmpty)
+        #expect(input.handleKey("G") == .command(.lastPage))
+    }
+
+    @Test(arguments: ["9999", String(repeating: "9", count: 30)])
+    func repeatCountsAreBoundedEvenWhenIntegerParsingOverflows(prefix: String) {
+        var input = VimInputController()
+        for digit in prefix { _ = input.handleKey(String(digit)) }
+        #expect(input.handleKey("n") == .command(.counted(.searchNext, VimInputController.maximumRepeatCount)))
+    }
+
+    @Test(arguments: [("m", VimCommand.highlightSelection), ("x", .closeTab), ("o", .open), ("F", .beginLinkJump)])
+    func actionCommandsExecuteOnlyOnceAndConsumeCounts(key: String, command: VimCommand) {
+        var input = VimInputController()
+        _ = input.handleKey("9")
+        #expect(input.handleKeyDown(key, isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .command(command))
+        #expect(input.state.numericPrefix.isEmpty)
+    }
+
+    @Test(arguments: [("m", VimCommand.showHighlights), ("n", .nextHighlight), ("N", .previousHighlight), ("t", .nextTab), ("T", .previousTab)])
+    func gPrefixRoutesNavigationWithoutTriggeringTheBareKey(key: String, command: VimCommand) {
+        var input = VimInputController()
+        _ = input.handleKey("g")
+        #expect(input.handleKeyDown(key, isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .command(command))
+        #expect(input.state.pendingKey == nil)
     }
 }

@@ -1,6 +1,14 @@
 @preconcurrency import PDFKit
 
 enum PDFLinkNavigation {
+    static func action(for annotation: PDFAnnotation) -> PDFAction? {
+        if let destination = annotation.destination {
+            return PDFActionGoTo(destination: destination)
+        }
+        if let action = annotation.action { return action }
+        return annotation.url.map(PDFActionURL.init(url:))
+    }
+
     static func shouldRecordJumpSource(for annotation: PDFAnnotation?) -> Bool {
         guard let annotation,
               annotation.type == "Link" else { return false }

@@ -9,6 +9,80 @@ struct KeyboardControllerTests {
     private let notificationCenter = NotificationCenter()
 
     @Test
+    func linkJumpOwnsLabelKeysAndEscapeBeforeReaderCommands() {
+        let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
+        let delegate = RecordingKeyboardDelegate()
+        controller.delegate = delegate
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "F", keyCode: 3)))
+        #expect(controller.handleKeyEvent(keyEvent(.keyUp, key: "F", keyCode: 3)))
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "f", keyCode: 3)))
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "\u{1b}", keyCode: 53)))
+        #expect(delegate.commands == [.beginLinkJump])
+        #expect(delegate.reader.actions == [.beginLinkJump, .wordJumpKey("f"), .cancelWordJump])
+        #expect(!delegate.reader.isWordJumpActive)
+    }
+
+    @Test(arguments: ["h", "j", "k", "l", "w", "b", "e"])
+    func selectionMotionsConsumeTheCountInOneReaderCall(key: String) {
+        let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
+        let delegate = RecordingKeyboardDelegate()
+        delegate.reader.hasNavigableTextSelection = true
+        controller.delegate = delegate
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "3", keyCode: 20)))
+        delegate.reader.textSelectionKeyResult = true
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: key, keyCode: 0)))
+        #expect(delegate.reader.actions == [.countedSelection(key, 3)])
+        #expect(delegate.commands.isEmpty)
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: key, keyCode: 0, isRepeat: true)))
+        #expect(delegate.reader.actions == [.countedSelection(key, 3)])
+        #expect(controller.handleKeyEvent(keyEvent(.keyUp, key: key, keyCode: 0)))
+        delegate.reader.textSelectionKeyResult = false
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "G", keyCode: 5)))
+        #expect(delegate.commands == [.lastPage])
+    }
+
+    @Test(arguments: [NSApplication.willResignActiveNotification, NSWindow.didResignKeyNotification])
+    func deactivationDiscardsTheCountBeforeSearchNavigation(name: Notification.Name) {
+        let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
+        let delegate = RecordingKeyboardDelegate()
+        controller.delegate = delegate
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "3", keyCode: 20)))
+        notificationCenter.post(name: name, object: nil)
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "n", keyCode: 45)))
+        #expect(delegate.commands == [.searchNext])
+    }
+
+    @Test(arguments: [("j", VimCommand.scrollDown), ("n", .searchNext), ("f", .pageDown)])
+    func countedMovementExecutesOnceUntilKeyRelease(key: String, command: VimCommand) async throws {
+        let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
+        let delegate = RecordingKeyboardDelegate()
+        controller.delegate = delegate
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "3", keyCode: 20)))
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: key, keyCode: 0)))
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: key, keyCode: 0, isRepeat: true)))
+        try await observeHeldKeyTimerTurns()
+        #expect(delegate.commands == [.counted(command, 3)])
+        #expect(controller.handleKeyEvent(keyEvent(.keyUp, key: key, keyCode: 0)))
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: key, keyCode: 0)))
+        #expect(delegate.commands == [.counted(command, 3), command])
+        controller.cancelInput()
+    }
+
+    @Test(arguments: [("n", VimCommand.nextHighlight, VimCommand.searchNext), ("N", .previousHighlight, .searchPrevious)])
+    func heldHighlightNavigationNeverFallsThroughToSearch(key: String, highlight: VimCommand, search: VimCommand) {
+        let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
+        let delegate = RecordingKeyboardDelegate()
+        controller.delegate = delegate
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "g", keyCode: 5)))
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: key, keyCode: 45)))
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: key, keyCode: 45, isRepeat: true)))
+        #expect(delegate.commands == [highlight])
+        #expect(controller.handleKeyEvent(keyEvent(.keyUp, key: key, keyCode: 45)))
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: key, keyCode: 45)))
+        #expect(delegate.commands == [highlight, search])
+    }
+
+    @Test
     func wordJumpOwnsQueryKeysBeforeSelectionNavigationAndVimCommands() {
         let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
         let delegate = RecordingKeyboardDelegate()
@@ -1129,6 +1203,8 @@ private final class RecordingKeyboardDelegate: KeyboardControllerDelegate {
         commands.append(command)
         if command == .beginWordJump {
             activeReaderController?.beginWordJumpCommand()
+        } else if command == .beginLinkJump {
+            activeReaderController?.beginLinkJumpCommand()
         }
     }
 
@@ -1192,6 +1268,12 @@ private final class RecordingKeyboardReaderController: ReaderController {
         onBeginWordJump?()
     }
 
+    func beginLinkJumpCommand() {
+        actions.append(.beginLinkJump)
+        isWordJumpActive = true
+        onBeginWordJump?()
+    }
+
     func handleWordJumpKey(_ event: NSEvent) -> Bool {
         actions.append(.wordJumpKey(event.charactersIgnoringModifiers ?? ""))
         return isWordJumpActive
@@ -1212,6 +1294,11 @@ private final class RecordingKeyboardReaderController: ReaderController {
 
     func handleTextSelectionKey(_ rawKey: String, eventType: NSEvent.EventType) -> Bool {
         textSelectionKeys.append(rawKey)
+        return textSelectionKeyResult
+    }
+
+    func handleTextSelectionKey(_ rawKey: String, eventType: NSEvent.EventType, count: Int) -> Bool {
+        actions.append(.countedSelection(rawKey, count))
         return textSelectionKeyResult
     }
 
@@ -1263,10 +1350,12 @@ private final class RecordingKeyboardReaderController: ReaderController {
         case cancelPageOverview
         case beginSearch
         case beginWordJump
+        case beginLinkJump
         case wordJumpKey(String)
         case cancelWordJump
         case deleteHighlights
         case aiKey
+        case countedSelection(String, Int)
     }
 }
 

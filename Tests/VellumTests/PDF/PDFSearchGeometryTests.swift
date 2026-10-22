@@ -109,8 +109,8 @@ struct PDFSearchGeometryTests {
         #expect(view.highlightedSelections?.count == 1)
     }
 
-    @Test(arguments: [PDFSearchController.Direction.next, .previous]) @MainActor
-    func pendingSearchMovesAccumulateBeforeOneFinalJump(direction: PDFSearchController.Direction) async throws {
+    @Test(arguments: [PDFSearchController.Direction.next, .previous], [false, true]) @MainActor
+    func pendingSearchMovesAccumulateBeforeOneFinalJump(direction: PDFSearchController.Direction, counted: Bool) async throws {
         let (window, view) = try makeReader(pageCount: 3, wordPage: nil)
         defer { view.searchController?.clear(); window.close() }
         let original = try #require(view.snapshot())
@@ -120,8 +120,12 @@ struct PDFSearchGeometryTests {
         let queueMoves: @MainActor () -> Void = {
             guard !queuedMoves, controller.hasVisibleHighlights else { return }
             queuedMoves = true
-            controller.move(direction)
-            controller.move(direction)
+            if counted {
+                controller.move(direction, count: 2)
+            } else {
+                controller.move(direction)
+                controller.move(direction)
+            }
             let stayedOnFirstPage = controller.activeSearchSelection?.pages.first === view.document?.page(at: 0)
             #expect(stayedOnFirstPage)
         }
@@ -141,6 +145,27 @@ struct PDFSearchGeometryTests {
         #expect(source.pageIndex == original.pageIndex)
         #expect(source.pointOnPage == original.pointOnPage)
         #expect(view.jumpBackStack.count == 1)
+    }
+
+    @Test @MainActor
+    func countedSearchWrapsToFinalMatchWithoutIntermediateJumps() async throws {
+        let (window, view) = try makeReader(pageCount: 3, wordPage: nil)
+        defer { view.searchController?.clear(); window.close() }
+        view.beginSearchCommand()
+        let controller = try #require(view.searchController)
+        enter("alpha", into: try #require(searchField(in: view)))
+        try await waitForTestCondition("Search completes with three results") {
+            controller.hasVisibleHighlights && !controller.isSearchPending
+        }
+
+        view.vimSearchBy(5)
+        #expect(controller.activeSearchSelection?.pages.first === view.document?.page(at: 2))
+        #expect(view.jumpBackStack.count == 1)
+
+        view.vimSearchBy(-4)
+        #expect(controller.activeSearchSelection?.pages.first === view.document?.page(at: 1))
+        view.vimSearchBy(0)
+        #expect(controller.activeSearchSelection?.pages.first === view.document?.page(at: 1))
     }
 
     @Test @MainActor

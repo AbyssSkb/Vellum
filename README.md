@@ -14,6 +14,8 @@ Vellum brings smooth Vim-style navigation, a keyboard-driven outline, and an imm
 
 Tap or hold `j` and `k` to scroll smoothly. Fit the page or its width, zoom continuously, jump to a page with `12G`, and retrace your reading with `Control-O` and `Control-I`. Select text with the mouse, then refine the selection by line or word from the keyboard.
 
+Use counts such as `5f` to move five pages, `3n` to advance three search matches, or `3w` to extend a selection by three word motions. Press `F` to label visible PDF links, then type a label to follow it.
+
 Keep several documents close with compact tabs. `T` opens a searchable file list with a preview of each document's last-read page; press `Enter` to resume reading the selected file. `X` restores the last closed file. Each file has one tab; reopening an updated PDF reloads its current contents. Long tab titles scroll once when opened, activated, or hovered.
 
 ## A map when you need one
@@ -31,6 +33,8 @@ Hold `Tab` to enter the immersive gallery, with a large current-page preview bet
 ## Keep the useful parts
 
 Search with `/`, move through matches with `n` and `N`, and press `v` to select a match. Copy with `y` or highlight with `m`; five highlight colors are available. Annotations save back to the PDF automatically, with recovery options if the file cannot be saved or has changed on disk.
+
+Revisit highlights with `gn` / `gN`, or use `gm` to search highlighted text and page numbers. Press `Enter` to return to a passage, ready to copy, explain, or delete its highlight.
 
 ![Search matches with a compact query field and result counter](docs/images/vellum-search.png)
 
@@ -62,7 +66,9 @@ AI assistance is optional and experimental. See the [user guide](docs/USER_GUIDE
 | `H` / `L`, `T` | Previous / next tab; searchable tab switcher |
 | `/`, `n` / `N` | Search; next / previous match |
 | `s` | Type a visible word prefix and its label to select |
+| `F` | Label and follow visible PDF links |
 | `m`, `c`, `y` | Highlight, change highlight color, copy |
+| `gm`, `gn` / `gN` | Search highlights; next / previous highlight |
 
 Letter shortcuts apply to the focused reading surface. The [user guide](docs/USER_GUIDE.md) covers selection, outline folds, focus behavior, and the full shortcut set.
 

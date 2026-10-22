@@ -4,6 +4,37 @@ import Testing
 @Suite("Word jump session")
 struct WordJumpSessionTests {
     @Test
+    func labelOnlySessionShowsEveryTargetImmediatelyAndKeepsLabelsStable() {
+        var session = WordJumpSession(words: (0..<80).map { "Link \($0)" }, labelsOnly: true)
+        let matches = session.matches
+        #expect(matches.count == 80)
+        #expect(Set(matches.map(\.label)).count == 80)
+        #expect(matches.allSatisfy { $0.label.count == 2 })
+        let label = matches[30].label
+        #expect(session.input(String(label.first!).uppercased()) == .updated)
+        #expect(session.matches == matches)
+        #expect(session.displayedMatches.allSatisfy { $0.label.hasPrefix(String(label.first!)) })
+        #expect(session.input("\u{7f}") == .updated)
+        #expect(session.labelPrefix.isEmpty)
+        #expect(session.matches == matches)
+        #expect(session.input("9") == .updated)
+        #expect(session.query.isEmpty)
+        #expect(session.matches == matches)
+        _ = session.input(String(label.first!))
+        #expect(session.input(String(label.last!)) == .selected(30))
+    }
+
+    @Test
+    func emptyLabelOnlySessionRemainsCancellable() {
+        var session = WordJumpSession(words: [], labelsOnly: true)
+        #expect(session.input("a") == .updated)
+        #expect(session.input("\r") == .updated)
+        #expect(session.input("\u{7f}") == .updated)
+        #expect(session.matches.isEmpty)
+        #expect(session.input("\u{1b}") == .cancelled)
+    }
+
+    @Test
     func duplicateWordsKeepDistinctOriginalIndices() {
         var session = WordJumpSession(words: ["other", "delta", "delta", "DELTA"])
         #expect(session.matches.isEmpty)
