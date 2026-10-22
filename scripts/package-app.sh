@@ -25,10 +25,12 @@ CLANG_MODULE_CACHE_PATH="$ROOT_DIR/.build/ModuleCache" \
     swift build --configuration "$BUILD_CONFIG" --arch arm64 --arch x86_64 --cache-path "$ROOT_DIR/.build/SwiftPMCache"
 PRODUCT_DIR="$(CLANG_MODULE_CACHE_PATH="$ROOT_DIR/.build/ModuleCache" swift build --configuration "$BUILD_CONFIG" --arch arm64 --arch x86_64 --cache-path "$ROOT_DIR/.build/SwiftPMCache" --show-bin-path)"
 EXECUTABLE="$PRODUCT_DIR/Vellum"
-/usr/bin/lipo "$EXECUTABLE" -verify_arch arm64 x86_64
+/usr/bin/lipo "$EXECUTABLE" -verify_arch arm64
+/usr/bin/lipo "$EXECUTABLE" -verify_arch x86_64
 
 SPARKLE_SOURCE="$SPARKLE_ARTIFACT_DIR/Sparkle.xcframework/macos-arm64_x86_64/Sparkle.framework"
-/usr/bin/lipo "$SPARKLE_SOURCE/Sparkle" -verify_arch arm64 x86_64
+/usr/bin/lipo "$SPARKLE_SOURCE/Sparkle" -verify_arch arm64
+/usr/bin/lipo "$SPARKLE_SOURCE/Sparkle" -verify_arch x86_64
 
 rm -rf "$APP_DIR"
 mkdir -p "$MACOS_DIR" "$RESOURCES_DIR" "$FRAMEWORKS_DIR"
