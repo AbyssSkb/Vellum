@@ -5,6 +5,25 @@ import Testing
 @Suite("AI request logger")
 struct AIRequestLoggerTests {
     @Test
+    func openLogReportsRejectedLaunch() throws {
+        var openedURL: URL?
+
+        do {
+            try AIRequestLogger.openLog {
+                openedURL = $0
+                return false
+            }
+            Issue.record("Opening a log rejected by the system must report an error")
+        } catch {
+            #expect(error.localizedDescription == AppUILanguage.saved().text(.aiLogOpenRejected))
+        }
+
+        #expect(openedURL == AIRequestLogger.logFileURL)
+        let fileURL = try #require(openedURL)
+        #expect(FileManager.default.fileExists(atPath: fileURL.path))
+    }
+
+    @Test
     func sanitizedHeadersRedactSecrets() {
         let headers = AIRequestLogger.sanitizedHeaders([
             "Authorization": "Bearer secret",

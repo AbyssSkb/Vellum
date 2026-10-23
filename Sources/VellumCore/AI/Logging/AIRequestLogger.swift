@@ -100,9 +100,9 @@ enum AIRequestLogger {
         return fileURL
     }
 
-    static func openLog() throws {
+    static func openLog(using opener: (URL) -> Bool = { NSWorkspace.shared.open($0) }) throws {
         let fileURL = try ensureLogFileExists()
-        NSWorkspace.shared.open(fileURL)
+        guard opener(fileURL) else { throw LogOpenError() }
     }
 
     static func clearLog() throws {
@@ -193,6 +193,12 @@ enum AIRequestLogger {
             return nil
         }
         return String(data: prettyData, encoding: .utf8)
+    }
+}
+
+private struct LogOpenError: LocalizedError {
+    var errorDescription: String? {
+        AppUILanguage.saved().text(.aiLogOpenRejected)
     }
 }
 
