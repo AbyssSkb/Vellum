@@ -42,7 +42,11 @@ public enum VellumToast {
         action: (() -> Void)? = nil
     ) {
         guard let window, let content = window.contentView, let host = content.superview else { return }
-        host.subviews.compactMap { $0 as? ToastView }.forEach { $0.dismiss(animated: false) }
+        let currentToasts = host.subviews.compactMap { $0 as? ToastView }
+        if action == nil, currentToasts.contains(where: {
+            !$0.hasAction && $0.message == message && $0.kind == kind && $0.alphaValue > 0
+        }) { return }
+        currentToasts.forEach { $0.dismiss(animated: false) }
         let toast = ToastView(message: message, kind: kind, actionTitle: actionTitle, action: action)
         toast.translatesAutoresizingMaskIntoConstraints = false
         toast.alphaValue = 0
@@ -84,20 +88,37 @@ extension AppState {
         if let activeReaderController {
             activeReaderController.showNotification(message)
         } else {
-            VellumToast.show(message, in: readerWindow)
+            showNotification(message, kind: .info)
         }
+    }
+
+    func showNotification(_ message: String, kind: ToastKind) {
+        guard let readerWindow else {
+            pendingNotification = ToastMessage(message, kind: kind)
+            return
+        }
+        VellumToast.show(message, kind: kind, in: readerWindow)
+    }
+
+    func showPendingNotification() {
+        guard let notification = pendingNotification, let readerWindow else { return }
+        pendingNotification = nil
+        VellumToast.show(notification.text, kind: notification.kind, in: readerWindow)
     }
 }
 
 @MainActor
 final class ToastView: NSView {
     let message: String
+    let kind: ToastKind
+    var hasAction: Bool { action != nil }
     private var dismissalTask: Task<Void, Never>?
     private var action: (() -> Void)?
     private var actionButton: NSButton?
 
     init(message: String, kind: ToastKind, actionTitle: String?, action: (() -> Void)?) {
         self.message = message
+        self.kind = kind
         self.action = action
         super.init(frame: .zero)
         wantsLayer = true

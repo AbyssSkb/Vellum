@@ -32,7 +32,13 @@ public final class AppState: ObservableObject {
     weak var activeReaderController: ReaderController?
     weak var activeOutlineView: PDFOutlineKeyView?
     var requestsOutlineFocus = true
-    weak var readerWindow: NSWindow?
+    weak var readerWindow: NSWindow? {
+        didSet {
+            guard readerWindow != nil, pendingNotification != nil else { return }
+            DispatchQueue.main.async { [weak self] in self?.showPendingNotification() }
+        }
+    }
+    var pendingNotification: ToastMessage?
     weak var responderBeforeSwitcher: NSResponder?
     var tabBeforeSwitcher: PDFTab.ID?
 

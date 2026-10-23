@@ -11,6 +11,10 @@ struct TabStore {
         !tabs.isEmpty
     }
 
+    var nextClosedPDFTabURL: URL? {
+        closedPDFTabHistory.next?.url
+    }
+
     var selectedTab: PDFTab? {
         guard let selectedTabID else { return nil }
         return tabs.first { $0.id == selectedTabID }
@@ -96,12 +100,14 @@ struct TabStore {
     }
 
     mutating func restoreClosedPDFTab(loader: (URL) -> PDFTab?) -> Bool {
-        guard let closedTab = closedPDFTabHistory.restore() else { return false }
+        guard let closedTab = closedPDFTabHistory.next else { return false }
         if let existingTab = tab(for: closedTab.url) {
             selectedTabID = existingTab.id
+            _ = closedPDFTabHistory.restore()
             return true
         }
         guard var tab = loader(closedTab.url) else { return false }
+        _ = closedPDFTabHistory.restore()
         tab.snapshot = closedTab.snapshot ?? .initial
         tabs.append(tab)
         selectedTabID = tab.id

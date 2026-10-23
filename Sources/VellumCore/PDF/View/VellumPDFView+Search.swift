@@ -206,21 +206,29 @@ extension VellumPDFView {
     }
 
     func vimSearchNext() {
-        searchController?.move(.next)
+        vimSearchBy(1)
     }
 
     func vimSearchPrevious() {
-        searchController?.move(.previous)
+        vimSearchBy(-1)
     }
 
     func vimSearchBy(_ delta: Int) {
         guard delta != 0 else { return }
+        guard let searchController else {
+            showNotification(AppUILanguage.saved().text(.noSearchQuery))
+            return
+        }
         let count = Int(min(delta.magnitude, UInt(VimInputController.maximumRepeatCount)))
-        searchController?.move(delta > 0 ? .next : .previous, count: count)
+        searchController.move(delta > 0 ? .next : .previous, count: count)
     }
 
     func vimMaterializeSearchSelection() {
-        searchController?.materializeActiveMatch()
+        guard let searchController else {
+            showNotification(AppUILanguage.saved().text(.noSearchMatch))
+            return
+        }
+        searchController.materializeActiveMatch()
     }
 }
 
@@ -362,6 +370,10 @@ final class PDFSearchController {
 
     func move(_ direction: Direction, count: Int = 1) {
         guard count > 0 else { return }
+        guard !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            pdfView?.showNotification(AppUILanguage.saved().text(.noSearchQuery))
+            return
+        }
         guard continueSearchIfNeeded() else {
             if isSearchPending { pendingMoves.append((direction, count)) }
             return
@@ -441,7 +453,9 @@ final class PDFSearchController {
     @discardableResult
     func materializeActiveMatch() -> Bool {
         guard let pdfView, let selection = activeSearchSelection else {
-            NSSound.beep()
+            if overlay == nil {
+                pdfView?.showNotification(AppUILanguage.saved().text(.noSearchMatch))
+            }
             return false
         }
 

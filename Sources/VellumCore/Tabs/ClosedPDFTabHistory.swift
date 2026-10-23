@@ -8,6 +8,10 @@ struct ClosedPDFTabHistory {
         self.limit = limit
     }
 
+    var next: (url: URL, snapshot: ReaderSnapshot?)? {
+        tabs.last
+    }
+
     mutating func remember(_ tab: PDFTab) {
         guard tab.document != nil, let url = tab.url else { return }
         tabs.append((url, tab.snapshot))

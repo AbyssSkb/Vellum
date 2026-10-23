@@ -113,9 +113,6 @@ struct VimInputController {
         }
 
         switch key {
-        case "y" where !hasTextActionTarget:
-            state.clearPendingInput()
-            return .ignored
         case "g":
             state.pendingKey = "g"
             return .handled

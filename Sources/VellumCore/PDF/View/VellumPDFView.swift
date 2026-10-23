@@ -245,18 +245,21 @@ final class VellumPDFView: PDFView {
     }
 
     func vimCopySelection() {
-        if let selection = currentSelection,
-           let selectedText = selection.string?.nilIfEmpty {
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(selectedText, forType: .string)
-            clearTextSelectionForVimNavigation()
+        let selectionText = currentSelection?.string?.nilIfEmpty
+        guard let selectedText = selectionText ?? searchController?.activeSearchSelection?.string?.nilIfEmpty else {
+            showNotification(AppUILanguage.saved().text(.noTextToCopy))
             return
         }
 
-        guard let selectedText = searchController?.activeSearchSelection?.string?.nilIfEmpty else { return }
-
         NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(selectedText, forType: .string)
+        guard NSPasteboard.general.setString(selectedText, forType: .string) else {
+            showNotification(AppUILanguage.saved().text(.textCopyFailed), kind: .error)
+            return
+        }
+        if selectionText != nil {
+            clearTextSelectionForVimNavigation()
+        }
+        showNotification(AppUILanguage.saved().text(.textCopied), kind: .success)
     }
 
     override func keyDown(with event: NSEvent) {

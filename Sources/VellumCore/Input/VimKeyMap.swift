@@ -30,12 +30,12 @@ enum VimKeyMap {
         hasTextActionTarget: Bool
     ) -> Bool {
         switch key {
-        case "g", "G", "H", "L", "O", "N", "T", "A", "I", "F", "M", "/", "s", "a", "c", "i", "j", "k", "d", "u", "D", "U", "h", "l", "m", "n", " ", "f", "b", "v", "+", "=", "-", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "z", "o", "t", "x", "]", "[":
+        case "g", "G", "H", "L", "O", "N", "T", "A", "I", "F", "M", "/", "s", "a", "c", "i", "j", "k", "d", "u", "D", "U", "h", "l", "m", "n", " ", "f", "b", "v", "y", "+", "=", "-", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "z", "o", "t", "x", "]", "[":
             return true
         case "S":
             return false
-        case "w", "e", "y":
-            return key == "y" ? hasTextActionTarget : hasNavigableTextSelection
+        case "w", "e":
+            return hasNavigableTextSelection
         default:
             let lowered = key.lowercased()
             return lowered != key && isHandledKey(

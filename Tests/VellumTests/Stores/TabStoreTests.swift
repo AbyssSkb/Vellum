@@ -233,6 +233,13 @@ struct TabStoreTests {
 
         #expect(!restored)
         #expect(store.tabs.isEmpty)
+        #expect(store.nextClosedPDFTabURL == fileURL)
+
+        try writePDF(pageCount: 2, to: fileURL)
+        let didRestore = store.restoreClosedPDFTab(loader: coordinator.openTab(for:))
+        #expect(didRestore)
+        #expect(store.selectedTab?.document?.pageCount == 2)
+        #expect(store.nextClosedPDFTabURL == nil)
     }
 
     @Test

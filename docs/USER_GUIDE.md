@@ -207,6 +207,8 @@ In a conversation, type a follow-up question and press `Enter` to send. `Shift-E
 
 Operation feedback appears as a Toast at the top of the window and disappears after a few seconds. It keeps the current keyboard focus, so you can continue reading or typing. Update check results use the same notifications; an error offers a details action. Ongoing update progress and annotation save recovery keep their interaction windows so you can finish or resolve them.
 
+Unavailable keyboard actions explain the reason, such as missing selected text, highlights, a search query, or jump history. Copying text briefly confirms success. Repeating the same notification does not extend its display time. Failed file opens, restores, and reloads report the filename and a confirmed reason; batch failures appear together. Hover over a long message or use accessibility to read its full contents.
+
 Sparkle handles updates, with automatic checks enabled initially. New versions download and prepare in the background. Once ready, choose **Restart and Update** to install immediately, or **Later** to keep reading; a prepared update can also install when you normally quit Vellum. Manual checks in General settings or the Vellum menu use the same update window. Choose **Update and Restart** to download, install, and restart in one step. Vellum saves annotations and the reading session before restarting.
 
 A Toast with a green checkmark confirms Vellum is up to date. Scroll long release notes with the keys below; the action buttons stay visible. Press a letter shown on a button to activate it; lowercase and uppercase both work.

@@ -30,8 +30,8 @@ struct VimKeyMapTests {
     }
 
     @Test
-    func copyKeyDependsOnTextActionTarget() {
-        #expect(!VimKeyMap.isHandledKey("y", hasNavigableTextSelection: false, hasTextActionTarget: false))
+    func copyKeyIsHandledWithoutATextActionTarget() {
+        #expect(VimKeyMap.isHandledKey("y", hasNavigableTextSelection: false, hasTextActionTarget: false))
         #expect(VimKeyMap.isHandledKey("y", hasNavigableTextSelection: false, hasTextActionTarget: true))
         #expect(VimKeyMap.command(for: "y") == .copySelection)
     }

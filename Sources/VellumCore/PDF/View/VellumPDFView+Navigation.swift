@@ -37,7 +37,8 @@ extension VellumPDFView {
     func vimGoToPage(_ pageNumber: Int) {
         guard let document, document.pageCount > 0 else { return }
 
-        let pageIndex = min(max(pageNumber - 1, 0), document.pageCount - 1)
+        let pageCount = document.pageCount
+        let pageIndex = min(max(pageNumber, 1), pageCount) - 1
         guard let page = document.page(at: pageIndex) else { return }
         let previous = readingDestination()
 
@@ -54,6 +55,9 @@ extension VellumPDFView {
             guard let self, self.restoreGeneration == generation else { return }
             self.go(to: destination)
             self.scheduleReadingPositionReport(userNavigated: self.readingPositionChanged(from: previous))
+            if pageNumber < 1 || pageNumber > pageCount {
+                self.showNotification(AppUILanguage.saved().text(.pageNumberOutOfRange(pageCount)))
+            }
         }
     }
 
@@ -83,7 +87,10 @@ extension VellumPDFView {
     }
 
     func vimJumpBack() {
-        guard let targetSnapshot = jumpBackStack.popLast() else { return }
+        guard let targetSnapshot = jumpBackStack.popLast() else {
+            showNotification(AppUILanguage.saved().text(.noEarlierReadingPosition))
+            return
+        }
 
         searchController?.markReaderNavigated()
         cancelPendingRestore()
@@ -98,7 +105,10 @@ extension VellumPDFView {
     }
 
     func vimJumpForward() {
-        guard let targetSnapshot = jumpForwardStack.popLast() else { return }
+        guard let targetSnapshot = jumpForwardStack.popLast() else {
+            showNotification(AppUILanguage.saved().text(.noLaterReadingPosition))
+            return
+        }
 
         searchController?.markReaderNavigated()
         cancelPendingRestore()

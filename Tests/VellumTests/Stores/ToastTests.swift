@@ -111,6 +111,51 @@ struct ToastTests {
         #expect(toast.superview == nil)
     }
 
+    @Test
+    func identicalPassiveFeedbackKeepsItsOriginalExpiry() async throws {
+        let window = makeWindow()
+        defer { window.close() }
+        VellumToast.show("No selection", in: window)
+        let first = try #require(currentToast(in: window))
+        first.scheduleDismiss(after: 0.2)
+        try await Task.sleep(for: .milliseconds(50))
+        VellumToast.show("No selection", in: window)
+        #expect(currentToast(in: window) === first)
+        try await Task.sleep(for: .milliseconds(400))
+        #expect(currentToast(in: window) == nil)
+    }
+
+    @Test
+    func repeatedActionMessageReplacesItsHandler() throws {
+        let window = makeWindow()
+        defer { window.close() }
+        var value = 0
+        VellumToast.show("Error", in: window, actionTitle: "Details") { value = 1 }
+        let first = try #require(currentToast(in: window))
+        VellumToast.show("Error", in: window, actionTitle: "Details") { value = 2 }
+        let second = try #require(currentToast(in: window))
+        #expect(first !== second)
+        let button = try #require(second.subviews.compactMap { $0 as? NSButton }.first)
+        button.performClick(nil)
+        #expect(value == 2)
+    }
+
+    @Test
+    func startupFeedbackWaitsForItsReaderWindow() async throws {
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let state = makeTestAppState(defaults: preferences.defaults)
+        state.showNotification("Restore failed", kind: .error)
+        #expect(state.pendingNotification?.text == "Restore failed")
+        let window = makeWindow()
+        defer { window.close() }
+        state.readerWindow = window
+        try await Task.sleep(for: .milliseconds(50))
+        #expect(currentToast(in: window)?.message == "Restore failed")
+        #expect(currentToast(in: window)?.kind == .error)
+        #expect(state.pendingNotification == nil)
+    }
+
     private func currentToast(in window: NSWindow) -> ToastView? {
         window.contentView?.superview?.subviews.compactMap { $0 as? ToastView }.first
     }

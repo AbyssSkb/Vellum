@@ -240,6 +240,27 @@ public enum AppText {
     case searchHighlights
     case noMatchingHighlights
     case noHighlightsInFile
+    case noTextToHighlight
+    case noHighlightableText
+    case noHighlightsInSelection
+    case noTextToCopy
+    case textCopied
+    case textCopyFailed
+    case noSearchQuery
+    case noSearchMatch
+    case noEarlierReadingPosition
+    case noLaterReadingPosition
+    case pageNumberOutOfRange(Int)
+    case noClosedTabs
+    case fileMissing
+    case filePermissionDenied
+    case fileUnparseable
+    case fileCannotRead
+    case fileOpenFailed(name: String, reason: String)
+    case fileReloadFailed(name: String, reason: String)
+    case fileRestoreFailed(name: String, reason: String)
+    case fileBatchOpenFailed(opened: Int, failed: Int)
+    case fileSessionRestoreFailed(restored: Int, failed: Int)
     case aiLogOpenRejected
     case highlightWithoutText
     case selected
@@ -307,15 +328,15 @@ public extension AppText {
 
     private var english: String {
         switch self {
-        case .aiInvalidBaseURL: return "The AI base URL is invalid. Enter a complete HTTP or HTTPS URL in Settings."
-        case .aiMissingModel: return "Enter an AI model name in Settings."
-        case .aiMissingAPIKey: return "Enter an AI API key in Settings."
-        case .aiMissingCodexExecutable: return "Enter the Codex executable path in Settings."
-        case .aiNoSelection: return "Select some text first."
+        case .aiInvalidBaseURL: return "The AI base URL is not a valid HTTP or HTTPS URL."
+        case .aiMissingModel: return "No AI model name is configured."
+        case .aiMissingAPIKey: return "No AI API key is configured."
+        case .aiMissingCodexExecutable: return "No Codex executable path is configured."
+        case .aiNoSelection: return "No text is selected."
         case .aiNoHighlightedText: return "The selection does not contain any highlights."
         case .aiEmptyResponse: return "AI returned no usable explanation."
         case .aiResponseTruncated: return "The server truncated the AI response. The content may be incomplete."
-        case .aiStreamEndedPrematurely: return "The AI response stream ended early. The content may be incomplete; please retry."
+        case .aiStreamEndedPrematurely: return "The AI response stream ended early. The content may be incomplete."
         case .aiExplanationFailed: return "Explanation failed"
         case .aiConversationFailed: return "Conversation failed"
         case .aiSavedExplanation: return "Saved explanation"
@@ -513,6 +534,27 @@ public extension AppText {
         case .searchHighlights: return "Search highlighted text or page…"
         case .noMatchingHighlights: return "No matching highlights"
         case .noHighlightsInFile: return "No highlights in this PDF"
+        case .noTextToHighlight: return "No text is selected, so a highlight cannot be added"
+        case .noHighlightableText: return "The selection contains no highlightable text"
+        case .noHighlightsInSelection: return "The selected area contains no highlights"
+        case .noTextToCopy: return "There is no text to copy"
+        case .textCopied: return "Selected text copied"
+        case .textCopyFailed: return "The clipboard could not accept the selected text"
+        case .noSearchQuery: return "There is no current search query"
+        case .noSearchMatch: return "There is no current search match to select"
+        case .noEarlierReadingPosition: return "There is no earlier reading position"
+        case .noLaterReadingPosition: return "There is no later reading position"
+        case .pageNumberOutOfRange(let count): return "Page number is out of range; this document has \(count) pages"
+        case .noClosedTabs: return "There are no closed tabs to restore"
+        case .fileMissing: return "The file does not exist"
+        case .filePermissionDenied: return "Permission to read the file was denied"
+        case .fileUnparseable: return "The file's PDF content could not be parsed"
+        case .fileCannotRead: return "The file could not be read"
+        case .fileOpenFailed(let name, let reason): return "Could not open “\(name)”: \(reason)"
+        case .fileReloadFailed(let name, let reason): return "Could not reload “\(name)”: \(reason). The previously opened version is still displayed."
+        case .fileRestoreFailed(let name, let reason): return "Could not restore “\(name)”: \(reason)"
+        case .fileBatchOpenFailed(let opened, let failed): return "Opened \(opened) files; \(failed) files could not be opened"
+        case .fileSessionRestoreFailed(let restored, let failed): return "Restored \(restored) tabs; \(failed) tabs could not be restored"
         case .aiLogOpenRejected: return "The system could not open the log file"
         case .highlightWithoutText: return "Highlight without extractable text"
         case .selected: return "Selected"
@@ -571,15 +613,15 @@ public extension AppText {
 
     private var chinese: String {
         switch self {
-        case .aiInvalidBaseURL: return "AI base_url 无效，请在设置里填写完整的 http/https 地址。"
-        case .aiMissingModel: return "AI 模型名称为空，请先在设置里填写模型名称。"
-        case .aiMissingAPIKey: return "AI API Key 为空，请先在设置里填写 API Key。"
-        case .aiMissingCodexExecutable: return "Codex 路径为空，请先在设置里填写 codex 可执行文件路径。"
-        case .aiNoSelection: return "请先选中一段文字。"
+        case .aiInvalidBaseURL: return "AI 服务地址不是有效的 HTTP 或 HTTPS 地址。"
+        case .aiMissingModel: return "未配置 AI 模型名称。"
+        case .aiMissingAPIKey: return "未配置 AI API 密钥。"
+        case .aiMissingCodexExecutable: return "未配置 Codex 可执行文件路径。"
+        case .aiNoSelection: return "未选中文字。"
         case .aiNoHighlightedText: return "当前选区没有命中任何高亮。"
         case .aiEmptyResponse: return "AI 没有返回可用解释。"
         case .aiResponseTruncated: return "AI 输出被服务端截断，内容可能不完整。"
-        case .aiStreamEndedPrematurely: return "AI 流式响应提前结束，内容可能不完整，请重试。"
+        case .aiStreamEndedPrematurely: return "AI 流式响应提前结束，内容可能不完整。"
         case .aiExplanationFailed: return "解释失败"
         case .aiConversationFailed: return "对话失败"
         case .aiSavedExplanation: return "已保存的解释"
@@ -777,6 +819,27 @@ public extension AppText {
         case .searchHighlights: return "搜索高亮原文或页码…"
         case .noMatchingHighlights: return "没有匹配的高亮"
         case .noHighlightsInFile: return "当前 PDF 没有高亮"
+        case .noTextToHighlight: return "未选中文字，无法添加高亮"
+        case .noHighlightableText: return "所选内容没有可高亮的文字"
+        case .noHighlightsInSelection: return "所选范围内没有高亮"
+        case .noTextToCopy: return "当前没有可复制的文字"
+        case .textCopied: return "已复制所选文字"
+        case .textCopyFailed: return "剪贴板无法写入所选文字"
+        case .noSearchQuery: return "当前没有搜索词"
+        case .noSearchMatch: return "当前没有可选中的搜索匹配项"
+        case .noEarlierReadingPosition: return "没有更早的阅读位置"
+        case .noLaterReadingPosition: return "没有更新的阅读位置"
+        case .pageNumberOutOfRange(let count): return "页码超出范围，文档共 \(count) 页"
+        case .noClosedTabs: return "没有已关闭的标签页"
+        case .fileMissing: return "文件不存在"
+        case .filePermissionDenied: return "没有读取文件的权限"
+        case .fileUnparseable: return "无法解析文件的 PDF 内容"
+        case .fileCannotRead: return "无法读取文件"
+        case .fileOpenFailed(let name, let reason): return "无法打开「\(name)」：\(reason)"
+        case .fileReloadFailed(let name, let reason): return "无法重新载入「\(name)」：\(reason)，当前仍显示先前打开的版本"
+        case .fileRestoreFailed(let name, let reason): return "无法恢复「\(name)」：\(reason)"
+        case .fileBatchOpenFailed(let opened, let failed): return "已打开 \(opened) 个文件，另有 \(failed) 个无法打开"
+        case .fileSessionRestoreFailed(let restored, let failed): return "已恢复 \(restored) 个标签页，另有 \(failed) 个无法恢复"
         case .aiLogOpenRejected: return "系统无法打开日志文件"
         case .highlightWithoutText: return "无可提取文字的高亮"
         case .selected: return "已选"

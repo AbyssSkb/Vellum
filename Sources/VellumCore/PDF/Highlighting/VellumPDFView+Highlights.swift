@@ -4,13 +4,13 @@ extension VellumPDFView {
     func vimHighlightSelection(color: NSColor) {
         let usedSearchSelection = currentSelection == nil
         guard let selection = currentSelection ?? searchController?.activeSearchSelection else {
-            NSSound.beep()
+            showNotification(AppUILanguage.saved().text(.noTextToHighlight))
             return
         }
 
         let annotations = addHighlightAnnotations(for: selection, color: color)
         guard !annotations.isEmpty else {
-            NSSound.beep()
+            showNotification(AppUILanguage.saved().text(.noHighlightableText))
             return
         }
 
@@ -81,7 +81,7 @@ extension VellumPDFView {
         }
 
         guard didRemoveHighlight else {
-            NSSound.beep()
+            showNotification(AppUILanguage.saved().text(.noHighlightsInSelection))
             return true
         }
 

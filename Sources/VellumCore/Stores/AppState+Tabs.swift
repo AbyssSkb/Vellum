@@ -34,16 +34,23 @@ extension AppState {
     func openInCurrentTab(url: URL) {
         saveActiveReaderState()
         if let existingTab = tabStore.tab(for: url) {
-            let didReload = reloadTabIfNeeded(existingTab, from: url)
+            var failures: [String] = []
+            let didReload = reloadTabIfNeeded(existingTab, from: url, failures: &failures)
             let didSelect = tabStore.selectTab(existingTab.id)
             saveCurrentSession()
             if didReload || didSelect {
                 prepareForSelectedReaderChange()
             }
+            showFileFailures(failures)
             return
         }
 
-        guard let tab = openTabRestoringSession(for: url) else { return }
+        guard let tab = openTabRestoringSession(for: url) else {
+            showFileFailures([AppUILanguage.saved().text(.fileOpenFailed(
+                name: url.lastPathComponent, reason: fileFailureReason(for: url)
+            ))])
+            return
+        }
         if let selectedTabID, !canCloseTab(selectedTabID) { return }
 
         tabStore.openInCurrentTab(tab)
@@ -57,24 +64,36 @@ extension AppState {
 
         var didOpenTab = false
         var didReloadSelectedTab = false
+        var openedCount = 0
+        var failures: [String] = []
         for url in urls {
             if let existingTab = tabStore.tab(for: url) {
-                if reloadTabIfNeeded(existingTab, from: url), existingTab.id == previousSelectedTabID {
+                let previousFailureCount = failures.count
+                if reloadTabIfNeeded(existingTab, from: url, failures: &failures), existingTab.id == previousSelectedTabID {
                     didReloadSelectedTab = true
                 }
                 _ = tabStore.selectTab(existingTab.id)
                 didOpenTab = true
+                if failures.count == previousFailureCount { openedCount += 1 }
             } else if let tab = openTabRestoringSession(for: url) {
                 _ = tabStore.openInNewTabs([tab])
                 didOpenTab = true
+                openedCount += 1
+            } else {
+                failures.append(AppUILanguage.saved().text(.fileOpenFailed(
+                    name: url.lastPathComponent, reason: fileFailureReason(for: url)
+                )))
             }
         }
 
-        guard didOpenTab else { return }
-        saveCurrentSession()
-        if selectedTabID != previousSelectedTabID || didReloadSelectedTab {
-            prepareForSelectedReaderChange()
+        if didOpenTab {
+            saveCurrentSession()
+            if selectedTabID != previousSelectedTabID || didReloadSelectedTab {
+                prepareForSelectedReaderChange()
+            }
         }
+        showFileFailures(failures, summary: urls.count > 1
+                         ? .fileBatchOpenFailed(opened: openedCount, failed: failures.count) : nil)
     }
 
     private func openTabRestoringSession(for url: URL) -> PDFTab? {
@@ -92,12 +111,17 @@ extension AppState {
         return tab
     }
 
-    private func reloadTabIfNeeded(_ tab: PDFTab, from url: URL) -> Bool {
+    private func reloadTabIfNeeded(_ tab: PDFTab, from url: URL, failures: inout [String]) -> Bool {
         guard let document = tab.document,
               let persistence = PDFAnnotationPersistence.existing(for: document),
               persistence.hasFileChanged(at: url),
-              canCloseTab(tab.id),
-              let reloadedDocument = pdfCoordinator.openTab(for: url)?.document else { return false }
+              canCloseTab(tab.id) else { return false }
+        guard let reloadedDocument = pdfCoordinator.openTab(for: url)?.document else {
+            failures.append(AppUILanguage.saved().text(.fileReloadFailed(
+                name: url.lastPathComponent, reason: fileFailureReason(for: url)
+            )))
+            return false
+        }
         tabStore.replaceDocument(for: tab.id, with: reloadedDocument)
         return true
     }
@@ -124,10 +148,19 @@ extension AppState {
     }
 
     func restoreClosedPDFTab() {
+        guard let url = tabStore.nextClosedPDFTabURL else {
+            showNotification(AppUILanguage.saved().text(.noClosedTabs))
+            return
+        }
         let previousSelectedTabID = selectedTabID
         saveActiveReaderState()
 
-        guard tabStore.restoreClosedPDFTab(loader: pdfCoordinator.openTab(for:)) else { return }
+        guard tabStore.restoreClosedPDFTab(loader: pdfCoordinator.openTab(for:)) else {
+            showFileFailures([AppUILanguage.saved().text(.fileRestoreFailed(
+                name: url.lastPathComponent, reason: fileFailureReason(for: url)
+            ))])
+            return
+        }
         saveCurrentSession()
         if selectedTabID != previousSelectedTabID {
             prepareForSelectedReaderChange()
@@ -160,11 +193,15 @@ extension AppState {
         didRestorePreviousTabs = true
         var openedURLs = Set<URL>()
         var unreadableTabs: [PersistedPDFTab] = []
+        var failures: [String] = []
         let tabs = session.tabs.compactMap { persistedTab -> PDFTab? in
             let url = URL(fileURLWithPath: persistedTab.path)
             guard openedURLs.insert(url.standardizedFileURL.resolvingSymlinksInPath()).inserted else { return nil }
             guard var tab = pdfCoordinator.openTab(for: url) else {
                 unreadableTabs.append(persistedTab)
+                failures.append(AppUILanguage.saved().text(.fileRestoreFailed(
+                    name: url.lastPathComponent, reason: fileFailureReason(for: url)
+                )))
                 return nil
             }
             tab.snapshot = persistedTab.snapshot ?? .initial
@@ -172,8 +209,20 @@ extension AppState {
         }
         unresolvedSession = PersistedAppSession(tabs: unreadableTabs, selectedURLPath: session.selectedURLPath)
 
-        guard tabStore.restoreSessionTabs(tabs, selectedURLPath: session.selectedURLPath) else { return }
-        prepareForSelectedReaderChange()
+        if tabStore.restoreSessionTabs(tabs, selectedURLPath: session.selectedURLPath) {
+            prepareForSelectedReaderChange()
+        }
+        showFileFailures(failures, summary: .fileSessionRestoreFailed(restored: tabs.count, failed: failures.count))
+    }
+
+    private func fileFailureReason(for url: URL) -> String {
+        AppUILanguage.saved().text(PDFDocumentLoader.failureReason(for: url))
+    }
+
+    private func showFileFailures(_ failures: [String], summary: AppText? = nil) {
+        guard !failures.isEmpty else { return }
+        let lines = summary.map { [AppUILanguage.saved().text($0)] } ?? []
+        showNotification((lines + failures).joined(separator: "\n"), kind: .error)
     }
 
     public func saveCurrentSession() {

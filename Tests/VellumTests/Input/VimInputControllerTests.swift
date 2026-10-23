@@ -122,12 +122,14 @@ struct VimInputControllerTests {
         #expect(input.heldKey == nil)
     }
 
-    @Test
-    func copySelectionOnlyRoutesWhenThereIsATextActionTarget() {
+    @Test(arguments: [false, true])
+    func copySelectionRoutesOnceRegardlessOfTextActionTarget(hasTarget: Bool) {
         var input = VimInputController()
 
-        #expect(input.handleKeyDown("y", isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .ignored)
-        #expect(input.handleKeyDown("y", isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: true) == .command(.copySelection))
+        _ = input.handleKey("9")
+        #expect(input.handleKeyDown("y", isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: hasTarget) == .command(.copySelection))
+        #expect(input.state.numericPrefix.isEmpty)
+        #expect(input.handleKeyDown("y", isRepeat: true, hasNavigableTextSelection: false, hasTextActionTarget: hasTarget) == .handled)
     }
 
     @Test(arguments: [
