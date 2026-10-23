@@ -47,7 +47,7 @@ protocol ReaderController: AnyObject {
     func vimExplainSelectedHighlight()
     func vimStartAIConversation()
     func aiExplanationHistoryItems() -> [AIExplanationHistoryItem]
-    func showAINotification(_ message: String)
+    func showNotification(_ message: String)
     func restoreAIExplanation(_ item: AIExplanationHistoryItem)
     func restoreAIConversation(_ item: AIConversationHistoryItem)
     func vimZoom(by factor: CGFloat)
@@ -93,7 +93,7 @@ extension ReaderController {
         []
     }
 
-    func showAINotification(_ message: String) {}
+    func showNotification(_ message: String) {}
 
     func restoreAIExplanation(_ item: AIExplanationHistoryItem) {}
 

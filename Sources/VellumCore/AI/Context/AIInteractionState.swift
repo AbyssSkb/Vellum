@@ -24,8 +24,6 @@ final class AIInteractionState {
     weak var suppressedHoverAnnotation: PDFAnnotation?
     var suppressedHoverText: String?
     var hoverPopoverHideWorkItem: DispatchWorkItem?
-    weak var toastView: NSView?
-    var toastHideWorkItem: DispatchWorkItem?
     var floatingOverlayDismissMonitor: Any?
     var floatingOverlayLifecycleObservers: [NSObjectProtocol] = []
 
@@ -75,10 +73,6 @@ final class AIInteractionState {
         hoveredAnnotation = nil
         hoveredText = nil
         hoveredKey = nil
-        toastHideWorkItem?.cancel()
-        toastHideWorkItem = nil
-        toastView?.removeFromSuperview()
-        toastView = nil
     }
 
     func clearSuppressedHover() {

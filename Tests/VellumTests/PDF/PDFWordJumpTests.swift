@@ -122,20 +122,16 @@ struct PDFWordJumpTests {
     }
 
     @Test @MainActor
-    func pagesWithoutLinksRemainCancellableAndPreserveTheSelection() async throws {
+    func pagesWithoutLinksDoNotCaptureKeysAndPreserveTheSelection() async throws {
         let (window, view) = try await makeReader(pages: [[("alpha", NSPoint(x: 72, y: 650))]])
         defer { window.close() }
         let page = try #require(view.document?.page(at: 0))
         let selection = try #require(page.selection(for: NSRange(location: 0, length: 5)))
         view.setCurrentSelection(selection, animate: false)
         view.beginLinkJumpCommand()
-        #expect(view.isWordJumpActive)
-        #expect(view.wordJumpController?.targets.isEmpty == true)
-        try send("a", to: view)
-        try send("\r", to: view)
-        #expect(view.currentSelection?.string == "alpha")
-        try send("\u{1b}", to: view)
         #expect(!view.isWordJumpActive)
+        #expect(view.wordJumpController?.targets.isEmpty == true)
+        #expect(!view.handleWordJumpKey(try event("j", in: window)))
         #expect(view.currentSelection?.string == "alpha")
     }
 
@@ -366,17 +362,14 @@ struct PDFWordJumpTests {
     }
 
     @Test @MainActor
-    func pagesWithoutTextRemainCancellable() async throws {
+    func pagesWithoutTextDoNotCaptureKeys() async throws {
         let (window, view) = try await makeReader(pages: [[]])
         defer { window.close() }
         view.beginWordJumpCommand()
-        #expect(view.isWordJumpActive)
-        #expect(view.wordJumpController?.targets.isEmpty == true)
-        try send("a", to: view)
-        try send("\r", to: view)
-        #expect(view.currentSelection == nil)
-        try send("\u{1b}", to: view)
         #expect(!view.isWordJumpActive)
+        #expect(view.wordJumpController?.targets.isEmpty == true)
+        #expect(!view.handleWordJumpKey(try event("j", in: window)))
+        #expect(view.currentSelection == nil)
     }
 
     @Test @MainActor

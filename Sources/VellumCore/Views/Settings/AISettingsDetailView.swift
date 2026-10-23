@@ -78,6 +78,7 @@ struct AIProviderSettingsDetailView: View {
         }
         .background(VellumColors.backgroundColor)
         .background(SettingsScrollChromeConfigurator())
+        .toast(validation.notification)
         .onAppear {
             loadProviderSelection()
         }
@@ -223,7 +224,9 @@ struct AIProviderSettingsDetailView: View {
                     Spacer()
                 }
 
-                AIConnectionStatusRow(status: validation.status, isBusy: isBusy)
+                if validation.status.isIdle || isBusy {
+                    AIConnectionStatusRow(status: validation.status, isBusy: isBusy)
+                }
 
                 if !validation.availableModels.isEmpty {
                     ModelPreviewGrid(models: validation.availableModels)
@@ -343,7 +346,6 @@ struct AISettingsDetailView: View {
     @StateObject var validation = AISettingsValidation()
     @State var targetLanguage = AIPromptSettings.defaultTargetLanguage
     @State var promptTemplate = AIPromptSettings.defaultTemplate
-    @State private var showsModelTestStatus = false
     @State private var didLoadProviderSettings = false
     @State private var didLoadPromptSettings = false
 
@@ -365,6 +367,7 @@ struct AISettingsDetailView: View {
         }
         .background(VellumColors.backgroundColor)
         .background(SettingsScrollChromeConfigurator())
+        .toast(validation.notification)
         .onAppear {
             loadSettingsForCurrentPage()
             loadPromptSettings()
@@ -393,7 +396,6 @@ struct AISettingsDetailView: View {
             guard didLoadProviderSettings,
                   selectedPreset.format.usesCodexExecutable,
                   validation.codexSettings == nil else { return }
-            showsModelTestStatus = false
             fetchModels()
         }
         .onChange(of: targetLanguage) { _, _ in
@@ -492,7 +494,6 @@ struct AISettingsDetailView: View {
 
                 HStack(spacing: 10) {
                     Button {
-                        showsModelTestStatus = false
                         fetchModels()
                     } label: {
                         Label(validation.isFetchingModels ? language.text(.fetching) : language.text(.fetchModels), systemImage: "arrow.clockwise")
@@ -502,7 +503,7 @@ struct AISettingsDetailView: View {
 
                     Text(modelsSummary)
                         .font(.system(size: 12))
-                        .foregroundStyle(!showsModelTestStatus && isModelFetchFailure ? VellumColors.redColor : VellumColors.mutedColor)
+                        .foregroundStyle(VellumColors.mutedColor)
                         .fixedSize(horizontal: false, vertical: true)
 
                     Spacer()
@@ -657,7 +658,6 @@ struct AISettingsDetailView: View {
             VStack(alignment: .leading, spacing: 14) {
                 HStack(spacing: 10) {
                     Button {
-                        showsModelTestStatus = true
                         testFunction()
                     } label: {
                         Label(validation.isTesting ? language.text(.testing) : language.text(.testModel), systemImage: "sparkles")
@@ -668,7 +668,7 @@ struct AISettingsDetailView: View {
                     Spacer()
                 }
 
-                if showsModelTestStatus && !validation.status.isIdle {
+                if validation.isTesting {
                     AIConnectionStatusRow(status: validation.status, isBusy: validation.isTesting)
                 }
 
@@ -694,10 +694,6 @@ struct AISettingsDetailView: View {
             return language.text(.fetchingModelsFrom(selectedPreset.name))
         }
 
-        if !showsModelTestStatus && isModelFetchFailure {
-            return validation.status.text(language: language)
-        }
-
         if validation.availableModels.isEmpty {
             return selectedPreset.format.usesCodexExecutable
                 ? language.text(.modelOverrideHint)
@@ -705,11 +701,6 @@ struct AISettingsDetailView: View {
         }
 
         return language.text(.modelsLoaded(validation.availableModels.count))
-    }
-
-    private var isModelFetchFailure: Bool {
-        if case .failure = validation.status { return true }
-        return false
     }
 
     var diagnosticRows: [(title: String, value: String)] {
@@ -775,7 +766,6 @@ struct AISettingsDetailView: View {
         let savedEffort = defaults.string(forKey: page.profile.reasoningEffortKey(for: preset.id))
         reasoningEffort = preset.format.usesCodexExecutable ? page.profile.codexReasoningEffort(savedEffort) : savedEffort ?? ""
         validation.invalidate()
-        showsModelTestStatus = false
         didLoadProviderSettings = true
         saveUsageSettings()
     }

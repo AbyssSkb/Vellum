@@ -55,7 +55,7 @@ Reader motions accept counts: `10j` scrolls ten steps, `5f` moves five pages, an
 
 ### Follow PDF links
 
-Press `F` in the reader to label links currently in view. Type a label to follow that link, use `Backspace` to correct a partial label, or press `Esc` to cancel. `Enter` follows the first remaining link. Internal links use the reading history, so `Control-O` returns to the source; web links open through the system's URL handler. Scrolling, resizing, or zooming cancels the labels. This uses links embedded in the PDF; plain reference text without a link is not detected.
+Press `F` in the reader to label links currently in view. Type a label to follow that link, use `Backspace` to correct a partial label, or press `Esc` to cancel. `Enter` follows the first remaining link. Internal links use the reading history, so `Control-O` returns to the source; web links open through the system's URL handler. Scrolling, resizing, or zooming cancels the labels. This uses links embedded in the PDF; plain reference text without a link is not detected. If no links are visible, a brief notification appears and keyboard navigation remains available.
 
 ## Browse the contents
 
@@ -205,9 +205,11 @@ In a conversation, type a follow-up question and press `Enter` to send. `Shift-E
 
 **General** contains the interface language, tab restoration, default open mode, initial page fit, default highlight color, double-click translation, update checks, and AI logs. **AI Providers**, **AI Explanation**, and **AI Conversation** configure AI. **Shortcuts** contains an in-app key reference.
 
+Operation feedback appears as a Toast at the top of the window and disappears after a few seconds. It keeps the current keyboard focus, so you can continue reading or typing. Update check results use the same notifications; an error offers a details action. Ongoing update progress and annotation save recovery keep their interaction windows so you can finish or resolve them.
+
 Sparkle handles updates, with automatic checks enabled initially. New versions download and prepare in the background. Once ready, choose **Restart and Update** to install immediately, or **Later** to keep reading; a prepared update can also install when you normally quit Vellum. Manual checks in General settings or the Vellum menu use the same update window. Choose **Update and Restart** to download, install, and restart in one step. Vellum saves annotations and the reading session before restarting.
 
-A green check means Vellum is up to date. Scroll long release notes with the keys below; the action buttons stay visible. Press a letter shown on a button to activate it; lowercase and uppercase both work.
+A Toast with a green checkmark confirms Vellum is up to date. Scroll long release notes with the keys below; the action buttons stay visible. Press a letter shown on a button to activate it; lowercase and uppercase both work.
 
 | Key | Action in the update window |
 | --- | --- |

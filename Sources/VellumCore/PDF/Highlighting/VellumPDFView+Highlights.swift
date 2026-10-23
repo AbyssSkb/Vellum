@@ -101,8 +101,7 @@ extension VellumPDFView {
               let selectedText = selection.string?
                 .trimmingCharacters(in: .whitespacesAndNewlines),
               !selectedText.isEmpty else {
-            showAIMessage(AIExplanationError.noSelection.localizedDescription)
-            NSSound.beep()
+            showNotification(AIExplanationError.noSelection.localizedDescription)
             return
         }
 
@@ -112,8 +111,7 @@ extension VellumPDFView {
         do {
             configuration = try AIConfiguration.current()
         } catch {
-            showAIMessage(error.localizedDescription)
-            NSSound.beep()
+            showNotification(error.localizedDescription, kind: .error)
             return
         }
 
@@ -122,8 +120,7 @@ extension VellumPDFView {
             selectedText: selectedText,
             document: document
         ) else {
-            showAIMessage(AIExplanationError.noSelection.localizedDescription)
-            NSSound.beep()
+            showNotification(AIExplanationError.noSelection.localizedDescription)
             return
         }
 
@@ -221,8 +218,7 @@ extension VellumPDFView {
               let selectedText = selection.string?
                 .trimmingCharacters(in: .whitespacesAndNewlines),
               !selectedText.isEmpty else {
-            showAIMessage(AIExplanationError.noSelection.localizedDescription)
-            NSSound.beep()
+            showNotification(AIExplanationError.noSelection.localizedDescription)
             return
         }
 
@@ -231,8 +227,7 @@ extension VellumPDFView {
             selectedText: selectedText,
             document: document
         ) else {
-            showAIMessage(AIExplanationError.noSelection.localizedDescription)
-            NSSound.beep()
+            showNotification(AIExplanationError.noSelection.localizedDescription)
             return
         }
 

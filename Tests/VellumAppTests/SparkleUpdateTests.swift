@@ -8,7 +8,7 @@ import VellumCore
 @MainActor
 struct SparkleUpdateTests {
     @Test
-    func manualCheckAndResultsUseTheSameWindowAndOnlyAcknowledgeOnce() {
+    func upToDateResultAcknowledgesImmediatelyAndDismissesTheCheckWindow() {
         let driver = makeDriver()
         defer { driver.windowController.dismiss() }
         var cancellations = 0
@@ -19,20 +19,32 @@ struct SparkleUpdateTests {
         cancel()
         #expect(cancellations == 0)
         #expect(driver.content.phase == .upToDate)
-        let close = driver.content.actions[0].handler
-        close()
-        close()
+        #expect(driver.content.actions.isEmpty)
+        #expect(driver.windowController.window?.isVisible == false)
+        driver.dismissUpdateInstallation()
+        driver.windowController.onClose?()
+        driver.showUpdateInFocus()
+        #expect(driver.windowController.window?.isVisible == false)
         #expect(acknowledgements == 1)
     }
 
     @Test(arguments: ["r", "R"])
     func retryAcknowledgesTheFailedCycleBeforeRequestingANewCheck(key: String) throws {
         let driver = makeDriver()
-        defer { driver.windowController.dismiss() }
+        let owner = makeOwnerWindow()
+        driver.captureNotificationWindow(owner)
+        defer { owner.close(); driver.windowController.dismiss() }
         var callbacks: [String] = []
         driver.checkAgain = { callbacks.append("retry") }
         driver.showUpdaterError(URLError(.cannotConnectToHost)) { callbacks.append("acknowledge") }
+        #expect(callbacks == ["acknowledge"])
+        #expect(driver.windowController.window?.isVisible == false)
+        driver.dismissUpdateInstallation()
+        driver.finishAutomaticCycle(error: URLError(.cannotConnectToHost))
         let retry = try #require(driver.content.actions.last?.handler)
+        let details = try #require(detailsButton(in: owner))
+        details.performClick(nil)
+        #expect(driver.windowController.window?.isVisible == true)
         let window = try #require(driver.windowController.window)
         let event = try #require(NSEvent.keyEvent(with: .keyDown, location: .zero,
             modifierFlags: key == "R" ? .shift : [], timestamp: 0,
@@ -95,6 +107,59 @@ struct SparkleUpdateTests {
         driver.presentError(cyclicError)
         let cyclicMessage = try #require(driver.content.message)
         #expect(cyclicMessage.components(separatedBy: cyclicError.localizedDescription).count == 2)
+    }
+
+    @Test(arguments: [false, true])
+    func terminalResultsKeepTheOriginalWindowAndDoNotRequestUpdateFocus(failed: Bool) throws {
+        let driver = makeDriver()
+        let owner = makeOwnerWindow()
+        driver.captureNotificationWindow(owner)
+        let other = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 700, height: 500),
+                             styleMask: .titled, backing: .buffered, defer: false)
+        other.isReleasedWhenClosed = false
+        defer { owner.close(); other.close(); driver.windowController.dismiss() }
+        driver.showUserInitiatedUpdateCheck(cancellation: {})
+        #expect(driver.notificationWindow === owner)
+        other.makeKeyAndOrderFront(nil)
+        let resultWindow = FocusRecordingWindow(contentRect: .zero, styleMask: .titled,
+                                               backing: .buffered, defer: false)
+        resultWindow.isReleasedWhenClosed = false
+        driver.windowController.dismiss()
+        driver.windowController.window = resultWindow
+        defer { resultWindow.close() }
+        let responder = other.firstResponder
+        var acknowledgements = 0
+
+        if failed {
+            driver.showUpdaterError(URLError(.cannotConnectToHost)) { acknowledgements += 1 }
+        } else {
+            driver.showUpdateNotFoundWithError(URLError(.unknown)) { acknowledgements += 1 }
+        }
+
+        #expect(driver.notificationWindow === owner)
+        #expect(resultWindow.keyPresentationCount == 0)
+        #expect(other.firstResponder === responder)
+        #expect(acknowledgements == 1)
+    }
+
+    @Test
+    func aNewCheckInvalidatesThePreviousErrorsRetryAction() throws {
+        let driver = makeDriver()
+        let owner = makeOwnerWindow()
+        driver.captureNotificationWindow(owner)
+        defer { owner.close(); driver.windowController.dismiss() }
+        var retries = 0
+        driver.checkAgain = { retries += 1 }
+        driver.presentError(URLError(.timedOut))
+        let oldRetry = try #require(driver.content.actions.last?.handler)
+        let oldDetails = try #require(detailsButton(in: owner))
+        driver.showUserInitiatedUpdateCheck(cancellation: {})
+        driver.windowController.dismiss()
+        oldDetails.performClick(nil)
+        oldRetry()
+        #expect(retries == 0)
+        #expect(driver.content.phase == .checking)
+        #expect(driver.windowController.window?.isVisible == false)
     }
 
     @Test
@@ -255,7 +320,6 @@ struct SparkleUpdateTests {
         let driver = makeDriver()
         defer { driver.windowController.dismiss() }
         driver.showUpdateNotFoundWithError(URLError(.unknown), acknowledgement: {})
-        driver.content.actions[0].handler()
         driver.beginAutomaticCheck()
         driver.showUpdateInFocus()
         #expect(driver.content.phase == .checking)
@@ -266,7 +330,7 @@ struct SparkleUpdateTests {
         #expect(driver.content.actions.first?.key == "c")
         driver.finishAutomaticCycle(error: NSError(domain: SUSparkleErrorDomain, code: Int(SUError.noUpdateError.rawValue)))
         #expect(driver.content.phase == .upToDate)
-        driver.content.actions[0].handler()
+        #expect(driver.content.actions.isEmpty)
         #expect(driver.windowController.window?.isVisible == false)
     }
 
@@ -291,6 +355,19 @@ struct SparkleUpdateTests {
     private func makeDriver(prepare: @escaping () -> Bool = { true }) -> VellumUpdateUserDriver {
         _ = NSApplication.shared
         return VellumUpdateUserDriver(currentVersion: "0.8.8", prepareToTerminate: prepare, openURL: { _ in })
+    }
+
+    private func makeOwnerWindow() -> NSWindow {
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 900, height: 650),
+                              styleMask: .titled, backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.makeKeyAndOrderFront(nil)
+        return window
+    }
+
+    private func detailsButton(in window: NSWindow) -> NSButton? {
+        (window.contentView?.superview ?? window.contentView)?.subviews.flatMap(\.subviews).compactMap { $0 as? NSButton }
+            .first { $0.title == AppUILanguage.saved().text(.updateDetails) }
     }
 
     private final class FocusRecordingWindow: NSWindow {

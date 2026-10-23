@@ -9,7 +9,7 @@ struct GeneralSettingsView: View {
     @AppStorage(AppPreferenceKeys.doubleClickTranslatesSelection) private var doubleClickTranslatesSelection = true
     @AppStorage(AppPreferenceKeys.restorePreviousTabs) private var restorePreviousTabs = false
     @AppStorage(AppPreferenceKeys.openFileZoomBehavior) private var openFileZoomBehavior = OpenFileZoomPreference.fitWidth.rawValue
-    @State private var logStatusMessage: String?
+    @State private var logNotification: ToastMessage?
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
@@ -27,6 +27,7 @@ struct GeneralSettingsView: View {
         }
         .background(VellumColors.backgroundColor)
         .background(SettingsScrollChromeConfigurator())
+        .toast(logNotification)
     }
 
     private var header: some View {
@@ -153,13 +154,6 @@ struct GeneralSettingsView: View {
                             .font(.system(size: 12))
                             .foregroundStyle(VellumColors.mutedColor)
                             .fixedSize(horizontal: false, vertical: true)
-
-                        if let logStatusMessage {
-                            Text(logStatusMessage)
-                                .font(.system(size: 11.5))
-                                .foregroundStyle(VellumColors.mutedColor)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -190,18 +184,18 @@ struct GeneralSettingsView: View {
     private func openAIRequestLog() {
         do {
             try AIRequestLogger.openLog()
-            logStatusMessage = AIRequestLogger.logFileURL.path
+            logNotification = ToastMessage(language.text(.aiLogsOpened), kind: .success)
         } catch {
-            logStatusMessage = language.text(.aiLogsFailed(error.localizedDescription))
+            logNotification = ToastMessage(language.text(.aiLogsFailed(error.localizedDescription)), kind: .error)
         }
     }
 
     private func clearAIRequestLog() {
         do {
             try AIRequestLogger.clearLog()
-            logStatusMessage = language.text(.aiLogsCleared)
+            logNotification = ToastMessage(language.text(.aiLogsCleared), kind: .success)
         } catch {
-            logStatusMessage = language.text(.aiLogsFailed(error.localizedDescription))
+            logNotification = ToastMessage(language.text(.aiLogsFailed(error.localizedDescription)), kind: .error)
         }
     }
 }

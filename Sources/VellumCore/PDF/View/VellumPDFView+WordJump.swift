@@ -116,6 +116,11 @@ final class PDFWordJumpController {
         viewport = pdfView.wordJumpViewport
         scale = pdfView.scaleFactor
         targets = links ? visibleLinks(in: pdfView, document: document) : visibleWords(in: pdfView, document: document)
+        guard !targets.isEmpty else {
+            cancel()
+            pdfView.showNotification(AppUILanguage.saved().text(links ? .linkJumpNoLinks : .wordJumpNoText))
+            return
+        }
         session = WordJumpSession(words: targets.map(\.word), labelsOnly: links)
         let overlay = WordJumpOverlayView(frame: pdfView.bounds)
         overlay.autoresizingMask = [.width, .height]
@@ -235,13 +240,11 @@ private final class WordJumpOverlayView: NSView {
     private func statusText(labelPrefix: String, count: Int) -> String {
         let language = AppUILanguage.saved()
         if session.labelsOnly {
-            let detail = targets.isEmpty ? language.text(.linkJumpNoLinks)
-                : language.text(.linkJumpTypeHint) + (labelPrefix.isEmpty ? "" : "  →  " + labelPrefix)
-                    + "  ·  " + String(count)
+            let detail = language.text(.linkJumpTypeHint) + (labelPrefix.isEmpty ? "" : "  →  " + labelPrefix)
+                + "  ·  " + String(count)
             return "\(language.text(.linkJump))   \(detail)"
         }
-        let detail = targets.isEmpty ? language.text(.wordJumpNoText)
-            : session.query.isEmpty ? language.text(.wordJumpTypeHint)
+        let detail = session.query.isEmpty ? language.text(.wordJumpTypeHint)
             : session.query + (labelPrefix.isEmpty ? "" : "  →  " + labelPrefix)
                 + "  ·  " + (session.matches.isEmpty ? language.text(.searchNoMatch) : String(count))
         return "\(language.text(.wordJump))   \(detail)"

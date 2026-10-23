@@ -34,6 +34,7 @@ final class SparkleUpdateController: NSObject, SPUUpdaterDelegate {
     }
 
     func checkForUpdates() {
+        userDriver.captureNotificationWindow(NSApp.keyWindow ?? NSApp.mainWindow)
         if let error = start() { userDriver.presentError(error); return }
         if updater.canCheckForUpdates { updater.checkForUpdates() }
         else { userDriver.showUpdateInFocus() }
@@ -91,6 +92,7 @@ final class VellumUpdateUserDriver: NSObject, SPUUserDriver {
     private var receivedBytes: UInt64 = 0
     private var expectedBytes: UInt64 = 0
     private var installWhenReady = false
+    private(set) weak var notificationWindow: NSWindow?
     private var releaseURL = URL(string: "https://github.com/AbyssSkb/Vellum/releases/latest")!
     private var language: AppUILanguage { .saved() }
 
@@ -110,6 +112,7 @@ final class VellumUpdateUserDriver: NSObject, SPUUserDriver {
     }
 
     func showUserInitiatedUpdateCheck(cancellation: @escaping () -> Void) {
+        captureNotificationWindow()
         installWhenReady = false
         content = UpdateWindowContent(phase: .checking, currentVersion: content.currentVersion)
         present(actions: [action(.cancel, key: "c") { [weak self] in self?.dismiss(); cancellation() }], close: { [weak self] in self?.dismiss(); cancellation() })
@@ -159,12 +162,14 @@ final class VellumUpdateUserDriver: NSObject, SPUUserDriver {
 
     func beginAutomaticCheck() {
         installWhenReady = false
+        notificationWindow = nil
         invalidateActions()
         content = UpdateWindowContent(phase: .checking, currentVersion: content.currentVersion)
         if windowController.window?.isVisible == true { showUpdateInFocus() }
     }
 
     func finishAutomaticCycle(error: Error?) {
+        guard content.phase != .error && content.phase != .upToDate else { return }
         let wasVisible = windowController.window?.isVisible == true
         dismiss()
         content.actions = []
@@ -189,10 +194,11 @@ final class VellumUpdateUserDriver: NSObject, SPUUserDriver {
     }
 
     func showUpdateNotFoundWithError(_ error: Error, acknowledgement: @escaping () -> Void) {
-        installWhenReady = false
+        if notificationWindow == nil { captureNotificationWindow() }
+        dismiss()
         content = UpdateWindowContent(phase: .upToDate, currentVersion: content.currentVersion)
-        present(actions: [action(.closeUpdate, key: "c", primary: true) { [weak self] in self?.dismiss(); acknowledgement() }],
-                close: { [weak self] in self?.dismiss(); acknowledgement() })
+        acknowledgement()
+        VellumToast.show(language.text(.upToDate), kind: .success, in: notificationWindow)
     }
 
     func showUpdaterError(_ error: Error, acknowledgement: @escaping () -> Void) {
@@ -200,15 +206,23 @@ final class VellumUpdateUserDriver: NSObject, SPUUserDriver {
     }
 
     func presentError(_ error: Error, acknowledgement: @escaping () -> Void = {}) {
-        installWhenReady = false
+        if notificationWindow == nil { captureNotificationWindow() }
+        dismiss()
         content.phase = .error
         content.message = errorDetails(error)
-        let close = { [weak self] in self?.dismiss(); acknowledgement() }
-        present(actions: [action(.closeUpdate, key: "c", handler: close), releaseAction(),
+        let close: () -> Void = { [weak self] in self?.dismiss() }
+        configureActions([action(.closeUpdate, key: "c", handler: close), releaseAction(),
                           action(.retryUpdate, key: "r", primary: true) { [weak self] in
-            self?.dismiss(); acknowledgement()
+            self?.dismiss()
             self?.checkAgain?()
         }], close: close)
+        let token = generation
+        acknowledgement()
+        VellumToast.show(language.text(.updateError) + ": " + error.localizedDescription,
+                         kind: .error, in: notificationWindow, actionTitle: language.text(.updateDetails)) { [weak self] in
+            guard let self, self.generation == token else { return }
+            self.showUpdateInFocus()
+        }
     }
 
     private func errorDetails(_ error: Error) -> String {
@@ -305,9 +319,18 @@ final class VellumUpdateUserDriver: NSObject, SPUUserDriver {
         acknowledgement()
     }
 
-    func dismissUpdateInstallation() { dismiss() }
+    func dismissUpdateInstallation() {
+        // Sparkle tears down acknowledged cycles after the terminal Toast is already shown.
+        guard content.phase != .error && content.phase != .upToDate else { return }
+        dismiss()
+    }
 
     func showUpdateInFocus() {
+        if notificationWindow == nil { captureNotificationWindow() }
+        if content.phase == .upToDate {
+            VellumToast.show(language.text(.upToDate), kind: .success, in: notificationWindow)
+            return
+        }
         if content.actions.isEmpty && [.checking, .downloading, .extracting].contains(content.phase) {
             present(actions: [action(.closeUpdate, key: "c") { [weak self] in self?.windowController.dismiss() }],
                     close: { [weak self] in self?.windowController.dismiss() })
@@ -335,6 +358,19 @@ final class VellumUpdateUserDriver: NSObject, SPUUserDriver {
     }
 
     private func present(actions: [UpdateWindowAction], close: @escaping () -> Void, activate: Bool = true) {
+        if notificationWindow == nil { captureNotificationWindow() }
+        configureActions(actions, close: close)
+        windowController.present(content, activate: activate)
+    }
+
+    func captureNotificationWindow(_ window: NSWindow? = nil) {
+        if let owner = [window, NSApp.keyWindow, NSApp.mainWindow].compactMap({ $0 })
+            .first(where: { $0 !== windowController.window }) {
+            notificationWindow = owner
+        }
+    }
+
+    private func configureActions(_ actions: [UpdateWindowAction], close: @escaping () -> Void) {
         generation += 1
         let token = generation
         content.actions = actions.map { original in
@@ -343,7 +379,6 @@ final class VellumUpdateUserDriver: NSObject, SPUUserDriver {
             return action
         }
         windowController.onClose = { [weak self] in guard self?.generation == token else { return }; close() }
-        windowController.present(content, activate: activate)
     }
 
     private func invalidateActions() { generation += 1 }

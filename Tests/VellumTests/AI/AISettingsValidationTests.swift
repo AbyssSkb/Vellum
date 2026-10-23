@@ -37,11 +37,13 @@ struct AISettingsValidationTests {
         }
         #expect(validation.isCurrent(newRequest))
         #expect(validation.isFetchingModels)
+        #expect(validation.notification == nil)
 
         validation.invalidate()
         try await waitForTestCondition("The replacement task is still owned and can be cancelled") { newCancelled }
         #expect(validation.status == .idle)
         #expect(!validation.isFetchingModels)
+        #expect(validation.notification == nil)
     }
 
     @Test
@@ -84,6 +86,8 @@ struct AISettingsValidationTests {
         #expect(!validation.isTesting)
         #expect(validation.status == .success("Catalog"))
         #expect(validation.availableModels == ["current-model"])
+        #expect(validation.notification?.text == "Catalog")
+        #expect(validation.notification?.kind == .success)
     }
 
     @Test
@@ -97,6 +101,7 @@ struct AISettingsValidationTests {
         #expect(validation.availableModels.isEmpty)
         #expect(validation.status == .idle)
         #expect(!validation.isFetchingModels)
+        #expect(validation.notification == nil)
     }
 
     @Test
@@ -109,13 +114,35 @@ struct AISettingsValidationTests {
         validation.finish(oldRequest, status: .failure("Old endpoint"))
         #expect(validation.isFetchingModels)
         #expect(validation.isCurrent(newRequest))
+        #expect(validation.notification == nil)
 
         validation.finish(newRequest, status: .success("Current provider"), models: ["current-model"])
+        let currentNotification = validation.notification
         validation.finish(oldRequest, status: .success("Old endpoint"))
         #expect(validation.status == .success("Current provider"))
+        #expect(validation.notification == currentNotification)
         #expect(validation.availableModels == ["current-model"])
         #expect(!validation.isFetchingModels)
         #expect(!validation.isTesting)
+    }
+
+    @Test
+    func repeatedResultsEmitFreshNotificationsAndInvalidationClearsThem() {
+        let validation = AISettingsValidation()
+        let firstRequest = validation.begin()
+        validation.finish(firstRequest, status: .failure("Endpoint unavailable"))
+        let firstNotification = validation.notification
+        #expect(firstNotification?.text == "Endpoint unavailable")
+        #expect(firstNotification?.kind == .error)
+
+        let retry = validation.begin()
+        #expect(validation.notification == nil)
+        validation.finish(retry, status: .failure("Endpoint unavailable"))
+        #expect(validation.notification?.text == firstNotification?.text)
+        #expect(validation.notification?.id != firstNotification?.id)
+
+        validation.invalidate()
+        #expect(validation.notification == nil)
     }
 
     @Test

@@ -3,6 +3,7 @@ import SwiftUI
 @MainActor
 final class AISettingsValidation: ObservableObject {
     @Published var status: AIConnectionStatus = .idle
+    @Published private(set) var notification: ToastMessage?
     @Published private(set) var availableModels: [String] = []
     @Published private(set) var codexSettings: CodexSettingsSnapshot?
     @Published private(set) var isTesting = false
@@ -13,6 +14,7 @@ final class AISettingsValidation: ObservableObject {
     func begin(fetchingModels: Bool = false) -> UUID {
         requestTask?.cancel()
         requestTask = nil
+        notification = nil
         let id = UUID()
         requestID = id
         isTesting = !fetchingModels
@@ -47,6 +49,14 @@ final class AISettingsValidation: ObservableObject {
         requestID = nil
         requestTask = nil
         self.status = status
+        switch status {
+        case .success(let message):
+            notification = ToastMessage(message, kind: .success)
+        case .failure(let message):
+            notification = ToastMessage(message, kind: .error)
+        case .idle, .working:
+            notification = nil
+        }
         if let models { availableModels = models }
         if let codexSettings { self.codexSettings = codexSettings }
         isTesting = false
@@ -59,6 +69,7 @@ final class AISettingsValidation: ObservableObject {
         requestTask = nil
         requestID = nil
         status = .idle
+        notification = nil
         isTesting = false
         isFetchingModels = false
         if clearModels {

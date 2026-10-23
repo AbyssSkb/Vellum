@@ -110,6 +110,7 @@ public enum AppText {
     case aiExplanationAutoPronunciation
     case aiExplanationAutoPronunciationSubtitle
     case aiHeaderSubtitle
+    case aiLogsOpened
     case aiLogsCleared
     case aiLogsFailed(String)
     case aiRequestLogs
@@ -370,6 +371,7 @@ public extension AppText {
         case .aiExplanationAutoPronunciation: return "Auto Pronunciation"
         case .aiExplanationAutoPronunciationSubtitle: return "Automatically speak the selected word or term after an AI explanation is shown."
         case .aiHeaderSubtitle: return "Choose a provider, enter its key, then pick the model Vellum should use."
+        case .aiLogsOpened: return "AI request log opened."
         case .aiLogsCleared: return "AI request log cleared."
         case .aiLogsFailed(let error): return "Log action failed: \(error)"
         case .aiRequestLogs: return "AI Request Logs"
@@ -632,6 +634,7 @@ public extension AppText {
         case .aiExplanationAutoPronunciation: return "自动发音"
         case .aiExplanationAutoPronunciationSubtitle: return "AI 解释显示后，自动朗读选中的单词或术语。"
         case .aiHeaderSubtitle: return "选择服务商，填写密钥，然后选择 Vellum 使用的模型。"
+        case .aiLogsOpened: return "AI 请求日志已打开。"
         case .aiLogsCleared: return "AI 请求日志已清除。"
         case .aiLogsFailed(let error): return "日志操作失败：\(error)"
         case .aiRequestLogs: return "AI 请求日志"

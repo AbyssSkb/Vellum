@@ -448,7 +448,7 @@ private final class RecordingReaderController: ReaderController {
         aiExplanationHistory
     }
 
-    func showAINotification(_ message: String) {
+    func showNotification(_ message: String) {
         notifications.append(message)
     }
 

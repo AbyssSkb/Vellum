@@ -189,7 +189,7 @@ public final class AppState: ObservableObject {
     func showAIConversationHistory() {
         aiConversationHistory = aiConversationHistoryItemsForActiveDocument()
         guard !aiConversationHistory.isEmpty else {
-            activeReaderController?.showAINotification(AppUILanguage.saved().text(.noAIConversationsInFile))
+            showNotification(AppUILanguage.saved().text(.noAIConversationsInFile))
             return
         }
         rememberFocusBeforeSwitcher()
@@ -222,7 +222,7 @@ public final class AppState: ObservableObject {
     func showAIExplanationHistory() {
         aiExplanationHistory = aiExplanationHistoryItemsForActiveDocument()
         guard !aiExplanationHistory.isEmpty else {
-            activeReaderController?.showAINotification(AppUILanguage.saved().text(.noAIExplanationsInFile))
+            showNotification(AppUILanguage.saved().text(.noAIExplanationsInFile))
             return
         }
         rememberFocusBeforeSwitcher()
