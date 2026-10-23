@@ -9,6 +9,75 @@ struct KeyboardControllerTests {
     private let notificationCenter = NotificationCenter()
 
     @Test
+    func selectionEndpointSwapRunsOnceAndClearsPendingCounts() {
+        let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
+        let delegate = RecordingKeyboardDelegate()
+        delegate.reader.hasNavigableTextSelection = true
+        controller.delegate = delegate
+
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "3", keyCode: 20)))
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "o", keyCode: 31)))
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "o", keyCode: 31, isRepeat: true)))
+        #expect(controller.handleKeyEvent(keyEvent(.keyUp, key: "o", keyCode: 31)))
+        #expect(delegate.reader.actions == [.swapSelectionEndpoint])
+        #expect(delegate.commands.isEmpty)
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "G", keyCode: 5)))
+        #expect(delegate.commands == [.lastPage])
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "o", keyCode: 31)))
+        #expect(delegate.reader.actions == [.swapSelectionEndpoint, .swapSelectionEndpoint])
+    }
+
+    @Test
+    func openShortcutsKeepTheirBehaviorOutsideSelectionSwap() {
+        let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
+        let delegate = RecordingKeyboardDelegate()
+        controller.delegate = delegate
+
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "o", keyCode: 31)))
+        #expect(!controller.handleKeyEvent(keyEvent(.keyUp, key: "o", keyCode: 31)))
+        delegate.reader.hasNavigableTextSelection = true
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "O", keyCode: 31, modifierFlags: .shift)))
+        #expect(!controller.handleKeyEvent(keyEvent(.keyDown, key: "o", keyCode: 31, modifierFlags: .command)))
+        #expect(delegate.commands == [.open, .openInNewTab])
+        #expect(delegate.reader.actions.isEmpty)
+    }
+
+    @Test
+    func selectedTextSearchRunsOnceAndLeavesNextMatchNavigationAvailable() {
+        let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
+        let delegate = RecordingKeyboardDelegate()
+        delegate.reader.hasNavigableTextSelection = true
+        controller.delegate = delegate
+
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "*", keyCode: 28, modifierFlags: .shift)))
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "*", keyCode: 28, isRepeat: true, modifierFlags: .shift)))
+        #expect(!controller.handleKeyEvent(keyEvent(.keyUp, key: "*", keyCode: 28)))
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "n", keyCode: 45)))
+        #expect(delegate.commands == [.searchSelectedText, .searchNext])
+    }
+
+    @Test(arguments: ["o", "*"])
+    func selectionShortcutsRemainTextInEditableFields(key: String) {
+        let window = makeWindow()
+        defer { window.close() }
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 100, height: 24))
+        window.contentView = field
+        #expect(window.makeFirstResponder(field))
+        let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
+        let delegate = RecordingKeyboardDelegate()
+        delegate.reader.hasNavigableTextSelection = true
+        delegate.readerWindow = window
+        controller.delegate = delegate
+        let event = WindowKeyboardEvent()
+        event.targetWindow = window
+        event.key = key
+
+        #expect(!controller.routeKeyEvent(event))
+        #expect(delegate.reader.actions.isEmpty)
+        #expect(delegate.commands.isEmpty)
+    }
+
+    @Test
     func linkJumpOwnsLabelKeysAndEscapeBeforeReaderCommands() {
         let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
         let delegate = RecordingKeyboardDelegate()
@@ -1323,6 +1392,13 @@ private final class RecordingKeyboardReaderController: ReaderController {
 
     func vimJumpForward() {}
 
+    func vimSwapTextSelectionEndpoint() -> Bool {
+        actions.append(.swapSelectionEndpoint)
+        return hasNavigableTextSelection
+    }
+
+    func vimSearchSelectedText() {}
+
     func vimSearchNext() {}
 
     func vimSearchPrevious() {}
@@ -1356,6 +1432,7 @@ private final class RecordingKeyboardReaderController: ReaderController {
         case deleteHighlights
         case aiKey
         case countedSelection(String, Int)
+        case swapSelectionEndpoint
     }
 }
 

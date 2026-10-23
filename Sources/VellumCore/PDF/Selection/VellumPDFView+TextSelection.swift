@@ -3,6 +3,22 @@ import PDFKit
 
 extension VellumPDFView {
     @discardableResult
+    func vimSwapTextSelectionEndpoint() -> Bool {
+        guard let document, hasNavigableTextSelection,
+              var state = textSelectionState(pageStarts: textPageStarts(in: document)) else { return false }
+
+        completePendingRestoreBeforeUserInteraction()
+        cancelPendingRestore()
+        stopScrollAnimation()
+        stopZoomState()
+        swap(&state.anchorOffset, &state.extentOffset)
+        swap(&state.anchorCaret, &state.extentCaret)
+        state.preferredX = nil
+        textSelectionNavigationState = state
+        return true
+    }
+
+    @discardableResult
     func vimNavigateTextSelection(_ key: String, count: Int = 1) -> Bool {
         let key = key.lowercased()
         guard ["h", "j", "k", "l", "w", "b", "e"].contains(key),
@@ -14,26 +30,7 @@ extension VellumPDFView {
         let pageStarts = textPageStarts(in: document)
         guard let totalLength = pageStarts.last, totalLength > 0 else { return false }
 
-        if textSelectionNavigationState == nil {
-            guard let range = currentSelectionCharacterRange(pageStarts: pageStarts) else { return false }
-            textSelectionNavigationState = VimTextSelectionNavigationState(
-                anchorOffset: range.start,
-                extentOffset: range.end,
-                preferredX: nil,
-                anchorCaret: textCaret(
-                    atInsertionOffset: range.start,
-                    preferTrailingEdge: false,
-                    pageStarts: pageStarts
-                ),
-                extentCaret: textCaret(
-                    atInsertionOffset: range.end,
-                    preferTrailingEdge: true,
-                    pageStarts: pageStarts
-                )
-            )
-        }
-
-        guard var state = textSelectionNavigationState else { return false }
+        guard var state = textSelectionState(pageStarts: pageStarts) else { return false }
         let useVisualSelection = key == "j" || key == "k"
         var scrollCaretAfterSelection: VimTextCaret?
         var didMove = false
@@ -132,5 +129,27 @@ extension VellumPDFView {
 
         textSelectionNavigationState = state
         return true
+    }
+
+    private func textSelectionState(pageStarts: [Int]) -> VimTextSelectionNavigationState? {
+        if let textSelectionNavigationState { return textSelectionNavigationState }
+        guard let range = currentSelectionCharacterRange(pageStarts: pageStarts) else { return nil }
+        let state = VimTextSelectionNavigationState(
+            anchorOffset: range.start,
+            extentOffset: range.end,
+            preferredX: nil,
+            anchorCaret: textCaret(
+                atInsertionOffset: range.start,
+                preferTrailingEdge: false,
+                pageStarts: pageStarts
+            ),
+            extentCaret: textCaret(
+                atInsertionOffset: range.end,
+                preferTrailingEdge: true,
+                pageStarts: pageStarts
+            )
+        )
+        textSelectionNavigationState = state
+        return state
     }
 }

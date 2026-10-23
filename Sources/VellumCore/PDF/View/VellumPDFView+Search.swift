@@ -209,6 +209,19 @@ extension VellumPDFView {
         vimSearchBy(1)
     }
 
+    func vimSearchSelectedText() {
+        guard let text = currentSelection?.string?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !text.isEmpty, document != nil else {
+            showNotification(AppUILanguage.saved().text(.noTextToSearch))
+            return
+        }
+
+        if searchController == nil {
+            searchController = PDFSearchController(pdfView: self)
+        }
+        searchController?.searchSelectedText(text)
+    }
+
     func vimSearchPrevious() {
         vimSearchBy(-1)
     }
@@ -279,6 +292,7 @@ final class PDFSearchController {
     private var lastJumpCheckpointTime: Date?
     private var pageTextCache: [Int: String] = [:]
     private var pendingSearchJumpSource: ReaderSnapshot?
+    private var initialSearchAnchor: SearchAnchor?
     private var pendingMoves: [(direction: Direction, count: Int)] = []
     private var shouldCommitAfterSearch = false
     nonisolated(unsafe) private var visiblePagesObserver: NSObjectProtocol?
@@ -323,6 +337,7 @@ final class PDFSearchController {
 
     func begin() {
         guard let pdfView, pdfView.document != nil else { return }
+        initialSearchAnchor = nil
         pdfView.appState?.recordReadingFocusIntent(outline: false)
         let focusGeneration = pdfView.appState?.outlineFocusGeneration
 
@@ -366,6 +381,25 @@ final class PDFSearchController {
 
         updateOverlayStatus()
         overlay.focus()
+    }
+
+    func searchSelectedText(_ text: String) {
+        guard let pdfView, let document = pdfView.document else { return }
+        initialSearchAnchor = nil
+        let anchor = currentSearchAnchor(in: document)
+        let source = pdfView.snapshot()
+        pdfView.appState?.recordReadingFocusIntent(outline: false)
+        pdfView.stopScrollAnimation()
+        pdfView.stopZoomState()
+        pdfView.hideAIExplanationPopover()
+        dismissOverlay(returnFocus: false)
+        pdfView.textSelectionNavigationState = nil
+        pdfView.clearSelection()
+        update(query: text, resetSelection: true)
+        initialSearchAnchor = anchor
+        pendingSearchJumpSource = source
+        ensureMiniOverlay()
+        commit()
     }
 
     func move(_ direction: Direction, count: Int = 1) {
@@ -419,6 +453,7 @@ final class PDFSearchController {
     }
 
     func markReaderNavigated() {
+        initialSearchAnchor = nil
         shouldAnchorNextMove = true
         pendingMoves.removeAll()
         shouldCommitAfterSearch = false
@@ -480,6 +515,7 @@ final class PDFSearchController {
 
     private func update(query nextQuery: String, resetSelection: Bool) {
         query = nextQuery
+        initialSearchAnchor = nil
         pendingMoves.removeAll()
         shouldCommitAfterSearch = false
         completedQuery = nil
@@ -569,6 +605,7 @@ final class PDFSearchController {
         completedQuery = nil
         lastJumpCheckpointTime = nil
         pendingSearchJumpSource = nil
+        initialSearchAnchor = nil
         pendingMoves.removeAll()
         shouldCommitAfterSearch = false
     }
@@ -578,6 +615,7 @@ final class PDFSearchController {
         searchGeneration += 1
         areMatchesVisible = false
         pendingSearchJumpSource = nil
+        initialSearchAnchor = nil
         pendingMoves.removeAll()
         shouldCommitAfterSearch = false
         pdfView?.highlightedSelections = []
@@ -815,7 +853,8 @@ final class PDFSearchController {
         if results.isEmpty {
             activeIndex = nil
             areMatchesVisible = false
-        } else if let preservedIndex = Self.index(of: activeMatch, in: results) {
+        } else if initialSearchAnchor == nil,
+                  let preservedIndex = Self.index(of: activeMatch, in: results) {
             activeIndex = preservedIndex
             areMatchesVisible = true
         } else if preferAnchor || activeIndex == nil {
@@ -851,6 +890,7 @@ final class PDFSearchController {
         } else if preferAnchor, !hadActiveResult, activeIndex != nil, !shouldAnchorNextMove {
             jumpToSelectedMatch(recordJump: false)
         }
+        if isComplete { initialSearchAnchor = nil }
     }
 
     private func cancelScheduledSearch() {
@@ -984,6 +1024,7 @@ final class PDFSearchController {
     }
 
     private func currentSearchAnchor(in document: PDFDocument) -> SearchAnchor {
+        if let initialSearchAnchor { return initialSearchAnchor }
         guard let pdfView else {
             return SearchAnchor(pageIndex: 0, pointInDisplay: .zero)
         }

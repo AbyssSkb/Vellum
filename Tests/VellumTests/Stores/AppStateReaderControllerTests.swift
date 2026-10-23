@@ -25,6 +25,7 @@ struct AppStateReaderControllerTests {
         appState.jumpBack()
         appState.jumpForward()
         appState.beginSearch()
+        appState.searchSelectedText()
         appState.beginWordJump()
         appState.beginLinkJump()
         appState.searchNext()
@@ -48,6 +49,7 @@ struct AppStateReaderControllerTests {
             .jumpBack,
             .jumpForward,
             .beginSearch,
+            .searchSelectedText,
             .beginWordJump,
             .beginLinkJump,
             .searchNext,
@@ -484,6 +486,12 @@ private final class RecordingReaderController: ReaderController {
         actions.append(.jumpForward)
     }
 
+    func vimSwapTextSelectionEndpoint() -> Bool { false }
+
+    func vimSearchSelectedText() {
+        actions.append(.searchSelectedText)
+    }
+
     func vimSearchNext() {
         actions.append(.searchNext)
     }
@@ -542,6 +550,7 @@ private final class RecordingReaderController: ReaderController {
         case jumpBack
         case jumpForward
         case beginSearch
+        case searchSelectedText
         case beginWordJump
         case beginLinkJump
         case searchNext

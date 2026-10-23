@@ -138,6 +138,16 @@ final class KeyboardController {
             return true
         }
 
+        if key == "o", let reader = delegate?.activeReaderController, reader.hasNavigableTextSelection {
+            if event.type == .keyDown, !event.isARepeat {
+                stopHeldKeyTimer()
+                vimInput.clearPendingInput()
+                _ = reader.vimSwapTextSelectionEndpoint()
+                completedSequenceKey = key
+            }
+            return true
+        }
+
         if event.type == .keyDown, !vimInput.state.numericPrefix.isEmpty,
            key != "H", key != "L", ["h", "j", "k", "l", "w", "b", "e"].contains(key.lowercased()),
            let reader = delegate?.activeReaderController, reader.hasNavigableTextSelection {

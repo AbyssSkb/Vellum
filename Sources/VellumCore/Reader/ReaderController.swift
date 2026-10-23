@@ -35,6 +35,8 @@ protocol ReaderController: AnyObject {
     func vimPerformPDFAction(_ action: PDFAction)
     func vimJumpBack()
     func vimJumpForward()
+    func vimSwapTextSelectionEndpoint() -> Bool
+    func vimSearchSelectedText()
     func vimSearchNext()
     func vimSearchPrevious()
     func vimSearchBy(_ delta: Int)

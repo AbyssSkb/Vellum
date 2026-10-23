@@ -32,13 +32,13 @@ Hold `Tab` to enter the immersive gallery, with a large current-page preview bet
 
 ## Keep the useful parts
 
-Search with `/`, move through matches with `n` and `N`, and press `v` to select a match. Copy with `y` or highlight with `m`; five highlight colors are available. Annotations save back to the PDF automatically, with recovery options if the file cannot be saved or has changed on disk.
+Search with `/`, or press `*` to search selected text immediately. Move through matches with `n` and `N`, and press `v` to select a match. Copy with `y` or highlight with `m`; five highlight colors are available. Annotations save back to the PDF automatically, with recovery options if the file cannot be saved or has changed on disk.
 
 Revisit highlights with `gn` / `gN`, or use `M` to search highlighted text and page numbers. Press `Enter` to return to a passage, ready to copy, explain, or delete its highlight.
 
 ![Search matches with a compact query field and result counter](docs/images/vellum-search.png)
 
-Press `s`, type the beginning of a visible word, then type its letter label to select the whole word. Refine the selection with Vim motions, copy with `y`, or highlight with `m`. Labels adapt to the displayed text size and stay in place as you enter a multi-letter label.
+Press `s`, type the beginning of a visible word, then type its letter label to select the whole word. Refine the selection with Vim motions; `o` switches which endpoint they adjust without changing the selected text. Copy with `y` or highlight with `m`. Labels adapt to the displayed text size and stay in place as you enter a multi-letter label.
 
 ![Visible words highlighted with letter labels for keyboard selection](docs/images/vellum-word-jump.png)
 
@@ -51,7 +51,7 @@ AI assistance is optional and experimental. See the [user guide](docs/USER_GUIDE
 ## Get started
 
 1. Download the latest DMG from [Releases](https://github.com/AbyssSkb/Vellum/releases/latest), then drag Vellum into Applications.
-2. Open a PDF with `o` or `Command-O`. Use `O` to open files in new tabs.
+2. Open a PDF with `Command-O`, or `o` when no text is selected. Use `O` to open files in new tabs.
 3. Press `z` to fit the width or `0` to fit the whole page, then move with `j` and `k`.
 
 | Key | Action |
@@ -64,8 +64,9 @@ AI assistance is optional and experimental. See the [user guide](docs/USER_GUIDE
 | Tap `Tab` | Switch focus between the reader and contents |
 | Hold `Tab` | Open the page gallery |
 | `H` / `L`, `T` | Previous / next tab; searchable tab switcher |
-| `/`, `n` / `N` | Search; next / previous match |
+| `/` / `*`, `n` / `N` | Search a query / selected text; next / previous match |
 | `s` | Type a visible word prefix and its label to select |
+| `o` with text selected | Switch the endpoint adjusted by selection motions |
 | `F` | Label and follow visible PDF links |
 | `m`, `c`, `y` | Highlight, change highlight color, copy |
 | `M`, `gn` / `gN` | Search highlights; next / previous highlight |

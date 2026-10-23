@@ -10,13 +10,13 @@ Vellum is a native macOS PDF reader with keyboard navigation, an immersive page 
 
 Download the app from [GitHub Releases](https://github.com/AbyssSkb/Vellum/releases/latest), open the disk image, and drag Vellum to Applications. Launch it and press `o` to open a PDF.
 
-`o` and `Command-O` follow **Settings → General → Default open mode**, initially set to replace the current tab. `O` opens PDFs in new tabs and supports selecting several files at once. Files opened through Finder also open in new tabs.
+`Command-O`, or `o` when no text is selected, follows **Settings → General → Default open mode**, initially set to replace the current tab. With text selected in the reader, `o` switches the selection endpoint being adjusted; `Command-O` still opens a PDF. `O` opens PDFs in new tabs and supports selecting several files at once. Files opened through Finder also open in new tabs.
 
 Each file has one tab. Opening an already open file selects its existing tab. If it has changed on disk, reopening reloads its current contents after protecting any unsaved annotations. `X` restores the most recently closed PDF from disk.
 
 | Key | Action |
 | --- | --- |
-| `o` / `Command-O` | Open using the configured default mode |
+| `o` / `Command-O` | Open using the configured default mode (`o` requires no text selection) |
 | `O` | Open PDFs in new tabs |
 | `x` / `Command-W` | Close the current tab |
 | `X` | Restore the last closed PDF |
@@ -129,13 +129,17 @@ Press `/`, type a query, and press `Enter`. Matches stay highlighted after leavi
 | Key | Action |
 | --- | --- |
 | `/` | Open the search field |
+| `*` | Search selected text immediately |
 | `Enter` | Confirm the query |
 | `n` / `N` | Next / previous match |
 | `v` | Turn the active match into a text selection |
 | `y` | Copy selected text or the active search match |
+| `o` with text selected | Switch the endpoint adjusted by selection motions |
 | `Esc` | Leave search or clear its visible state |
 
-Select text with the pointer, or use `v` on a search result. With text selected, `h` / `l` adjusts the selection endpoint horizontally, `j` / `k` moves it by visual line, and `w` / `b` / `e` moves it by word. Press `Esc` to clear the selection and resume normal page movement.
+Select text with the pointer, or use `v` on a search result. With text selected, `h` / `l` adjusts the selection endpoint horizontally, `j` / `k` moves it by visual line, and `w` / `b` / `e` moves it by word. Press `o` to switch to adjusting the other end without changing the selected range. Press `Esc` to clear the selection and resume normal page movement.
+
+Press `*` to search a selected word or phrase without opening the search field. Search ignores case and treats punctuation literally. Matches stay within a single PDF page, so a phrase spanning pages will not match. The source selection clears so page motions resume; use `n` / `N` to move through matches and `v` to select the current one. With no selected text, a brief notification explains why search cannot start.
 
 ### Select a visible word
 

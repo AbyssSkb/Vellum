@@ -13,7 +13,7 @@ enum ShortcutCatalog {
             title: "Files and Tabs",
             systemImage: "doc.on.doc",
             items: [
-                ShortcutItem(keys: ["o"], action: "Open PDF using default open mode"),
+                ShortcutItem(keys: ["o"], action: "Open PDF when no text is selected"),
                 ShortcutItem(keys: ["O"], action: "Open PDFs in new tabs"),
                 ShortcutItem(keys: ["x"], action: "Close current tab"),
                 ShortcutItem(keys: ["X"], action: "Restore closed PDF"),
@@ -46,6 +46,7 @@ enum ShortcutCatalog {
             systemImage: "magnifyingglass",
             items: [
                 ShortcutItem(keys: ["/"], action: "Start search"),
+                ShortcutItem(keys: ["*"], action: "Search selected text"),
                 ShortcutItem(keys: ["Enter"], action: "Commit search query"),
                 ShortcutItem(keys: ["Esc"], action: "Cancel search or clear search state"),
                 ShortcutItem(keys: ["n", "N"], action: "Jump to next or previous match"),
@@ -117,6 +118,7 @@ enum ShortcutCatalog {
             systemImage: "selection.pin.in.out",
             items: [
                 ShortcutItem(keys: ["s"], action: "Type a visible word prefix, then its label to select"),
+                ShortcutItem(keys: ["o"], action: "Switch the selection endpoint being adjusted"),
                 ShortcutItem(keys: ["h", "j", "k", "l"], action: "Move selection endpoint"),
                 ShortcutItem(keys: ["w", "b", "e"], action: "Move by word"),
                 ShortcutItem(keys: ["3w", "3j"], action: "Repeat a selection motion with a count"),
@@ -154,7 +156,7 @@ enum ShortcutCatalog {
             title: "文件与标签页",
             systemImage: "doc.on.doc",
             items: [
-                ShortcutItem(keys: ["o"], action: "按默认打开方式打开 PDF"),
+                ShortcutItem(keys: ["o"], action: "未选中文字时打开 PDF"),
                 ShortcutItem(keys: ["O"], action: "在新标签页打开 PDF"),
                 ShortcutItem(keys: ["x"], action: "关闭当前标签页"),
                 ShortcutItem(keys: ["X"], action: "恢复已关闭的 PDF"),
@@ -187,6 +189,7 @@ enum ShortcutCatalog {
             systemImage: "magnifyingglass",
             items: [
                 ShortcutItem(keys: ["/"], action: "开始搜索"),
+                ShortcutItem(keys: ["*"], action: "搜索选中文字"),
                 ShortcutItem(keys: ["Enter"], action: "确认搜索词"),
                 ShortcutItem(keys: ["Esc"], action: "取消搜索或清除搜索状态"),
                 ShortcutItem(keys: ["n", "N"], action: "跳到下一个或上一个匹配项"),
@@ -258,6 +261,7 @@ enum ShortcutCatalog {
             systemImage: "selection.pin.in.out",
             items: [
                 ShortcutItem(keys: ["s"], action: "输入可见单词的开头，再按标签选中"),
+                ShortcutItem(keys: ["o"], action: "切换正在调整的选区端点"),
                 ShortcutItem(keys: ["h", "j", "k", "l"], action: "移动选择端点"),
                 ShortcutItem(keys: ["w", "b", "e"], action: "按单词移动"),
                 ShortcutItem(keys: ["3w", "3j"], action: "按次数调整选区"),

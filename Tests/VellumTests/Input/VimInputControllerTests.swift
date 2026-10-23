@@ -134,6 +134,7 @@ struct VimInputControllerTests {
 
     @Test(arguments: [
         ("/", VimCommand.beginSearch),
+        ("*", .searchSelectedText),
         ("v", .materializeSearchSelection),
         ("T", .showTabSwitcher)
     ])
