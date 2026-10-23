@@ -130,7 +130,7 @@ extension VellumPDFView {
         for characterIndex in 0..<page.numberOfCharacters {
             guard !isNewlineCharacter(at: characterIndex, in: pageText) else { continue }
 
-            let bounds = geometry.rect(forPageRect: page.characterBounds(at: characterIndex))
+            let bounds = geometry.rect(forPageRect: textCharacterBounds(at: characterIndex, on: page))
             guard bounds.width > 0, bounds.height > 0 else { continue }
 
             characters.append(
@@ -331,6 +331,6 @@ extension VellumPDFView {
 
         let localOffset = globalOffset - pageStarts[pageIndex]
         return PDFPageDisplayGeometry(page: page, box: displayBox)
-            .rect(forPageRect: page.characterBounds(at: localOffset)).midX
+            .rect(forPageRect: textCharacterBounds(at: localOffset, on: page)).midX
     }
 }

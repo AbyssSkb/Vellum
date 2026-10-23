@@ -290,7 +290,7 @@ struct PDFSearchGeometryTests {
     }
 
     @Test(arguments: [0, 90, 180, 270]) @MainActor
-    func selectionLinesUseDisplayedCharacterBounds(rotation: Int) throws {
+    func selectionLinesUseDisplayedTextRangeBounds(rotation: Int) throws {
         let (window, view) = try makeReader(pageCount: 1, wordPage: 0)
         defer { window.close() }
         let page = try #require(view.document?.page(at: 0))
@@ -301,7 +301,8 @@ struct PDFSearchGeometryTests {
         let geometry = PDFPageDisplayGeometry(page: page, box: view.displayBox)
         #expect(!characters.isEmpty)
         for character in characters {
-            let bounds = geometry.rect(forPageRect: page.characterBounds(at: character.globalOffset))
+            let selection = try #require(page.selection(for: NSRange(location: character.globalOffset, length: 1)))
+            let bounds = geometry.rect(forPageRect: selection.bounds(for: page))
             #expect(character.minX == bounds.minX)
             #expect(character.centerX == bounds.midX)
             #expect(character.centerY == bounds.midY)

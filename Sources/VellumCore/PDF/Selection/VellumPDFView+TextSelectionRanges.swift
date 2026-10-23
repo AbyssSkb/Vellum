@@ -1,6 +1,13 @@
 @preconcurrency import AppKit
 import PDFKit
 extension VellumPDFView {
+    func textCharacterBounds(at index: Int, on page: PDFPage) -> NSRect {
+        // PDFKit's glyph index can diverge from logical text ranges after inserted line breaks.
+        if let bounds = page.selection(for: NSRange(location: index, length: 1))?.bounds(for: page),
+           bounds.width > 0, bounds.height > 0 { return bounds }
+        return page.characterBounds(at: index)
+    }
+
     func currentSelectionCharacterRange(pageStarts: [Int]) -> (start: Int, end: Int)? {
         guard let selection = currentSelection else { return nil }
 
@@ -50,7 +57,7 @@ extension VellumPDFView {
             guard let page = document?.page(at: pageIndex) else { continue }
             let pageStart = pageStarts[pageIndex]
             for characterIndex in 0..<page.numberOfCharacters {
-                let bounds = page.characterBounds(at: characterIndex)
+                let bounds = textCharacterBounds(at: characterIndex, on: page)
                 guard bounds.width > 0, bounds.height > 0 else { continue }
 
                 let center = NSPoint(x: bounds.midX, y: bounds.midY)
@@ -129,7 +136,7 @@ extension VellumPDFView {
             return true
         }
 
-        let selection = PDFSelection()
+        let selection = PDFSelection(document: document)
         for pageIndex in 0..<document.pageCount {
             guard pageIndex + 1 < pageStarts.count,
                   let page = document.page(at: pageIndex) else { continue }
@@ -176,7 +183,7 @@ extension VellumPDFView {
         let start = isForward ? anchorPosition : extentPosition
         let end = isForward ? extentPosition : anchorPosition
 
-        let selection = PDFSelection()
+        let selection = PDFSelection(document: document)
         for pageIndex in start.pageIndex...end.pageIndex {
             guard pageIndex + 1 < pageStarts.count,
                   let page = document.page(at: pageIndex) else { continue }
@@ -371,7 +378,7 @@ extension VellumPDFView {
             guard characterIndex >= 0, characterIndex < page.numberOfCharacters else { continue }
             guard !isNewlineCharacter(at: characterIndex, in: textSelectionCache.text(on: page, in: document)) else { continue }
 
-            let bounds = page.characterBounds(at: characterIndex)
+            let bounds = textCharacterBounds(at: characterIndex, on: page)
             guard bounds.width > 0, bounds.height > 0 else { continue }
             return (pageIndex, offset, bounds)
         }
@@ -416,7 +423,7 @@ extension VellumPDFView {
         let localOffset = activeOffset - pageStarts[pageIndex]
         guard localOffset >= 0, localOffset < page.numberOfCharacters else { return }
 
-        let characterBounds = page.characterBounds(at: localOffset).insetBy(dx: -8, dy: -10)
+        let characterBounds = textCharacterBounds(at: localOffset, on: page).insetBy(dx: -8, dy: -10)
         guard characterBounds.width > 0, characterBounds.height > 0,
               let endpointRectInView = viewRect(for: characterBounds, on: page) else { return }
 
