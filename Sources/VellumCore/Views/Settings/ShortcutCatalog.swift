@@ -119,8 +119,10 @@ enum ShortcutCatalog {
             items: [
                 ShortcutItem(keys: ["s"], action: "Type a visible word prefix, then its label to select"),
                 ShortcutItem(keys: ["o"], action: "Switch the selection endpoint being adjusted"),
+                ShortcutItem(keys: ["gv"], action: "Restore the last text selection"),
                 ShortcutItem(keys: ["h", "j", "k", "l"], action: "Move selection endpoint"),
                 ShortcutItem(keys: ["w", "b", "e"], action: "Move by word"),
+                ShortcutItem(keys: ["^", "$"], action: "Move to first text / end of visual line"),
                 ShortcutItem(keys: ["3w", "3j"], action: "Repeat a selection motion with a count"),
                 ShortcutItem(keys: ["Esc"], action: "Clear text selection")
             ]
@@ -262,8 +264,10 @@ enum ShortcutCatalog {
             items: [
                 ShortcutItem(keys: ["s"], action: "输入可见单词的开头，再按标签选中"),
                 ShortcutItem(keys: ["o"], action: "切换正在调整的选区端点"),
+                ShortcutItem(keys: ["gv"], action: "恢复上次文本选区"),
                 ShortcutItem(keys: ["h", "j", "k", "l"], action: "移动选择端点"),
                 ShortcutItem(keys: ["w", "b", "e"], action: "按单词移动"),
+                ShortcutItem(keys: ["^", "$"], action: "移到视觉行首个文字／行尾"),
                 ShortcutItem(keys: ["3w", "3j"], action: "按次数调整选区"),
                 ShortcutItem(keys: ["Esc"], action: "清除文本选择")
             ]

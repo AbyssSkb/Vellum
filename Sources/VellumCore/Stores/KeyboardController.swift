@@ -149,7 +149,7 @@ final class KeyboardController {
         }
 
         if event.type == .keyDown, !vimInput.state.numericPrefix.isEmpty,
-           key != "H", key != "L", ["h", "j", "k", "l", "w", "b", "e"].contains(key.lowercased()),
+           key != "H", key != "L", ["h", "j", "k", "l", "w", "b", "e", "^", "$"].contains(key.lowercased()),
            let reader = delegate?.activeReaderController, reader.hasNavigableTextSelection {
             let count = vimInput.consumeRepeatCount()
             if reader.handleTextSelectionKey(key, eventType: event.type, count: count) {

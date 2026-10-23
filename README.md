@@ -38,7 +38,7 @@ Revisit highlights with `gn` / `gN`, or use `M` to search highlighted text and p
 
 ![Search matches with a compact query field and result counter](docs/images/vellum-search.png)
 
-Press `s`, type the beginning of a visible word, then type its letter label to select the whole word. Refine the selection with Vim motions; `o` switches which endpoint they adjust without changing the selected text. Copy with `y` or highlight with `m`. Labels adapt to the displayed text size and stay in place as you enter a multi-letter label.
+Press `s`, type the beginning of a visible word, then type its letter label to select the whole word. Refine the selection with Vim motions; a thin caret marks the endpoint being adjusted, and `o` switches to the other end. Use `^` / `$` to reach the first text / end of the visual line. Copy with `y` or highlight with `m`, then use `gv` to restore the last selection. Labels adapt to the displayed text size and stay in place as you enter a multi-letter label.
 
 ![Visible words highlighted with letter labels for keyboard selection](docs/images/vellum-word-jump.png)
 
@@ -67,6 +67,8 @@ AI assistance is optional and experimental. See the [user guide](docs/USER_GUIDE
 | `/` / `*`, `n` / `N` | Search a query / selected text; next / previous match |
 | `s` | Type a visible word prefix and its label to select |
 | `o` with text selected | Switch the endpoint adjusted by selection motions |
+| `^` / `$` with text selected | First text / end of visual line |
+| `gv` | Restore the last text selection |
 | `F` | Label and follow visible PDF links |
 | `m`, `c`, `y` | Highlight, change highlight color, copy |
 | `M`, `gn` / `gN` | Search highlights; next / previous highlight |

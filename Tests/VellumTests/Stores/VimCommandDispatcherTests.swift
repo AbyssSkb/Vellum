@@ -55,6 +55,7 @@ struct VimCommandDispatcherTests {
         dispatcher.perform(.beginLinkJump, on: target)
         dispatcher.perform(.searchNext, on: target)
         dispatcher.perform(.searchPrevious, on: target)
+        dispatcher.perform(.restoreTextSelection, on: target)
         dispatcher.perform(.materializeSearchSelection, on: target)
 
         let expectedActions: [RecordingVimCommandTarget.Action] = [
@@ -79,6 +80,7 @@ struct VimCommandDispatcherTests {
             .beginLinkJump,
             .searchNext,
             .searchPrevious,
+            .restoreTextSelection,
             .materializeSearchSelection
         ]
         #expect(target.actions == expectedActions)
@@ -238,6 +240,10 @@ private final class RecordingVimCommandTarget: VimCommandTarget {
         actions.append(.searchBy(delta))
     }
 
+    func restoreTextSelection() {
+        actions.append(.restoreTextSelection)
+    }
+
     func materializeSearchSelection() {
         actions.append(.materializeSearchSelection)
     }
@@ -320,6 +326,7 @@ private final class RecordingVimCommandTarget: VimCommandTarget {
         case searchNext
         case searchPrevious
         case searchBy(Int)
+        case restoreTextSelection
         case materializeSearchSelection
         case toggleOutline
         case copySelection

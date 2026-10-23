@@ -305,6 +305,7 @@ extension VellumPDFView {
         let overlay = AIFloatingOverlayContainerView(contentView: hostingView)
         overlay.frame = floatingOverlayFrame(for: size)
         addSubview(overlay)
+        selectionEndpointOverlay?.isHidden = true
 
         if focusWhenReady {
             let expectedResponder = window?.firstResponder
@@ -471,6 +472,7 @@ extension VellumPDFView {
         aiInteraction.activeWebView?.stopPronunciation()
         aiInteraction.clearActiveRequest()
         aiInteraction.clearPopoverState()
+        updateSelectionEndpointOverlay()
     }
 
     func dismissHoverAIExplanation(suppressCurrent: Bool) {

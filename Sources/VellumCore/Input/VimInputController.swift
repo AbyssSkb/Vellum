@@ -103,6 +103,8 @@ struct VimInputController {
                 return .command(.nextTab)
             case "T":
                 return .command(.previousTab)
+            case "v":
+                return .command(.restoreTextSelection)
             case "n":
                 return .command(.nextHighlight)
             case "N":

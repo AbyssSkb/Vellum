@@ -1,6 +1,57 @@
 @preconcurrency import AppKit
 import PDFKit
 extension VellumPDFView {
+    func lineBoundarySelectionCaret(
+        from extentCaret: VimTextCaret?,
+        fallbackExtentOffset: Int,
+        anchorOffset: Int,
+        moveToEnd: Bool,
+        pageStarts: [Int]
+    ) -> VimTextCaret? {
+        guard let document, let totalLength = pageStarts.last, totalLength > 0 else { return nil }
+        let activeOffset = activeCharacterOffset(
+            extentOffset: fallbackExtentOffset,
+            anchorOffset: anchorOffset,
+            totalLength: totalLength
+        )
+        let activeCaret = extentCaret ?? textCaret(
+            atInsertionOffset: fallbackExtentOffset,
+            preferTrailingEdge: fallbackExtentOffset >= anchorOffset,
+            pageStarts: pageStarts
+        )
+        guard let pageIndex = activeCaret?.pageIndex ?? pageIndex(containing: activeOffset, pageStarts: pageStarts),
+              let page = document.page(at: pageIndex) else { return nil }
+        let lines = textLines(onPageAt: pageIndex, pageStarts: pageStarts)
+        guard let lineIndex = lineIndex(for: activeCaret, fallbackOffset: activeOffset, in: lines) else { return nil }
+        let line = lines[lineIndex]
+        guard let text = textSelectionCache.text(on: page, in: document) else { return nil }
+        // PDFKit can insert a space whose bounds span the entire column gutter.
+        let segments = splitVisualLineSegments(line.characters.filter {
+            TextWordNavigator.characterClass(at: $0.globalOffset - pageStarts[pageIndex], in: text) != .whitespace
+        })
+        let activeX = activeCaret?.point.x ?? characterCenterX(globalOffset: activeOffset, pageStarts: pageStarts)
+        let segment = segments.first(where: { $0.contains { $0.globalOffset == activeOffset } }) ?? segments.min {
+            max(($0.first?.minX ?? activeX) - activeX, activeX - ($0.last?.maxX ?? activeX), 0)
+                < max(($1.first?.minX ?? activeX) - activeX, activeX - ($1.last?.maxX ?? activeX), 0)
+        }
+        guard let first = segment?.first, let last = segment?.last,
+              let firstSlot = line.characters.firstIndex(where: { $0.globalOffset == first.globalOffset }),
+              let lastSlot = line.characters.lastIndex(where: { $0.globalOffset == last.globalOffset }) else { return nil }
+        let slot: Int
+        if moveToEnd {
+            slot = segments.count > 1 ? lastSlot + 1 : line.characters.count
+        } else {
+            slot = firstSlot
+        }
+        return VimTextCaret(
+            offset: offsetForSlot(slot, in: line),
+            pageIndex: pageIndex,
+            slotIndex: slot,
+            point: pointForSlot(slot, in: line),
+            lineMidY: line.midY
+        )
+    }
+
     func verticalSelectionCaret(
         from extentCaret: VimTextCaret?,
         fallbackExtentOffset: Int,

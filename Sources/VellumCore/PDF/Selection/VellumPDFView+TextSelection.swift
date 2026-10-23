@@ -21,7 +21,7 @@ extension VellumPDFView {
     @discardableResult
     func vimNavigateTextSelection(_ key: String, count: Int = 1) -> Bool {
         let key = key.lowercased()
-        guard ["h", "j", "k", "l", "w", "b", "e"].contains(key),
+        guard ["h", "j", "k", "l", "w", "b", "e", "^", "$"].contains(key),
               let document,
               hasNavigableTextSelection else {
             return false
@@ -31,10 +31,11 @@ extension VellumPDFView {
         guard let totalLength = pageStarts.last, totalLength > 0 else { return false }
 
         guard var state = textSelectionState(pageStarts: pageStarts) else { return false }
-        let useVisualSelection = key == "j" || key == "k"
+        let isLineBoundary = key == "^" || key == "$"
+        let useVisualSelection = key == "j" || key == "k" || isLineBoundary
         var scrollCaretAfterSelection: VimTextCaret?
         var didMove = false
-        for _ in 0..<min(max(count, 1), VimInputController.maximumRepeatCount) {
+        for _ in 0..<(isLineBoundary ? 1 : min(max(count, 1), VimInputController.maximumRepeatCount)) {
             var nextExtent: Int?
             var nextExtentCaret: VimTextCaret?
             var movementDirection = 0
@@ -74,6 +75,16 @@ extension VellumPDFView {
                 nextExtentCaret = verticalMove?.caret
                 state.preferredX = verticalMove?.preferredX ?? state.preferredX
                 movementDirection = key == "j" ? 1 : -1
+            case "^", "$":
+                nextExtentCaret = lineBoundarySelectionCaret(
+                    from: state.extentCaret,
+                    fallbackExtentOffset: state.extentOffset,
+                    anchorOffset: state.anchorOffset,
+                    moveToEnd: key == "$",
+                    pageStarts: pageStarts
+                )
+                nextExtent = nextExtentCaret?.offset
+                state.preferredX = nil
             default:
                 return false
             }
@@ -86,6 +97,7 @@ extension VellumPDFView {
             if useVisualSelection {
                 guard nextExtentCaret != nil,
                       !sameVisualCaret(nextExtentCaret, state.anchorCaret) else { break }
+                if isLineBoundary, extent == state.anchorOffset { break }
             } else {
                 guard extent != state.anchorOffset else { break }
             }
@@ -131,7 +143,7 @@ extension VellumPDFView {
         return true
     }
 
-    private func textSelectionState(pageStarts: [Int]) -> VimTextSelectionNavigationState? {
+    func textSelectionState(pageStarts: [Int]) -> VimTextSelectionNavigationState? {
         if let textSelectionNavigationState { return textSelectionNavigationState }
         guard let range = currentSelectionCharacterRange(pageStarts: pageStarts) else { return nil }
         let state = VimTextSelectionNavigationState(

@@ -34,7 +34,7 @@ enum VimKeyMap {
             return true
         case "S":
             return false
-        case "w", "e":
+        case "w", "e", "^", "$":
             return hasNavigableTextSelection
         default:
             let lowered = key.lowercased()

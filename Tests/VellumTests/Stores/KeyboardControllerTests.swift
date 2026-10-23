@@ -9,6 +9,20 @@ struct KeyboardControllerTests {
     private let notificationCenter = NotificationCenter()
 
     @Test
+    func restoreSelectionSequenceDoesNotMaterializeSearchOnRepeat() {
+        let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
+        let delegate = RecordingKeyboardDelegate()
+        controller.delegate = delegate
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "g", keyCode: 5)))
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "v", keyCode: 9)))
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "v", keyCode: 9, isRepeat: true)))
+        #expect(controller.handleKeyEvent(keyEvent(.keyUp, key: "v", keyCode: 9)))
+        #expect(delegate.commands == [.restoreTextSelection])
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "v", keyCode: 9)))
+        #expect(delegate.commands == [.restoreTextSelection, .materializeSearchSelection])
+    }
+
+    @Test
     func selectionEndpointSwapRunsOnceAndClearsPendingCounts() {
         let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
         let delegate = RecordingKeyboardDelegate()
@@ -91,7 +105,7 @@ struct KeyboardControllerTests {
         #expect(!delegate.reader.isWordJumpActive)
     }
 
-    @Test(arguments: ["h", "j", "k", "l", "w", "b", "e"])
+    @Test(arguments: ["h", "j", "k", "l", "w", "b", "e", "^", "$"])
     func selectionMotionsConsumeTheCountInOneReaderCall(key: String) {
         let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
         let delegate = RecordingKeyboardDelegate()
@@ -1402,6 +1416,8 @@ private final class RecordingKeyboardReaderController: ReaderController {
     func vimSearchNext() {}
 
     func vimSearchPrevious() {}
+
+    func vimRestoreTextSelection() {}
 
     func vimMaterializeSearchSelection() {}
 

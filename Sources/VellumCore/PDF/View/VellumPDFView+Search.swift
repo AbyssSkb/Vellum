@@ -610,8 +610,9 @@ final class PDFSearchController {
         shouldCommitAfterSearch = false
     }
 
-    private func hideMatches() {
+    func hideMatches() {
         cancelScheduledSearch()
+        isSearchPending = false
         searchGeneration += 1
         areMatchesVisible = false
         pendingSearchJumpSource = nil

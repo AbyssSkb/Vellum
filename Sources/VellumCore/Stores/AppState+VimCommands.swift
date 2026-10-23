@@ -65,6 +65,10 @@ extension AppState: VimCommandTarget {
         activeReaderController?.vimSearchBy(delta)
     }
 
+    func restoreTextSelection() {
+        activeReaderController?.vimRestoreTextSelection()
+    }
+
     func materializeSearchSelection() {
         activeReaderController?.vimMaterializeSearchSelection()
     }

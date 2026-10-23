@@ -135,9 +135,13 @@ Press `/`, type a query, and press `Enter`. Matches stay highlighted after leavi
 | `v` | Turn the active match into a text selection |
 | `y` | Copy selected text or the active search match |
 | `o` with text selected | Switch the endpoint adjusted by selection motions |
+| `^` / `$` with text selected | Move the endpoint to the first nonblank character / end of the visual line |
+| `gv` | Restore the last text selection and its active endpoint |
 | `Esc` | Leave search or clear its visible state |
 
-Select text with the pointer, or use `v` on a search result. With text selected, `h` / `l` adjusts the selection endpoint horizontally, `j` / `k` moves it by visual line, and `w` / `b` / `e` moves it by word. Press `o` to switch to adjusting the other end without changing the selected range. Press `Esc` to clear the selection and resume normal page movement.
+Select text with the pointer, or use `v` on a search result. With text selected, `h` / `l` adjusts the selection endpoint horizontally, `j` / `k` moves it by visual line, and `w` / `b` / `e` moves it by word. A thin caret marks the active endpoint. Press `o` to switch to adjusting the other end without changing the selected range. Use `^` for the first nonblank character of that visual line and `$` for its end; these two motions ignore counts. `0` continues to fit the whole page. Press `Esc` to clear the selection and resume normal page movement.
+
+Press `gv` to restore the last nonempty text selection after clearing it, highlighting it, or searching it with `*`. The original range and active endpoint return, ready for further adjustment. Each open document remembers its own selection; closing or reloading the document clears this memory.
 
 Press `*` to search a selected word or phrase without opening the search field. Search ignores case and treats punctuation literally. Matches stay within a single PDF page, so a phrase spanning pages will not match. The source selection clears so page motions resume; use `n` / `N` to move through matches and `v` to select the current one. With no selected text, a brief notification explains why search cannot start.
 

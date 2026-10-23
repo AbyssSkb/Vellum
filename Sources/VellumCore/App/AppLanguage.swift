@@ -245,6 +245,7 @@ public enum AppText {
     case noHighlightsInSelection
     case noTextToCopy
     case noTextToSearch
+    case noPreviousTextSelection
     case textCopied
     case textCopyFailed
     case noSearchQuery
@@ -540,6 +541,7 @@ public extension AppText {
         case .noHighlightsInSelection: return "The selected area contains no highlights"
         case .noTextToCopy: return "There is no text to copy"
         case .noTextToSearch: return "No text is selected, so a search cannot be started"
+        case .noPreviousTextSelection: return "There is no previous text selection in this document"
         case .textCopied: return "Selected text copied"
         case .textCopyFailed: return "The clipboard could not accept the selected text"
         case .noSearchQuery: return "There is no current search query"
@@ -826,6 +828,7 @@ public extension AppText {
         case .noHighlightsInSelection: return "所选范围内没有高亮"
         case .noTextToCopy: return "当前没有可复制的文字"
         case .noTextToSearch: return "未选中文字，无法搜索"
+        case .noPreviousTextSelection: return "当前文档没有可恢复的选区"
         case .textCopied: return "已复制所选文字"
         case .textCopyFailed: return "剪贴板无法写入所选文字"
         case .noSearchQuery: return "当前没有搜索词"

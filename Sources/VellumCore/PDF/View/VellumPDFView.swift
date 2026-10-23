@@ -49,7 +49,7 @@ private final class MouseTextSelectionCachedLines {
 }
 
 final class VellumPDFView: PDFView {
-    static let textSelectionNavigationKeys: Set<String> = ["h", "j", "k", "l", "w", "b", "e"]
+    static let textSelectionNavigationKeys: Set<String> = ["h", "j", "k", "l", "w", "b", "e", "^", "$"]
 
     weak var appState: AppState?
     var saveBeforeDismantle: (() -> Void)?
@@ -60,7 +60,9 @@ final class VellumPDFView: PDFView {
     var pendingActivationSnapshot: ReaderSnapshot?
     var explanationTrackingArea: NSTrackingArea?
     let aiInteraction = AIInteractionState()
-    var isMouseSelectingText = false
+    var isMouseSelectingText = false {
+        didSet { updateSelectionEndpointOverlay() }
+    }
     var scrollBoundsObserver: NSObjectProtocol?
     var nativeScrollStartObserver: NSObjectProtocol?
     var nativeScrollEndObserver: NSObjectProtocol?
@@ -76,7 +78,15 @@ final class VellumPDFView: PDFView {
     var didDragDuringCurrentMouseSequence = false
     var didCompleteInitialPointerInteraction = false
     var pendingRestoreAction: PendingRestoreAction?
-    var textSelectionNavigationState: VimTextSelectionNavigationState?
+    var textSelectionNavigationState: VimTextSelectionNavigationState? {
+        didSet {
+            if textSelectionNavigationState != nil { rememberTextSelection() }
+            updateSelectionEndpointOverlay()
+        }
+    }
+    var savedTextSelection: SavedTextSelection?
+    var selectionEndpointOverlay: SelectionEndpointOverlay?
+    private var textSelectionObservers: [NSObjectProtocol] = []
     let textSelectionCache = PDFTextSelectionCache()
     private weak var mouseTextSelectionCacheDocument: PDFDocument?
     private let mouseTextSelectionLineCache: NSCache<NSNumber, MouseTextSelectionCachedLines> = {
@@ -85,7 +95,9 @@ final class VellumPDFView: PDFView {
         cache.totalCostLimit = 8 * 1024 * 1024
         return cache
     }()
-    var pageOverviewController: PageOverviewController?
+    var pageOverviewController: PageOverviewController? {
+        didSet { updateSelectionEndpointOverlay() }
+    }
     var finishingPageOverviewGeneration: Int?
     var searchController: PDFSearchController?
     var wordJumpController: PDFWordJumpController?
@@ -93,7 +105,26 @@ final class VellumPDFView: PDFView {
 
     override var acceptsFirstResponder: Bool { true }
 
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        observeTextSelection()
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        observeTextSelection()
+    }
+
+    override func becomeFirstResponder() -> Bool {
+        let accepted = super.becomeFirstResponder()
+        if accepted {
+            DispatchQueue.main.async { [weak self] in self?.updateSelectionEndpointOverlay() }
+        }
+        return accepted
+    }
+
     deinit {
+        textSelectionObservers.forEach(NotificationCenter.default.removeObserver)
         if let scrollBoundsObserver {
             NotificationCenter.default.removeObserver(scrollBoundsObserver)
         }
@@ -105,6 +136,31 @@ final class VellumPDFView: PDFView {
         }
         readerStateSaveWorkItem?.cancel()
         readingPositionReportWorkItem?.cancel()
+    }
+
+    private func observeTextSelection() {
+        textSelectionObservers = [Notification.Name.PDFViewSelectionChanged, .PDFViewDocumentChanged,
+                                  .PDFViewScaleChanged, .PDFViewVisiblePagesChanged].map { name in
+            NotificationCenter.default.addObserver(forName: name, object: self, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    if name == .PDFViewDocumentChanged {
+                        self.savedTextSelection = nil
+                        self.textSelectionNavigationState = nil
+                    } else if name == .PDFViewSelectionChanged {
+                        self.textSelectionNavigationState = nil
+                        if let document = self.document,
+                           let selection = self.currentSelection,
+                           selection.string?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false,
+                           selection.pages.allSatisfy({ $0.document === document }) {
+                            _ = self.textSelectionState(pageStarts: self.textPageStarts(in: document))
+                            self.rememberTextSelection()
+                        }
+                    }
+                    self.updateSelectionEndpointOverlay()
+                }
+            }
+        }
     }
 
     var isAIInteractionActive: Bool {
@@ -220,6 +276,7 @@ final class VellumPDFView: PDFView {
         wordJumpController?.cancelIfViewportChanged()
         configurePDFScrollersIfNeeded()
         updateAIFloatingOverlayFrames()
+        updateSelectionEndpointOverlay()
         scheduleReadingPositionReport()
     }
 
@@ -233,6 +290,7 @@ final class VellumPDFView: PDFView {
               appState?.hasBlockingReaderPresentation != true, let window else { return }
         appState?.recordReadingFocusIntent(outline: false)
         window.makeFirstResponder(self)
+        updateSelectionEndpointOverlay()
     }
 
     override func resignFirstResponder() -> Bool {
@@ -240,6 +298,7 @@ final class VellumPDFView: PDFView {
         if resigned {
             cancelWordJump()
             appState?.keyboardController.cancelInput()
+            selectionEndpointOverlay?.isHidden = true
         }
         return resigned
     }
@@ -552,6 +611,7 @@ final class VellumPDFView: PDFView {
                     && (self.animationState.scrollTargetOrigin != nil
                         || event?.type == .scrollWheel || draggingContent)
                 self.searchController?.refreshVisibleMatches()
+                self.updateSelectionEndpointOverlay()
                 self.scheduleReaderStateSave()
                 self.scheduleReadingPositionReport(userNavigated: moved && userScrolling)
             }

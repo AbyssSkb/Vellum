@@ -40,6 +40,7 @@ protocol ReaderController: AnyObject {
     func vimSearchNext()
     func vimSearchPrevious()
     func vimSearchBy(_ delta: Int)
+    func vimRestoreTextSelection()
     func vimMaterializeSearchSelection()
     func vimCopySelection()
     func vimHighlightSelection(color: NSColor)

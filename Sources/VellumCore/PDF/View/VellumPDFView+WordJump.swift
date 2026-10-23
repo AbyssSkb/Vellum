@@ -13,18 +13,24 @@ extension VellumPDFView {
     func beginWordJumpCommand() {
         if wordJumpController == nil { wordJumpController = PDFWordJumpController(pdfView: self) }
         wordJumpController?.begin()
+        updateSelectionEndpointOverlay()
     }
 
     func beginLinkJumpCommand() {
         if wordJumpController == nil { wordJumpController = PDFWordJumpController(pdfView: self) }
         wordJumpController?.begin(links: true)
+        updateSelectionEndpointOverlay()
     }
 
     func handleWordJumpKey(_ event: NSEvent) -> Bool {
-        wordJumpController?.handleKey(event) ?? false
+        defer { updateSelectionEndpointOverlay() }
+        return wordJumpController?.handleKey(event) ?? false
     }
 
-    func cancelWordJump() { wordJumpController?.cancel() }
+    func cancelWordJump() {
+        wordJumpController?.cancel()
+        updateSelectionEndpointOverlay()
+    }
 }
 
 struct PDFWordJumpTarget {

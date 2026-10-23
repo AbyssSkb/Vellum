@@ -4,6 +4,18 @@ import Testing
 @Suite("Vim input controller")
 struct VimInputControllerTests {
     @Test
+    func restoreSelectionConsumesThePrefixAndIgnoresHeldRepeats() {
+        var input = VimInputController()
+        _ = input.handleKey("3")
+        #expect(input.handleKey("g") == .handled)
+        #expect(input.handleKeyDown("v", isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .command(.restoreTextSelection))
+        #expect(input.state.numericPrefix.isEmpty)
+        #expect(input.state.pendingKey == nil)
+        #expect(input.handleKeyDown("v", isRepeat: true, hasNavigableTextSelection: false, hasTextActionTarget: false) == .handled)
+        #expect(input.handleKey("v") == .command(.materializeSearchSelection))
+    }
+
+    @Test
     func numericPrefixRejectsLeadingZeroAndConsumesValue() {
         var state = VimKeyState()
 

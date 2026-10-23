@@ -23,10 +23,10 @@ struct VimKeyMapTests {
         #expect(VimKeyMap.continuousCommand(for: key) == command)
     }
 
-    @Test
-    func wordMotionKeysDependOnNavigableSelection() {
-        #expect(!VimKeyMap.isHandledKey("w", hasNavigableTextSelection: false, hasTextActionTarget: true))
-        #expect(VimKeyMap.isHandledKey("w", hasNavigableTextSelection: true, hasTextActionTarget: true))
+    @Test(arguments: ["w", "e", "^", "$"])
+    func selectionMotionKeysDependOnNavigableSelection(key: String) {
+        #expect(!VimKeyMap.isHandledKey(key, hasNavigableTextSelection: false, hasTextActionTarget: true))
+        #expect(VimKeyMap.isHandledKey(key, hasNavigableTextSelection: true, hasTextActionTarget: true))
     }
 
     @Test

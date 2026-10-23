@@ -67,6 +67,8 @@ struct VimCommandDispatcher {
             if count == 1 { target.searchNext() } else { target.searchBy(count) }
         case .searchPrevious:
             if count == 1 { target.searchPrevious() } else { target.searchBy(-count) }
+        case .restoreTextSelection:
+            target.restoreTextSelection()
         case .materializeSearchSelection:
             target.materializeSearchSelection()
         case .toggleOutline:
@@ -126,6 +128,7 @@ protocol VimCommandTarget {
     func searchNext()
     func searchPrevious()
     func searchBy(_ delta: Int)
+    func restoreTextSelection()
     func materializeSearchSelection()
     func toggleOutlineSidebar()
     func copySelection()

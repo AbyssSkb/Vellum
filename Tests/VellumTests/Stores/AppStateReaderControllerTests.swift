@@ -31,6 +31,7 @@ struct AppStateReaderControllerTests {
         appState.searchNext()
         appState.searchPrevious()
         appState.searchBy(3)
+        appState.restoreTextSelection()
         appState.materializeSearchSelection()
         appState.copySelection()
         appState.highlightSelection()
@@ -55,6 +56,7 @@ struct AppStateReaderControllerTests {
             .searchNext,
             .searchPrevious,
             .searchBy(3),
+            .restoreTextSelection,
             .materializeSearchSelection,
             .copySelection,
             .highlightSelection,
@@ -504,6 +506,10 @@ private final class RecordingReaderController: ReaderController {
         actions.append(.searchBy(delta))
     }
 
+    func vimRestoreTextSelection() {
+        actions.append(.restoreTextSelection)
+    }
+
     func vimMaterializeSearchSelection() {
         actions.append(.materializeSearchSelection)
     }
@@ -556,6 +562,7 @@ private final class RecordingReaderController: ReaderController {
         case searchNext
         case searchPrevious
         case searchBy(Int)
+        case restoreTextSelection
         case materializeSearchSelection
         case copySelection
         case highlightSelection
