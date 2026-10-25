@@ -69,17 +69,21 @@ struct PDFQuickOpenInteractionTests {
         let scrollView = try #require(fixture.resultsScrollView())
         let resultsHeight = scrollView.bounds.height
 
-        editor.insertText("D", replacementRange: editor.selectedRange())
-        try await waitForTestCondition("Typing did not start matching") {
-            fixture.state.pdfQuickOpenSearch.query == "D" && fixture.state.pdfQuickOpenSearch.isSearching
+        var typedQuery = ""
+        for character in "DeepSeek-V2.pdf" {
+            typedQuery.append(character)
+            editor.insertText(String(character), replacementRange: editor.selectedRange())
+            try await waitForTestCondition("Typing did not start matching") {
+                fixture.state.pdfQuickOpenSearch.query == typedQuery && fixture.state.pdfQuickOpenSearch.isSearching
+            }
+            await nextTestMainQueueTurn()
+            fixture.host.layoutSubtreeIfNeeded()
+            #expect(field.convert(field.bounds, to: nil) == fieldFrame)
+            #expect(scrollView.bounds.height == resultsHeight)
+            #expect(fixture.window.firstResponder === editor)
+            #expect(editor.selectedRange() == NSRange(location: typedQuery.utf16.count, length: 0))
+            #expect(try await fixture.readyField() === field)
         }
-        await nextTestMainQueueTurn()
-        fixture.host.layoutSubtreeIfNeeded()
-        #expect(field.convert(field.bounds, to: nil) == fieldFrame)
-        #expect(scrollView.bounds.height == resultsHeight)
-        #expect(fixture.window.firstResponder === editor)
-        #expect(editor.selectedRange() == NSRange(location: 1, length: 0))
-        #expect(try await fixture.readyField() === field)
 
         try await waitForTestCondition("Matching did not finish") { !fixture.state.pdfQuickOpenSearch.isSearching }
         await nextTestMainQueueTurn()
@@ -88,7 +92,7 @@ struct PDFQuickOpenInteractionTests {
         #expect(field.convert(field.bounds, to: nil) == fieldFrame)
         #expect(scrollView.bounds.height == resultsHeight)
         #expect(fixture.window.firstResponder === editor)
-        #expect(editor.selectedRange() == NSRange(location: 1, length: 0))
+        #expect(editor.selectedRange() == NSRange(location: typedQuery.utf16.count, length: 0))
 
         editor.setMarkedText("深", selectedRange: NSRange(location: 1, length: 0),
                              replacementRange: NSRange(location: NSNotFound, length: 0))

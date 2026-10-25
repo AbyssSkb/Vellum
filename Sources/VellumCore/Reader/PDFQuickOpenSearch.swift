@@ -8,20 +8,6 @@ enum PDFQuickOpenFailure: Error, Equatable {
     case matchingFailed(String)
 }
 
-enum PDFQuickOpenFolder: CaseIterable, Hashable, Sendable {
-    case documents, downloads, desktop
-
-    var url: URL {
-        let directory: String
-        switch self {
-        case .documents: directory = "Documents"
-        case .downloads: directory = "Downloads"
-        case .desktop: directory = "Desktop"
-        }
-        return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(directory, isDirectory: true)
-    }
-}
-
 @MainActor
 final class PDFQuickOpenSearch: ObservableObject {
     @Published var query = "" {
@@ -33,26 +19,39 @@ final class PDFQuickOpenSearch: ObservableObject {
     @Published private(set) var isLoading = true
     @Published private(set) var isSearching = false
     @Published private(set) var failure: PDFQuickOpenFailure?
+    @Published private(set) var hasFolderAccessFailure = false
 
     private let executableURL: URL?
-    private let folderAccess: @Sendable (URL) throws -> Void
+    private let folderAccess: (@Sendable (URL) throws -> Void)?
     private var snapshot = PDFQuickOpenSnapshot(paths: [])
     private var index: PDFQuickOpenFileIndex?
-    private var hasStartedIndexing = false
+    private(set) var hasStartedIndexing = false
+    private var hasFinishedFolderAccess = false
     private var isActive = false
     private var generation = 0
     private var matchingTask: Task<Void, Never>?
     private var matchingProcess: PDFQuickOpenMatchProcess?
+    // shortcut: external permission changes require relaunch; retry on activation if live recovery is needed.
+    private var hasRequestedFolderAccess = false
+    private var folderAccessTask: Task<Void, Never>?
 
     init(
         executableURL: URL? = PDFQuickOpenMatchProcess.findExecutable(),
         initialPaths: [URL]? = nil,
-        folderAccess: @escaping @Sendable (URL) throws -> Void = { directory in
-            _ = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
-        }
+        folderAccess: (@Sendable (URL) throws -> Void)? = nil
     ) {
         self.executableURL = executableURL
-        self.folderAccess = folderAccess
+        if let folderAccess {
+            self.folderAccess = folderAccess
+        } else if initialPaths == nil {
+            self.folderAccess = { directory in
+                var isDirectory: ObjCBool = false
+                guard FileManager.default.fileExists(atPath: directory.path, isDirectory: &isDirectory), isDirectory.boolValue else { return }
+                _ = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
+            }
+        } else {
+            self.folderAccess = nil
+        }
         if let initialPaths {
             snapshot = PDFQuickOpenSnapshot(paths: initialPaths)
             isLoading = false
@@ -64,11 +63,14 @@ final class PDFQuickOpenSearch: ObservableObject {
         index?.stop()
         matchingTask?.cancel()
         matchingProcess?.cancel()
+        folderAccessTask?.cancel()
     }
 
     func startIndexing() {
-        guard !hasStartedIndexing else { return }
+        // Queries started before consent can keep a restricted result set.
+        guard hasFinishedFolderAccess, !hasStartedIndexing else { return }
         hasStartedIndexing = true
+        isLoading = true
         let index = PDFQuickOpenFileIndex { [weak self] snapshot, isGathering in
             guard let self else { return }
             self.isLoading = isGathering
@@ -90,6 +92,7 @@ final class PDFQuickOpenSearch: ObservableObject {
         isActive = true
         startIndexing()
         refreshResults()
+        requestFolderAccessIfNeeded()
     }
 
     func endSearching() {
@@ -98,20 +101,33 @@ final class PDFQuickOpenSearch: ObservableObject {
         results = []
     }
 
-    func requestFolderAccess(_ folder: PDFQuickOpenFolder) async throws {
-        let directory = folder.url
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
-            DispatchQueue.global(qos: .utility).async { [folderAccess] in
-                do {
-                    try folderAccess(directory)
-                    continuation.resume()
-                } catch {
-                    continuation.resume(throwing: error)
+    private func requestFolderAccessIfNeeded() {
+        guard !hasRequestedFolderAccess, executableURL != nil, let folderAccess else { return }
+        hasRequestedFolderAccess = true
+        folderAccessTask = Task { [weak self] in
+            for folderName in ["Documents", "Downloads", "Desktop"] {
+                guard !Task.isCancelled else { return }
+                let directory = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(folderName, isDirectory: true)
+                let granted = await withCheckedContinuation { continuation in
+                    DispatchQueue.global(qos: .utility).async {
+                        do {
+                            try folderAccess(directory)
+                            continuation.resume(returning: true)
+                        } catch {
+                            continuation.resume(returning: false)
+                        }
+                    }
+                }
+                guard let self, !Task.isCancelled else { return }
+                if !granted {
+                    self.hasFolderAccessFailure = true
                 }
             }
+            guard let self, !Task.isCancelled else { return }
+            self.hasFinishedFolderAccess = true
+            self.startIndexing()
+            self.folderAccessTask = nil
         }
-        isLoading = true
-        index?.restart()
     }
 
     private func cancelMatching() {
@@ -224,18 +240,6 @@ private final class PDFQuickOpenFileIndex: @unchecked Sendable {
             query.stop()
             observers.forEach(NotificationCenter.default.removeObserver)
             observers = []
-        }
-    }
-
-    func restart() {
-        queue.addOperation { [self] in
-            guard !stopped else { return }
-            query.stop()
-            publishedFirstBatch = false
-            isGathering = true
-            if !query.start() {
-                DispatchQueue.main.async { [onChange] in onChange(nil, false) }
-            }
         }
     }
 

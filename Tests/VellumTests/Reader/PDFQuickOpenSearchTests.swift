@@ -1,47 +1,95 @@
 import Darwin
 import Foundation
+import Synchronization
 import Testing
 @testable import VellumCore
 
 @Suite("PDF quick-open matching")
 @MainActor
 struct PDFQuickOpenSearchTests {
-    @Test(arguments: PDFQuickOpenFolder.allCases)
-    func folderAccessRefreshesOnlyAfterReadingTheSelectedHomeFolder(_ folder: PDFQuickOpenFolder) async throws {
-        let expectedName: String
-        switch folder {
-        case .documents: expectedName = "Documents"
-        case .downloads: expectedName = "Downloads"
-        case .desktop: expectedName = "Desktop"
-        }
-        let expectedURL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(expectedName, isDirectory: true)
-        let search = PDFQuickOpenSearch(initialPaths: [], folderAccess: { directory in
-            #expect(directory == expectedURL)
-            #expect(!Thread.isMainThread)
+    @Test(arguments: [false, true])
+    func nativeIndexWaitsForEveryFolderConsentOutcome(_ denyLastFolder: Bool) async throws {
+        let accesses = Mutex<[String]>([])
+        let resolveFolder = DispatchSemaphore(value: 0)
+        defer { for _ in 0..<3 { resolveFolder.signal() } }
+        let search = PDFQuickOpenSearch(executableURL: URL(fileURLWithPath: "/bin/cat"), folderAccess: { directory in
+            accesses.withLock { $0.append(directory.lastPathComponent) }
+            resolveFolder.wait()
+            if denyLastFolder, directory.lastPathComponent == "Desktop" { throw CocoaError(.fileReadNoPermission) }
         })
-        #expect(!search.isLoading)
-        try await search.requestFolderAccess(folder)
-        #expect(search.isLoading)
+        search.startIndexing()
+        #expect(!search.hasStartedIndexing)
+        #expect(accesses.withLock { $0.isEmpty })
+        search.beginSearching()
+        for folderCount in 1...3 {
+            try await waitForTestCondition("Folder \(folderCount) consent is pending") { accesses.withLock { $0.count == folderCount } }
+            #expect(!search.hasStartedIndexing)
+            #expect(search.isLoading)
+            resolveFolder.signal()
+        }
+        try await waitForTestCondition("Native indexing starts after every consent outcome") { search.hasStartedIndexing }
+        #expect(search.hasFolderAccessFailure == denyLastFolder)
+        #expect(accesses.withLock { $0 } == ["Documents", "Downloads", "Desktop"])
+        search.endSearching()
     }
 
     @Test
-    func deniedFolderAccessPreservesResultsWithoutRefreshing() async throws {
+    func firstSearchRequestsFoldersSeriallyWithoutBlockingMatchingOrRepeating() async throws {
         let fixture = try ExecutableFixture(script: "/bin/cat")
         defer { fixture.cleanup() }
         let paths = [URL(fileURLWithPath: "/tmp/DeepSeek-V2.pdf")]
-        let search = PDFQuickOpenSearch(executableURL: fixture.url, initialPaths: paths, folderAccess: { _ in
-            throw CocoaError(.fileReadNoPermission)
+        let accesses = Mutex<[URL]>([])
+        let allowFirstFolder = DispatchSemaphore(value: 0)
+        defer { allowFirstFolder.signal() }
+        let search = PDFQuickOpenSearch(executableURL: fixture.url, initialPaths: paths, folderAccess: { directory in
+            #expect(!Thread.isMainThread)
+            accesses.withLock { $0.append(directory) }
+            if directory.lastPathComponent == "Documents" { allowFirstFolder.wait() }
+        })
+        search.startIndexing()
+        #expect(accesses.withLock { $0.isEmpty })
+        search.beginSearching()
+        try await waitForTestCondition("First search requests the first folder") { accesses.withLock { $0.count == 1 } }
+        search.query = "DeepSeek"
+        try await waitForTestCondition("Matching stays responsive while folder consent is pending") { !search.isSearching }
+        #expect(search.results == paths)
+        search.endSearching()
+        search.beginSearching()
+        search.query = "DeepSeek again"
+        try await waitForTestCondition("Reopening does not repeat pending permission requests") { !search.isSearching }
+        #expect(accesses.withLock { $0.map(\.lastPathComponent) } == ["Documents"])
+        allowFirstFolder.signal()
+        try await waitForTestCondition("Remaining folders are requested after the first completes") { accesses.withLock { $0.count == 3 } }
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        #expect(accesses.withLock { $0 } == ["Documents", "Downloads", "Desktop"].map { home.appendingPathComponent($0, isDirectory: true) })
+        #expect(!search.hasFolderAccessFailure)
+        search.endSearching()
+    }
+
+    @Test
+    func deniedFolderAccessPreservesResultsAndContinuesWithoutRepeating() async throws {
+        let fixture = try ExecutableFixture(script: "/bin/cat")
+        defer { fixture.cleanup() }
+        let paths = [URL(fileURLWithPath: "/tmp/DeepSeek-V2.pdf")]
+        let accesses = Mutex<[String]>([])
+        let search = PDFQuickOpenSearch(executableURL: fixture.url, initialPaths: paths, folderAccess: { directory in
+            accesses.withLock { $0.append(directory.lastPathComponent) }
+            if directory.lastPathComponent == "Documents" { throw CocoaError(.fileReadNoPermission) }
         })
         search.beginSearching()
-        do {
-            try await search.requestFolderAccess(.documents)
-            Issue.record("Denied folder access must throw")
-        } catch let error as CocoaError {
-            #expect(error.code == .fileReadNoPermission)
+        try await waitForTestCondition("A denied folder does not prevent requests for later folders") {
+            search.hasFolderAccessFailure && accesses.withLock { $0.count == 3 }
         }
+        #expect(accesses.withLock { $0 } == ["Documents", "Downloads", "Desktop"])
         #expect(!search.isLoading)
         #expect(search.results == paths)
         #expect(search.failure == nil)
+        search.endSearching()
+        search.beginSearching()
+        search.query = "DeepSeek"
+        try await waitForTestCondition("Searching after denial still matches accessible PDFs") { !search.isSearching }
+        #expect(search.results == paths)
+        #expect(accesses.withLock { $0.count } == 3)
         search.endSearching()
     }
 

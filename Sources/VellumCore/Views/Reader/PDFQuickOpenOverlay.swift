@@ -6,20 +6,16 @@ struct PDFQuickOpenOverlay: View {
     @ObservedObject var search: PDFQuickOpenSearch
     @State private var selectedURL: URL?
     @State private var isCancelHovered = false
-    @State private var isOpenHovered = false
-    @State private var isFolderAccessHovered = false
-    @State private var isRequestingFolderAccess = false
-    @State private var folderAccessError: String?
 
     private var selection: URL? { selectedURL ?? search.results.first }
 
     private var message: String? {
-        if let folderAccessError { return folderAccessError }
         switch search.failure {
         case .fzfMissing: return language.text(.fzfRequired)
         case .indexUnavailable: return language.text(.pdfIndexUnavailable)
         case .matchingFailed(let reason): return language.text(.pdfSearchFailed(reason))
         case nil:
+            if search.hasFolderAccessFailure { return language.text(.pdfFolderAccessUnavailable) }
             if search.isLoading { return language.text(.loadingPDFFiles) }
             return search.results.isEmpty && !search.isSearching ? language.text(.noMatchingPDFFiles) : nil
         }
@@ -37,7 +33,6 @@ struct PDFQuickOpenOverlay: View {
                     VellumDivider(axis: .horizontal)
                     resultsList
                         .frame(height: max(72, min(404, geometry.size.height - 196)))
-                    footer
                 }
                 .frame(maxWidth: 680)
                 .background(VellumColors.panelColor)
@@ -82,8 +77,8 @@ struct PDFQuickOpenOverlay: View {
                 .foregroundStyle(VellumColors.mutedColor)
                 .frame(width: 40, alignment: .trailing)
             Button { appState.hidePDFQuickOpen() } label: {
-                Text("Esc")
-                    .font(.system(size: 10, design: .monospaced))
+                Image(systemName: "xmark")
+                    .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(isCancelHovered ? VellumColors.foregroundColor : VellumColors.mutedColor)
                     .frame(width: 32, height: 28)
                     .background(isCancelHovered ? VellumColors.panelElevatedColor : VellumColors.panelColor,
@@ -105,10 +100,11 @@ struct PDFQuickOpenOverlay: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(spacing: 2) {
-                    if search.results.isEmpty, let message {
+                    if let message {
                         Text(message)
                             .font(.system(size: 13))
-                            .foregroundStyle(VellumColors.mutedColor)
+                            .foregroundStyle(search.failure != nil || search.hasFolderAccessFailure
+                                             ? VellumColors.redColor : VellumColors.mutedColor)
                             .fixedSize(horizontal: false, vertical: true)
                             .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
                             .padding(.horizontal, 12)
@@ -130,78 +126,10 @@ struct PDFQuickOpenOverlay: View {
         }
     }
 
-    private var footer: some View {
-        HStack(spacing: 12) {
-            Text(search.results.isEmpty ? language.text(.pdfQuickOpenHint)
-                 : message ?? language.text(.pdfQuickOpenHint))
-                .font(.system(size: 11))
-                .foregroundStyle(VellumColors.mutedColor)
-                .fixedSize(horizontal: false, vertical: true)
-            Spacer(minLength: 0)
-            Menu {
-                ForEach(PDFQuickOpenFolder.allCases, id: \.self) { folder in
-                    Button(folderTitle(folder)) { requestFolderAccess(folder) }
-                }
-            } label: {
-                Text(language.text(.pdfFolderAccess))
-                    .font(.system(size: 11))
-                    .foregroundStyle(VellumColors.blueColor)
-                    .padding(.horizontal, 8)
-                    .frame(minHeight: 28)
-                    .background(isFolderAccessHovered ? VellumColors.panelElevatedColor : .clear,
-                                in: RoundedRectangle(cornerRadius: 4))
-                    .contentShape(Rectangle())
-            }
-            .menuStyle(.borderlessButton)
-            .menuIndicator(.hidden)
-            .fixedSize()
-            .disabled(isRequestingFolderAccess)
-            .onHover { isFolderAccessHovered = $0 }
-            Button {
-                appState.hidePDFQuickOpen()
-                appState.openPanel(mode: AppPreferences.defaultPDFOpenMode())
-            } label: {
-                Text(language.text(.openMenu))
-                    .foregroundStyle(VellumColors.blueColor)
-                    .padding(.horizontal, 8)
-                    .frame(minHeight: 28)
-                    .background(isOpenHovered ? VellumColors.panelElevatedColor : .clear,
-                                in: RoundedRectangle(cornerRadius: 4))
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .onHover { isOpenHovered = $0 }
-        }
-        .padding(.horizontal, 16)
-        .frame(minHeight: 36)
-        .background(VellumColors.backgroundColor)
-    }
-
     private func moveSelection(_ delta: Int) {
         guard !search.results.isEmpty else { return }
         let index = selection.flatMap { search.results.firstIndex(of: $0) } ?? 0
         selectedURL = search.results[min(max(0, index + delta), search.results.count - 1)]
-    }
-
-    private func folderTitle(_ folder: PDFQuickOpenFolder) -> String {
-        switch folder {
-        case .documents: return language.text(.pdfDocumentsFolder)
-        case .downloads: return language.text(.pdfDownloadsFolder)
-        case .desktop: return language.text(.pdfDesktopFolder)
-        }
-    }
-
-    private func requestFolderAccess(_ folder: PDFQuickOpenFolder) {
-        isRequestingFolderAccess = true
-        folderAccessError = nil
-        Task { @MainActor in
-            defer { isRequestingFolderAccess = false }
-            do {
-                try await search.requestFolderAccess(folder)
-            } catch {
-                folderAccessError = language.text(.pdfFolderAccessFailed(folderTitle(folder)))
-            }
-        }
     }
 
     private func open(_ url: URL) {
