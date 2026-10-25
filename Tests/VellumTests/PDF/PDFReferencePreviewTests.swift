@@ -142,8 +142,8 @@ struct PDFReferencePreviewTests {
         #expect(reader.jumpBackStack.isEmpty)
     }
 
-    @Test(arguments: ["table", "equation", "section"])
-    func isolatedReferenceRegionsRemainFittedAndCopied(kind: String) async throws {
+    @Test(arguments: ["table", "equation", "section"], [NSScroller.Style.overlay, .legacy])
+    func isolatedReferenceRegionsRemainFittedAndCopied(kind: String, scrollerStyle: NSScroller.Style) async throws {
         let document = try makeTextPDF(pages: [[], [("Referenced content", NSPoint(x: 120, y: 350))]])
         let fixture = try await makeReader(document: document)
         defer { fixture.close() }
@@ -164,9 +164,12 @@ struct PDFReferencePreviewTests {
         reader.referenceController = controller
         controller.show(content, sourceRect: nil)
         let panel = try #require(controller.preview)
+        let scroll = try #require(panel.scrollView)
+        scroll.scrollerStyle = scrollerStyle
 
         fixture.container.layoutSubtreeIfNeeded()
         panel.layoutSubtreeIfNeeded()
+        #expect(scroll.scrollerStyle == .overlay)
         #expect(panel.pdfView.frame == panel.bounds.insetBy(dx: 4, dy: 4))
         #expect(panel.layer?.cornerRadius == 10)
         #expect(panel.pdfView.layer?.cornerRadius == 6)

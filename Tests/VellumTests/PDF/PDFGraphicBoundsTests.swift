@@ -412,8 +412,8 @@ struct PDFFigurePreviewTests {
         }
     }
 
-    @Test(arguments: [0, 90, 180, 270])
-    func figurePanelsFitTheWholeCopiedFigureAtDifferentPreviewSizes(rotation: Int) throws {
+    @Test(arguments: [0, 90, 180, 270], [NSScroller.Style.overlay, .legacy])
+    func figurePanelsFitTheWholeCopiedFigureAtDifferentPreviewSizes(rotation: Int, scrollerStyle: NSScroller.Style) throws {
         _ = NSApplication.shared
         let document = try figureDocument(rotation: rotation, cropBox: "[100 100 580 740]")
         let page = try #require(document.page(at: 0))
@@ -423,6 +423,8 @@ struct PDFFigurePreviewTests {
         let content = try #require(PDFReferenceContent(document: document, destination: destination,
                                                        crop: crop, fitsEntireCrop: true, title: .figurePreview("2")))
         let panel = PDFReferencePanel(content: content)
+        let scroll = try #require(panel.scrollView)
+        scroll.scrollerStyle = scrollerStyle
 
         #expect(content.displayPage !== page)
         #expect(content.displayPage.bounds(for: .cropBox) == crop)
@@ -432,6 +434,7 @@ struct PDFFigurePreviewTests {
                      CGSize(width: 650, height: 220)] {
             panel.frame = CGRect(origin: .zero, size: size)
             panel.layoutSubtreeIfNeeded()
+            #expect(scroll.scrollerStyle == .overlay)
             let clip = try #require(panel.scrollView).contentView
             let paper = panel.pdfView.convert(crop, from: content.displayPage)
             let viewport = panel.pdfView.convert(clip.bounds, from: clip)

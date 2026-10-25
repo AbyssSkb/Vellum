@@ -25,6 +25,10 @@ final class PDFReferencePanel: NSView {
         pdfView.autoScales = false
         pdfView.document = content.displayDocument
         addSubview(pdfView)
+        if let scrollView {
+            PDFOverlayScrollerStyleLock.install(on: scrollView)
+            scrollView.autohidesScrollers = true
+        }
         updateAppearance()
     }
 
