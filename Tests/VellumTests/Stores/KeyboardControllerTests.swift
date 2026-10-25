@@ -70,7 +70,7 @@ struct KeyboardControllerTests {
         #expect(delegate.commands == [.searchSelectedText, .searchNext])
     }
 
-    @Test(arguments: ["o", "*", "p", "P"])
+    @Test(arguments: ["o", "*", "p", "P", "Z"])
     func selectionShortcutsRemainTextInEditableFields(key: String) {
         let window = makeWindow()
         defer { window.close() }
@@ -85,6 +85,7 @@ struct KeyboardControllerTests {
         let event = WindowKeyboardEvent()
         event.targetWindow = window
         event.key = key
+        event.flags = key == "Z" ? .shift : []
 
         #expect(!controller.routeKeyEvent(event))
         #expect(delegate.reader.actions.isEmpty)
@@ -961,7 +962,7 @@ struct KeyboardControllerTests {
         #expect(delegate.commands == [.jumpToPage(12)])
     }
 
-    @Test(arguments: ["g", "1", "/", "T", "H", "L"])
+    @Test(arguments: ["g", "1", "/", "T", "H", "L", "Z"])
     func startingAnotherCommandStopsHeldScrolling(key: String) async throws {
         let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
         let delegate = RecordingKeyboardDelegate()
@@ -1174,6 +1175,7 @@ struct KeyboardControllerTests {
     @Test(arguments: [
         ("H", VimCommand.previousTab), ("L", .nextTab), ("o", .open), ("O", .openInNewTab),
         ("x", .closeTab), ("X", .restoreClosedTab), ("T", .showTabSwitcher), ("/", .beginSearch),
+        ("Z", .showPDFQuickOpen),
         ("A", .showAIExplanationHistory), ("I", .showAIConversationHistory), ("M", .showHighlights),
         ("[", .previousTab), ("]", .nextTab), ("n", .searchNext), ("N", .searchPrevious)
     ])
@@ -1304,8 +1306,8 @@ struct KeyboardControllerTests {
         #expect(delegate.commands.isEmpty)
     }
 
-    @Test
-    func emptyReaderStillRoutesOpenKey() {
+    @Test(arguments: [("o", VimCommand.open), ("Z", .showPDFQuickOpen)])
+    func emptyReaderStillRoutesOpenKeys(key: String, command: VimCommand) {
         let window = makeWindow()
         defer { window.close() }
         let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
@@ -1315,14 +1317,15 @@ struct KeyboardControllerTests {
         delegate.hasActiveReader = false
         let event = WindowKeyboardEvent()
         event.targetWindow = window
-        event.key = "o"
+        event.key = key
+        event.flags = key == "Z" ? .shift : []
 
         #expect(controller.routeKeyEvent(event))
-        #expect(delegate.commands == [.open])
+        #expect(delegate.commands == [command])
     }
 
-    @Test
-    func conversationInputKeepsTypingAndEscapeDismissal() {
+    @Test(arguments: ["j", "Z"])
+    func conversationInputKeepsTypingAndEscapeDismissal(key: String) {
         let window = makeWindow()
         defer { window.close() }
         let reader = VellumPDFView(frame: window.contentView!.bounds)
@@ -1343,11 +1346,14 @@ struct KeyboardControllerTests {
         delegate.overrideReader = reader
         let event = WindowKeyboardEvent()
         event.targetWindow = window
+        event.key = key
+        event.flags = key == "Z" ? .shift : []
 
         #expect(!controller.routeKeyEvent(event))
         #expect(window.firstResponder === editor)
         #expect(delegate.commands.isEmpty)
         event.key = "\u{1b}"
+        event.flags = []
         #expect(controller.routeKeyEvent(event))
         #expect(!reader.isAIInteractionActive)
     }

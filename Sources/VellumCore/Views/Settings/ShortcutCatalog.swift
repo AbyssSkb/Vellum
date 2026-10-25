@@ -15,6 +15,7 @@ enum ShortcutCatalog {
             items: [
                 ShortcutItem(keys: ["o"], action: "Open PDF when no text is selected"),
                 ShortcutItem(keys: ["O"], action: "Open PDFs in new tabs"),
+                ShortcutItem(keys: ["Z"], action: "Fuzzy search PDFs in your home folder"),
                 ShortcutItem(keys: ["x"], action: "Close current tab"),
                 ShortcutItem(keys: ["X"], action: "Restore closed PDF"),
                 ShortcutItem(keys: ["[", "]"], action: "Switch tabs"),
@@ -174,6 +175,7 @@ enum ShortcutCatalog {
             items: [
                 ShortcutItem(keys: ["o"], action: "未选中文字时打开 PDF"),
                 ShortcutItem(keys: ["O"], action: "在新标签页打开 PDF"),
+                ShortcutItem(keys: ["Z"], action: "模糊搜索主目录中的 PDF"),
                 ShortcutItem(keys: ["x"], action: "关闭当前标签页"),
                 ShortcutItem(keys: ["X"], action: "恢复已关闭的 PDF"),
                 ShortcutItem(keys: ["[", "]"], action: "切换标签页"),

@@ -41,6 +41,10 @@ struct VellumApp: App {
                     appState.openPanel(mode: AppPreferences.defaultPDFOpenMode())
                 }
                 .keyboardShortcut("o", modifiers: [.command])
+
+                Button(language.text(.quickOpenPDF)) {
+                    appState.showPDFQuickOpen()
+                }
             }
 
             CommandGroup(after: .newItem) {

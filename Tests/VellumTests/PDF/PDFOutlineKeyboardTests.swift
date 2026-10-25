@@ -88,6 +88,27 @@ struct PDFOutlineKeyboardTests {
         #expect(fixture.appState.isOutlineVisible)
     }
 
+    @Test(arguments: [NSEvent.ModifierFlags.shift, .capsLock])
+    func uppercaseZOpensPDFQuickOpenWhileLowercaseZKeepsFoldCommands(modifiers: NSEvent.ModifierFlags) throws {
+        let items = tree()
+        let fixture = try Fixture(items: items)
+        defer { fixture.cleanup() }
+        let delegate = RecordingKeyboardDelegate(appState: fixture.appState)
+        fixture.appState.keyboardController.delegate = delegate
+        fixture.outline.collapseItem(nil, collapseChildren: true)
+
+        fixture.send("Z", keyCode: 6, modifiers: modifiers, throughMonitor: true)
+        fixture.send("Z", keyCode: 6, modifiers: modifiers, repeating: true, throughMonitor: true)
+        #expect(delegate.commands == [.showPDFQuickOpen])
+        #expect(!fixture.outline.isItemExpanded(items[0]))
+
+        fixture.send("z", keyCode: 6, throughMonitor: true)
+        fixture.send("o", keyCode: 31, throughMonitor: true)
+        #expect(fixture.outline.isItemExpanded(items[0]))
+        #expect(delegate.commands == [.showPDFQuickOpen])
+        #expect(fixture.window.firstResponder === fixture.outline)
+    }
+
     @Test(arguments: [false, true])
     func hierarchyKeysFoldLogicalCursorAndMoveToNextVisibleRow(arrows: Bool) throws {
         let items = tree()

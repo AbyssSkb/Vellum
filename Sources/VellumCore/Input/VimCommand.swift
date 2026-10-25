@@ -7,6 +7,7 @@ enum VimCommand: Equatable, Sendable {
     case nextTab
     case previousTab
     case showTabSwitcher
+    case showPDFQuickOpen
     case scrollDown
     case scrollUp
     case largeScrollDown

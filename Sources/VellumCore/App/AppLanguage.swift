@@ -205,6 +205,14 @@ public enum AppText {
     case openLog
     case openMenu
     case openPDF
+    case quickOpenPDF
+    case searchPDFFiles
+    case noMatchingPDFFiles
+    case loadingPDFFiles
+    case pdfIndexUnavailable
+    case pdfSearchFailed(String)
+    case fzfRequired
+    case pdfQuickOpenHint
     case openReleases
     case pageOverview
     case pageOverviewPosition(Int, Int)
@@ -510,6 +518,14 @@ public extension AppText {
         case .openLog: return "Open Log"
         case .openMenu: return "Open..."
         case .openPDF: return "Open a PDF"
+        case .quickOpenPDF: return "Quick Open PDF"
+        case .searchPDFFiles: return "Search PDFs in your home folder"
+        case .noMatchingPDFFiles: return "No matching PDF files"
+        case .loadingPDFFiles: return "Finding PDFs…"
+        case .pdfIndexUnavailable: return "PDF search is unavailable. Try opening a file directly."
+        case .pdfSearchFailed(let reason): return "PDF search failed: \(reason)"
+        case .fzfRequired: return "Install fzf to search PDF files: brew install fzf"
+        case .pdfQuickOpenHint: return "↑ ↓  Select    ↵  Open    Esc  Close"
         case .openReleases: return "Open Releases"
         case .pageOverview: return "Page Overview"
         case .pageOverviewPosition(let number, let count): return "Page \(number) of \(count)"
@@ -806,6 +822,14 @@ public extension AppText {
         case .openLog: return "打开日志"
         case .openMenu: return "打开..."
         case .openPDF: return "打开 PDF"
+        case .quickOpenPDF: return "快速打开 PDF"
+        case .searchPDFFiles: return "搜索主目录下的 PDF 文件"
+        case .noMatchingPDFFiles: return "没有匹配的 PDF 文件"
+        case .loadingPDFFiles: return "正在查找 PDF…"
+        case .pdfIndexUnavailable: return "暂时无法搜索 PDF，请直接选择文件打开。"
+        case .pdfSearchFailed(let reason): return "PDF 搜索失败：\(reason)"
+        case .fzfRequired: return "搜索 PDF 需要安装 fzf：brew install fzf"
+        case .pdfQuickOpenHint: return "↑ ↓  选择    ↵  打开    Esc  关闭"
         case .openReleases: return "打开发布页面"
         case .pageOverview: return "页面概览"
         case .pageOverviewPosition(let number, let count): return "第 \(number) 页 / 共 \(count) 页"

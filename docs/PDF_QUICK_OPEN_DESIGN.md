@@ -1,12 +1,12 @@
 # PDF 模糊搜索打开方案
 
-调研日期：2026-10-25。本文是实现建议，功能尚未实现。
+调研与实现日期：2026-10-25。本文记录首版本地预览的实现和选型依据；应用端性能目标仍需实测验收。
 
 ## 结论
 
-采用原生 `NSMetadataQuery` 在后台维护 Spotlight 文件清单，缓存路径快照，再交给本机 fzf 过滤。搜索窗口直接读取已有快照，输入时只做匹配，不重新收集文件。
+采用原生 `NSMetadataQuery` 在后台维护当前用户主目录（`~/`）下的 Spotlight 文件清单，按扩展名 `.pdf` 过滤（大小写不敏感，兼容 `.PDF`），缓存路径快照，再交给本机 fzf 过滤。搜索窗口直接读取已有快照，输入时只做匹配，不重新收集文件。
 
-首版只搜索文件名和路径，回车通过现有 PDF 打开流程进入阅读器。保留系统打开对话框；不增加自建持久索引、目录监听服务或全文搜索。
+按 `Z`（`Shift-Z`）从正文、目录或空窗口打开原生搜索浮层，也可使用文件菜单中的“快速打开 PDF”。首版只搜索文件名和路径，回车通过现有 PDF 打开流程进入阅读器。小写 `z` 继续适合宽度，目录的 `zo` / `zc` 等折叠组合保留。保留系统打开对话框；不增加自建持久索引、下载目录扫描、目录监听服务或全文搜索。
 
 ## 本机实测
 
@@ -30,7 +30,7 @@
 
 ### 本地索引卷与首批结果
 
-全机查询只测 Spotlight 两种入口，不把全机结果与用户目录扫描混作同一范围。
+全机查询只测 Spotlight 两种入口，不把全机结果与用户目录扫描混作同一范围。这是历史选型和压力测试数据；首版已按用户要求限定为主目录范围，本机历史查询为 501 个候选。
 
 | 入口 | 候选数 | 首批到达中位数 | 完整清单中位数 | 完整清单范围 |
 | --- | ---: | ---: | ---: | ---: |
@@ -52,7 +52,7 @@
 | 501 | 3.5 ms | 3.6 ms | 3.0 ms | 3.3 ms |
 | 13,834 | 10.9 ms | 14.1 ms | 4.5 ms | 5.0 ms |
 
-这组数据中所有匹配的单次耗时为 2.8–14.6 ms。首版没有必要移植 fzf 算法或维护常驻交互终端。真正需要移出前台的是文件清单收集。窗口首帧和完整键入到绘制延迟仍需实现后在原生应用中验证。
+这组数据中所有匹配的单次耗时为 2.8–14.6 ms。与首版主目录范围对应的 501 条清单，各查询中位数约为 3–4 ms；13,834 条清单保留为压力数据。首版使用本机 fzf 子进程过滤，不移植 fzf 算法或维护常驻交互终端。文件清单收集在后台进行。窗口首帧和完整键入到绘制延迟仍需在原生应用中验证。
 
 ### 本机复现
 
@@ -79,9 +79,9 @@ walker 保留默认排序，因此 stdout 首批通常要等完整枚举；其�
 
 `NSMetadataQuery` 有初始收集与持续更新两个阶段，使用初始完成通知区分“仍在加载”和“结果已齐”。持续更新可维护内存清单，无需再引入目录监听。`mdfind` 是同一类元数据查询的命令行入口；普通调用是一次结果，`-live` 手册描述为持续更新匹配数量。原生 API 的主要收益是结构化结果、生命周期与结果通知，不能由此推断它的初始查询一定更快。[Apple 文件元数据查询说明](https://developer.apple.com/library/archive/documentation/Carbon/Conceptual/SpotlightQuery/Concepts/QueryingMetadata.html)、[本机 Apple mdfind 手册](/usr/share/man/man1/mdfind.1)
 
-搜索范围应显式选定本地卷。`localComputerScope` 与 `indexedLocalComputerScope` 都兼容 macOS 15；后者明确限定已索引的本地挂载卷。二者都包含当前用户主目录，即使该主目录位于远程卷。API 中“本地范围”的表述不代表能绕过索引或权限获取磁盘上每个文件。[Apple 本地范围](https://developer.apple.com/documentation/foundation/nsmetadataquerylocalcomputerscope)、[Apple 已索引本地范围](https://developer.apple.com/documentation/foundation/nsmetadataqueryindexedlocalcomputerscope)
+搜索范围设为当前用户主目录 URL，只返回 `~/` 下的已索引文件。首版不使用全机或本地卷作用域；主目录以外的文件仍可通过系统文件对话框打开。
 
-PDF 条件用统一类型标识 `com.adobe.pdf`；如实测显示扩展名文件存在漏项，再评估是否补充名称条件。清单更新具有延迟，文件可能在选中前被移动或删除，最终打开仍交给现有文件校验和错误提示处理。用户排除的 Spotlight 目录不承诺可搜到。[Apple Spotlight 隐私设置](https://support.apple.com/guide/mac-help/prevent-spotlight-searches-in-files-mchl1bb43b84/mac)
+PDF 条件使用 `kMDItemFSName` 的 `.pdf` 后缀，大小写不敏感，不使用 UTI 内容类型匹配。清单更新具有延迟，新下载的 PDF 可能暂时搜不到；文件也可能在选中前被移动或删除，最终打开仍交给现有文件校验和错误提示处理。用户排除的 Spotlight 目录不承诺可搜到，可通过原有系统文件对话框直接打开。[Apple Spotlight 隐私设置](https://support.apple.com/guide/mac-help/prevent-spotlight-searches-in-files-mchl1bb43b84/mac)
 
 直接扫描适合用户明确指定少数文档目录的场景。`fd` 默认跳过隐藏项与 ignore 规则；此次基准统一启用 `--hidden --no-ignore`，以减少范围差异。它支持类型、扩展名、绝对路径和 NUL 输出。[fd 官方手册](https://raw.githubusercontent.com/sharkdp/fd/master/doc/fd.1)
 
@@ -89,11 +89,11 @@ fzf 的 walker 只在标准输入为 TTY 且没有 `FZF_DEFAULT_COMMAND` 时启�
 
 ## 首版运行流程
 
-1. 主窗口出现、阅读会话恢复后，启动一个 `NSMetadataQuery`，使用本地卷作用域和 PDF 内容类型条件。将查询通知及快照构建放在专用串行 `OperationQueue`，以 utility 优先级运行；在该队列启动查询。缓存 URL 清单及序列化的 NUL 数据，主线程只接收供界面展示的快照。
-2. `⌘P` 打开原生浮层并立即聚焦输入框。空查询先显示已有清单的前若干项；首次查询尚未完成时显示加载状态，窗口与输入保持可用。
+1. 主窗口出现、阅读会话恢复后，启动一个 `NSMetadataQuery`，将 `searchScopes` 设为当前用户主目录 URL，条件为 `kMDItemFSName ENDSWITH[c] '.pdf'`。将查询通知及快照构建放在专用串行 `OperationQueue`，以 utility 优先级运行；在该队列启动查询。缓存 URL 清单及序列化的 NUL 数据，主线程只接收供界面展示的快照。
+2. `Z`（`Shift-Z`）或文件菜单中的“快速打开 PDF”打开原生浮层并立即聚焦输入框。空查询先显示已有清单的前若干项；首次查询尚未完成时显示加载状态，窗口与输入保持可用。
 3. 初始收集时可先发布第一批非空结果，再在收集完成时替换为完整快照；收集中继续显示加载状态，避免把暂时没有匹配误报为最终无结果。之后消费系统的增删改通知。快照更新后，针对当前文本重新匹配。选中文件以 URL 为身份，避免列表更新使同一行序号指向另一份 PDF。
-4. 文本变化后异步调用 fzf，只保留最新匹配任务。任务带文本及清单代次；已过期的输出即使成功返回也不得覆盖新结果。先不加人为输入等待，若原生键入验证表明有必要再合并连续任务。关闭浮层立即取消匹配并恢复原阅读焦点。界面用惰性列表展示结果，避免一次创建全部 13,834 行。
-5. 回车按现有默认打开模式打开选中 URL，成功后关闭浮层。空结果时回车无动作。缺少 fzf 时在浮层提示依赖，并提供现有系统打开入口。
+4. 文本变化后异步调用 fzf，只保留最新匹配任务。任务带文本及清单代次；已过期的输出即使成功返回也不得覆盖新结果。先不加人为输入等待，若原生键入验证表明有必要再合并连续任务。关闭浮层立即取消匹配并恢复原阅读焦点。界面用惰性列表展示结果，避免一次创建全部候选行。
+5. 回车按现有默认打开模式打开选中 URL，成功后关闭浮层。空结果时回车无动作。缺少 fzf 时在浮层提示 `brew install fzf`，并提供现有系统打开入口。
 
 保留 query 对象并消费更新通知，退出应用时停止。文件清单通过系统通知持续刷新，不额外设定重复扫描定时器；默认通知批处理允许轻微更新延迟。读取 live 查询结果前调用 `disableUpdates()`，在 `defer` 中 `enableUpdates()`，确保读取期间结果稳定；快照替换与匹配使用不可变副本。查询失败保留上次有效快照并显示状态。首版只做内存缓存，应用重启后重新后台收集；刚启动就搜索时可能先看到加载状态。[Apple live 查询结果读取](https://developer.apple.com/library/archive/documentation/Carbon/Conceptual/SpotlightQuery/Concepts/QueryingMetadata.html)
 
@@ -101,7 +101,7 @@ fzf 的 walker 只在标准输入为 TTY 且没有 `FZF_DEFAULT_COMMAND` 时启�
 
 ## fzf 调用边界
 
-使用 `Process.executableURL` 和 `arguments` 数组直接启动已确认可执行的 fzf，查询作为一个 `--filter` 参数传递。按常见安装目录及应用继承的 PATH 查找二进制，不通过登录 shell 解析用户配置。`Process` 参数不会经过 shell 展开。[Apple Process 参数](https://developer.apple.com/documentation/foundation/process/arguments)
+使用 `Process.executableURL` 和 `arguments` 数组直接启动已确认可执行的 fzf，查询作为一个 `--filter` 参数传递。按常见 Homebrew 安装目录及应用继承的 PATH 查找二进制，不通过登录 shell 解析用户配置。`Process` 参数不会经过 shell 展开。[Apple Process 参数](https://developer.apple.com/documentation/foundation/process/arguments)
 
 调用形态为 `fzf --read0 --print0 --scheme=path --filter <query>`。输入、输出均按 NUL 拆分，保留文件名中的空格、中文、制表符和换行。显式使用路径评分，因为管道输入默认不是路径评分。过滤为一次非交互操作；退出码 1 表示无匹配，2 表示错误。首版只使用排序后的路径，不自行重写 fzf 的评分或解析终端高亮。[fzf 官方手册](https://raw.githubusercontent.com/junegunn/fzf/master/man/man1/fzf.1)
 
@@ -109,17 +109,19 @@ fzf 的 walker 只在标准输入为 TTY 且没有 `FZF_DEFAULT_COMMAND` 时启�
 
 ## 接入范围与验证
 
-复用以下现有入口，新增一个文件清单/匹配状态对象和一个浮层视图即可：
+文件清单与匹配状态、原生浮层接入以下现有入口：
 
-- `Sources/Vellum/App/AppEntry.swift`：增加菜单与 `⌘P`，保留 `⌘O`。
+- `Sources/Vellum/App/AppEntry.swift`：增加“快速打开 PDF”菜单，保留 `⌘O`。
+- `Sources/VellumCore/Input/VimKeyMap.swift`：`Z`（`Shift-Z`）打开浮层，小写 `z` 适合宽度，目录折叠组合保持原有行为。
 - `Sources/VellumCore/Views/Reader/ContentView.swift`：挂载浮层，包含未打开文档的空状态。
 - `Sources/VellumCore/Stores/AppState.swift`、`AppState+Reader.swift`：浮层状态、互斥展示和焦点保存恢复。
 - `Sources/VellumCore/Stores/AppState+Tabs.swift`：复用 `openInCurrentTab` / `openInNewTabs` 和 `AppPreferences.defaultPDFOpenMode()`。
 - `Sources/VellumCore/Views/Components/ListSearchField.swift`、`Sources/VellumCore/Views/Reader/TabSwitcherOverlay.swift`：复用上下、回车、Esc、输入法处理与文件名/目录行样式，按需要读取和调用。
-- `Sources/VellumCore/App/AppLanguage.swift`：增加中英文文案。
+- `Sources/VellumCore/App/AppLanguage.swift`：提供中英文文案。
+- `Sources/VellumCore/Views/Settings/ShortcutCatalog.swift`、README 与用户指南：同步 `Z` 快捷键、fzf 依赖和索引限制。
 
 针对新增状态与进程边界做小而明确的测试：NUL 路径往返、无匹配和异常退出、缺少 fzf、快速输入丢弃旧结果、关闭取消、中文输入法确认、空窗口打开、重复文件复用已有 tab。用少量临时 PDF 验证增删改更新；Spotlight 索引时序的集成测试设超时并与纯匹配测试分开。打开流程中的未保存标注保护继续走原有逻辑。
 
-实现后先运行 `scripts/test.sh --filter` 的相关检查，再通过全新应用名称和 bundle identifier 运行 `scripts/package-app.sh`，打开独立预览验证焦点、结果更新和阅读连续性。只有用户完成本地测试确认后才发布。
+本地交付先运行 `scripts/test.sh --filter` 的相关检查，再通过全新应用名称和 bundle identifier 运行 `scripts/package-app.sh`，打开独立预览验证焦点、结果更新和阅读连续性。只有用户完成本地测试确认后才发布。
 
-性能验收目标：已有快照时，唤起浮层与输入聚焦在 50 ms 内完成；以本机 13,834 条清单连续输入时，最终文本到结果绘制在 80 ms 内完成。两项都是实现目标，目前尚未测到应用端数据。加载、刷新和 32.5 ms 级别的快照序列化不得阻塞主线程；查询未完成时浮层保持可输入、可取消。
+性能验收目标：已有快照时，唤起浮层与输入聚焦在 50 ms 内完成；以本机主目录清单（历史查询约 501 条）连续输入时，最终文本到结果绘制在 80 ms 内完成。13,834 条全机清单作为额外压力测试，不代表首版搜索范围。两项都是实现目标，目前尚未测到应用端数据。加载、刷新和快照序列化不得阻塞主线程；查询未完成时浮层保持可输入、可取消。

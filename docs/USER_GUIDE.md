@@ -18,6 +18,7 @@ Each file has one tab. Opening an already open file selects its existing tab. If
 | --- | --- |
 | `o` / `Command-O` | Open using the configured default mode (`o` requires no text selection) |
 | `O` | Open PDFs in new tabs |
+| `Z` (`Shift-Z`) | Fuzzy search indexed PDF filenames and paths in your home folder |
 | `x` / `Command-W` | Close the current tab |
 | `X` | Restore the last closed PDF |
 | `H` / `L` | Previous / next tab |
@@ -29,6 +30,14 @@ Each file has one tab. Opening an already open file selects its existing tab. If
 In the tab switcher, type part of a filename to filter the list. Use `↑` / `↓` or click a row to preview that document's last-read page. Press `Enter`, click the selected page preview, or double-click a row to switch files. `Esc` returns to your original document and focus. Letters are search input while this overlay is open.
 
 Long tab titles scroll once when opened or selected, and can be revealed again by hovering. Enable **Restore previous tabs** in General settings to reopen your session on the next launch; it is initially off.
+
+### Quick Open a PDF
+
+Press `Z` (`Shift-Z`) from the reader, contents sidebar, or empty window, or choose **File → Quick Open PDF**. Type parts of a filename or directory path to search Spotlight-indexed files in your home folder (`~/`) with a `.pdf` extension, including `.PDF`. Use `↑` / `↓` to select a result, `Enter` to open it using the configured default open mode, and `Esc` to close the overlay and restore focus. Results show the filename and containing directory; PDF contents are not searched.
+
+Quick Open requires [fzf](https://github.com/junegunn/fzf) installed on your Mac. With Homebrew, run `brew install fzf`. Vellum checks the usual Homebrew locations and its inherited `PATH`. If fzf is unavailable, the overlay shows an installation hint and an **Open PDF** button for the system file dialog.
+
+Vellum gathers the Spotlight file list in the background and caches it in memory. On the first search after launch, the list may still be loading; the search field remains usable. Spotlight updates the list as its index changes. Newly downloaded or moved PDFs may take time to appear, and files excluded from Spotlight or blocked by permissions may be absent. Use `Command-O` to open a file directly when needed.
 
 ## Navigate and zoom
 

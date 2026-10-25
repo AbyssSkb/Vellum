@@ -118,6 +118,17 @@ struct VimKeyMapTests {
     }
 
     @Test
+    func uppercaseZOpensPDFQuickOpenAndLowercaseZKeepsWidthFit() {
+        #expect(VimKeyMap.isHandledKey("Z", hasNavigableTextSelection: false, hasTextActionTarget: false))
+        #expect(VimKeyMap.command(for: "Z") == .showPDFQuickOpen)
+        #expect(VimKeyMap.command(for: "z") == .zoomFit)
+        #expect(VimKeyMap.lowercaseFallback(for: "Z") == nil)
+        #expect(!VimKeyMap.isContinuousKey("Z"))
+        #expect(VimKeyMap.repeatableCommand(for: "Z") == nil)
+        #expect(!VimCommand.showPDFQuickOpen.acceptsCount)
+    }
+
+    @Test
     func uppercaseFallbackLeavesDedicatedUppercaseCommandsAlone() {
         #expect(VimKeyMap.lowercaseFallback(for: "G") == nil)
         #expect(VimKeyMap.lowercaseFallback(for: "N") == "n")

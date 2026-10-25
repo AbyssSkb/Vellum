@@ -30,7 +30,7 @@ enum VimKeyMap {
         hasTextActionTarget: Bool
     ) -> Bool {
         switch key {
-        case "g", "G", "H", "L", "O", "N", "T", "A", "I", "F", "M", "p", "/", "*", "s", "a", "c", "i", "j", "k", "d", "u", "D", "U", "h", "l", "m", "n", " ", "f", "b", "v", "y", "+", "=", "-", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "z", "o", "t", "x", "]", "[":
+        case "g", "G", "H", "L", "O", "N", "T", "Z", "A", "I", "F", "M", "p", "/", "*", "s", "a", "c", "i", "j", "k", "d", "u", "D", "U", "h", "l", "m", "n", " ", "f", "b", "v", "y", "+", "=", "-", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "z", "o", "t", "x", "]", "[":
             return true
         case "S", "P":
             return false
@@ -47,7 +47,7 @@ enum VimKeyMap {
     }
 
     static func lowercaseFallback(for key: String) -> String? {
-        guard key != "F", key != "M" else { return nil }
+        guard key != "F", key != "M", key != "Z" else { return nil }
         let lowered = key.lowercased()
         guard lowered != key else { return nil }
 
@@ -87,6 +87,8 @@ enum VimKeyMap {
             return .openInNewTab
         case "T":
             return .showTabSwitcher
+        case "Z":
+            return .showPDFQuickOpen
         case "A":
             return .showAIExplanationHistory
         case "I":

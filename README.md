@@ -20,6 +20,8 @@ Press `p`, then type a visible internal link's label to open and focus its float
 
 Keep several documents close with compact tabs. `T` opens a searchable file list with a preview of each document's last-read page; press `Enter` to resume reading the selected file. `X` restores the last closed file. Each file has one tab; reopening an updated PDF reloads its current contents. Long tab titles scroll once when opened, activated, or hovered.
 
+Press `Z` (`Shift-Z`) to find and open a PDF in your home folder (`~/`) by filename or path. Quick Open uses Spotlight's indexed `.pdf` files, including `.PDF`, and an installed [fzf](https://github.com/junegunn/fzf) for fuzzy matching. New downloads may take time to appear, and Spotlight exclusions and file permissions apply. See the [setup and controls](docs/USER_GUIDE.md#quick-open-a-pdf).
+
 ## A map when you need one
 
 Press `t` to show or hide the contents sidebar. Tap `Tab` to move keyboard focus between the page and outline, opening the sidebar if needed. Browse with `j` and `k`, fold with `h`, and expand with `l`. Press `Enter` to jump and resume reading. The outline also supports Vim's `zo`, `zc`, `zO`, `zC`, `zr`, `zm`, `zR`, and `zM`, including recursive folds and count prefixes. `H` and `L` switch documents while the outline stays open.
@@ -66,6 +68,7 @@ AI assistance is optional and experimental. See the [user guide](docs/USER_GUIDE
 | Tap `Tab` | Switch focus between the reader and contents |
 | Hold `Tab` | Open the page gallery |
 | `H` / `L`, `T` | Previous / next tab; searchable tab switcher |
+| `Z` (`Shift-Z`) | Fuzzy search indexed PDF filenames and paths in your home folder |
 | `/` / `*`, `n` / `N` | Search a query / selected text; next / previous match |
 | `s` | Type a visible word prefix and its label to select |
 | `o` with text selected | Switch the endpoint adjusted by selection motions |

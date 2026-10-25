@@ -272,7 +272,7 @@ final class KeyboardController {
                   event.type == .keyDown,
                   event.modifierFlags.intersection([.command, .control, .option]).isEmpty,
                   let key = event.charactersIgnoringModifiers,
-                  ["o", "O", "T", "H", "L", "x", "X", "/", "A", "I", "M", "[", "]", "n", "N"].contains(key) else { return false }
+                  ["o", "O", "T", "Z", "H", "L", "x", "X", "/", "A", "I", "M", "[", "]", "n", "N"].contains(key) else { return false }
             return applyVimInputAction(vimInput.handleKeyDown(
                 key, isRepeat: event.isARepeat, hasNavigableTextSelection: false, hasTextActionTarget: false
             ))

@@ -148,7 +148,8 @@ struct VimInputControllerTests {
         ("/", VimCommand.beginSearch),
         ("*", .searchSelectedText),
         ("v", .materializeSearchSelection),
-        ("T", .showTabSwitcher)
+        ("T", .showTabSwitcher),
+        ("Z", .showPDFQuickOpen)
     ])
     func searchAndSwitcherCommandsClearNumericInput(key: String, command: VimCommand) {
         var input = VimInputController()
@@ -223,12 +224,13 @@ struct VimInputControllerTests {
         #expect(input.handleKey("n") == .command(.counted(.searchNext, VimInputController.maximumRepeatCount)))
     }
 
-    @Test(arguments: [("m", VimCommand.highlightSelection), ("M", .showHighlights), ("x", .closeTab), ("o", .open), ("F", .beginLinkJump)])
+    @Test(arguments: [("m", VimCommand.highlightSelection), ("M", .showHighlights), ("x", .closeTab), ("o", .open), ("F", .beginLinkJump), ("Z", .showPDFQuickOpen)])
     func actionCommandsExecuteOnlyOnceAndConsumeCounts(key: String, command: VimCommand) {
         var input = VimInputController()
         _ = input.handleKey("9")
         #expect(input.handleKeyDown(key, isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .command(command))
         #expect(input.state.numericPrefix.isEmpty)
+        #expect(input.handleKeyDown(key, isRepeat: true, hasNavigableTextSelection: false, hasTextActionTarget: false) == .handled)
     }
 
     @Test(arguments: [("n", VimCommand.nextHighlight), ("N", .previousHighlight), ("t", .nextTab), ("T", .previousTab)])

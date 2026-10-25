@@ -61,8 +61,8 @@ public struct ContentView: View {
                     .background(VellumColors.backgroundDeepColor)
                 }
 
-                .allowsHitTesting(!appState.isTabSwitcherPresented && !appState.isHighlightsPresented)
-                .accessibilityHidden(appState.isTabSwitcherPresented || appState.isHighlightsPresented)
+                .allowsHitTesting(!appState.isTabSwitcherPresented && !appState.isHighlightsPresented && !appState.isPDFQuickOpenPresented)
+                .accessibilityHidden(appState.isTabSwitcherPresented || appState.isHighlightsPresented || appState.isPDFQuickOpenPresented)
 
                 if appState.isTabSwitcherPresented {
                     TabSwitcherOverlay()
@@ -83,6 +83,10 @@ public struct ContentView: View {
                 if appState.isHighlightsPresented {
                     HighlightSwitcherOverlay()
                 }
+
+                if appState.isPDFQuickOpenPresented {
+                    PDFQuickOpenOverlay(search: appState.pdfQuickOpenSearch)
+                }
             }
             .overlay(alignment: .top) {
                 TitlebarDragRegion(hasOpenTabs: appState.hasOpenTabs)
@@ -102,6 +106,7 @@ public struct ContentView: View {
         }
         .onAppear {
             appState.restorePreviousTabsIfNeeded()
+            appState.pdfQuickOpenSearch.startIndexing()
         }
     }
 }

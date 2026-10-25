@@ -17,6 +17,7 @@ struct VimCommandDispatcherTests {
         dispatcher.perform(.nextTab, on: target)
         dispatcher.perform(.previousTab, on: target)
         dispatcher.perform(.showTabSwitcher, on: target)
+        dispatcher.perform(.showPDFQuickOpen, on: target)
 
         #expect(target.actions == [
             .openCurrent,
@@ -25,7 +26,8 @@ struct VimCommandDispatcherTests {
             .restoreClosedTab,
             .nextTab,
             .previousTab,
-            .showTabSwitcher
+            .showTabSwitcher,
+            .showPDFQuickOpen
         ])
     }
 
@@ -150,7 +152,8 @@ struct VimCommandDispatcherTests {
         let target = RecordingVimCommandTarget()
         dispatcher.perform(.counted(.pageDown, Int.max), on: target)
         dispatcher.perform(.counted(.closeTab, 5), on: target)
-        #expect(target.actions == [.moveByPage(VimInputController.maximumRepeatCount), .closeTab])
+        dispatcher.perform(.counted(.showPDFQuickOpen, 5), on: target)
+        #expect(target.actions == [.moveByPage(VimInputController.maximumRepeatCount), .closeTab, .showPDFQuickOpen])
     }
 }
 
@@ -184,6 +187,10 @@ private final class RecordingVimCommandTarget: VimCommandTarget {
 
     func showTabSwitcher() {
         actions.append(.showTabSwitcher)
+    }
+
+    func showPDFQuickOpen() {
+        actions.append(.showPDFQuickOpen)
     }
 
     func scrollBy(x: CGFloat, y: CGFloat) {
@@ -318,6 +325,7 @@ private final class RecordingVimCommandTarget: VimCommandTarget {
         case nextTab
         case previousTab
         case showTabSwitcher
+        case showPDFQuickOpen
         case scroll(x: CGFloat, y: CGFloat)
         case moveByPage(Int)
         case firstPage

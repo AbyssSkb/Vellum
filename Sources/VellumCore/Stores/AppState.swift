@@ -7,6 +7,7 @@ public final class AppState: ObservableObject {
     @Published var tabStore = TabStore()
     @Published var isOutlineVisible = false
     @Published var isTabSwitcherPresented = false
+    @Published var isPDFQuickOpenPresented = false
     @Published var isAIConversationHistoryPresented = false
     @Published var isAIExplanationHistoryPresented = false
     @Published var isHighlightsPresented = false
@@ -23,6 +24,7 @@ public final class AppState: ObservableObject {
     private var allAIExplanationHistory: [AIExplanationHistoryItem] = []
     let pdfCoordinator: PDFCoordinator
     let keyboardController: KeyboardController
+    let pdfQuickOpenSearch: PDFQuickOpenSearch
     let sessionDefaults: UserDefaults
     private var highlightColorPreferenceObserver: NSObjectProtocol?
     private var appWillTerminateObserver: NSObjectProtocol?
@@ -49,11 +51,13 @@ public final class AppState: ObservableObject {
     init(
         sessionDefaults: UserDefaults,
         pdfCoordinator: PDFCoordinator = PDFCoordinator(),
-        keyboardController: KeyboardController = KeyboardController()
+        keyboardController: KeyboardController = KeyboardController(),
+        pdfQuickOpenSearch: PDFQuickOpenSearch = PDFQuickOpenSearch()
     ) {
         self.sessionDefaults = sessionDefaults
         self.pdfCoordinator = pdfCoordinator
         self.keyboardController = keyboardController
+        self.pdfQuickOpenSearch = pdfQuickOpenSearch
         let rawHighlightColor = UserDefaults.standard.string(forKey: AppPreferenceKeys.defaultHighlightColor)
         selectedHighlightColor = rawHighlightColor.flatMap(HighlightColor.init(rawValue:)) ?? .yellow
         keyboardController.delegate = self
