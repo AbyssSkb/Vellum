@@ -37,7 +37,7 @@ Press `Z` (`Shift-Z`) from the reader, contents sidebar, or empty window, or cho
 
 Quick Open requires [fzf](https://github.com/junegunn/fzf) installed on your Mac. With Homebrew, run `brew install fzf`. Vellum checks the usual Homebrew locations and its inherited `PATH`. If fzf is unavailable, the overlay shows an installation hint and an **Open PDF** button for the system file dialog.
 
-Vellum gathers the Spotlight file list in the background and caches it in memory. On the first search after launch, the list may still be loading; the search field remains usable. Spotlight updates the list as its index changes. Newly downloaded or moved PDFs may take time to appear, and files excluded from Spotlight or blocked by permissions may be absent. Use `Command-O` to open a file directly when needed.
+Vellum gathers the Spotlight file list in the background and caches it in memory. On the first search after launch, the list may still be loading; the search field remains usable. Spotlight updates the list as its index changes. To include protected folders, choose **Folder Access… → Documents, Downloads, or Desktop** in Quick Open and allow macOS access. Vellum refreshes the list after access is granted. If access was denied, enable it in **System Settings → Privacy & Security → Files & Folders** and try again. Newly downloaded or moved PDFs may take time to appear, and files excluded from Spotlight may be absent. Use `Command-O` to open a file directly when needed.
 
 ## Navigate and zoom
 

@@ -7,10 +7,14 @@ struct PDFQuickOpenOverlay: View {
     @State private var selectedURL: URL?
     @State private var isCancelHovered = false
     @State private var isOpenHovered = false
+    @State private var isFolderAccessHovered = false
+    @State private var isRequestingFolderAccess = false
+    @State private var folderAccessError: String?
 
     private var selection: URL? { selectedURL ?? search.results.first }
 
     private var message: String? {
+        if let folderAccessError { return folderAccessError }
         switch search.failure {
         case .fzfMissing: return language.text(.fzfRequired)
         case .indexUnavailable: return language.text(.pdfIndexUnavailable)
@@ -134,6 +138,25 @@ struct PDFQuickOpenOverlay: View {
                 .foregroundStyle(VellumColors.mutedColor)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
+            Menu {
+                ForEach(PDFQuickOpenFolder.allCases, id: \.self) { folder in
+                    Button(folderTitle(folder)) { requestFolderAccess(folder) }
+                }
+            } label: {
+                Text(language.text(.pdfFolderAccess))
+                    .font(.system(size: 11))
+                    .foregroundStyle(VellumColors.blueColor)
+                    .padding(.horizontal, 8)
+                    .frame(minHeight: 28)
+                    .background(isFolderAccessHovered ? VellumColors.panelElevatedColor : .clear,
+                                in: RoundedRectangle(cornerRadius: 4))
+                    .contentShape(Rectangle())
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .disabled(isRequestingFolderAccess)
+            .onHover { isFolderAccessHovered = $0 }
             Button {
                 appState.hidePDFQuickOpen()
                 appState.openPanel(mode: AppPreferences.defaultPDFOpenMode())
@@ -158,6 +181,27 @@ struct PDFQuickOpenOverlay: View {
         guard !search.results.isEmpty else { return }
         let index = selection.flatMap { search.results.firstIndex(of: $0) } ?? 0
         selectedURL = search.results[min(max(0, index + delta), search.results.count - 1)]
+    }
+
+    private func folderTitle(_ folder: PDFQuickOpenFolder) -> String {
+        switch folder {
+        case .documents: return language.text(.pdfDocumentsFolder)
+        case .downloads: return language.text(.pdfDownloadsFolder)
+        case .desktop: return language.text(.pdfDesktopFolder)
+        }
+    }
+
+    private func requestFolderAccess(_ folder: PDFQuickOpenFolder) {
+        isRequestingFolderAccess = true
+        folderAccessError = nil
+        Task { @MainActor in
+            defer { isRequestingFolderAccess = false }
+            do {
+                try await search.requestFolderAccess(folder)
+            } catch {
+                folderAccessError = language.text(.pdfFolderAccessFailed(folderTitle(folder)))
+            }
+        }
     }
 
     private func open(_ url: URL) {

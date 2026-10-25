@@ -213,6 +213,11 @@ public enum AppText {
     case pdfSearchFailed(String)
     case fzfRequired
     case pdfQuickOpenHint
+    case pdfFolderAccess
+    case pdfDocumentsFolder
+    case pdfDownloadsFolder
+    case pdfDesktopFolder
+    case pdfFolderAccessFailed(String)
     case openReleases
     case pageOverview
     case pageOverviewPosition(Int, Int)
@@ -526,6 +531,11 @@ public extension AppText {
         case .pdfSearchFailed(let reason): return "PDF search failed: \(reason)"
         case .fzfRequired: return "Install fzf to search PDF files: brew install fzf"
         case .pdfQuickOpenHint: return "↑ ↓  Select    ↵  Open    Esc  Close"
+        case .pdfFolderAccess: return "Folder Access…"
+        case .pdfDocumentsFolder: return "Documents"
+        case .pdfDownloadsFolder: return "Downloads"
+        case .pdfDesktopFolder: return "Desktop"
+        case .pdfFolderAccessFailed(let folder): return "Allow access to \(folder) in System Settings → Privacy & Security → Files & Folders, then try again."
         case .openReleases: return "Open Releases"
         case .pageOverview: return "Page Overview"
         case .pageOverviewPosition(let number, let count): return "Page \(number) of \(count)"
@@ -830,6 +840,11 @@ public extension AppText {
         case .pdfSearchFailed(let reason): return "PDF 搜索失败：\(reason)"
         case .fzfRequired: return "搜索 PDF 需要安装 fzf：brew install fzf"
         case .pdfQuickOpenHint: return "↑ ↓  选择    ↵  打开    Esc  关闭"
+        case .pdfFolderAccess: return "文件夹访问…"
+        case .pdfDocumentsFolder: return "文稿"
+        case .pdfDownloadsFolder: return "下载"
+        case .pdfDesktopFolder: return "桌面"
+        case .pdfFolderAccessFailed(let folder): return "请在系统设置 → 隐私与安全性 → 文件与文件夹中允许访问“\(folder)”，然后重试。"
         case .openReleases: return "打开发布页面"
         case .pageOverview: return "页面概览"
         case .pageOverviewPosition(let number, let count): return "第 \(number) 页 / 共 \(count) 页"

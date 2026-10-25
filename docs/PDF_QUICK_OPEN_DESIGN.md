@@ -81,6 +81,8 @@ walker 保留默认排序，因此 stdout 首批通常要等完整枚举；其�
 
 搜索范围设为当前用户主目录 URL，只返回 `~/` 下的已索引文件。首版不使用全机或本地卷作用域；主目录以外的文件仍可通过系统文件对话框打开。
 
+macOS 文件夹权限会限制 GUI 应用可见的 Spotlight 结果。此次复现中，终端能找到 `Documents/AI/DeepSeek-V2.pdf`，独立 GUI 应用的原生查询、底层查询和 `mdfind` 子进程均只返回 59 个候选，文稿目录结果为零；不能用终端的 501 个候选证明应用有相同覆盖。快速打开提供“文件夹访问…”菜单，由用户选择文稿、下载或桌面后，在后台读取一次对应目录以请求系统权限，成功后重启原有查询。该操作不递归扫描，也不改变主目录与 PDF 后缀限制。打包时提供中英文权限用途说明；拒绝权限保留已有结果并提示系统设置入口。[Apple 文件夹权限说明](https://developer.apple.com/documentation/bundleresources/information-property-list/nsdocumentsfolderusagedescription)
+
 PDF 条件使用 `kMDItemFSName` 的 `.pdf` 后缀，大小写不敏感，不使用 UTI 内容类型匹配。清单更新具有延迟，新下载的 PDF 可能暂时搜不到；文件也可能在选中前被移动或删除，最终打开仍交给现有文件校验和错误提示处理。用户排除的 Spotlight 目录不承诺可搜到，可通过原有系统文件对话框直接打开。[Apple Spotlight 隐私设置](https://support.apple.com/guide/mac-help/prevent-spotlight-searches-in-files-mchl1bb43b84/mac)
 
 直接扫描适合用户明确指定少数文档目录的场景。`fd` 默认跳过隐藏项与 ignore 规则；此次基准统一启用 `--hidden --no-ignore`，以减少范围差异。它支持类型、扩展名、绝对路径和 NUL 输出。[fd 官方手册](https://raw.githubusercontent.com/sharkdp/fd/master/doc/fd.1)

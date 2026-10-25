@@ -8,6 +8,20 @@ enum PDFQuickOpenFailure: Error, Equatable {
     case matchingFailed(String)
 }
 
+enum PDFQuickOpenFolder: CaseIterable, Hashable, Sendable {
+    case documents, downloads, desktop
+
+    var url: URL {
+        let directory: String
+        switch self {
+        case .documents: directory = "Documents"
+        case .downloads: directory = "Downloads"
+        case .desktop: directory = "Desktop"
+        }
+        return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(directory, isDirectory: true)
+    }
+}
+
 @MainActor
 final class PDFQuickOpenSearch: ObservableObject {
     @Published var query = "" {
@@ -21,6 +35,7 @@ final class PDFQuickOpenSearch: ObservableObject {
     @Published private(set) var failure: PDFQuickOpenFailure?
 
     private let executableURL: URL?
+    private let folderAccess: @Sendable (URL) throws -> Void
     private var snapshot = PDFQuickOpenSnapshot(paths: [])
     private var index: PDFQuickOpenFileIndex?
     private var hasStartedIndexing = false
@@ -29,8 +44,15 @@ final class PDFQuickOpenSearch: ObservableObject {
     private var matchingTask: Task<Void, Never>?
     private var matchingProcess: PDFQuickOpenMatchProcess?
 
-    init(executableURL: URL? = PDFQuickOpenMatchProcess.findExecutable(), initialPaths: [URL]? = nil) {
+    init(
+        executableURL: URL? = PDFQuickOpenMatchProcess.findExecutable(),
+        initialPaths: [URL]? = nil,
+        folderAccess: @escaping @Sendable (URL) throws -> Void = { directory in
+            _ = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
+        }
+    ) {
         self.executableURL = executableURL
+        self.folderAccess = folderAccess
         if let initialPaths {
             snapshot = PDFQuickOpenSnapshot(paths: initialPaths)
             isLoading = false
@@ -74,6 +96,22 @@ final class PDFQuickOpenSearch: ObservableObject {
         isActive = false
         cancelMatching()
         results = []
+    }
+
+    func requestFolderAccess(_ folder: PDFQuickOpenFolder) async throws {
+        let directory = folder.url
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
+            DispatchQueue.global(qos: .utility).async { [folderAccess] in
+                do {
+                    try folderAccess(directory)
+                    continuation.resume()
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
+        isLoading = true
+        index?.restart()
     }
 
     private func cancelMatching() {
@@ -186,6 +224,18 @@ private final class PDFQuickOpenFileIndex: @unchecked Sendable {
             query.stop()
             observers.forEach(NotificationCenter.default.removeObserver)
             observers = []
+        }
+    }
+
+    func restart() {
+        queue.addOperation { [self] in
+            guard !stopped else { return }
+            query.stop()
+            publishedFirstBatch = false
+            isGathering = true
+            if !query.start() {
+                DispatchQueue.main.async { [onChange] in onChange(nil, false) }
+            }
         }
     }
 

@@ -6,6 +6,45 @@ import Testing
 @Suite("PDF quick-open matching")
 @MainActor
 struct PDFQuickOpenSearchTests {
+    @Test(arguments: PDFQuickOpenFolder.allCases)
+    func folderAccessRefreshesOnlyAfterReadingTheSelectedHomeFolder(_ folder: PDFQuickOpenFolder) async throws {
+        let expectedName: String
+        switch folder {
+        case .documents: expectedName = "Documents"
+        case .downloads: expectedName = "Downloads"
+        case .desktop: expectedName = "Desktop"
+        }
+        let expectedURL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(expectedName, isDirectory: true)
+        let search = PDFQuickOpenSearch(initialPaths: [], folderAccess: { directory in
+            #expect(directory == expectedURL)
+            #expect(!Thread.isMainThread)
+        })
+        #expect(!search.isLoading)
+        try await search.requestFolderAccess(folder)
+        #expect(search.isLoading)
+    }
+
+    @Test
+    func deniedFolderAccessPreservesResultsWithoutRefreshing() async throws {
+        let fixture = try ExecutableFixture(script: "/bin/cat")
+        defer { fixture.cleanup() }
+        let paths = [URL(fileURLWithPath: "/tmp/DeepSeek-V2.pdf")]
+        let search = PDFQuickOpenSearch(executableURL: fixture.url, initialPaths: paths, folderAccess: { _ in
+            throw CocoaError(.fileReadNoPermission)
+        })
+        search.beginSearching()
+        do {
+            try await search.requestFolderAccess(.documents)
+            Issue.record("Denied folder access must throw")
+        } catch let error as CocoaError {
+            #expect(error.code == .fileReadNoPermission)
+        }
+        #expect(!search.isLoading)
+        #expect(search.results == paths)
+        #expect(search.failure == nil)
+        search.endSearching()
+    }
+
     @Test
     func pendingQueryKeepsResultsUntilReplacementArrives() async throws {
         let fixture = try ExecutableFixture(script: "/bin/sleep 0.15\n/bin/cat")
