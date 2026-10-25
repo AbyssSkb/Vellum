@@ -24,7 +24,8 @@ extension AppState {
     }
 
     func openPDFQuickOpenResult(_ url: URL) {
-        guard isPDFQuickOpenPresented, pdfQuickOpenSearch.results.contains(url) else { return }
+        guard isPDFQuickOpenPresented, !pdfQuickOpenSearch.isSearching,
+              pdfQuickOpenSearch.results.contains(url) else { return }
         isPDFQuickOpenPresented = false
         pdfQuickOpenSearch.endSearching()
         switch AppPreferences.defaultPDFOpenMode() {

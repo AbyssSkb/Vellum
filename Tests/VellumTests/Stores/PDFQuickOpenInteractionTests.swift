@@ -58,6 +58,52 @@ struct PDFQuickOpenInteractionTests {
         #expect(!fixture.state.hasOpenTabs)
     }
 
+    @Test
+    func typingKeepsTheSearchFieldAndResultsAreaStable() async throws {
+        let fixture = try Fixture(candidateCount: 12, matchingScript: "/bin/sleep 0.3\n/bin/cat >/dev/null\nexit 1")
+        defer { fixture.close() }
+        let field = try await fixture.readyField()
+        let editor = try #require(field.currentEditor() as? NSTextView)
+        fixture.host.layoutSubtreeIfNeeded()
+        let fieldFrame = field.convert(field.bounds, to: nil)
+        let scrollView = try #require(fixture.resultsScrollView())
+        let resultsHeight = scrollView.bounds.height
+
+        editor.insertText("D", replacementRange: editor.selectedRange())
+        try await waitForTestCondition("Typing did not start matching") {
+            fixture.state.pdfQuickOpenSearch.query == "D" && fixture.state.pdfQuickOpenSearch.isSearching
+        }
+        await nextTestMainQueueTurn()
+        fixture.host.layoutSubtreeIfNeeded()
+        #expect(field.convert(field.bounds, to: nil) == fieldFrame)
+        #expect(scrollView.bounds.height == resultsHeight)
+        #expect(fixture.window.firstResponder === editor)
+        #expect(editor.selectedRange() == NSRange(location: 1, length: 0))
+        #expect(try await fixture.readyField() === field)
+
+        try await waitForTestCondition("Matching did not finish") { !fixture.state.pdfQuickOpenSearch.isSearching }
+        await nextTestMainQueueTurn()
+        fixture.host.layoutSubtreeIfNeeded()
+        #expect(fixture.state.pdfQuickOpenSearch.results.isEmpty)
+        #expect(field.convert(field.bounds, to: nil) == fieldFrame)
+        #expect(scrollView.bounds.height == resultsHeight)
+        #expect(fixture.window.firstResponder === editor)
+        #expect(editor.selectedRange() == NSRange(location: 1, length: 0))
+
+        editor.setMarkedText("深", selectedRange: NSRange(location: 1, length: 0),
+                             replacementRange: NSRange(location: NSNotFound, length: 0))
+        field.delegate?.controlTextDidChange?(Notification(name: NSControl.textDidChangeNotification, object: field))
+        await nextTestMainQueueTurn()
+        fixture.host.layoutSubtreeIfNeeded()
+        #expect(editor.hasMarkedText())
+        #expect(fixture.window.firstResponder === editor)
+        for selector in [#selector(NSResponder.insertNewline(_:)), #selector(NSResponder.cancelOperation(_:))] {
+            #expect(field.delegate?.control?(field, textView: editor, doCommandBy: selector) == false)
+        }
+        #expect(fixture.state.isPDFQuickOpenPresented)
+        editor.unmarkText()
+    }
+
     private struct Presentation: View {
         @ObservedObject var state: AppState
         var body: some View {
@@ -87,7 +133,7 @@ struct PDFQuickOpenInteractionTests {
         let originalFocus = FocusView(frame: .zero)
         let host: NSHostingView<AnyView>
 
-        init() throws {
+        init(candidateCount: Int = 1, matchingScript: String? = nil) throws {
             _ = NSApplication.shared
             preferences = try TestPreferences()
             directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -98,10 +144,19 @@ struct PDFQuickOpenInteractionTests {
             page.setBounds(NSRect(x: 0, y: 0, width: 612, height: 792), for: .mediaBox)
             document.insert(page, at: 0)
             try #require(document.write(to: pdfURL))
+            let executableURL: URL
+            if let matchingScript {
+                executableURL = directory.appendingPathComponent("fzf")
+                try ("#!/bin/sh\n" + matchingScript + "\n").write(to: executableURL, atomically: true, encoding: .utf8)
+                try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: executableURL.path)
+            } else {
+                executableURL = URL(fileURLWithPath: "/usr/bin/true")
+            }
+            let paths = [pdfURL] + (1..<candidateCount).map { [directory] in directory.appendingPathComponent("Paper \($0).pdf") }
             state = AppState(sessionDefaults: preferences.defaults, keyboardController: KeyboardController(
                 installsKeyMonitor: false, installsOpenURLObserver: false,
                 notificationCenter: NotificationCenter(), openURLRelay: OpenURLRelay()
-            ), pdfQuickOpenSearch: PDFQuickOpenSearch(executableURL: URL(fileURLWithPath: "/usr/bin/true"), initialPaths: [pdfURL]))
+            ), pdfQuickOpenSearch: PDFQuickOpenSearch(executableURL: executableURL, initialPaths: paths))
             window = FocusWindow(contentRect: NSRect(x: 0, y: 0, width: 900, height: 650),
                                  styleMask: .borderless, backing: .buffered, defer: false)
             window.isReleasedWhenClosed = false
@@ -118,6 +173,14 @@ struct PDFQuickOpenInteractionTests {
         private func searchField(in view: NSView) -> NSTextField? {
             if let field = view as? NSTextField, field.isEditable { return field }
             return view.subviews.lazy.compactMap { self.searchField(in: $0) }.first
+        }
+
+        func resultsScrollView() -> NSScrollView? {
+            func find(in view: NSView) -> NSScrollView? {
+                if let scrollView = view as? NSScrollView { return scrollView }
+                return view.subviews.lazy.compactMap { find(in: $0) }.first
+            }
+            return find(in: host)
         }
 
         func readyField() async throws -> NSTextField {

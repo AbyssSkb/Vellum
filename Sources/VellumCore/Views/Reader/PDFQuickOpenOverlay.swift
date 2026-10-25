@@ -32,8 +32,7 @@ struct PDFQuickOpenOverlay: View {
                     header
                     VellumDivider(axis: .horizontal)
                     resultsList
-                        .frame(height: min(max(72, CGFloat(search.results.count) * 56 + 12),
-                                           max(72, min(404, geometry.size.height - 196))))
+                        .frame(height: max(72, min(404, geometry.size.height - 196)))
                     footer
                 }
                 .frame(maxWidth: 680)
@@ -74,13 +73,10 @@ struct PDFQuickOpenOverlay: View {
                 onCancel: { appState.hidePDFQuickOpen() }
             )
             .frame(height: 32)
-            if search.isSearching {
-                ProgressView().controlSize(.small)
-            } else {
-                Text("\(search.results.count)")
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(VellumColors.mutedColor)
-            }
+            Text("\(search.results.count)")
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundStyle(VellumColors.mutedColor)
+                .frame(width: 40, alignment: .trailing)
             Button { appState.hidePDFQuickOpen() } label: {
                 Text("Esc")
                     .font(.system(size: 10, design: .monospaced))

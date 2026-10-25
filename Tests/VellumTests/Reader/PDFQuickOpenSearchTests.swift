@@ -7,6 +7,21 @@ import Testing
 @MainActor
 struct PDFQuickOpenSearchTests {
     @Test
+    func pendingQueryKeepsResultsUntilReplacementArrives() async throws {
+        let fixture = try ExecutableFixture(script: "/bin/sleep 0.15\n/bin/cat")
+        defer { fixture.cleanup() }
+        let paths = [URL(fileURLWithPath: "/tmp/DeepSeek-V2.pdf")]
+        let search = PDFQuickOpenSearch(executableURL: fixture.url, initialPaths: paths)
+        search.beginSearching()
+        search.query = "DeepSeek"
+        #expect(search.isSearching)
+        #expect(search.results == paths)
+        try await waitForTestCondition("New results replace the displayed snapshot") { !search.isSearching }
+        #expect(search.results == paths)
+        search.endSearching()
+    }
+
+    @Test
     func onlyIncludesPDFExtensionsAndExcludesDirectories() throws {
         let fixture = try ExecutableFixture(script: "/bin/cat")
         defer { fixture.cleanup() }

@@ -98,8 +98,10 @@ final class PDFQuickOpenSearch: ObservableObject {
             results = snapshot.paths
             return
         }
-        results = []
-        guard !snapshot.paths.isEmpty else { return }
+        guard !snapshot.paths.isEmpty else {
+            results = []
+            return
+        }
         isSearching = true
         let currentGeneration = generation
         let process = PDFQuickOpenMatchProcess(executableURL: executableURL, input: snapshot.input, query: query)
@@ -115,6 +117,7 @@ final class PDFQuickOpenSearch: ObservableObject {
                 self.matchingTask = nil
             } catch {
                 guard let self, !Task.isCancelled, self.generation == currentGeneration else { return }
+                self.results = []
                 self.failure = error as? PDFQuickOpenFailure ?? .matchingFailed(error.localizedDescription)
                 self.isSearching = false
                 self.matchingProcess = nil
