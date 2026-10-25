@@ -20,6 +20,10 @@ public actor DictionaryStore {
 
     public init() {}
 
+    public func invalidate() {
+        current = nil
+    }
+
     public func lookup(_ text: String, at location: URL) throws -> DictionaryEntry? {
         let word = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !word.isEmpty else { return nil }
@@ -115,26 +119,12 @@ public actor DictionaryStore {
 
     private static func dictionaryURL(at location: URL) throws -> URL {
         var isDirectory: ObjCBool = false
-        guard FileManager.default.fileExists(atPath: location.path, isDirectory: &isDirectory) else {
+        guard location.isFileURL, location.pathExtension.lowercased() == "mdx",
+              FileManager.default.fileExists(atPath: location.path, isDirectory: &isDirectory),
+              !isDirectory.boolValue else {
             throw DictionaryError.dictionaryNotFound
         }
-        if !isDirectory.boolValue {
-            guard location.pathExtension.lowercased() == "mdx" else { throw DictionaryError.dictionaryNotFound }
-            return location.resolvingSymlinksInPath()
-        }
-        let root = location.resolvingSymlinksInPath().standardizedFileURL
-        guard let enumerator = FileManager.default.enumerator(at: root, includingPropertiesForKeys: [.isRegularFileKey],
-                                                             options: [.skipsHiddenFiles, .skipsPackageDescendants]) else {
-            throw DictionaryError.unreadableFile
-        }
-        let dictionaries = enumerator.compactMap { element -> URL? in
-            guard let url = element as? URL, url.pathExtension.lowercased() == "mdx",
-                  (try? url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true else { return nil }
-            let resolved = url.resolvingSymlinksInPath().standardizedFileURL
-            return resolved.path.hasPrefix(root.path + "/") ? resolved : nil
-        }
-        guard let first = dictionaries.sorted(by: { $0.path < $1.path }).first else { throw DictionaryError.dictionaryNotFound }
-        return first
+        return location.resolvingSymlinksInPath()
     }
 
     private static func resourcePath(_ path: String) throws -> String {

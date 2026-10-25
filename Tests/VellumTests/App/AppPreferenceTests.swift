@@ -99,19 +99,19 @@ struct AppPreferenceTests {
     }
 
     @Test
-    func dictionaryLocationUsesDefaultFolderOrSelectedFile() throws {
+    func dictionaryLocationRequiresExplicitSelection() throws {
         let preferences = try TestPreferences()
         defer { preferences.cleanup() }
         let defaults = preferences.defaults
         let home = FileManager.default.homeDirectoryForCurrentUser
 
-        #expect(AppPreferences.dictionaryLocation(in: defaults).path == home.appendingPathComponent("Documents/Dictionary").path)
-        defaults.set("~/Documents/Dictionary/example.mdx", forKey: AppPreferenceKeys.dictionaryPath)
-        #expect(AppPreferences.dictionaryLocation(in: defaults).path == home.appendingPathComponent("Documents/Dictionary/example.mdx").path)
+        #expect(AppPreferences.dictionaryLocation(in: defaults) == nil)
+        defaults.set("~/Dictionaries/example.mdx", forKey: AppPreferenceKeys.dictionaryPath)
+        #expect(AppPreferences.dictionaryLocation(in: defaults)?.path == home.appendingPathComponent("Dictionaries/example.mdx").path)
         defaults.set("/tmp/dictionary/example.mdx", forKey: AppPreferenceKeys.dictionaryPath)
-        #expect(AppPreferences.dictionaryLocation(in: defaults).path == "/tmp/dictionary/example.mdx")
+        #expect(AppPreferences.dictionaryLocation(in: defaults)?.path == "/tmp/dictionary/example.mdx")
         defaults.set("", forKey: AppPreferenceKeys.dictionaryPath)
-        #expect(AppPreferences.dictionaryLocation(in: defaults).path == home.appendingPathComponent("Documents/Dictionary").path)
+        #expect(AppPreferences.dictionaryLocation(in: defaults) == nil)
     }
 
     @Test
@@ -141,6 +141,7 @@ struct AppPreferenceTests {
         #expect(DoubleClickActionPreference.none.title(language: .english) == "Off")
         #expect(AppUILanguage.english.text(.dictionaryNotFound("test")).contains("test"))
         #expect(AppUILanguage.chinese.text(.dictionaryNoSelection) == "请先选中要查询的单词。")
+        #expect(AppUILanguage.chinese.text(.dictionaryNotAdded) == "尚未添加词典")
     }
 
     @Test

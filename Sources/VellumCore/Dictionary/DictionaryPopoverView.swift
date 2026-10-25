@@ -11,7 +11,7 @@ final class DictionaryPopoverView: NSView, WKNavigationDelegate, WKScriptMessage
     let webView: WKWebView
     private var lookupTask: Task<Void, Never>?
     private var audioTask: Task<Void, Never>?
-    private var player: AVAudioPlayer?
+    private(set) var player: AVAudioPlayer?
     private var activeNavigation: WKNavigation?
     private var lookupID = UUID()
     private var location = URL(fileURLWithPath: "/")
@@ -74,7 +74,10 @@ final class DictionaryPopoverView: NSView, WKNavigationDelegate, WKScriptMessage
         model.isLoading = true
         model.message = language.text(.dictionaryLoading)
         let id = lookupID
-        let location = AppPreferences.dictionaryLocation()
+        guard let location = AppPreferences.dictionaryLocation() else {
+            showMessage(language.text(.dictionaryUnavailable))
+            return
+        }
         self.location = location
         lookupTask = Task { [weak self] in
             do {
@@ -215,12 +218,8 @@ final class DictionaryPopoverView: NSView, WKNavigationDelegate, WKScriptMessage
 
     private func pronounce(links: [String: String]) {
         let accent = AppPreferences.dictionaryPronunciationAccent()
-        let fallback: AIPronunciationAccentPreference = accent == .american ? .british : .american
         if let raw = links[accent.rawValue], let link = DictionaryPage.link(raw) {
             model.audioStatus = nil
-            play(link.value)
-        } else if let raw = links[fallback.rawValue], let link = DictionaryPage.link(raw) {
-            model.audioStatus = language.text(.dictionaryPronunciationFallback(fallback.title(language: language)))
             play(link.value)
         } else {
             model.audioStatus = language.text(.dictionaryAudioUnavailable)

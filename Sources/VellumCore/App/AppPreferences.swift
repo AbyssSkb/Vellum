@@ -186,11 +186,8 @@ public enum AppPreferences {
         return .dictionary
     }
 
-    public static func dictionaryLocation(in defaults: UserDefaults = .standard) -> URL {
-        let path = defaults.string(forKey: AppPreferenceKeys.dictionaryPath) ?? ""
-        if path.isEmpty {
-            return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Documents/Dictionary", isDirectory: true)
-        }
+    public static func dictionaryLocation(in defaults: UserDefaults = .standard) -> URL? {
+        guard let path = defaults.string(forKey: AppPreferenceKeys.dictionaryPath), !path.isEmpty else { return nil }
         return URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
     }
 

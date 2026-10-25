@@ -210,14 +210,14 @@ Select a word in the PDF and press `K` (`Shift-K`) to look it up. Lowercase `k` 
 ### Set up a dictionary
 
 1. Keep your `.mdx` file, its `.mdd` resource files, and any companion CSS or JavaScript files together in one folder. Keep numbered resource volumes such as `dictionary.1.mdd` alongside `dictionary.mdd`.
-2. Open **Settings → General** and choose the local dictionary's `.mdx` file. Vellum also checks `~/Documents/Dictionary` automatically when no file has been chosen. Allow access if macOS requests permission to read the folder.
+2. Vellum starts with no dictionary selected. Open **Settings → General** and choose the local dictionary's `.mdx` file. Allow access if macOS requests permission to read the folder.
 3. Select a word and press `K`, or double-click it when the double-click action is **Dictionary**.
 
 Vellum reads the dictionary directly from disk. The first version supports unencrypted MDict 2.x files with UTF-8 or UTF-16 text and uncompressed or zlib blocks. Other versions, encodings, encryption, and LZO compression are unsupported. One dictionary is active at a time. The app does not include dictionary content.
 
 ### Pronunciation and double-clicks
 
-Automatic pronunciation is on by default and prefers the dictionary's American recording. Choose British pronunciation or turn automatic pronunciation off in General settings. Automatic playback needs recognizable UK / US headword speaker links; entries with other layouts can still use their manual audio links. The entry's original UK / US speaker links play the corresponding local recordings regardless of the automatic preference.
+Automatic pronunciation is on by default, with American selected. Choose British pronunciation or turn automatic pronunciation off in General settings. Automatic playback needs a recognizable headword speaker link for the selected accent and skips playback if it is missing; entries with other layouts can still use their manual audio links. The entry's original UK / US speaker links play the corresponding local recordings regardless of the automatic preference.
 
 Press `Esc` or click outside to close the panel. Leaving the reader window stops pronunciation and closes the panel.
 

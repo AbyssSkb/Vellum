@@ -156,6 +156,7 @@ public enum AppText {
     case dictionaryTitle
     case dictionaryFile
     case dictionaryFileSubtitle
+    case dictionaryNotAdded
     case dictionaryAutoPronunciation
     case dictionaryAutoPronunciationSubtitle
     case dictionaryPronunciationAccent
@@ -168,7 +169,6 @@ public enum AppText {
     case dictionaryDamaged
     case dictionaryFailed(String)
     case dictionaryAudioUnavailable
-    case dictionaryPronunciationFallback(String)
     case dictionaryClose
     case doubleClickAction
     case doubleClickActionSubtitle
@@ -478,20 +478,20 @@ public extension AppText {
         case .localDictionary: return "Local Dictionary"
         case .dictionaryTitle: return "Dictionary"
         case .dictionaryFile: return "Dictionary File"
-        case .dictionaryFileSubtitle: return "Keep the MDX, MDD, and companion files together. The default folder is searched when you first look up a word."
+        case .dictionaryFileSubtitle: return "Choose a local MDX file to add a dictionary. Keep its MDD and companion files in the same folder."
+        case .dictionaryNotAdded: return "No dictionary added"
         case .dictionaryAutoPronunciation: return "Auto Pronunciation"
         case .dictionaryAutoPronunciationSubtitle: return "Play the dictionary's recording automatically when a word opens."
         case .dictionaryPronunciationAccent: return "Accent"
-        case .dictionaryPronunciationAccentSubtitle: return "Prefer American or British recordings for automatic pronunciation."
+        case .dictionaryPronunciationAccentSubtitle: return "Choose American or British recordings for automatic pronunciation."
         case .dictionaryLoading: return "Loading dictionary…"
         case .dictionaryNoSelection: return "Select a word to look it up."
         case .dictionaryNotFound(let word): return "No dictionary entry found for “\(word)”."
-        case .dictionaryUnavailable: return "No local dictionary is available. Choose an MDX file in Settings, or place one in ~/Documents/Dictionary."
+        case .dictionaryUnavailable: return "No local dictionary is available. Add an MDX file in Settings → General."
         case .dictionaryUnsupportedFormat: return "This dictionary format is not supported. Choose a compatible MDict 2.x dictionary."
         case .dictionaryDamaged: return "This dictionary could not be read. Its files may be incomplete or damaged."
         case .dictionaryFailed(let message): return "Dictionary lookup failed: \(message)"
-        case .dictionaryAudioUnavailable: return "No playable recording is available for this entry."
-        case .dictionaryPronunciationFallback(let accent): return "The preferred recording is unavailable. Playing \(accent)."
+        case .dictionaryAudioUnavailable: return "This pronunciation recording is unavailable."
         case .dictionaryClose: return "Close dictionary"
         case .doubleClickAction: return "Double-Click Action"
         case .doubleClickActionSubtitle: return "Choose what opens after double-clicking a word. Shift+K always opens the dictionary."
@@ -803,20 +803,20 @@ public extension AppText {
         case .localDictionary: return "本地词典"
         case .dictionaryTitle: return "词典"
         case .dictionaryFile: return "词典文件"
-        case .dictionaryFileSubtitle: return "将 MDX、MDD 和配套文件放在同一目录。首次查词时会搜索默认文件夹。"
+        case .dictionaryFileSubtitle: return "选择本地 MDX 文件添加词典，并将其 MDD 和配套文件放在同一目录。"
+        case .dictionaryNotAdded: return "尚未添加词典"
         case .dictionaryAutoPronunciation: return "自动发音"
         case .dictionaryAutoPronunciationSubtitle: return "打开词条后自动播放词典自带的录音。"
         case .dictionaryPronunciationAccent: return "口音"
-        case .dictionaryPronunciationAccentSubtitle: return "选择自动发音优先使用美式还是英式录音。"
+        case .dictionaryPronunciationAccentSubtitle: return "选择自动发音使用美式还是英式录音。"
         case .dictionaryLoading: return "正在加载词典…"
         case .dictionaryNoSelection: return "请先选中要查询的单词。"
         case .dictionaryNotFound(let word): return "词典中没有找到“\(word)”。"
-        case .dictionaryUnavailable: return "未找到本地词典。请在设置中选择 MDX 文件，或将词典放入 ~/Documents/Dictionary。"
+        case .dictionaryUnavailable: return "本地词典不可用。请在设置 → 通用中添加 MDX 文件。"
         case .dictionaryUnsupportedFormat: return "暂不支持此词典格式。请选择兼容的 MDict 2.x 词典。"
         case .dictionaryDamaged: return "无法读取词典，文件可能不完整或已损坏。"
         case .dictionaryFailed(let message): return "查词失败：\(message)"
-        case .dictionaryAudioUnavailable: return "此词条没有可播放的录音。"
-        case .dictionaryPronunciationFallback(let accent): return "没有首选口音的录音，正在播放\(accent)。"
+        case .dictionaryAudioUnavailable: return "此发音录音不可用。"
         case .dictionaryClose: return "关闭词典"
         case .doubleClickAction: return "双击动作"
         case .doubleClickActionSubtitle: return "选择双击单词后打开的内容。Shift+K 始终打开词典。"

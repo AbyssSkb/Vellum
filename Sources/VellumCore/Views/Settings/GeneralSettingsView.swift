@@ -122,7 +122,7 @@ struct GeneralSettingsView: View {
             VStack(spacing: 0) {
                 GeneralOptionRow(
                     title: language.text(.dictionaryFile),
-                    subtitle: "\(dictionaryPath.isEmpty ? "~/Documents/Dictionary" : (dictionaryPath as NSString).abbreviatingWithTildeInPath)\n\(language.text(.dictionaryFileSubtitle))"
+                    subtitle: "\(dictionaryPath.isEmpty ? language.text(.dictionaryNotAdded) : (dictionaryPath as NSString).abbreviatingWithTildeInPath)\n\(language.text(.dictionaryFileSubtitle))"
                 ) {
                     Button(action: chooseDictionaryFile) {
                         Label(language.text(.chooseFile), systemImage: "folder")
@@ -165,11 +165,10 @@ struct GeneralSettingsView: View {
         panel.canChooseFiles = true
         panel.allowsMultipleSelection = false
         panel.title = language.text(.dictionaryFile)
-        let location = AppPreferences.dictionaryLocation()
-        panel.directoryURL = dictionaryPath.isEmpty ? location : location.deletingLastPathComponent()
         panel.begin { response in
             guard response == .OK, let url = panel.url else { return }
             Task { @MainActor in
+                await DictionaryStore.shared.invalidate()
                 dictionaryPath = url.path
             }
         }

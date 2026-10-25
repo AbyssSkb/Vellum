@@ -121,14 +121,61 @@ struct MDictArchiveTests {
         try Data("external style".utf8).write(to: files.directory.appendingPathComponent("style.css"))
 
         let store = DictionaryStore()
-        let entry = try await store.lookup("hello", at: files.root)
-        let sound = try await store.resource("audio/%E4%BD%A0%E5%A5%BD%20us.mp3", at: files.root)
-        let style = try await store.resource("style.css", at: files.root)
-        let missing = try await store.resource("missing.png", at: files.root)
+        let entry = try await store.lookup("hello", at: files.mdx)
+        let sound = try await store.resource("audio/%E4%BD%A0%E5%A5%BD%20us.mp3", at: files.mdx)
+        let style = try await store.resource("style.css", at: files.mdx)
+        let missing = try await store.resource("missing.png", at: files.mdx)
         #expect(entry?.html == "<p>hello</p>")
         #expect(sound == audio)
         #expect(style == Data("external style".utf8))
         #expect(missing == nil)
+    }
+
+    @Test
+    func requiresExplicitMDXFileInsteadOfSearchingDirectories() async throws {
+        let archive = try MDictFixture(entries: [("hello", Data("hello".utf8))])
+        let files = try DictionaryFiles(archive: archive.data)
+        defer { files.cleanup() }
+        let directoryWithMDXExtension = files.root.appendingPathComponent("folder.mdx", isDirectory: true)
+        try FileManager.default.createDirectory(at: directoryWithMDXExtension, withIntermediateDirectories: true)
+        let otherFile = files.directory.appendingPathComponent("fixture.txt")
+        try archive.data.write(to: otherFile)
+        let store = DictionaryStore()
+
+        for location in [files.root, files.directory, directoryWithMDXExtension, otherFile] {
+            do {
+                _ = try await store.lookup("hello", at: location)
+                Issue.record("Only an explicitly selected MDX file may be opened")
+            } catch let error as DictionaryError {
+                #expect(error == .dictionaryNotFound)
+            }
+        }
+    }
+
+    @Test
+    func invalidatingSelectionReloadsReplacedArchiveAndResourceVolumes() async throws {
+        let archive = try MDictFixture(entries: [("hello", Data("original".utf8))])
+        let files = try DictionaryFiles(archive: archive.data)
+        defer { files.cleanup() }
+        let volumeURL = files.directory.appendingPathComponent("fixture.1.mdd")
+        try MDictFixture(entries: [("\\audio.mp3", Data("original audio".utf8))], resource: true).data.write(to: volumeURL)
+        let store = DictionaryStore()
+        #expect(try await store.lookup("hello", at: files.mdx)?.html == "original")
+        #expect(try await store.resource("audio.mp3", at: files.mdx) == Data("original audio".utf8))
+
+        try MDictFixture(entries: [("hello", Data("replacement".utf8)), ("world", Data("new word".utf8))]).data.write(to: files.mdx, options: .atomic)
+        try MDictFixture(entries: [("\\audio.mp3", Data("replacement audio".utf8))], resource: true).data.write(to: volumeURL, options: .atomic)
+        let newVolumeURL = files.directory.appendingPathComponent("fixture.2.mdd")
+        try MDictFixture(entries: [("\\new.mp3", Data("new audio".utf8))], resource: true).data.write(to: newVolumeURL)
+        #expect(try await store.lookup("world", at: files.mdx) == nil)
+        #expect(try await store.resource("new.mp3", at: files.mdx) == nil)
+
+        await store.invalidate()
+
+        #expect(try await store.lookup("hello", at: files.mdx)?.html == "replacement")
+        #expect(try await store.lookup("world", at: files.mdx)?.html == "new word")
+        #expect(try await store.resource("audio.mp3", at: files.mdx) == Data("replacement audio".utf8))
+        #expect(try await store.resource("new.mp3", at: files.mdx) == Data("new audio".utf8))
     }
 
     @Test
@@ -199,9 +246,9 @@ struct MDictArchiveTests {
     }
 
     @Test
-    func installedOxfordDictionaryIncludesHelloAndRecordedAudio() async throws {
-        let mdx = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Documents/Dictionary/OALDPEX-Final/oaldpex.mdx")
-        guard FileManager.default.fileExists(atPath: mdx.path) else { return }
+    func configuredOxfordDictionaryIncludesHelloAndRecordedAudio() async throws {
+        guard let path = ProcessInfo.processInfo.environment["VELLUM_TEST_MDX_PATH"], !path.isEmpty else { return }
+        let mdx = URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
         let store = DictionaryStore()
         let entry = try #require(await store.lookup("hello", at: mdx))
         #expect(entry.html.localizedCaseInsensitiveContains("hello"))
@@ -247,7 +294,7 @@ private struct DictionaryFiles {
 }
 
 // Synthetic v2 layout: https://github.com/zhansliu/writemdict/blob/master/fileformat.md
-private struct MDictFixture {
+struct MDictFixture {
     var data: Data
     let headerChecksumOffset: Int
     let keyHeaderOffset: Int

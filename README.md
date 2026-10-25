@@ -50,7 +50,7 @@ Press `s`, type the beginning of a visible word, then type its letter label to s
 
 ## Look up words offline
 
-Select a word and press `K` (`Shift-K`), or set double-clicks to **Dictionary** in General settings. Vellum displays entries from a local MDict dictionary with their original formatting, images, and pronunciation recordings. Choose your `.mdx` file in General settings; see the [dictionary setup](docs/USER_GUIDE.md#local-dictionaries) for supported files and controls.
+Select a word and press `K` (`Shift-K`), or set double-clicks to **Dictionary** in General settings. Vellum displays entries from a local MDict dictionary with their original formatting, images, and pronunciation recordings. Vellum starts with no dictionary included or selected. Choose your `.mdx` file in **Settings → General**; see the [dictionary setup](docs/USER_GUIDE.md#local-dictionaries) for supported files and controls.
 
 ## Experimental AI
 

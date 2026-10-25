@@ -27,6 +27,22 @@ struct DictionaryPageTests {
     }
 
     @Test
+    func anUnconfiguredDictionaryDoesNotStartLoadingOrPlayback() {
+        let defaults = UserDefaults.standard
+        let previous = defaults.object(forKey: AppPreferenceKeys.dictionaryPath)
+        defaults.removeObject(forKey: AppPreferenceKeys.dictionaryPath)
+        defer {
+            if let previous { defaults.set(previous, forKey: AppPreferenceKeys.dictionaryPath) }
+        }
+        let view = DictionaryPopoverView()
+        defer { view.stop() }
+        view.lookup("hello")
+        #expect(!view.isLoading)
+        #expect(view.webView.url == nil)
+        #expect(view.player == nil)
+    }
+
+    @Test
     func escapeDismissesOnKeyDownAndConsumesKeyRelease() throws {
         let view = DictionaryPopoverView()
         defer { view.stop() }
@@ -41,10 +57,10 @@ struct DictionaryPageTests {
         #expect(dismissals == 1)
     }
 
-    @Test(.timeLimit(.minutes(1)), arguments: [false, true])
-    func installedOxfordLookupFinishesInTheHostedPopover(useDefaultFolder: Bool) async throws {
-        let mdx = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Documents/Dictionary/OALDPEX-Final/oaldpex.mdx")
-        guard FileManager.default.fileExists(atPath: mdx.path) else { return }
+    @Test(.timeLimit(.minutes(1)))
+    func configuredOxfordLookupFinishesInTheHostedPopover() async throws {
+        guard let path = ProcessInfo.processInfo.environment["VELLUM_TEST_MDX_PATH"] else { return }
+        let mdx = URL(fileURLWithPath: path)
         let defaults = UserDefaults.standard
         let keys = [AppPreferenceKeys.dictionaryPath, AppPreferenceKeys.dictionaryAutoPronunciationEnabled]
         let previous = keys.map { defaults.object(forKey: $0) }
@@ -53,7 +69,7 @@ struct DictionaryPageTests {
                 if let value { defaults.set(value, forKey: key) } else { defaults.removeObject(forKey: key) }
             }
         }
-        defaults.set(useDefaultFolder ? "" : mdx.path, forKey: AppPreferenceKeys.dictionaryPath)
+        defaults.set(mdx.path, forKey: AppPreferenceKeys.dictionaryPath)
         defaults.set(false, forKey: AppPreferenceKeys.dictionaryAutoPronunciationEnabled)
         let view = DictionaryPopoverView()
         view.frame = NSRect(x: 0, y: 0, width: 600, height: 620)
