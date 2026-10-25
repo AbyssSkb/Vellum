@@ -520,6 +520,8 @@ final class VellumPDFView: PDFView {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) { [weak self] in
             guard let self else { return }
             self.isMouseSelectingText = false
+            guard NSApp.isActive, let window = self.window, window.isKeyWindow, window.isVisible,
+                  !window.isMiniaturized, window.attachedSheet == nil else { return }
             self.performDoubleClickActionIfNeeded(at: doubleClickPoint)
         }
     }

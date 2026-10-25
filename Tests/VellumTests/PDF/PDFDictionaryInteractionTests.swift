@@ -7,8 +7,8 @@ import Testing
 @Suite("Dictionary reader interaction")
 struct PDFDictionaryInteractionTests {
     @Test
-    func lookupFitsTheCanvasAndEscapeRestoresTheReaderSelection() throws {
-        try withReader { window, view, _ in
+    func lookupFitsTheCanvasAndEscapeRestoresTheReaderSelection() async throws {
+        try await withReader { window, view, _ in
             let selectedText = view.currentSelection?.string
             view.vimLookupDictionary()
             #expect(view.isDictionaryInteractionActive)
@@ -27,8 +27,8 @@ struct PDFDictionaryInteractionTests {
     }
 
     @Test
-    func doubleClickUsesTheConfiguredActionAndIgnoresPointsOutsideTheSelection() throws {
-        try withReader { _, view, page in
+    func doubleClickUsesTheConfiguredActionAndIgnoresPointsOutsideTheSelection() async throws {
+        try await withReader { _, view, page in
             let bounds = try #require(view.currentSelection?.bounds(for: page))
             let point = view.convert(NSPoint(x: bounds.midX, y: bounds.midY), from: page)
             UserDefaults.standard.set(DoubleClickActionPreference.none.rawValue, forKey: AppPreferenceKeys.doubleClickAction)
@@ -44,8 +44,8 @@ struct PDFDictionaryInteractionTests {
     }
 
     @Test
-    func replacingTheDocumentDismissesTheDictionary() throws {
-        try withReader { _, view, _ in
+    func replacingTheDocumentDismissesTheDictionary() async throws {
+        try await withReader { _, view, _ in
             view.vimLookupDictionary()
             #expect(view.isDictionaryInteractionActive)
             view.document = try makeTextPDF(pages: [[("another", NSPoint(x: 72, y: 720))]])
@@ -54,8 +54,8 @@ struct PDFDictionaryInteractionTests {
     }
 
     @Test(arguments: [NSWindow.didResignKeyNotification, NSWindow.willMiniaturizeNotification, NSWindow.willCloseNotification])
-    func leavingTheReaderCancelsPendingLookupAndPronunciation(notification: Notification.Name) throws {
-        try withReader { window, view, _ in
+    func leavingTheReaderCancelsPendingLookupAndPronunciation(notification: Notification.Name) async throws {
+        try await withReader { window, view, _ in
             view.vimLookupDictionary()
             #expect(view.isDictionaryInteractionActive)
             NotificationCenter.default.post(name: notification, object: window)
@@ -65,7 +65,35 @@ struct PDFDictionaryInteractionTests {
         }
     }
 
-    private func withReader(_ body: (NSWindow, VellumPDFView, PDFPage) throws -> Void) throws {
+    @Test
+    func delayedDoubleClickDoesNotOpenDictionaryForAHiddenReader() async throws {
+        try await withReader { window, view, page in
+            let bounds = try #require(view.currentSelection?.bounds(for: page))
+            let point = view.convert(NSPoint(x: bounds.midX, y: bounds.midY), from: page)
+            UserDefaults.standard.set(DoubleClickActionPreference.dictionary.rawValue, forKey: AppPreferenceKeys.doubleClickAction)
+            view.isMouseSelectingText = true
+            view.pendingDoubleClickTextSelectionPoint = point
+            view.didHandleDoubleClickTextSelectionMouseDown = true
+            let event = try #require(NSEvent.mouseEvent(
+                with: .leftMouseUp, location: view.convert(point, to: nil), modifierFlags: [], timestamp: 0,
+                windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 2, pressure: 0
+            ))
+            view.mouseUp(with: event)
+
+            window.orderOut(nil)
+            #expect(!window.isVisible)
+            try await waitForTestCondition("The delayed double-click callback completes") {
+                !view.isMouseSelectingText
+            }
+            let openedDictionary = view.isDictionaryInteractionActive
+            let retainedPopover = view.dictionaryPopover != nil
+            #expect(!openedDictionary)
+            #expect(!retainedPopover)
+        }
+    }
+
+    private func withReader(_ body: @MainActor (NSWindow, VellumPDFView, PDFPage) async throws -> Void) async throws {
+        _ = NSApplication.shared
         let defaults = UserDefaults.standard
         let keys = [AppPreferenceKeys.dictionaryPath, AppPreferenceKeys.dictionaryAutoPronunciationEnabled,
                     AppPreferenceKeys.doubleClickAction]
@@ -94,6 +122,6 @@ struct PDFDictionaryInteractionTests {
         let text = try #require(page.string as NSString?)
         let selection = try #require(page.selection(for: text.range(of: "hello")))
         view.setCurrentSelection(selection, animate: false)
-        try body(window, view, page)
+        try await body(window, view, page)
     }
 }
