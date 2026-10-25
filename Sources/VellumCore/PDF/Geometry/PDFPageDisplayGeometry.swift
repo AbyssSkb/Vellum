@@ -3,7 +3,7 @@ import PDFKit
 struct PDFPageDisplayGeometry {
     // Coordinates start at the displayed crop box's bottom-left, with y increasing upward.
     let bounds: CGRect
-    private let pageToDisplay: CGAffineTransform
+    let pageToDisplay: CGAffineTransform
 
     init(page: PDFPage, box: PDFDisplayBox) {
         let crop = page.bounds(for: box)

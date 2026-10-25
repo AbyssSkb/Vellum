@@ -125,9 +125,8 @@ final class PDFReferenceContent {
             let visible = bounds.intersection(fragment.page.bounds(for: .cropBox))
             guard !visible.isEmpty else { return nil }
             let geometry = PDFPageDisplayGeometry(page: fragment.page, box: .cropBox)
-            let transform = page.getDrawingTransform(.cropBox, rect: geometry.bounds,
-                rotate: Int32(fragment.page.rotation - Int(page.rotationAngle)), preserveAspectRatio: true)
-            drawing.append((page, fragment.page, transform, geometry.rect(forPageRect: visible)))
+            // PDFKit crop and rotation edits need not be reflected in the underlying CGPDFPage.
+            drawing.append((page, fragment.page, geometry.pageToDisplay, geometry.rect(forPageRect: visible)))
         }
         let gap: CGFloat = 4
         let left = drawing.map(\.bounds.minX).min() ?? 0
