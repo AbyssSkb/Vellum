@@ -109,8 +109,10 @@ final class MDictArchive {
         var index = BinaryReader(try decode(offset: position, compressedSize: keyIndexCompressedSize, size: keyIndexSize))
         position += keyIndexCompressedSize
         let keyBlocksStart = position
-        keys.reserveCapacity(entryCount)
         let width = encoding == .utf16LittleEndian ? 2 : 1
+        var keyBlocks: [(count: Int, compressedSize: Int, size: Int)] = []
+        var keyCount = 0
+        var keyTableSize = 0
         for _ in 0..<keyBlockCount {
             let count = try index.number(8)
             let firstLength = try index.number(2)
@@ -119,10 +121,18 @@ final class MDictArchive {
             try index.skip((lastLength + 1) * width)
             let compressedSize = try index.number(8)
             let size = try index.number(8)
-            guard count <= entryCount - keys.count else { throw DictionaryError.invalidArchive }
-            var keyBlock = BinaryReader(try decode(offset: position, compressedSize: compressedSize, size: size))
-            position = try Self.add(position, compressedSize)
-            for _ in 0..<count {
+            guard count <= entryCount - keyCount,
+                  size <= Self.maximumIndexSize - keyTableSize else { throw DictionaryError.invalidArchive }
+            keyCount += count
+            keyTableSize += size
+            keyBlocks.append((count, compressedSize, size))
+        }
+        guard index.isAtEnd, keyCount == entryCount else { throw DictionaryError.invalidArchive }
+        keys.reserveCapacity(entryCount)
+        for block in keyBlocks {
+            var keyBlock = BinaryReader(try decode(offset: position, compressedSize: block.compressedSize, size: block.size))
+            position = try Self.add(position, block.compressedSize)
+            for _ in 0..<block.count {
                 let offset = try keyBlock.number(8)
                 let text = try keyBlock.string(encoding: encoding, width: width)
                 guard keys.last.map({ $0.offset <= offset }) ?? true else { throw DictionaryError.invalidArchive }
@@ -130,8 +140,7 @@ final class MDictArchive {
             }
             guard keyBlock.isAtEnd else { throw DictionaryError.invalidArchive }
         }
-        guard index.isAtEnd, keys.count == entryCount,
-              position - keyBlocksStart == keyBlocksSize else { throw DictionaryError.invalidArchive }
+        guard position - keyBlocksStart == keyBlocksSize else { throw DictionaryError.invalidArchive }
 
         var recordHeader = BinaryReader(try read(offset: position, count: 32))
         let recordBlockCount = try recordHeader.number(8)
