@@ -75,6 +75,10 @@ final class KeyboardController {
     }
 
     func handleKeyEvent(_ event: NSEvent) -> Bool {
+        if let reader = delegate?.activeReaderController, reader.isDictionaryInteractionActive {
+            cancelInput()
+            return reader.handleDictionaryKeyEvent(event)
+        }
         if hasInputSequence, (!inputContextIsValid || event.window !== inputWindow) {
             cancelInput()
         }
@@ -143,6 +147,16 @@ final class KeyboardController {
         }
 
         if tabPageOverviewActive {
+            return true
+        }
+
+        if key == "K" {
+            stopHeldKeyTimer()
+            vimInput.clearPendingInput()
+            if event.type == .keyDown, !event.isARepeat {
+                delegate?.handleVimCommand(.lookupDictionary)
+                completedSequenceKey = key
+            }
             return true
         }
 
@@ -240,6 +254,10 @@ final class KeyboardController {
               !(window is NSPanel) else {
             cancelInput()
             return false
+        }
+
+        if delegate?.activeReaderController?.isDictionaryInteractionActive == true {
+            return handleKeyEvent(event)
         }
 
         if let responder = window.firstResponder,
@@ -532,6 +550,7 @@ final class KeyboardController {
         NSApp?.modalWindow == nil
             && delegate?.hasBlockingReaderPresentation != true
             && delegate?.activeReaderController?.isAIInteractionActive != true
+            && delegate?.activeReaderController?.isDictionaryInteractionActive != true
             && delegate?.activeReaderController === inputReader
             && inputWindow?.attachedSheet == nil
             && (inputWindow == nil || inputWindow?.isVisible == true)

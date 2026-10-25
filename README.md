@@ -48,6 +48,10 @@ Press `s`, type the beginning of a visible word, then type its letter label to s
 
 *Screenshots use this [sample PDF](docs/samples/the-shape-of-attention.pdf).*
 
+## Look up words offline
+
+Select a word and press `K` (`Shift-K`), or set double-clicks to **Dictionary** in General settings. Vellum displays entries from a local MDict dictionary with their original formatting, images, and pronunciation recordings. Choose your `.mdx` file in General settings; see the [dictionary setup](docs/USER_GUIDE.md#local-dictionaries) for supported files and controls.
+
 ## Experimental AI
 
 AI assistance is optional and experimental. See the [user guide](docs/USER_GUIDE.md#experimental-ai) for configuration and usage.
@@ -71,6 +75,7 @@ AI assistance is optional and experimental. See the [user guide](docs/USER_GUIDE
 | `Z` (`Shift-Z`) | Fuzzy search indexed PDF filenames and paths in your home folder |
 | `/` / `*`, `n` / `N` | Search a query / selected text; next / previous match |
 | `s` | Type a visible word prefix and its label to select |
+| `K` (`Shift-K`) | Look up the selected word in a local dictionary |
 | `o` with text selected | Switch the endpoint adjusted by selection motions |
 | `^` / `$` with text selected | First text / end of visual line |
 | `gv` | Restore the last text selection |
@@ -83,7 +88,7 @@ Letter shortcuts apply to the focused reading surface. The [user guide](docs/USE
 
 ## Preferences and updates
 
-Settings include English and Chinese UI, default file-opening behavior, initial page fit, highlight color, optional session restoration, and AI configuration. Session restoration is off by default.
+Settings include English and Chinese UI, default file-opening behavior, initial page fit, highlight color, local dictionaries, optional session restoration, and AI configuration. Session restoration is off by default.
 
 Sparkle handles automatic updates, with checks enabled by default. A new version downloads and prepares in the background, then Vellum offers to restart and update now or install when you normally quit. Manual checks from the Vellum menu or General settings use the same update window, with Vim-style release-note scrolling and letter shortcuts shown on its buttons. See the [update controls](docs/USER_GUIDE.md#settings-and-updates).
 

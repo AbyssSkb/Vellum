@@ -201,6 +201,30 @@ Labels adapt to the displayed text size and avoid letters that could continue th
 
 Word jump uses extractable PDF text. Scanned pages need a text layer before words can be targeted.
 
+## Local dictionaries
+
+Select a word in the PDF and press `K` (`Shift-K`) to look it up. Lowercase `k` keeps its existing scrolling and selection behavior. You can also set the text double-click action to **Dictionary** in **Settings → General**. The entry opens in a floating panel with the dictionary's HTML formatting, styles, images, and local scripts. Follow a word link inside an entry to look up that word.
+
+### Set up a dictionary
+
+1. Keep your `.mdx` file, its `.mdd` resource files, and any companion CSS or JavaScript files together in one folder. Keep numbered resource volumes such as `dictionary.1.mdd` alongside `dictionary.mdd`.
+2. Open **Settings → General** and choose the local dictionary's `.mdx` file. Vellum also checks `~/Documents/Dictionary` automatically when no file has been chosen. Allow access if macOS requests permission to read the folder.
+3. Select a word and press `K`, or double-click it when the double-click action is **Dictionary**.
+
+Vellum reads the dictionary directly from disk. The first version supports unencrypted MDict 2.x files with UTF-8 or UTF-16 text and uncompressed or zlib blocks. Other versions, encodings, encryption, and LZO compression are unsupported. One dictionary is active at a time. The app does not include dictionary content.
+
+### Pronunciation and double-clicks
+
+Automatic pronunciation is on by default and prefers the dictionary's American recording. Choose British pronunciation or turn automatic pronunciation off in General settings. Automatic playback needs recognizable UK / US headword speaker links; entries with other layouts can still use their manual audio links. The entry's original UK / US speaker links play the corresponding local recordings regardless of the automatic preference.
+
+Press `Esc` or click outside to close the panel. Leaving the reader window stops pronunciation and closes the panel.
+
+While the dictionary is open, `j` / `k` scroll vertically, `h` / `l` scroll horizontally, `d` / `u` move half a viewport, `f` / `b` move a full viewport, and `Space` moves forward a viewport. Use `gg` / `G` for the top / bottom of the entry. These keys control the dictionary while its panel is open.
+
+Dictionary pages and audio stay offline. Vellum blocks remote resources, so features that require a website or online speech service are unavailable. Playback requires audio included in the local resource files; an optional sentence or TTS resource pack may be needed for passages without a regular recording. Missing companion files can also affect an entry's appearance or controls.
+
+The text double-click action offers **Dictionary**, **AI**, and **Off**. New installations use **Dictionary**. An explicitly saved choice from the former double-click translation setting is preserved as **AI** or **Off** after upgrading. The `K` shortcut remains available with any double-click choice; `a` still requests an AI explanation.
+
 ## Highlight and save
 
 Choose a color from the circular swatches in the tab bar, or press `c` to cycle through yellow, green, cyan, purple, and pink.
@@ -239,7 +263,7 @@ AI requests send the selection and extracted nearby context, such as its page, o
 | `A` | Browse explanation history for the current PDF |
 | `I` | Browse conversation history for the current PDF |
 
-Double-clicking text can trigger an explanation or translation; this is enabled by default and can be changed in General settings. A middle click on selected text is another explanation trigger.
+Choose **AI** as the text double-click action in General settings to trigger an explanation or translation by double-clicking. A middle click on selected text is another explanation trigger.
 
 In an explanation, use `j` / `k` to scroll, `c` to choose a highlight color, and `m` to save the passage and answer together as a PDF highlight. `Esc` dismisses the explanation. Hover a highlight with a saved explanation to reopen its answer.
 
@@ -249,7 +273,7 @@ In a conversation, type a follow-up question and press `Enter` to send. `Shift-E
 
 ## Settings and updates
 
-**General** contains the interface language, tab restoration, default open mode, initial page fit, default highlight color, double-click translation, update checks, and AI logs. **AI Providers**, **AI Explanation**, and **AI Conversation** configure AI. **Shortcuts** contains an in-app key reference.
+**General** contains the interface language, tab restoration, default open mode, initial page fit, default highlight color, local dictionary and pronunciation settings, the text double-click action, update checks, and AI logs. **AI Providers**, **AI Explanation**, and **AI Conversation** configure AI. **Shortcuts** contains an in-app key reference.
 
 Operation feedback appears as a Toast at the top of the window and disappears after a few seconds. It keeps the current keyboard focus, so you can continue reading or typing. Update check results use the same notifications; an error offers a details action. Ongoing update progress and annotation save recovery keep their interaction windows so you can finish or resolve them.
 
@@ -281,6 +305,7 @@ AI diagnostics are stored at `~/Library/Application Support/Vellum/Logs/ai-reque
 - **An externally edited PDF still looks old:** reopen it using the file picker or Finder. Resolve any pending annotation-save prompt so the latest disk contents can be loaded.
 - **No contents entries:** the PDF may not contain an embedded outline.
 - **Search or selection misses text:** a scanned page or unusual text encoding may prevent PDFKit from extracting it. Vellum's search and AI selection features depend on extractable text.
+- **A dictionary entry or recording is missing:** check the selected `.mdx` file and keep its companion resources together. A word may be absent from the dictionary, and playback needs a local recording. Online resources remain blocked.
 - **AI requests fail:** check the selected provider, endpoint / executable, authentication, and model with Test Endpoint or Test Codex; inspect the diagnostic log for the failure.
 
 For bugs and feature requests, use [GitHub Issues](https://github.com/AbyssSkb/Vellum/issues). Include the steps to reproduce, macOS version, Vellum version, and a shareable sample PDF when relevant.

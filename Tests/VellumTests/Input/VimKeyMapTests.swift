@@ -87,6 +87,19 @@ struct VimKeyMapTests {
     }
 
     @Test
+    func uppercaseKLooksUpDictionaryAndLowercaseKStillScrolls() {
+        #expect(VimKeyMap.command(for: "K") == .lookupDictionary)
+        #expect(VimKeyMap.command(for: "k") == .scrollUp)
+        #expect(VimKeyMap.normalizedContinuousKey("K") == "K")
+        #expect(!VimKeyMap.isContinuousKey("K"))
+        #expect(VimKeyMap.isContinuousKey("k"))
+        #expect(VimKeyMap.lowercaseFallback(for: "K") == nil)
+        #expect(VimKeyMap.repeatableCommand(for: "K") == nil)
+        #expect(VimKeyMap.isHandledKey("K", hasNavigableTextSelection: false, hasTextActionTarget: false))
+        #expect(!VimCommand.lookupDictionary.acceptsCount)
+    }
+
+    @Test
     func referencePreviewUsesLowercasePAndUppercasePIsUnassigned() {
         #expect(VimKeyMap.command(for: "p") == .beginLinkPreview)
         #expect(VimKeyMap.command(for: "P") == nil)

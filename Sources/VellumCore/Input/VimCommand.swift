@@ -41,6 +41,7 @@ enum VimCommand: Equatable, Sendable {
     case cycleHighlightColor
     case explainHighlightSelection
     case startAIConversation
+    case lookupDictionary
     case showAIExplanationHistory
     case showAIConversationHistory
     case zoomIn

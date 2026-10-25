@@ -97,6 +97,10 @@ extension AppState: VimCommandTarget {
         activeReaderController?.vimStartAIConversation()
     }
 
+    func lookupDictionary() {
+        activeReaderController?.vimLookupDictionary()
+    }
+
     func zoom(by factor: CGFloat) {
         activeReaderController?.vimZoom(by: factor)
     }

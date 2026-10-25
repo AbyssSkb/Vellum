@@ -87,7 +87,8 @@ struct VimInputControllerTests {
         ("H", .previousTab),
         ("L", .nextTab),
         ("X", .restoreClosedTab),
-        ("O", .openInNewTab)
+        ("O", .openInNewTab),
+        ("K", .lookupDictionary)
     ])
     func uppercaseCommandCancelsPendingGCommand(key: String, command: VimCommand) {
         var input = VimInputController()
@@ -98,7 +99,7 @@ struct VimInputControllerTests {
         #expect(input.handleKeyDown("g", isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .command(.firstPage))
     }
 
-    @Test(arguments: ["G", "H", "L", "X", "O"])
+    @Test(arguments: ["G", "H", "L", "X", "O", "K"])
     func uppercaseCommandsIgnoreNativeRepeats(key: String) {
         var input = VimInputController()
 
@@ -224,7 +225,7 @@ struct VimInputControllerTests {
         #expect(input.handleKey("n") == .command(.counted(.searchNext, VimInputController.maximumRepeatCount)))
     }
 
-    @Test(arguments: [("m", VimCommand.highlightSelection), ("M", .showHighlights), ("x", .closeTab), ("o", .open), ("F", .beginLinkJump), ("Z", .showPDFQuickOpen)])
+    @Test(arguments: [("m", VimCommand.highlightSelection), ("M", .showHighlights), ("x", .closeTab), ("o", .open), ("F", .beginLinkJump), ("Z", .showPDFQuickOpen), ("K", .lookupDictionary)])
     func actionCommandsExecuteOnlyOnceAndConsumeCounts(key: String, command: VimCommand) {
         var input = VimInputController()
         _ = input.handleKey("9")

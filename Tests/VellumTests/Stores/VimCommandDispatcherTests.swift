@@ -104,6 +104,7 @@ struct VimCommandDispatcherTests {
         dispatcher.perform(.cycleHighlightColor, on: target)
         dispatcher.perform(.explainHighlightSelection, on: target)
         dispatcher.perform(.startAIConversation, on: target)
+        dispatcher.perform(.lookupDictionary, on: target)
         dispatcher.perform(.showAIExplanationHistory, on: target)
         dispatcher.perform(.showAIConversationHistory, on: target)
         dispatcher.perform(.zoomIn, on: target)
@@ -121,6 +122,7 @@ struct VimCommandDispatcherTests {
             .cycleHighlightColor,
             .explainHighlightSelection,
             .startAIConversation,
+            .lookupDictionary,
             .showAIExplanationHistory,
             .showAIConversationHistory,
             .zoom(VimCommandMetrics.zoomStepFactor),
@@ -297,6 +299,10 @@ private final class RecordingVimCommandTarget: VimCommandTarget {
         actions.append(.startAIConversation)
     }
 
+    func lookupDictionary() {
+        actions.append(.lookupDictionary)
+    }
+
     func showAIExplanationHistory() {
         actions.append(.showAIExplanationHistory)
     }
@@ -352,6 +358,7 @@ private final class RecordingVimCommandTarget: VimCommandTarget {
         case cycleHighlightColor
         case explainHighlightSelection
         case startAIConversation
+        case lookupDictionary
         case showAIExplanationHistory
         case showAIConversationHistory
         case zoom(CGFloat)

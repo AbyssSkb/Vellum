@@ -4,6 +4,7 @@ import PDFKit
 @MainActor
 protocol ReaderController: AnyObject {
     var isAIInteractionActive: Bool { get }
+    var isDictionaryInteractionActive: Bool { get }
     var hasNavigableTextSelection: Bool { get }
     var hasSearchTextTarget: Bool { get }
     var isPageOverviewActive: Bool { get }
@@ -25,6 +26,7 @@ protocol ReaderController: AnyObject {
     func handleReferencePreviewKey(_ event: NSEvent) -> Bool
     func cancelLinkPreview()
     func handleAIKeyEvent(_ event: NSEvent) -> Bool
+    func handleDictionaryKeyEvent(_ event: NSEvent) -> Bool
     func handleTextSelectionKeyEvent(_ event: NSEvent) -> Bool
     func handleTextSelectionKey(_ rawKey: String, eventType: NSEvent.EventType) -> Bool
     func handleTextSelectionKey(_ rawKey: String, eventType: NSEvent.EventType, count: Int) -> Bool
@@ -52,6 +54,7 @@ protocol ReaderController: AnyObject {
     func vimNavigateHighlight(_ direction: Int)
     func vimExplainSelectedHighlight()
     func vimStartAIConversation()
+    func vimLookupDictionary()
     func aiExplanationHistoryItems() -> [AIExplanationHistoryItem]
     func showNotification(_ message: String)
     func restoreAIExplanation(_ item: AIExplanationHistoryItem)
@@ -62,6 +65,10 @@ protocol ReaderController: AnyObject {
 }
 
 extension ReaderController {
+    var isDictionaryInteractionActive: Bool { false }
+    func handleDictionaryKeyEvent(_ event: NSEvent) -> Bool { false }
+    func vimLookupDictionary() {}
+
     func beginLinkPreviewCommand() {}
     func handleReferencePreviewKey(_ event: NSEvent) -> Bool { false }
     func cancelLinkPreview() {}

@@ -63,6 +63,58 @@ struct AppPreferenceTests {
     }
 
     @Test
+    func doubleClickActionPreservesExplicitLegacyPreference() throws {
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let defaults = preferences.defaults
+
+        #expect(AppPreferences.doubleClickAction(in: defaults) == .dictionary)
+        defaults.set(true, forKey: AppPreferenceKeys.doubleClickTranslatesSelection)
+        #expect(AppPreferences.doubleClickAction(in: defaults) == .ai)
+        defaults.set(false, forKey: AppPreferenceKeys.doubleClickTranslatesSelection)
+        #expect(AppPreferences.doubleClickAction(in: defaults) == .none)
+
+        defaults.set(DoubleClickActionPreference.dictionary.rawValue, forKey: AppPreferenceKeys.doubleClickAction)
+        #expect(AppPreferences.doubleClickAction(in: defaults) == .dictionary)
+        defaults.set("invalid", forKey: AppPreferenceKeys.doubleClickAction)
+        #expect(AppPreferences.doubleClickAction(in: defaults) == .none)
+        defaults.removeObject(forKey: AppPreferenceKeys.doubleClickTranslatesSelection)
+        #expect(AppPreferences.doubleClickAction(in: defaults) == .dictionary)
+    }
+
+    @Test
+    func dictionaryDefaultsToAutomaticAmericanPronunciation() throws {
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let defaults = preferences.defaults
+
+        #expect(AppPreferences.automaticallyPronouncesDictionary(in: defaults))
+        #expect(AppPreferences.dictionaryPronunciationAccent(in: defaults) == .american)
+        defaults.set(false, forKey: AppPreferenceKeys.dictionaryAutoPronunciationEnabled)
+        defaults.set(AIPronunciationAccentPreference.british.rawValue, forKey: AppPreferenceKeys.dictionaryPronunciationAccent)
+        #expect(!AppPreferences.automaticallyPronouncesDictionary(in: defaults))
+        #expect(AppPreferences.dictionaryPronunciationAccent(in: defaults) == .british)
+        defaults.set("invalid", forKey: AppPreferenceKeys.dictionaryPronunciationAccent)
+        #expect(AppPreferences.dictionaryPronunciationAccent(in: defaults) == .american)
+    }
+
+    @Test
+    func dictionaryLocationUsesDefaultFolderOrSelectedFile() throws {
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let defaults = preferences.defaults
+        let home = FileManager.default.homeDirectoryForCurrentUser
+
+        #expect(AppPreferences.dictionaryLocation(in: defaults).path == home.appendingPathComponent("Documents/Dictionary").path)
+        defaults.set("~/Documents/Dictionary/example.mdx", forKey: AppPreferenceKeys.dictionaryPath)
+        #expect(AppPreferences.dictionaryLocation(in: defaults).path == home.appendingPathComponent("Documents/Dictionary/example.mdx").path)
+        defaults.set("/tmp/dictionary/example.mdx", forKey: AppPreferenceKeys.dictionaryPath)
+        #expect(AppPreferences.dictionaryLocation(in: defaults).path == "/tmp/dictionary/example.mdx")
+        defaults.set("", forKey: AppPreferenceKeys.dictionaryPath)
+        #expect(AppPreferences.dictionaryLocation(in: defaults).path == home.appendingPathComponent("Documents/Dictionary").path)
+    }
+
+    @Test
     func appLanguageUsesSavedValueAndSystemFallback() throws {
         let preferences = try TestPreferences()
         defer { preferences.cleanup() }
@@ -85,6 +137,10 @@ struct AppPreferenceTests {
         #expect(DefaultPDFOpenModePreference.newTabs.title(language: .chinese) == "新标签页")
         #expect(OpenFileZoomPreference.fitWidth.title(language: .chinese) == "适合宽度")
         #expect(AIPronunciationAccentPreference.british.title(language: .chinese) == "英式")
+        #expect(DoubleClickActionPreference.dictionary.title(language: .chinese) == "词典")
+        #expect(DoubleClickActionPreference.none.title(language: .english) == "Off")
+        #expect(AppUILanguage.english.text(.dictionaryNotFound("test")).contains("test"))
+        #expect(AppUILanguage.chinese.text(.dictionaryNoSelection) == "请先选中要查询的单词。")
     }
 
     @Test

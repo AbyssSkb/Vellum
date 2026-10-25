@@ -5,7 +5,7 @@ extension VellumPDFView {
     func updateSelectionEndpointOverlay() {
         guard let document,
               currentSelection?.string?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false,
-              !isMouseSelectingText, !isAIInteractionActive, !isPageOverviewActive, !isWordJumpActive,
+              !isMouseSelectingText, !isAIInteractionActive, !isDictionaryInteractionActive, !isPageOverviewActive, !isWordJumpActive,
               referenceController?.isPreviewActive != true,
               appState == nil || appState?.activeReaderController === self,
               let responder = window?.firstResponder as? NSView,

@@ -93,6 +93,8 @@ struct VimCommandDispatcher {
             target.explainHighlightSelection()
         case .startAIConversation:
             target.startAIConversation()
+        case .lookupDictionary:
+            target.lookupDictionary()
         case .showAIExplanationHistory:
             target.showAIExplanationHistory()
         case .showAIConversationHistory:
@@ -145,6 +147,7 @@ protocol VimCommandTarget {
     func cycleHighlightColor()
     func explainHighlightSelection()
     func startAIConversation()
+    func lookupDictionary()
     func showAIExplanationHistory()
     func showAIConversationHistory()
     func zoom(by factor: CGFloat)

@@ -26,6 +26,7 @@ extension AppState {
 
     func prepareForSelectedReaderChange() {
         recordReadingFocusIntent(outline: isOutlineVisible && readerWindow?.firstResponder is PDFOutlineKeyView)
+        (activeReaderController as? VellumPDFView)?.dismissDictionaryPopover(restoreFocus: false)
         activeReaderController = nil
         outlineReadingDestination = nil
         outlineReadingItemID = nil

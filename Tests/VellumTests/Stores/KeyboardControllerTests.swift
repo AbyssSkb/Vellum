@@ -70,7 +70,7 @@ struct KeyboardControllerTests {
         #expect(delegate.commands == [.searchSelectedText, .searchNext])
     }
 
-    @Test(arguments: ["o", "*", "p", "P", "Z"])
+    @Test(arguments: ["o", "*", "p", "P", "Z", "K"])
     func selectionShortcutsRemainTextInEditableFields(key: String) {
         let window = makeWindow()
         defer { window.close() }
@@ -85,11 +85,123 @@ struct KeyboardControllerTests {
         let event = WindowKeyboardEvent()
         event.targetWindow = window
         event.key = key
-        event.flags = key == "Z" ? .shift : []
+        event.flags = ["Z", "K"].contains(key) ? .shift : []
 
         #expect(!controller.routeKeyEvent(event))
         #expect(delegate.reader.actions.isEmpty)
         #expect(delegate.commands.isEmpty)
+    }
+
+    @Test
+    func dictionaryLookupPrecedesSelectionMovementAndConsumesCountAndRepeat() {
+        let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
+        let delegate = RecordingKeyboardDelegate()
+        controller.delegate = delegate
+        delegate.reader.hasNavigableTextSelection = true
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "3", keyCode: 20)))
+        delegate.reader.textSelectionKeyResult = true
+
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "K", keyCode: 40, modifierFlags: .shift)))
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "K", keyCode: 40, isRepeat: true, modifierFlags: .shift)))
+        #expect(controller.handleKeyEvent(keyEvent(.keyUp, key: "k", keyCode: 40)))
+        #expect(delegate.commands == [.lookupDictionary])
+        #expect(!delegate.reader.textSelectionKeys.contains("K"))
+        #expect(delegate.reader.actions.isEmpty)
+
+        delegate.reader.textSelectionKeyResult = false
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "G", keyCode: 5)))
+        #expect(delegate.commands == [.lookupDictionary, .lastPage])
+    }
+
+    @Test
+    func dictionaryLookupStopsHeldReaderScrolling() async throws {
+        let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
+        let delegate = RecordingKeyboardDelegate()
+        controller.delegate = delegate
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "j", keyCode: 38)))
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "K", keyCode: 40, modifierFlags: .shift)))
+        try await observeHeldKeyTimerTurns()
+        #expect(delegate.commands == [.scrollDown, .lookupDictionary])
+    }
+
+    @Test(arguments: [false, true])
+    func lowercaseKStillNavigatesReaderAndSelection(hasSelection: Bool) {
+        let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
+        let delegate = RecordingKeyboardDelegate()
+        controller.delegate = delegate
+        delegate.reader.hasNavigableTextSelection = hasSelection
+        delegate.reader.textSelectionKeyResult = hasSelection
+
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "k", keyCode: 40)))
+        #expect(controller.handleKeyEvent(keyEvent(.keyUp, key: "k", keyCode: 40)))
+        #expect(delegate.commands == (hasSelection ? [] : [.scrollUp]))
+        #expect(delegate.reader.textSelectionKeys.contains("k"))
+    }
+
+    @Test
+    func dictionaryOwnsKeysBeforeTextEditingAIAndReaderNavigation() {
+        let window = makeWindow()
+        defer { window.close() }
+        let editor = NSTextView()
+        window.contentView?.addSubview(editor)
+        #expect(window.makeFirstResponder(editor))
+        let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
+        let delegate = RecordingKeyboardDelegate()
+        controller.delegate = delegate
+        delegate.readerWindow = window
+        delegate.reader.isDictionaryInteractionActive = true
+        delegate.reader.dictionaryKeyResult = true
+        delegate.reader.isAIInteractionActive = true
+        delegate.reader.aiKeyResult = true
+        let event = WindowKeyboardEvent()
+        event.targetWindow = window
+
+        for key in ["j", "k", "\u{1b}"] {
+            event.key = key
+            for type: NSEvent.EventType in [.keyDown, .keyUp] {
+                event.eventType = type
+                #expect(controller.routeKeyEvent(event))
+            }
+        }
+        #expect(delegate.reader.actions == [
+            .dictionaryKey("j"), .dictionaryKey("j"),
+            .dictionaryKey("k"), .dictionaryKey("k"),
+            .dictionaryKey("\u{1b}"), .dictionaryKey("\u{1b}")
+        ])
+        #expect(delegate.reader.textSelectionKeys.isEmpty)
+        #expect(delegate.commands.isEmpty)
+    }
+
+    @Test
+    func unhandledDictionaryKeysStayNativeAndTabDoesNotStartGallery() {
+        let window = makeWindow()
+        defer { window.close() }
+        let controller = KeyboardController(tabPageOverviewDelay: 0, installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
+        let delegate = RecordingKeyboardDelegate()
+        controller.delegate = delegate
+        delegate.readerWindow = window
+        delegate.reader.isDictionaryInteractionActive = true
+        let event = WindowKeyboardEvent()
+        event.targetWindow = window
+
+        for key in ["j", "K", "\t"] {
+            event.key = key
+            for type: NSEvent.EventType in [.keyDown, .keyUp] {
+                event.eventType = type
+                #expect(!controller.routeKeyEvent(event))
+            }
+        }
+        event.key = "o"
+        event.flags = .control
+        event.eventType = .keyDown
+        #expect(!controller.routeKeyEvent(event))
+        #expect(delegate.commands.isEmpty)
+        #expect(delegate.focusSwitches == 0)
+        #expect(!delegate.reader.isPageOverviewActive)
+        #expect(delegate.reader.actions.allSatisfy { action in
+            if case .dictionaryKey = action { return true }
+            return false
+        })
     }
 
     @Test
@@ -328,14 +440,14 @@ struct KeyboardControllerTests {
         #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "s", keyCode: 1)))
         #expect(controller.handleKeyEvent(keyEvent(.keyUp, key: "s", keyCode: 1)))
         delegate.reader.textSelectionKeyResult = true
-        for key in ["g", "j", "H", "2"] {
+        for key in ["g", "j", "H", "2", "K"] {
             #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: key, keyCode: 0)))
             #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: key, keyCode: 0, isRepeat: true)))
             #expect(controller.handleKeyEvent(keyEvent(.keyUp, key: key, keyCode: 0)))
         }
 
         #expect(delegate.commands == [.beginWordJump])
-        #expect(delegate.reader.actions == [.beginWordJump, .wordJumpKey("g"), .wordJumpKey("j"), .wordJumpKey("H"), .wordJumpKey("2")])
+        #expect(delegate.reader.actions == [.beginWordJump, .wordJumpKey("g"), .wordJumpKey("j"), .wordJumpKey("H"), .wordJumpKey("2"), .wordJumpKey("K")])
         #expect(delegate.reader.textSelectionKeys == ["s"])
         #expect(delegate.reader.hasNavigableTextSelection)
     }
@@ -1463,6 +1575,7 @@ private final class RecordingKeyboardDelegate: KeyboardControllerDelegate {
 @MainActor
 private final class RecordingKeyboardReaderController: ReaderController {
     var isAIInteractionActive = false
+    var isDictionaryInteractionActive = false
     var hasNavigableTextSelection = false
     var hasSearchTextTarget = false
     var isPageOverviewActive = false
@@ -1470,6 +1583,7 @@ private final class RecordingKeyboardReaderController: ReaderController {
     var isReferencePreviewActive = false
     var deleteHighlightsResult = false
     var aiKeyResult = false
+    var dictionaryKeyResult = false
     var textSelectionKeyResult = false
     var onBeginPageOverview: (() -> Void)?
     var onBeginWordJump: (() -> Void)?
@@ -1561,6 +1675,11 @@ private final class RecordingKeyboardReaderController: ReaderController {
         return aiKeyResult
     }
 
+    func handleDictionaryKeyEvent(_ event: NSEvent) -> Bool {
+        actions.append(.dictionaryKey(event.charactersIgnoringModifiers ?? ""))
+        return dictionaryKeyResult
+    }
+
     func handleTextSelectionKeyEvent(_ event: NSEvent) -> Bool { false }
 
     func handleTextSelectionKey(_ rawKey: String, eventType: NSEvent.EventType) -> Bool {
@@ -1638,6 +1757,7 @@ private final class RecordingKeyboardReaderController: ReaderController {
         case cancelLinkPreview
         case deleteHighlights
         case aiKey
+        case dictionaryKey(String)
         case countedSelection(String, Int)
         case swapSelectionEndpoint
     }

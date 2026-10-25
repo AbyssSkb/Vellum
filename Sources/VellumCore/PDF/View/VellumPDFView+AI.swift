@@ -4,6 +4,7 @@ import SwiftUI
 
 extension VellumPDFView {
     func updateHoveredAIExplanation(for event: NSEvent) {
+        guard !isDictionaryInteractionActive else { return }
         if (aiInteraction.activeExplanationModel != nil || aiInteraction.activeConversationModel != nil),
            aiInteraction.hoveredAnnotation == nil {
             return
@@ -299,6 +300,7 @@ extension VellumPDFView {
         size: NSSize,
         focusWhenReady: Bool
     ) -> NSView {
+        dismissDictionaryPopover(restoreFocus: false)
         let hostingView = NSHostingView(rootView: AppLanguageObservedView(content: rootView))
         hostingView.translatesAutoresizingMaskIntoConstraints = true
 
@@ -770,7 +772,7 @@ extension VellumPDFView {
         showAIConversationPopover(model: model)
     }
 
-    private var backingScale: CGFloat {
+    var backingScale: CGFloat {
         window?.backingScaleFactor
             ?? window?.screen?.backingScaleFactor
             ?? NSScreen.main?.backingScaleFactor
@@ -791,7 +793,7 @@ extension VellumPDFView {
     }
 }
 
-private enum AIFloatingOverlayLayout {
+enum AIFloatingOverlayLayout {
     static func frame(in visibleRect: NSRect, size: NSSize, backingScale: CGFloat) -> NSRect {
         let topInset: CGFloat = 76
         let minimumInset: CGFloat = 18
@@ -818,7 +820,7 @@ private enum AIFloatingOverlayLayout {
     }
 }
 
-private final class AIFloatingOverlayContainerView: NSView {
+final class AIFloatingOverlayContainerView: NSView {
     private let contentView: NSView
 
     init(contentView: NSView) {

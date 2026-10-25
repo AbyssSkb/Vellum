@@ -33,7 +33,7 @@ struct VimInputController {
         if !isRepeat, state.pendingKey == "g", key == "N" {
             return handleKey(key, hasNavigableTextSelection: hasNavigableTextSelection, hasTextActionTarget: hasTextActionTarget)
         }
-        if isRepeat, ["G", "H", "L", "X", "O"].contains(key) {
+        if isRepeat, ["G", "H", "L", "X", "O", "K"].contains(key) {
             return .handled
         }
         if (!isRepeat || key != "N"), let action = handleUppercaseCommand(key) {
@@ -165,6 +165,8 @@ struct VimInputController {
         case "O":
             state.numericPrefix = ""
             return .command(.openInNewTab)
+        case "K":
+            return .command(.lookupDictionary)
         case "N":
             return commandAction(.searchPrevious)
         default:

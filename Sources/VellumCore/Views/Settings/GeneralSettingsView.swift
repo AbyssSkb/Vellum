@@ -1,4 +1,6 @@
+@preconcurrency import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct GeneralSettingsView: View {
     @Environment(\.appUILanguage) private var language
@@ -6,7 +8,10 @@ struct GeneralSettingsView: View {
     @AppStorage(AppPreferenceKeys.automaticallyCheckForUpdates) private var automaticallyCheckForUpdates = true
     @AppStorage(AppPreferenceKeys.defaultPDFOpenMode) private var defaultPDFOpenMode = DefaultPDFOpenModePreference.currentTab.rawValue
     @AppStorage(AppPreferenceKeys.defaultHighlightColor) private var defaultHighlightColor = HighlightColor.yellow.rawValue
-    @AppStorage(AppPreferenceKeys.doubleClickTranslatesSelection) private var doubleClickTranslatesSelection = true
+    @AppStorage(AppPreferenceKeys.doubleClickAction) private var doubleClickAction = AppPreferences.doubleClickAction().rawValue
+    @AppStorage(AppPreferenceKeys.dictionaryPath) private var dictionaryPath = ""
+    @AppStorage(AppPreferenceKeys.dictionaryAutoPronunciationEnabled) private var dictionaryAutoPronunciation = true
+    @AppStorage(AppPreferenceKeys.dictionaryPronunciationAccent) private var dictionaryPronunciationAccent = AIPronunciationAccentPreference.american.rawValue
     @AppStorage(AppPreferenceKeys.restorePreviousTabs) private var restorePreviousTabs = false
     @AppStorage(AppPreferenceKeys.openFileZoomBehavior) private var openFileZoomBehavior = OpenFileZoomPreference.fitWidth.rawValue
     @State private var logNotification: ToastMessage?
@@ -18,6 +23,7 @@ struct GeneralSettingsView: View {
                 interfaceSection
                 startupSection
                 readingSection
+                dictionarySection
                 updatesSection
                 diagnosticsSection
             }
@@ -84,11 +90,21 @@ struct GeneralSettingsView: View {
     private var readingSection: some View {
         GeneralSettingsPanel(title: language.text(.reading), systemImage: "doc.text.magnifyingglass") {
             VStack(spacing: 0) {
-                GeneralToggleRow(
-                    title: language.text(.doubleClickTranslate),
-                    subtitle: language.text(.doubleClickTranslateSubtitle),
-                    isOn: $doubleClickTranslatesSelection
-                )
+                GeneralOptionRow(title: language.text(.doubleClickAction), subtitle: language.text(.doubleClickActionSubtitle)) {
+                    HStack(spacing: 4) {
+                        ForEach(DoubleClickActionPreference.allCases) { option in
+                            GeneralSegmentButton(
+                                title: option.title(language: language),
+                                systemImage: option.systemImage,
+                                isSelected: doubleClickAction == option.rawValue
+                            ) {
+                                doubleClickAction = option.rawValue
+                            }
+                        }
+                    }
+                    .padding(3)
+                    .background(VellumColors.backgroundDeepColor.opacity(0.7), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                }
 
                 GeneralOptionRow(title: language.text(.openFileZoom), subtitle: language.text(.openFileZoomSubtitle)) {
                     OpenFileZoomSegmentedControl(selection: $openFileZoomBehavior, language: language)
@@ -97,6 +113,64 @@ struct GeneralSettingsView: View {
                 GeneralOptionRow(title: language.text(.defaultHighlight), subtitle: language.text(.defaultHighlightSubtitle)) {
                     HighlightColorPicker(selection: $defaultHighlightColor, language: language)
                 }
+            }
+        }
+    }
+
+    private var dictionarySection: some View {
+        GeneralSettingsPanel(title: language.text(.localDictionary), systemImage: "character.book.closed") {
+            VStack(spacing: 0) {
+                GeneralOptionRow(
+                    title: language.text(.dictionaryFile),
+                    subtitle: "\(dictionaryPath.isEmpty ? "~/Documents/Dictionary" : (dictionaryPath as NSString).abbreviatingWithTildeInPath)\n\(language.text(.dictionaryFileSubtitle))"
+                ) {
+                    Button(action: chooseDictionaryFile) {
+                        Label(language.text(.chooseFile), systemImage: "folder")
+                    }
+                    .buttonStyle(GeneralActionButtonStyle())
+                }
+
+                GeneralToggleRow(
+                    title: language.text(.dictionaryAutoPronunciation),
+                    subtitle: language.text(.dictionaryAutoPronunciationSubtitle),
+                    isOn: $dictionaryAutoPronunciation
+                )
+
+                GeneralOptionRow(
+                    title: language.text(.dictionaryPronunciationAccent),
+                    subtitle: language.text(.dictionaryPronunciationAccentSubtitle)
+                ) {
+                    HStack(spacing: 4) {
+                        ForEach(AIPronunciationAccentPreference.allCases) { option in
+                            GeneralSegmentButton(
+                                title: option.title(language: language),
+                                systemImage: option.systemImage,
+                                isSelected: dictionaryPronunciationAccent == option.rawValue
+                            ) {
+                                dictionaryPronunciationAccent = option.rawValue
+                            }
+                        }
+                    }
+                    .padding(3)
+                    .background(VellumColors.backgroundDeepColor.opacity(0.7), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                }
+            }
+        }
+    }
+
+    private func chooseDictionaryFile() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [UTType(filenameExtension: "mdx") ?? .data]
+        panel.canChooseDirectories = false
+        panel.canChooseFiles = true
+        panel.allowsMultipleSelection = false
+        panel.title = language.text(.dictionaryFile)
+        let location = AppPreferences.dictionaryLocation()
+        panel.directoryURL = dictionaryPath.isEmpty ? location : location.deletingLastPathComponent()
+        panel.begin { response in
+            guard response == .OK, let url = panel.url else { return }
+            Task { @MainActor in
+                dictionaryPath = url.path
             }
         }
     }

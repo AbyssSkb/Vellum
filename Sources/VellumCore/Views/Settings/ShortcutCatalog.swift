@@ -44,6 +44,19 @@ enum ShortcutCatalog {
             ]
         ),
         ShortcutGroup(
+            title: "Local Dictionary",
+            systemImage: "character.book.closed",
+            items: [
+                ShortcutItem(keys: ["K"], action: "Look up the selected word (Shift+K)"),
+                ShortcutItem(keys: ["j", "k"], action: "Scroll dictionary entry"),
+                ShortcutItem(keys: ["h", "l"], action: "Scroll dictionary horizontally"),
+                ShortcutItem(keys: ["d", "u"], action: "Scroll half a dictionary viewport"),
+                ShortcutItem(keys: ["f", "b", "Space"], action: "Scroll a dictionary viewport"),
+                ShortcutItem(keys: ["gg", "G"], action: "Go to the top or bottom of the entry"),
+                ShortcutItem(keys: ["Esc"], action: "Close dictionary")
+            ]
+        ),
+        ShortcutGroup(
             title: "Link Preview",
             systemImage: "rectangle.on.rectangle",
             items: [
@@ -201,6 +214,19 @@ enum ShortcutCatalog {
                 ShortcutItem(keys: ["F"], action: "输入可见 PDF 链接的标签以打开"),
                 ShortcutItem(keys: ["p"], action: "输入可见内部链接的标签以预览目标"),
                 ShortcutItem(keys: ["Ctrl O", "Ctrl I"], action: "向后或向前跳转")
+            ]
+        ),
+        ShortcutGroup(
+            title: "本地词典",
+            systemImage: "character.book.closed",
+            items: [
+                ShortcutItem(keys: ["K"], action: "查询选中的单词（Shift+K）"),
+                ShortcutItem(keys: ["j", "k"], action: "滚动词典内容"),
+                ShortcutItem(keys: ["h", "l"], action: "左右滚动词典内容"),
+                ShortcutItem(keys: ["d", "u"], action: "滚动半个词典视口"),
+                ShortcutItem(keys: ["f", "b", "Space"], action: "滚动一个词典视口"),
+                ShortcutItem(keys: ["gg", "G"], action: "移到词条顶部或底部"),
+                ShortcutItem(keys: ["Esc"], action: "关闭词典")
             ]
         ),
         ShortcutGroup(

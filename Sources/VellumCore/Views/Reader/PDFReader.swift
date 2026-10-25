@@ -26,6 +26,7 @@ struct PDFReader: NSViewRepresentable {
         PDFAnnotationPersistence.state(for: document)?.onPrepareToClose = { [weak view] in
             view?.clearPDFReferences()
             view?.hideAIExplanationPopover()
+            view?.dismissDictionaryPopover(restoreFocus: false)
         }
         if isActive {
             view.restore(snapshot)
@@ -76,6 +77,7 @@ struct PDFReader: NSViewRepresentable {
         }
 
         if !isActive {
+            nsView.dismissDictionaryPopover(restoreFocus: false)
             nsView.cancelLinkPreview()
             nsView.cancelWordJump()
             nsView.cancelPendingRestore()
@@ -87,6 +89,7 @@ struct PDFReader: NSViewRepresentable {
         PDFAnnotationPersistence.state(for: document)?.onPrepareToClose = { [weak nsView] in
             nsView?.clearPDFReferences()
             nsView?.hideAIExplanationPopover()
+            nsView?.dismissDictionaryPopover(restoreFocus: false)
         }
 
         let becameActive = isActive && appState.activeReaderController !== nsView
@@ -115,6 +118,7 @@ struct PDFReader: NSViewRepresentable {
         nsView.saveBeforeDismantle?()
         nsView.clearPDFReferences()
         nsView.hideAIExplanationPopover()
+        nsView.dismissDictionaryPopover(restoreFocus: false)
         nsView.cancelPageOverview()
         nsView.cancelPendingRestore()
         nsView.stopScrollAnimation()

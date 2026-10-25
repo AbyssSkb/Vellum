@@ -93,7 +93,7 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>NSDocumentsFolderUsageDescription</key>
-    <string>Vellum uses folder access to find PDF filenames in Documents with Quick Open.</string>
+    <string>Vellum uses folder access to find PDF filenames in Documents with Quick Open and read local dictionaries.</string>
     <key>NSDownloadsFolderUsageDescription</key>
     <string>Vellum uses folder access to find PDF filenames in Downloads with Quick Open.</string>
     <key>NSDesktopFolderUsageDescription</key>
@@ -132,12 +132,12 @@ printf "APPL????" > "$CONTENTS_DIR/PkgInfo"
 
 mkdir -p "$RESOURCES_DIR/en.lproj" "$RESOURCES_DIR/zh-Hans.lproj"
 cat > "$RESOURCES_DIR/en.lproj/InfoPlist.strings" <<'STRINGS'
-"NSDocumentsFolderUsageDescription" = "Vellum uses folder access to find PDF filenames in Documents with Quick Open.";
+"NSDocumentsFolderUsageDescription" = "Vellum uses folder access to find PDF filenames in Documents with Quick Open and read local dictionaries.";
 "NSDownloadsFolderUsageDescription" = "Vellum uses folder access to find PDF filenames in Downloads with Quick Open.";
 "NSDesktopFolderUsageDescription" = "Vellum uses folder access to find PDF filenames on Desktop with Quick Open.";
 STRINGS
 cat > "$RESOURCES_DIR/zh-Hans.lproj/InfoPlist.strings" <<'STRINGS'
-"NSDocumentsFolderUsageDescription" = "Vellum 需要文件夹访问权限，以在快速打开中查找文稿里的 PDF 文件名。";
+"NSDocumentsFolderUsageDescription" = "Vellum 需要文件夹访问权限，以在快速打开中查找文稿里的 PDF 文件名，并读取本地词典。";
 "NSDownloadsFolderUsageDescription" = "Vellum 需要文件夹访问权限，以在快速打开中查找下载目录里的 PDF 文件名。";
 "NSDesktopFolderUsageDescription" = "Vellum 需要文件夹访问权限，以在快速打开中查找桌面上的 PDF 文件名。";
 STRINGS

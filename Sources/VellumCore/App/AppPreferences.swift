@@ -6,6 +6,10 @@ public enum AppPreferenceKeys {
     public static let defaultPDFOpenMode = "VellumDefaultOpenMode"
     public static let defaultHighlightColor = "VellumDefaultHighlightColor"
     public static let doubleClickTranslatesSelection = "VellumDoubleClickTranslatesSelection"
+    public static let doubleClickAction = "VellumDoubleClickAction"
+    public static let dictionaryPath = "VellumDictionaryPath"
+    public static let dictionaryAutoPronunciationEnabled = "VellumDictionaryAutoPronunciationEnabled"
+    public static let dictionaryPronunciationAccent = "VellumDictionaryPronunciationAccent"
     public static let aiExplanationAutoPronunciationEnabled = "VellumAIExplanationAutoPronunciationEnabled"
     public static let aiExplanationAutoPronunciationAccent = "VellumAIExplanationAutoPronunciationAccent"
     public static let restorePreviousTabs = "VellumRestorePreviousTabs"
@@ -134,6 +138,30 @@ public enum AIPronunciationAccentPreference: String, CaseIterable, Identifiable 
     }
 }
 
+public enum DoubleClickActionPreference: String, CaseIterable, Identifiable {
+    case dictionary
+    case ai
+    case none
+
+    public var id: String { rawValue }
+
+    public func title(language: AppUILanguage = AppUILanguage.saved()) -> String {
+        switch self {
+        case .dictionary: return language.text(.dictionaryTitle)
+        case .ai: return language.text(.ai)
+        case .none: return language.text(.doubleClickNone)
+        }
+    }
+
+    public var systemImage: String {
+        switch self {
+        case .dictionary: return "character.book.closed"
+        case .ai: return "sparkles"
+        case .none: return "minus"
+        }
+    }
+}
+
 public enum AppPreferences {
     public static func appLanguage(in defaults: UserDefaults = .standard) -> AppUILanguage {
         AppUILanguage.saved(in: defaults)
@@ -145,6 +173,34 @@ public enum AppPreferences {
 
     public static func doubleClickTranslatesSelection(in defaults: UserDefaults = .standard) -> Bool {
         defaults.object(forKey: AppPreferenceKeys.doubleClickTranslatesSelection) as? Bool ?? true
+    }
+
+    public static func doubleClickAction(in defaults: UserDefaults = .standard) -> DoubleClickActionPreference {
+        if let rawValue = defaults.string(forKey: AppPreferenceKeys.doubleClickAction),
+           let action = DoubleClickActionPreference(rawValue: rawValue) {
+            return action
+        }
+        if let translates = defaults.object(forKey: AppPreferenceKeys.doubleClickTranslatesSelection) as? Bool {
+            return translates ? .ai : .none
+        }
+        return .dictionary
+    }
+
+    public static func dictionaryLocation(in defaults: UserDefaults = .standard) -> URL {
+        let path = defaults.string(forKey: AppPreferenceKeys.dictionaryPath) ?? ""
+        if path.isEmpty {
+            return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Documents/Dictionary", isDirectory: true)
+        }
+        return URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
+    }
+
+    public static func automaticallyPronouncesDictionary(in defaults: UserDefaults = .standard) -> Bool {
+        defaults.object(forKey: AppPreferenceKeys.dictionaryAutoPronunciationEnabled) as? Bool ?? true
+    }
+
+    public static func dictionaryPronunciationAccent(in defaults: UserDefaults = .standard) -> AIPronunciationAccentPreference {
+        let rawValue = defaults.string(forKey: AppPreferenceKeys.dictionaryPronunciationAccent) ?? ""
+        return AIPronunciationAccentPreference(rawValue: rawValue) ?? .american
     }
 
     public static func automaticallyPronouncesAIExplanation(in defaults: UserDefaults = .standard) -> Bool {

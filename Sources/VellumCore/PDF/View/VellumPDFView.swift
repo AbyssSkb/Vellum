@@ -60,6 +60,10 @@ final class VellumPDFView: PDFView {
     var pendingActivationSnapshot: ReaderSnapshot?
     var explanationTrackingArea: NSTrackingArea?
     let aiInteraction = AIInteractionState()
+    var dictionaryPopover: DictionaryPopoverView?
+    var dictionaryOverlay: NSView?
+    nonisolated(unsafe) var dictionaryDismissMonitor: Any?
+    nonisolated(unsafe) var dictionaryLifecycleObservers: [NSObjectProtocol] = []
     var isMouseSelectingText = false {
         didSet { updateSelectionEndpointOverlay() }
     }
@@ -125,6 +129,10 @@ final class VellumPDFView: PDFView {
     }
 
     deinit {
+        if let dictionaryDismissMonitor {
+            NSEvent.removeMonitor(dictionaryDismissMonitor)
+        }
+        dictionaryLifecycleObservers.forEach(NotificationCenter.default.removeObserver)
         textSelectionObservers.forEach(NotificationCenter.default.removeObserver)
         if let scrollBoundsObserver {
             NotificationCenter.default.removeObserver(scrollBoundsObserver)
@@ -146,6 +154,7 @@ final class VellumPDFView: PDFView {
                 MainActor.assumeIsolated {
                     guard let self else { return }
                     if name == .PDFViewDocumentChanged {
+                        self.dismissDictionaryPopover(restoreFocus: false)
                         self.clearPDFReferences()
                         self.savedTextSelection = nil
                         self.textSelectionNavigationState = nil
@@ -211,6 +220,7 @@ final class VellumPDFView: PDFView {
     }
 
     func handleTextSelectionKey(_ rawKey: String, eventType: NSEvent.EventType, count: Int) -> Bool {
+        guard rawKey != "K" else { return false }
         let key = rawKey.lowercased()
 
         if key == "\u{1b}" {
@@ -255,7 +265,10 @@ final class VellumPDFView: PDFView {
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
-        if window == nil { clearPDFReferences() }
+        if window == nil {
+            clearPDFReferences()
+            dismissDictionaryPopover(restoreFocus: false)
+        }
         cancelWordJump()
         window?.acceptsMouseMovedEvents = true
         configurePDFScrollers()
@@ -279,6 +292,7 @@ final class VellumPDFView: PDFView {
         wordJumpController?.cancelIfViewportChanged()
         configurePDFScrollersIfNeeded()
         updateAIFloatingOverlayFrames()
+        updateDictionaryOverlayFrame()
         referenceController?.layoutPreview()
         updateSelectionEndpointOverlay()
         scheduleReadingPositionReport()
@@ -506,7 +520,7 @@ final class VellumPDFView: PDFView {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) { [weak self] in
             guard let self else { return }
             self.isMouseSelectingText = false
-            self.explainDoubleClickedTextIfNeeded(at: doubleClickPoint)
+            self.performDoubleClickActionIfNeeded(at: doubleClickPoint)
         }
     }
 
@@ -1077,17 +1091,25 @@ final class VellumPDFView: PDFView {
         return annotation?.type == "Link" ? annotation : nil
     }
 
-    private func explainDoubleClickedTextIfNeeded(at point: NSPoint?) {
+    func performDoubleClickActionIfNeeded(at point: NSPoint?) {
         guard let point,
-              AppPreferences.doubleClickTranslatesSelection(),
+              appState == nil || appState?.activeReaderController === self,
               aiInteraction.isActive == false,
+              !isDictionaryInteractionActive,
               let selection = currentSelection,
               selectionCovers(point, selection: selection),
               selection.string?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
             return
         }
 
-        vimExplainSelectedHighlight()
+        switch AppPreferences.doubleClickAction() {
+        case .dictionary:
+            vimLookupDictionary()
+        case .ai:
+            vimExplainSelectedHighlight()
+        case .none:
+            break
+        }
     }
 
     private func explainSelectedTextIfNeededForMiddleClick(with event: NSEvent) -> Bool {
