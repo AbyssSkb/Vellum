@@ -86,8 +86,9 @@ struct ToastTests {
         #expect(currentToast(in: window) === second)
 
         second.scheduleDismiss(after: 0.01)
-        try await Task.sleep(for: .milliseconds(300))
-        #expect(currentToast(in: window) == nil)
+        try await waitForTestCondition("The replacement toast did not finish dismissing", timeout: .seconds(1)) {
+            currentToast(in: window) == nil
+        }
     }
 
     @Test
