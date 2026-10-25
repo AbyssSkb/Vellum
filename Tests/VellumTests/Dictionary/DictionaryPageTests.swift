@@ -92,6 +92,51 @@ struct DictionaryPageTests {
     }
 
     @Test(.timeLimit(.minutes(1)))
+    func heldScrollingStartsWithoutKeyRepeatAndStaysSmoothAtReaderSpeed() async throws {
+        let view = DictionaryPopoverView()
+        view.frame = NSRect(x: 0, y: 0, width: 600, height: 620)
+        let window = NSWindow(contentRect: view.frame, styleMask: [.titled], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentView = view
+        window.makeKeyAndOrderFront(nil)
+        defer { view.stop(); window.close() }
+        let probe = DictionaryPageProbe()
+        view.webView.navigationDelegate = probe
+        view.webView.loadHTMLString(DictionaryPage.document("<div style='width:3000px;height:6000px'>Scroll fixture</div>"), baseURL: nil)
+        try await waitForTestCondition("Scroll fixture loaded") { probe.finished }
+        try await installScrollClock(in: view.webView)
+        func send(_ type: NSEvent.EventType, modifiers: NSEvent.ModifierFlags = [], repeated: Bool = false) throws {
+            let event = try #require(NSEvent.keyEvent(with: type, location: .zero, modifierFlags: modifiers, timestamp: 0,
+                                                    windowNumber: window.windowNumber, context: nil, characters: "j",
+                                                    charactersIgnoringModifiers: "j", isARepeat: repeated, keyCode: 38))
+            #expect(view.handleKeyEvent(event))
+        }
+        func advance(_ frames: Int) async throws -> Double {
+            try await advanceScrollClock(frames, in: view.webView)[1]
+        }
+        try send(.keyDown)
+        let firstFrame = try await advance(1)
+        #expect(firstFrame > 0 && firstFrame < 72)
+        let early = try await advance(5)
+        #expect(early > firstFrame)
+        try send(.keyDown, repeated: true)
+        let middle = try await advance(12)
+        let later = try await advance(6)
+        let steady = try await advance(6)
+        #expect(middle > early)
+        #expect(abs(later - middle - 672 * 0.1) <= 2)
+        #expect(abs((steady - later) - (later - middle)) <= 2)
+        try send(.keyUp, modifiers: .command)
+        let stopped = try await advance(60)
+        #expect(try await advance(12) == stopped)
+        try send(.keyDown)
+        _ = try await advance(6)
+        view.stop()
+        let cancelled = try await advance(1)
+        #expect(try await advance(12) == cancelled)
+    }
+
+    @Test(.timeLimit(.minutes(1)))
     func vimKeysScrollTheDictionaryAndKeepKeyReleasesAndCommandsSeparate() async throws {
         let view = DictionaryPopoverView()
         view.frame = NSRect(x: 0, y: 0, width: 600, height: 620)
@@ -104,57 +149,76 @@ struct DictionaryPageTests {
         view.webView.navigationDelegate = probe
         view.webView.loadHTMLString(DictionaryPage.document("<div style='width:3000px;height:6000px'>Dictionary navigation</div>"), baseURL: nil)
         try await waitForTestCondition("Dictionary scroll fixture loaded") { probe.finished }
+        try await installScrollClock(in: view.webView)
         let height = try #require(try await view.webView.evaluateJavaScript("window.innerHeight") as? Double)
 
         func send(_ key: String, type: NSEvent.EventType = .keyDown, repeat repeated: Bool = false, modifiers: NSEvent.ModifierFlags = []) throws -> Bool {
+            let keyCodes: [String: UInt16] = ["j": 38, "k": 40, "h": 4, "l": 37, "d": 2, "u": 32, "f": 3, "b": 11, " ": 49, "g": 5, "G": 5]
             let event = try #require(NSEvent.keyEvent(with: type, location: .zero, modifierFlags: modifiers, timestamp: 0,
                                                     windowNumber: window.windowNumber, context: nil, characters: key,
-                                                    charactersIgnoringModifiers: key, isARepeat: repeated, keyCode: 0))
+                                                    charactersIgnoringModifiers: key, isARepeat: repeated, keyCode: keyCodes[key] ?? 0))
             return view.handleKeyEvent(event)
         }
-        func position() async throws -> [Double] {
-            try #require(try await view.webView.evaluateJavaScript("[window.scrollX,window.scrollY]") as? [Double])
+        func settle() async throws -> [Double] {
+            try await advanceScrollClock(60, in: view.webView)
         }
+        func tap(_ key: String) async throws -> [Double] {
+            #expect(try send(key))
+            #expect(try send(key, type: .keyUp))
+            return try await settle()
+        }
+        #expect(try await tap("j") == [0, 72])
         #expect(try send("j"))
-        #expect(try await position() == [0, 72])
-        #expect(try send("j", type: .keyUp))
-        #expect(try await position() == [0, 72])
         #expect(try send("j", repeat: true))
-        #expect(try await position() == [0, 144])
-        #expect(try send("k"))
-        #expect(try send("l"))
-        #expect(try await position() == [72, 72])
-        #expect(try send("h"))
-        #expect(try await position() == [0, 72])
-        #expect(try send("d"))
-        #expect(abs(try await position()[1] - 72 - height / 2) <= 1)
-        #expect(try send("u"))
-        #expect(abs(try await position()[1] - 72) <= 1)
-        #expect(try send("f"))
-        #expect(abs(try await position()[1] - 72 - height) <= 1)
-        #expect(try send("b"))
-        #expect(abs(try await position()[1] - 72) <= 1)
-        #expect(try send(" "))
-        #expect(abs(try await position()[1] - 72 - height) <= 1)
+        #expect(try send("j", type: .keyUp))
+        #expect(try await settle() == [0, 144])
+        #expect(try await tap("k") == [0, 72])
+        #expect(try await tap("l") == [72, 72])
+        #expect(try await tap("h") == [0, 72])
+        #expect(abs(try await tap("d")[1] - 72 - height / 2) <= 1)
+        #expect(abs(try await tap("u")[1] - 72) <= 1)
+        #expect(abs(try await tap("f")[1] - 72 - height) <= 1)
+        #expect(abs(try await tap("b")[1] - 72) <= 1)
+        #expect(abs(try await tap(" ")[1] - 72 - height) <= 1)
         #expect(try send("g"))
         #expect(try send("g", repeat: true))
-        #expect(abs(try await position()[1] - 72 - height) <= 1)
-        #expect(try send("g"))
-        #expect(try await position()[1] == 0)
-        #expect(try send("G"))
-        let bottom = try await position()[1]
+        #expect(try send("g", type: .keyUp))
+        #expect(abs(try await settle()[1] - 72 - height) <= 1)
+        #expect(try await tap("g")[1] == 0)
+        let bottom = try await tap("G")[1]
         #expect(bottom > height * 3)
         #expect(try send("g"))
-        #expect(try send("j"))
-        #expect(try send("g"))
-        #expect(try await position()[1] == bottom)
+        #expect(try await tap("j")[1] == bottom)
+        #expect(try await tap("g")[1] == bottom)
         view.stop()
-        #expect(try send("g"))
-        #expect(try await position()[1] == bottom)
+        #expect(try await tap("g")[1] == bottom)
         for modifier: NSEvent.ModifierFlags in [.command, .control, .option] {
             #expect(try !send("f", modifiers: modifier))
-            #expect(try await position()[1] == bottom)
+            #expect(try await settle()[1] == bottom)
         }
+    }
+
+    private func installScrollClock(in webView: WKWebView) async throws {
+        _ = try await webView.evaluateJavaScript("""
+            window.dictionaryTestTime = 1000;
+            performance.now = () => window.dictionaryTestTime;
+            window.requestAnimationFrame = callback => { window.dictionaryTestFrame = callback; return 1; };
+            window.cancelAnimationFrame = () => { window.dictionaryTestFrame = null; };
+            null;
+            """, in: nil, contentWorld: .defaultClient)
+    }
+
+    private func advanceScrollClock(_ frames: Int, in webView: WKWebView) async throws -> [Double] {
+        _ = try await webView.evaluateJavaScript("""
+            for (let i = 0; i < \(frames); i++) {
+              window.dictionaryTestTime += 1000 / 60;
+              const callback = window.dictionaryTestFrame;
+              window.dictionaryTestFrame = null;
+              callback?.(window.dictionaryTestTime);
+            }
+            null;
+            """, in: nil, contentWorld: .defaultClient)
+        return try #require(try await webView.evaluateJavaScript("[window.scrollX,window.scrollY]") as? [Double])
     }
 
     @Test(.timeLimit(.minutes(1)))

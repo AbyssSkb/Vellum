@@ -18,6 +18,8 @@ final class DictionaryPopoverView: NSView, WKNavigationDelegate, WKScriptMessage
     private var pendingAnchor: String?
     private var didAutoPronounce = false
     private var pendingG = false
+    private var scrollingKeyCode: UInt16?
+    private var scrollingKey: String?
 
     var isLoading: Bool { model.isLoading }
 
@@ -29,6 +31,12 @@ final class DictionaryPopoverView: NSView, WKNavigationDelegate, WKScriptMessage
         configuration.defaultWebpagePreferences.allowsContentJavaScript = true
         configuration.userContentController.addUserScript(WKUserScript(
             source: DictionaryPage.linkCaptureScript,
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: true,
+            in: .defaultClient
+        ))
+        configuration.userContentController.addUserScript(WKUserScript(
+            source: DictionaryPage.scrollScript,
             injectionTime: .atDocumentStart,
             forMainFrameOnly: true,
             in: .defaultClient
@@ -100,6 +108,9 @@ final class DictionaryPopoverView: NSView, WKNavigationDelegate, WKScriptMessage
 
     func stop() {
         pendingG = false
+        scrollingKeyCode = nil
+        scrollingKey = nil
+        scroll("cancel()")
         lookupID = UUID()
         lookupTask?.cancel()
         lookupTask = nil
@@ -118,8 +129,13 @@ final class DictionaryPopoverView: NSView, WKNavigationDelegate, WKScriptMessage
     }
 
     func handleKeyEvent(_ event: NSEvent) -> Bool {
+        if event.type == .keyUp, event.keyCode == scrollingKeyCode {
+            endKeyboardScroll()
+            return true
+        }
         guard event.modifierFlags.intersection([.command, .control, .option]).isEmpty else {
             pendingG = false
+            endKeyboardScroll()
             return false
         }
         let key = event.charactersIgnoringModifiers ?? ""
@@ -128,23 +144,30 @@ final class DictionaryPopoverView: NSView, WKNavigationDelegate, WKScriptMessage
             return navigationKeys.contains(key)
         }
         guard event.type == .keyDown else { return false }
+        if ["j", "k", "h", "l"].contains(key) {
+            pendingG = false
+            guard !event.isARepeat, scrollingKey != key else { return true }
+            scrollingKeyCode = event.keyCode
+            scrollingKey = key
+            let x = key == "h" ? -1 : key == "l" ? 1 : 0
+            let y = key == "k" ? -1 : key == "j" ? 1 : 0
+            scroll("start(\(x),\(y))")
+            return true
+        }
+        endKeyboardScroll()
         let script: String
         switch key {
-        case "j": script = "window.scrollBy({top:72,behavior:'instant'});"
-        case "k": script = "window.scrollBy({top:-72,behavior:'instant'});"
-        case "h": script = "window.scrollBy({left:-72,behavior:'instant'});"
-        case "l": script = "window.scrollBy({left:72,behavior:'instant'});"
-        case "d": script = "window.scrollBy({top:window.innerHeight/2,behavior:'instant'});"
-        case "u": script = "window.scrollBy({top:-window.innerHeight/2,behavior:'instant'});"
-        case "f", " ": script = "window.scrollBy({top:window.innerHeight,behavior:'instant'});"
-        case "b": script = "window.scrollBy({top:-window.innerHeight,behavior:'instant'});"
+        case "d": script = "by(0,window.innerHeight/2)"
+        case "u": script = "by(0,-window.innerHeight/2)"
+        case "f", " ": script = "by(0,window.innerHeight)"
+        case "b": script = "by(0,-window.innerHeight)"
         case "g":
             guard !event.isARepeat else { return true }
             guard pendingG else { pendingG = true; return true }
-            script = "window.scrollTo({top:0,behavior:'instant'});"
+            script = "edge(false)"
         case "G":
             guard !event.isARepeat else { pendingG = false; return true }
-            script = "window.scrollTo({top:document.scrollingElement.scrollHeight,behavior:'instant'});"
+            script = "edge(true)"
         case "\u{1b}":
             pendingG = false
             if !event.isARepeat { dismiss() }
@@ -154,8 +177,19 @@ final class DictionaryPopoverView: NSView, WKNavigationDelegate, WKScriptMessage
             return false
         }
         pendingG = false
-        webView.evaluateJavaScript(script + "null;")
+        scroll(script)
         return true
+    }
+
+    private func endKeyboardScroll() {
+        guard scrollingKeyCode != nil else { return }
+        scrollingKeyCode = nil
+        scrollingKey = nil
+        scroll("end()")
+    }
+
+    private func scroll(_ action: String) {
+        webView.evaluateJavaScript("window.vellumDictionaryScroll?.\(action);null;", in: nil, in: .defaultClient)
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {

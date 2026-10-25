@@ -81,6 +81,71 @@ enum DictionaryPage {
       return result;
     })();
     """#
+
+    static let scrollScript = #"""
+    (() => {
+      let frame = null, lastTime = 0;
+      let directionX = 0, directionY = 0, targetX = 0, targetY = 0;
+      let positionX = 0, positionY = 0;
+      function tick(now) {
+        const dt = Math.min(0.05, Math.max(0, (now - lastTime) / 1000));
+        lastTime = now;
+        const speed = 672;
+        targetX += directionX * speed * dt;
+        targetY += directionY * speed * dt;
+        const content = document.scrollingElement;
+        targetX = Math.max(0, Math.min(targetX, content.scrollWidth - innerWidth));
+        targetY = Math.max(0, Math.min(targetY, content.scrollHeight - innerHeight));
+        const settled = !directionX && !directionY && Math.abs(targetX - positionX) < 0.5 && Math.abs(targetY - positionY) < 0.5;
+        const progress = settled ? 1 : 1 - Math.exp(-dt / 0.055);
+        // Keep fractional progress because WebKit rounds the rendered scroll position.
+        positionX += (targetX - positionX) * progress;
+        positionY += (targetY - positionY) * progress;
+        window.scrollTo({left: positionX, top: positionY, behavior: 'instant'});
+        frame = settled ? null : requestAnimationFrame(tick);
+      }
+      function animate() {
+        if (frame !== null) return;
+        positionX = scrollX;
+        positionY = scrollY;
+        lastTime = performance.now();
+        frame = requestAnimationFrame(tick);
+      }
+      function cancel() {
+        if (frame !== null) cancelAnimationFrame(frame);
+        frame = null;
+        directionX = directionY = 0;
+        targetX = scrollX;
+        targetY = scrollY;
+      }
+      window.vellumDictionaryScroll = {
+        start(x, y) {
+          cancel();
+          directionX = x;
+          directionY = y;
+          targetX += x * 72;
+          targetY += y * 72;
+          animate();
+        },
+        end() { directionX = directionY = 0; },
+        cancel,
+        by(x, y) {
+          if (frame === null) { targetX = scrollX; targetY = scrollY; }
+          directionX = directionY = 0;
+          targetX += x;
+          targetY += y;
+          animate();
+        },
+        edge(bottom) {
+          cancel();
+          targetY = bottom ? document.scrollingElement.scrollHeight : 0;
+          animate();
+        }
+      };
+      window.addEventListener('wheel', cancel, {passive: true});
+      window.addEventListener('blur', cancel);
+    })();
+    """#
 }
 
 @MainActor
