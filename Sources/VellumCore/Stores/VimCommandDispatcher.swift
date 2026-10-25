@@ -63,6 +63,8 @@ struct VimCommandDispatcher {
             target.beginWordJump()
         case .beginLinkJump:
             target.beginLinkJump()
+        case .beginLinkPreview:
+            target.beginLinkPreview()
         case .searchNext:
             if count == 1 { target.searchNext() } else { target.searchBy(count) }
         case .searchPrevious:
@@ -125,6 +127,7 @@ protocol VimCommandTarget {
     func searchSelectedText()
     func beginWordJump()
     func beginLinkJump()
+    func beginLinkPreview()
     func searchNext()
     func searchPrevious()
     func searchBy(_ delta: Int)

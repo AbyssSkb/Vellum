@@ -236,6 +236,15 @@ public enum AppText {
     case linkJump
     case linkJumpTypeHint
     case linkJumpNoLinks
+    case linkPreview
+    case linkPreviewNoLinks
+    case figurePreview(String)
+    case tablePreview(String)
+    case algorithmPreview(String)
+    case equationPreview(String)
+    case sectionPreview(String)
+    case referenceUnavailable
+    case referencePage(Int)
     case highlights
     case searchHighlights
     case noMatchingHighlights
@@ -532,6 +541,15 @@ public extension AppText {
         case .linkJump: return "Follow link"
         case .linkJumpTypeHint: return "Type a label · Esc to cancel"
         case .linkJumpNoLinks: return "No links in view"
+        case .linkPreview: return "Link Preview"
+        case .linkPreviewNoLinks: return "No internal links with valid destinations in view"
+        case .figurePreview(let number): return "Figure \(number)"
+        case .tablePreview(let number): return "Table \(number)"
+        case .algorithmPreview(let number): return "Algorithm \(number)"
+        case .equationPreview(let number): return "Equation \(number)"
+        case .sectionPreview(let number): return "Section \(number)"
+        case .referenceUnavailable: return "The reference target is no longer in this document"
+        case .referencePage(let number): return "PDF page \(number)"
         case .highlights: return "Highlights"
         case .searchHighlights: return "Search highlighted text or page…"
         case .noMatchingHighlights: return "No matching highlights"
@@ -819,6 +837,15 @@ public extension AppText {
         case .linkJump: return "打开链接"
         case .linkJumpTypeHint: return "输入标签 · Esc 取消"
         case .linkJumpNoLinks: return "当前视野内没有链接"
+        case .linkPreview: return "链接预览"
+        case .linkPreviewNoLinks: return "当前视野内没有目标有效的内部链接"
+        case .figurePreview(let number): return "图 \(number)"
+        case .tablePreview(let number): return "表 \(number)"
+        case .algorithmPreview(let number): return "算法 \(number)"
+        case .equationPreview(let number): return "公式 \(number)"
+        case .sectionPreview(let number): return "章节 \(number)"
+        case .referenceUnavailable: return "参考目标已不在当前文档中"
+        case .referencePage(let number): return "PDF 第 \(number) 页"
         case .highlights: return "高亮"
         case .searchHighlights: return "搜索高亮原文或页码…"
         case .noMatchingHighlights: return "没有匹配的高亮"

@@ -170,6 +170,17 @@ struct VimInputControllerTests {
     }
 
     @Test
+    func referencePreviewConsumesCountsAndIgnoresHeldRepeats() {
+        let key = "p", command = VimCommand.beginLinkPreview
+        var input = VimInputController()
+        _ = input.handleKey("9")
+        #expect(input.handleKeyDown(key, isRepeat: false, hasNavigableTextSelection: false, hasTextActionTarget: false) == .command(command))
+        #expect(input.state.numericPrefix.isEmpty)
+        #expect(input.handleKeyDown(key, isRepeat: true, hasNavigableTextSelection: false, hasTextActionTarget: false) == .handled)
+        #expect(!command.acceptsCount)
+    }
+
+    @Test
     func pendingGChangesUppercaseTToPreviousTab() {
         var input = VimInputController()
 

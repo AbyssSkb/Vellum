@@ -28,6 +28,7 @@ struct AppStateReaderControllerTests {
         appState.searchSelectedText()
         appState.beginWordJump()
         appState.beginLinkJump()
+        appState.beginLinkPreview()
         appState.searchNext()
         appState.searchPrevious()
         appState.searchBy(3)
@@ -53,6 +54,7 @@ struct AppStateReaderControllerTests {
             .searchSelectedText,
             .beginWordJump,
             .beginLinkJump,
+            .beginLinkPreview,
             .searchNext,
             .searchPrevious,
             .searchBy(3),
@@ -424,6 +426,11 @@ private final class RecordingReaderController: ReaderController {
         isWordJumpActive = true
     }
 
+    func beginLinkPreviewCommand() {
+        actions.append(.beginLinkPreview)
+        isWordJumpActive = true
+    }
+
     func handleWordJumpKey(_ event: NSEvent) -> Bool {
         isWordJumpActive
     }
@@ -559,6 +566,7 @@ private final class RecordingReaderController: ReaderController {
         case searchSelectedText
         case beginWordJump
         case beginLinkJump
+        case beginLinkPreview
         case searchNext
         case searchPrevious
         case searchBy(Int)

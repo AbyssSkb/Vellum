@@ -38,7 +38,21 @@ enum ShortcutCatalog {
                 ShortcutItem(keys: ["10j", "5f", "3n"], action: "Repeat a reader motion with a count (up to 1,000)"),
                 ShortcutItem(keys: ["gg", "G", "[num]G", "[num]gg"], action: "Jump to first, last, or numbered page"),
                 ShortcutItem(keys: ["F"], action: "Type a visible PDF link's label to follow it"),
+                ShortcutItem(keys: ["p"], action: "Type a visible internal link's label to preview its target"),
                 ShortcutItem(keys: ["Ctrl O", "Ctrl I"], action: "Jump backward or forward")
+            ]
+        ),
+        ShortcutGroup(
+            title: "Link Preview",
+            systemImage: "rectangle.on.rectangle",
+            items: [
+                ShortcutItem(keys: ["j", "k"], action: "Scroll focused preview"),
+                ShortcutItem(keys: ["h", "l"], action: "Scroll preview horizontally"),
+                ShortcutItem(keys: ["d", "u", "f", "b"], action: "Scroll preview in larger steps"),
+                ShortcutItem(keys: ["=", "+", "-"], action: "Zoom preview"),
+                ShortcutItem(keys: ["p", "Enter"], action: "Close preview and jump to the target"),
+                ShortcutItem(keys: ["x"], action: "Close focused preview and focus reader"),
+                ShortcutItem(keys: ["Esc"], action: "Close preview and keep your reading position")
             ]
         ),
         ShortcutGroup(
@@ -183,7 +197,21 @@ enum ShortcutCatalog {
                 ShortcutItem(keys: ["10j", "5f", "3n"], action: "按次数执行正文移动（最多 1,000 次）"),
                 ShortcutItem(keys: ["gg", "G", "[num]G", "[num]gg"], action: "跳到首页、末页或指定页"),
                 ShortcutItem(keys: ["F"], action: "输入可见 PDF 链接的标签以打开"),
+                ShortcutItem(keys: ["p"], action: "输入可见内部链接的标签以预览目标"),
                 ShortcutItem(keys: ["Ctrl O", "Ctrl I"], action: "向后或向前跳转")
+            ]
+        ),
+        ShortcutGroup(
+            title: "链接预览",
+            systemImage: "rectangle.on.rectangle",
+            items: [
+                ShortcutItem(keys: ["j", "k"], action: "滚动获得焦点的预览"),
+                ShortcutItem(keys: ["h", "l"], action: "横向滚动预览"),
+                ShortcutItem(keys: ["d", "u", "f", "b"], action: "大幅滚动预览"),
+                ShortcutItem(keys: ["=", "+", "-"], action: "缩放预览"),
+                ShortcutItem(keys: ["p", "Enter"], action: "关闭预览并跳转到目标位置"),
+                ShortcutItem(keys: ["x"], action: "关闭获得焦点的预览并回到正文"),
+                ShortcutItem(keys: ["Esc"], action: "关闭预览并保留正文位置")
             ]
         ),
         ShortcutGroup(

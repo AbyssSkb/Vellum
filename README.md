@@ -16,6 +16,8 @@ Tap or hold `j` and `k` to scroll smoothly. Fit the page or its width, zoom cont
 
 Use counts such as `5f` to move five pages, `3n` to advance three search matches, or `3w` to extend a selection by three word motions. Press `F` to label visible PDF links, then type a label to follow it.
 
+Press `p`, then type a visible internal link's label to open and focus its floating preview without leaving your reading position. The preview grows or shrinks within the available reader width and height, preserving content proportions inside a thin frame. It has rounded inner corners and no toolbar. Scroll it with `j` / `k`, use `=` / `+` / `-` to zoom, press `p` again or `Enter` to close the preview and visit its target, or `x` / `Esc` to close it at the same reading position. `Control-O` returns after a jump. Internal links can preview a figure with adjacent panels, nearby detached legends, and its caption, a table with its caption, notes, and complete borders, a framed algorithm with its title and input conditions, a numbered equation or equation group, a complete bibliography entry, a section heading with its opening paragraph, or the text paragraph at the destination. Isolated regions fill the preview; bibliography entries and section openings can continue across two adjacent pages. Other links, scanned pages, and targets without reliable crop boundaries use page context near their destination.
+
 Keep several documents close with compact tabs. `T` opens a searchable file list with a preview of each document's last-read page; press `Enter` to resume reading the selected file. `X` restores the last closed file. Each file has one tab; reopening an updated PDF reloads its current contents. Long tab titles scroll once when opened, activated, or hovered.
 
 ## A map when you need one
@@ -70,6 +72,7 @@ AI assistance is optional and experimental. See the [user guide](docs/USER_GUIDE
 | `^` / `$` with text selected | First text / end of visual line |
 | `gv` | Restore the last text selection |
 | `F` | Label and follow visible PDF links |
+| `p` | Label and preview visible internal PDF links; press again to jump |
 | `m`, `c`, `y` | Highlight, change highlight color, copy |
 | `M`, `gn` / `gN` | Search highlights; next / previous highlight |
 

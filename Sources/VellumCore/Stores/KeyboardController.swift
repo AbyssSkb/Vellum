@@ -78,6 +78,12 @@ final class KeyboardController {
         if hasInputSequence, (!inputContextIsValid || event.window !== inputWindow) {
             cancelInput()
         }
+        if PDFReferenceController.focusDirection(for: event) != nil,
+           delegate?.activeReaderController?.handleReferencePreviewKey(event) == true {
+            stopHeldKeyTimer()
+            vimInput.clearPendingInput()
+            return true
+        }
         if event.type == .keyDown, handleControlJump(event) {
             return true
         }
@@ -121,6 +127,15 @@ final class KeyboardController {
                 }
                 return true
             }
+        }
+
+        if delegate?.activeReaderController?.handleReferencePreviewKey(event) == true {
+            stopHeldKeyTimer()
+            vimInput.clearPendingInput()
+            if event.type == .keyDown, !event.isARepeat, ["p", "x", "\u{1b}", "\r", "\n"].contains(key) {
+                completedSequenceKey = key
+            }
+            return true
         }
 
         if handleTabPageOverviewKey(key, event: event) {
@@ -531,6 +546,10 @@ final class KeyboardController {
 
     func cancelInput() {
         inputReader?.cancelWordJump()
+        inputReader?.cancelLinkPreview()
+        if delegate?.activeReaderController !== inputReader {
+            delegate?.activeReaderController?.cancelLinkPreview()
+        }
         stopHeldKeyTimer()
         vimInput.clearPendingInput()
         completedSequenceKey = nil
@@ -570,7 +589,7 @@ final class KeyboardController {
         case .command(let command):
             stopHeldKeyTimer()
             delegate?.handleVimCommand(command)
-            if command == .beginWordJump || command == .beginLinkJump {
+            if command == .beginWordJump || command == .beginLinkJump || command == .beginLinkPreview {
                 inputResponder = inputWindow?.firstResponder
             }
             return true

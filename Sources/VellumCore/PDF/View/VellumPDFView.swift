@@ -101,6 +101,7 @@ final class VellumPDFView: PDFView {
     var finishingPageOverviewGeneration: Int?
     var searchController: PDFSearchController?
     var wordJumpController: PDFWordJumpController?
+    var referenceController: PDFReferenceController?
     var highlightNavigationAnchor: (annotation: PDFAnnotation, generation: Int)?
 
     override var acceptsFirstResponder: Bool { true }
@@ -145,6 +146,7 @@ final class VellumPDFView: PDFView {
                 MainActor.assumeIsolated {
                     guard let self else { return }
                     if name == .PDFViewDocumentChanged {
+                        self.clearPDFReferences()
                         self.savedTextSelection = nil
                         self.textSelectionNavigationState = nil
                     } else if name == .PDFViewSelectionChanged {
@@ -253,6 +255,7 @@ final class VellumPDFView: PDFView {
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
+        if window == nil { clearPDFReferences() }
         cancelWordJump()
         window?.acceptsMouseMovedEvents = true
         configurePDFScrollers()
@@ -276,6 +279,7 @@ final class VellumPDFView: PDFView {
         wordJumpController?.cancelIfViewportChanged()
         configurePDFScrollersIfNeeded()
         updateAIFloatingOverlayFrames()
+        referenceController?.layoutPreview()
         updateSelectionEndpointOverlay()
         scheduleReadingPositionReport()
     }
@@ -296,6 +300,7 @@ final class VellumPDFView: PDFView {
     override func resignFirstResponder() -> Bool {
         let resigned = super.resignFirstResponder()
         if resigned {
+            cancelLinkPreview()
             cancelWordJump()
             appState?.keyboardController.cancelInput()
             selectionEndpointOverlay?.isHidden = true

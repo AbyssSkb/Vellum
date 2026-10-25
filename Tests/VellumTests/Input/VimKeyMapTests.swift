@@ -87,6 +87,17 @@ struct VimKeyMapTests {
     }
 
     @Test
+    func referencePreviewUsesLowercasePAndUppercasePIsUnassigned() {
+        #expect(VimKeyMap.command(for: "p") == .beginLinkPreview)
+        #expect(VimKeyMap.command(for: "P") == nil)
+        #expect(VimKeyMap.lowercaseFallback(for: "P") == nil)
+        #expect(VimKeyMap.isHandledKey("p", hasNavigableTextSelection: false, hasTextActionTarget: false))
+        #expect(!VimKeyMap.isHandledKey("P", hasNavigableTextSelection: false, hasTextActionTarget: false))
+        #expect(!VimKeyMap.isContinuousKey("p"))
+        #expect(VimKeyMap.repeatableCommand(for: "p") == nil)
+    }
+
+    @Test
     func uppercaseMOpensHighlightsWithoutAddingAHighlight() {
         #expect(VimKeyMap.command(for: "M") == .showHighlights)
         #expect(VimKeyMap.command(for: "m") == .highlightSelection)

@@ -19,8 +19,11 @@ protocol ReaderController: AnyObject {
     func beginSearchCommand()
     func beginWordJumpCommand()
     func beginLinkJumpCommand()
+    func beginLinkPreviewCommand()
     func handleWordJumpKey(_ event: NSEvent) -> Bool
     func cancelWordJump()
+    func handleReferencePreviewKey(_ event: NSEvent) -> Bool
+    func cancelLinkPreview()
     func handleAIKeyEvent(_ event: NSEvent) -> Bool
     func handleTextSelectionKeyEvent(_ event: NSEvent) -> Bool
     func handleTextSelectionKey(_ rawKey: String, eventType: NSEvent.EventType) -> Bool
@@ -59,6 +62,10 @@ protocol ReaderController: AnyObject {
 }
 
 extension ReaderController {
+    func beginLinkPreviewCommand() {}
+    func handleReferencePreviewKey(_ event: NSEvent) -> Bool { false }
+    func cancelLinkPreview() {}
+
     func handleTextSelectionKey(_ rawKey: String, eventType: NSEvent.EventType, count: Int) -> Bool {
         var handled = false
         for _ in 0..<max(0, min(count, VimInputController.maximumRepeatCount)) {

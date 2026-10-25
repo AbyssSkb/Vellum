@@ -26,6 +26,7 @@ enum VimCommand: Equatable, Sendable {
     case searchSelectedText
     case beginWordJump
     case beginLinkJump
+    case beginLinkPreview
     case searchNext
     case searchPrevious
     case restoreTextSelection

@@ -75,6 +75,7 @@ struct PDFPageFitAnimationTests {
     func newInteractionCancelsEitherPageFitStage(aligningTop: Bool, interaction: String) async throws {
         let (window, view, page) = try makeReader(rotation: aligningTop ? 90 : 0, pageCount: 3)
         defer { view.cancelPendingRestore(); view.stopZoomState(); view.stopScrollAnimation(); window.close() }
+        let container = try #require(view.superview as? PDFReaderContainer)
         #expect(view.applyWidthFitScaleNow(for: page))
         view.scrollToDocumentEdge(.bottom)
         view.vimZoomToPageFit()
@@ -95,7 +96,7 @@ struct PDFPageFitAnimationTests {
         case "widthFit": view.vimZoomToFit()
         case "pageFit": view.vimZoomToPageFit()
         case "restore": view.restore(nil)
-        default: PDFReader.dismantleNSView(view, coordinator: ())
+        default: PDFReader.dismantleNSView(container, coordinator: ())
         }
         if interaction == "pageFit" {
             #expect(view.animationState.zoomPageFitPhase == (aligningTop ? .top : .bottom))
@@ -136,7 +137,8 @@ struct PDFPageFitAnimationTests {
             return reader.window === window && reader.pendingRestoreAction == nil
         }
         let view = try #require(appState.activeReaderController as? VellumPDFView)
-        defer { view.saveBeforeDismantle = nil; PDFReader.dismantleNSView(view, coordinator: ()) }
+        let container = try #require(view.superview as? PDFReaderContainer)
+        defer { view.saveBeforeDismantle = nil; PDFReader.dismantleNSView(container, coordinator: ()) }
         #expect(view.applyWidthFitScaleNow())
         view.scrollToDocumentEdge(.bottom)
         view.vimZoomToPageFit()
@@ -269,7 +271,7 @@ struct PDFPageFitAnimationTests {
                               styleMask: .borderless, backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
         let view = VellumPDFView(frame: window.contentView!.bounds)
-        window.contentView = view
+        window.contentView = PDFReaderContainer(reader: view)
         view.displayMode = .singlePageContinuous
         view.document = document
         view.autoScales = false

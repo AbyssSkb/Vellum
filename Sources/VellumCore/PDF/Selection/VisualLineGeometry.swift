@@ -96,11 +96,11 @@ enum VisualLineGeometry {
         return min(lower, pageStarts.count - 2)
     }
 
-    static func splitVisualLineSegments(_ characters: [VimTextLineCharacter]) -> [[VimTextLineCharacter]] {
+    static func splitVisualLineSegments(_ characters: [VimTextLineCharacter], gapThreshold: CGFloat? = nil) -> [[VimTextLineCharacter]] {
         guard !characters.isEmpty else { return [] }
 
         let averageWidth = characters.reduce(CGFloat(0)) { $0 + max(1, $1.maxX - $1.minX) } / CGFloat(characters.count)
-        let gapThreshold = max(28, averageWidth * 5.5)
+        let gapThreshold = gapThreshold ?? max(28, averageWidth * 5.5)
         var segments: [[VimTextLineCharacter]] = []
         var current: [VimTextLineCharacter] = []
         var previous: VimTextLineCharacter?

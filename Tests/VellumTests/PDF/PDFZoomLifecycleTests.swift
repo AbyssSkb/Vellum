@@ -76,8 +76,9 @@ struct PDFZoomLifecycleTests {
     func dismantlingCancelsAnimationsAndDeferredRestore() throws {
         _ = NSApplication.shared
         let view = makeReader()
+        let container = PDFReaderContainer(reader: view)
         let window = makeWindow()
-        window.contentView = view
+        window.contentView = container
         defer { window.close() }
         view.vimZoom(to: 2)
         let zoomTimer = try #require(view.animationState.zoomTimer)
@@ -88,7 +89,7 @@ struct PDFZoomLifecycleTests {
         view.pendingRestoreAction = .initial(generation: view.restoreGeneration)
         let generation = view.restoreGeneration
 
-        PDFReader.dismantleNSView(view, coordinator: ())
+        PDFReader.dismantleNSView(container, coordinator: ())
 
         #expect(!zoomTimer.isValid)
         #expect(!scrollTimer.isValid)

@@ -6,6 +6,7 @@ extension VellumPDFView {
         guard let document,
               currentSelection?.string?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false,
               !isMouseSelectingText, !isAIInteractionActive, !isPageOverviewActive, !isWordJumpActive,
+              referenceController?.isPreviewActive != true,
               appState == nil || appState?.activeReaderController === self,
               let responder = window?.firstResponder as? NSView,
               responder === self || responder.isDescendant(of: self),

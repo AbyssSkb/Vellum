@@ -70,7 +70,7 @@ struct KeyboardControllerTests {
         #expect(delegate.commands == [.searchSelectedText, .searchNext])
     }
 
-    @Test(arguments: ["o", "*"])
+    @Test(arguments: ["o", "*", "p", "P"])
     func selectionShortcutsRemainTextInEditableFields(key: String) {
         let window = makeWindow()
         defer { window.close() }
@@ -103,6 +103,158 @@ struct KeyboardControllerTests {
         #expect(delegate.commands == [.beginLinkJump])
         #expect(delegate.reader.actions == [.beginLinkJump, .wordJumpKey("f"), .cancelWordJump])
         #expect(!delegate.reader.isWordJumpActive)
+    }
+
+    @Test
+    func choosingAPreviewLabelKeepsThePreviewOpenForTheNextKey() {
+        let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
+        let delegate = RecordingKeyboardDelegate()
+        controller.delegate = delegate
+        delegate.reader.onWordJumpKey = { [weak reader = delegate.reader] in
+            reader?.isWordJumpActive = false
+            reader?.isReferencePreviewActive = true
+        }
+
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "p", keyCode: 35)))
+        #expect(controller.handleKeyEvent(keyEvent(.keyUp, key: "p", keyCode: 35)))
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "f", keyCode: 3)))
+        #expect(controller.handleKeyEvent(keyEvent(.keyUp, key: "f", keyCode: 3)))
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "j", keyCode: 38)))
+        #expect(delegate.commands == [.beginLinkPreview])
+        #expect(delegate.reader.actions == [.beginLinkPreview, .wordJumpKey("f"), .referencePreviewKey("j")])
+        #expect(delegate.reader.isReferencePreviewActive)
+    }
+
+    @Test(arguments: ["j", "\t", "\u{1b}"])
+    func temporaryPreviewHandlesKeysBeforeTheSelectionAndGallery(key: String) {
+        let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
+        let delegate = RecordingKeyboardDelegate()
+        delegate.reader.isReferencePreviewActive = true
+        delegate.reader.hasNavigableTextSelection = true
+        delegate.reader.textSelectionKeyResult = true
+        controller.delegate = delegate
+
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: key, keyCode: 0)))
+        #expect(controller.handleKeyEvent(keyEvent(.keyUp, key: key, keyCode: 0)))
+        #expect(delegate.reader.actions == [.referencePreviewKey(key)])
+        #expect(delegate.reader.textSelectionKeys.isEmpty)
+        #expect(!delegate.reader.isPageOverviewActive)
+        #expect(delegate.reader.hasNavigableTextSelection)
+        #expect(delegate.commands.isEmpty)
+    }
+
+    @Test(arguments: ["p", "\u{1b}", "\r", "x"])
+    func finishingAPreviewConsumesItsHeldRepeatAndRelease(key: String) {
+        let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
+        let delegate = RecordingKeyboardDelegate()
+        delegate.reader.isReferencePreviewActive = true
+        if key == "x" {
+            delegate.reader.hasNavigableTextSelection = true
+            delegate.reader.textSelectionKeyResult = true
+        }
+        controller.delegate = delegate
+
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: key, keyCode: 0)))
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: key, keyCode: 0, isRepeat: true)))
+        #expect(controller.handleKeyEvent(keyEvent(.keyUp, key: key, keyCode: 0)))
+        #expect(delegate.reader.actions == [.referencePreviewKey(key)])
+        #expect(delegate.commands.isEmpty)
+        #expect(!delegate.reader.isReferencePreviewActive)
+        #expect(delegate.reader.textSelectionKeys.isEmpty)
+    }
+
+    @Test
+    func uppercasePDoesNotStartAReaderCommand() {
+        let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
+        let delegate = RecordingKeyboardDelegate()
+        controller.delegate = delegate
+
+        #expect(!controller.handleKeyEvent(keyEvent(.keyDown, key: "P", keyCode: 35, modifierFlags: .shift)))
+        #expect(!controller.handleKeyEvent(keyEvent(.keyDown, key: "P", keyCode: 35, isRepeat: true, modifierFlags: .shift)))
+        #expect(delegate.commands.isEmpty)
+        #expect(delegate.reader.actions.isEmpty)
+    }
+
+    @Test(arguments: [NSEvent.ModifierFlags.command, .control, .option])
+    func modifiedKeysCancelOnlyTheTemporaryPreview(flags: NSEvent.ModifierFlags) {
+        let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
+        let delegate = RecordingKeyboardDelegate()
+        delegate.reader.isReferencePreviewActive = true
+        controller.delegate = delegate
+
+        #expect(!controller.handleKeyEvent(keyEvent(.keyDown, key: "q", keyCode: 12, modifierFlags: flags)))
+        #expect(delegate.reader.actions == [.cancelLinkPreview])
+        #expect(!delegate.reader.isReferencePreviewActive)
+        #expect(delegate.commands.isEmpty)
+    }
+
+    @Test(arguments: [("h", UInt16(4)), ("\u{8}", 4), ("", 4),
+                      ("j", 38), ("\u{a}", 38), ("", 38),
+                      ("k", 40), ("\u{b}", 40), ("", 40),
+                      ("l", 37), ("\u{c}", 37), ("", 37)])
+    func directionalControlKeysReachTheReferenceOnPressAndRelease(key: String, keyCode: UInt16) {
+        let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
+        let delegate = RecordingKeyboardDelegate()
+        controller.delegate = delegate
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "3", keyCode: 20)))
+        delegate.reader.isReferencePreviewActive = true
+
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: key, keyCode: keyCode, modifierFlags: .control)))
+        #expect(controller.handleKeyEvent(keyEvent(.keyUp, key: key, keyCode: keyCode, modifierFlags: .control)))
+        #expect(delegate.reader.referencePreviewEventTypes == [.keyDown, .keyUp])
+        #expect(delegate.reader.actions == [.referencePreviewKey(key)])
+        #expect(delegate.reader.isReferencePreviewActive)
+        delegate.reader.isReferencePreviewActive = false
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "G", keyCode: 5)))
+        #expect(delegate.commands == [.lastPage])
+    }
+
+    @Test(arguments: [NSEvent.ModifierFlags.command, .option])
+    func directionalControlKeysWithOtherModifiersKeepTheNormalCancellation(flags: NSEvent.ModifierFlags) {
+        let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
+        let delegate = RecordingKeyboardDelegate()
+        delegate.reader.isReferencePreviewActive = true
+        controller.delegate = delegate
+
+        #expect(!controller.handleKeyEvent(keyEvent(.keyDown, key: "h", keyCode: 4, modifierFlags: flags.union(.control))))
+        #expect(delegate.reader.referencePreviewEventTypes.isEmpty)
+        #expect(delegate.reader.actions == [.cancelLinkPreview])
+    }
+
+    @Test
+    func controlWDoesNotStartTheRemovedReferenceFocusChord() {
+        let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
+        let delegate = RecordingKeyboardDelegate()
+        delegate.reader.isReferencePreviewActive = true
+        controller.delegate = delegate
+
+        #expect(!controller.handleKeyEvent(keyEvent(.keyDown, key: "w", keyCode: 13, modifierFlags: .control)))
+        #expect(delegate.reader.referencePreviewEventTypes.isEmpty)
+        #expect(delegate.reader.actions == [.cancelLinkPreview])
+    }
+
+    @Test
+    func xStillClosesTheMainTabWhenNoReferenceHasKeyboardFocus() {
+        let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
+        let delegate = RecordingKeyboardDelegate()
+        controller.delegate = delegate
+
+        #expect(controller.handleKeyEvent(keyEvent(.keyDown, key: "x", keyCode: 7)))
+        #expect(delegate.commands == [.closeTab])
+    }
+
+    @Test(arguments: [NSApplication.willResignActiveNotification, NSWindow.didResignKeyNotification])
+    func losingFocusCancelsOnlyTheTemporaryPreview(name: Notification.Name) {
+        let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
+        let delegate = RecordingKeyboardDelegate()
+        delegate.reader.isReferencePreviewActive = true
+        controller.delegate = delegate
+
+        withExtendedLifetime(controller) {
+            notificationCenter.post(name: name, object: nil)
+        }
+        #expect(delegate.reader.actions == [.cancelLinkPreview])
+        #expect(!delegate.reader.isReferencePreviewActive)
     }
 
     @Test(arguments: ["h", "j", "k", "l", "w", "b", "e", "^", "$"])
@@ -1053,7 +1205,7 @@ struct KeyboardControllerTests {
         #expect(delegate.commands == commands)
     }
 
-    @Test(arguments: ["j", "k", "h", "l", "g", "G", "z", "d", "u", "f", "b", " ", "=", "m", "a", "i", "v", "y", "c"])
+    @Test(arguments: ["j", "k", "h", "l", "g", "G", "z", "d", "u", "f", "b", " ", "=", "m", "a", "i", "v", "y", "c", "p", "P"])
     func outlineNeverFallsThroughToReaderMovementsOrTextActions(key: String) {
         let window = makeWindow()
         defer { window.close() }
@@ -1288,6 +1440,8 @@ private final class RecordingKeyboardDelegate: KeyboardControllerDelegate {
             activeReaderController?.beginWordJumpCommand()
         } else if command == .beginLinkJump {
             activeReaderController?.beginLinkJumpCommand()
+        } else if command == .beginLinkPreview {
+            activeReaderController?.beginLinkPreviewCommand()
         }
     }
 
@@ -1307,12 +1461,15 @@ private final class RecordingKeyboardReaderController: ReaderController {
     var hasSearchTextTarget = false
     var isPageOverviewActive = false
     var isWordJumpActive = false
+    var isReferencePreviewActive = false
     var deleteHighlightsResult = false
     var aiKeyResult = false
     var textSelectionKeyResult = false
     var onBeginPageOverview: (() -> Void)?
     var onBeginWordJump: (() -> Void)?
+    var onWordJumpKey: (() -> Void)?
     private(set) var textSelectionKeys: [String] = []
+    private(set) var referencePreviewEventTypes: [NSEvent.EventType] = []
     private(set) var actions: [Action] = []
 
     func snapshot() -> ReaderSnapshot? { nil }
@@ -1357,8 +1514,15 @@ private final class RecordingKeyboardReaderController: ReaderController {
         onBeginWordJump?()
     }
 
+    func beginLinkPreviewCommand() {
+        actions.append(.beginLinkPreview)
+        isWordJumpActive = true
+        onBeginWordJump?()
+    }
+
     func handleWordJumpKey(_ event: NSEvent) -> Bool {
         actions.append(.wordJumpKey(event.charactersIgnoringModifiers ?? ""))
+        onWordJumpKey?()
         return isWordJumpActive
     }
 
@@ -1366,6 +1530,24 @@ private final class RecordingKeyboardReaderController: ReaderController {
         guard isWordJumpActive else { return }
         actions.append(.cancelWordJump)
         isWordJumpActive = false
+    }
+
+    func handleReferencePreviewKey(_ event: NSEvent) -> Bool {
+        guard isReferencePreviewActive else { return false }
+        referencePreviewEventTypes.append(event.type)
+        if event.type == .keyDown, let key = event.charactersIgnoringModifiers {
+            actions.append(.referencePreviewKey(key))
+            if ["p", "\u{1b}", "\r", "\n", "x"].contains(key), !event.modifierFlags.contains(.control) {
+                isReferencePreviewActive = false
+            }
+        }
+        return true
+    }
+
+    func cancelLinkPreview() {
+        guard isReferencePreviewActive else { return }
+        actions.append(.cancelLinkPreview)
+        isReferencePreviewActive = false
     }
 
     func handleAIKeyEvent(_ event: NSEvent) -> Bool {
@@ -1443,8 +1625,11 @@ private final class RecordingKeyboardReaderController: ReaderController {
         case beginSearch
         case beginWordJump
         case beginLinkJump
+        case beginLinkPreview
         case wordJumpKey(String)
         case cancelWordJump
+        case referencePreviewKey(String)
+        case cancelLinkPreview
         case deleteHighlights
         case aiKey
         case countedSelection(String, Int)

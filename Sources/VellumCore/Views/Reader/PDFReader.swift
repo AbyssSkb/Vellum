@@ -9,8 +9,9 @@ struct PDFReader: NSViewRepresentable {
     let snapshot: ReaderSnapshot?
     let isActive: Bool
 
-    func makeNSView(context: Context) -> VellumPDFView {
+    func makeNSView(context: Context) -> PDFReaderContainer {
         let view = VellumPDFView()
+        let container = PDFReaderContainer(reader: view)
         view.appState = appState
         configureSnapshotSaving(in: view)
         view.backgroundColor = VellumColors.panel
@@ -23,6 +24,7 @@ struct PDFReader: NSViewRepresentable {
         view.pageBreakMargins = pageBreakMargins
         view.document = document
         PDFAnnotationPersistence.state(for: document)?.onPrepareToClose = { [weak view] in
+            view?.clearPDFReferences()
             view?.hideAIExplanationPopover()
         }
         if isActive {
@@ -38,14 +40,16 @@ struct PDFReader: NSViewRepresentable {
                 view.focus()
             }
         }
-        return view
+        return container
     }
 
-    func updateNSView(_ nsView: VellumPDFView, context: Context) {
+    func updateNSView(_ container: PDFReaderContainer, context: Context) {
+        let nsView = container.reader
         nsView.appState = appState
         configureSnapshotSaving(in: nsView)
 
         if nsView.document !== document {
+            nsView.clearPDFReferences()
             nsView.cancelWordJump()
             nsView.hideAIExplanationPopover()
             nsView.clearSuppressedHoverExplanation()
@@ -72,6 +76,7 @@ struct PDFReader: NSViewRepresentable {
         }
 
         if !isActive {
+            nsView.cancelLinkPreview()
             nsView.cancelWordJump()
             nsView.cancelPendingRestore()
             nsView.stopScrollAnimation()
@@ -80,6 +85,7 @@ struct PDFReader: NSViewRepresentable {
         }
 
         PDFAnnotationPersistence.state(for: document)?.onPrepareToClose = { [weak nsView] in
+            nsView?.clearPDFReferences()
             nsView?.hideAIExplanationPopover()
         }
 
@@ -103,9 +109,11 @@ struct PDFReader: NSViewRepresentable {
         }
     }
 
-    static func dismantleNSView(_ nsView: VellumPDFView, coordinator: ()) {
+    static func dismantleNSView(_ container: PDFReaderContainer, coordinator: ()) {
+        let nsView = container.reader
         nsView.cancelWordJump()
         nsView.saveBeforeDismantle?()
+        nsView.clearPDFReferences()
         nsView.hideAIExplanationPopover()
         nsView.cancelPageOverview()
         nsView.cancelPendingRestore()

@@ -57,6 +57,35 @@ Reader motions accept counts: `10j` scrolls ten steps, `5f` moves five pages, an
 
 Press `F` in the reader to label links currently in view. Type a label to follow that link, use `Backspace` to correct a partial label, or press `Esc` to cancel. `Enter` follows the first remaining link. Internal links use the reading history, so `Control-O` returns to the source; web links open through the system's URL handler. Scrolling, resizing, or zooming cancels the labels. This uses links embedded in the PDF; plain reference text without a link is not detected. If no links are visible, a brief notification appears and keyboard navigation remains available.
 
+### Preview references
+
+Press `p` to label visible internal links with valid destinations. Type a label to open and focus its floating preview while keeping the reader's position and text selection. `Backspace` corrects a partial label, `Enter` opens the first remaining target, and `Esc` cancels the labels. If no visible internal link has a valid destination, a brief notification explains why and leaves the reader ready for other keys. The preview grows or shrinks within the available reader width and height, preserving content proportions inside a thin frame. It has rounded inner corners and no toolbar.
+
+| Key while a link preview is focused | Action |
+| --- | --- |
+| `j` / `k` | Scroll the preview down / up |
+| `h` / `l` | Scroll the preview left / right |
+| `d` / `u`, `f` / `b` | Scroll the preview in larger steps |
+| `=` / `+` / `-` | Zoom the preview in / out |
+| `p` / `Enter` | Close the preview and jump the reader to the target; `Control-O` returns to the source |
+| `x` | Close the preview and return focus to the reader |
+| `Esc` | Close the preview and resume at the same reading position |
+
+Link previews require embedded internal links with destinations in the current PDF. Web links and ordinary reference text are not previewed.
+
+Internal link previews isolate the target region when its text and layout provide reliable boundaries:
+
+- Figures include adjacent panels, nearby detached legends, and the matching caption. An explicit subfigure such as `1(a)` shows its own graphic and caption when native labels and graphic boundaries identify them; ambiguous ownership retains the whole figure.
+- Tables include their caption, attached notes, and complete borders, whether the caption is above or below the table.
+- Framed numbered algorithms include their title, input conditions, steps, and side comments.
+- Numbered equations match the referenced number. An unsuffixed reference such as `2` includes the matching `2a` / `2b` group; an explicit `2a` reference previews only that equation.
+- Bibliography entries with numbers or hanging indents are cropped as complete entries. Author citations without a year support `a` / `b` labels and `n.d.`.
+- Sections include the heading and opening paragraph, including table-of-contents links whose destination points to a neighboring page. Introduced lists and compact column lists can continue when native typography and alignment establish their boundaries. Other text destinations show the local paragraph when it can be isolated.
+
+Reference prefixes `Figure` and `Section` also match across hyphenated line breaks. The complete region fits the available preview space. Unrecognized targets and scanned pages without readable text use page context near the destination. Footnotes can be isolated when a visible marker near the destination and a separator or smaller text establish their boundaries. Unclassified numeric links, including unframed algorithms and theorem references, keep page context. Any target whose exact boundaries cannot be isolated reliably uses page context, including bibliography entries with ambiguous or overlapping boundaries.
+
+Automatic regions use PDF text and geometric layout, without AI or OCR. Bibliography entries and section opening paragraphs can combine identified fragments from two adjacent pages. Clearly framed long tables can join matching continuation pages; other regions generally stay within one page. Figure previews require readable figure numbers and distinct graphic bounds. Text, captions, notes, and borders are grouped into complete objects before cropping, using typography, spacing, alignment, and frame continuity. Smaller attached notes can be included without a note prefix. Same-size unlabelled notes and unusual layouts without clear separation can include nearby body text or miss continuation lines.
+
 ## Browse the contents
 
 Press `t` to show or hide the contents sidebar. Opening it focuses the outline and aligns its cursor with the current reading section; closing it focuses the reader. A quick tap on plain `Tab` switches focus between the reader and outline, opening the sidebar if it is hidden. These focus switches keep the sidebar visible and preserve the browsing cursor.

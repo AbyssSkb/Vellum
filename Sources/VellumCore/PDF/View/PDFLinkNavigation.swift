@@ -1,6 +1,13 @@
 @preconcurrency import PDFKit
 
 enum PDFLinkNavigation {
+    static func previewDestination(for annotation: PDFAnnotation, in document: PDFDocument) -> PDFDestination? {
+        guard let destination = (action(for: annotation) as? PDFActionGoTo)?.destination,
+              let page = destination.page, page.document === document,
+              document.index(for: page) != NSNotFound else { return nil }
+        return destination
+    }
+
     static func action(for annotation: PDFAnnotation) -> PDFAction? {
         if let destination = annotation.destination {
             return PDFActionGoTo(destination: destination)
