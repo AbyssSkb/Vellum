@@ -44,7 +44,8 @@ struct ToastTests {
         #expect(host.bounds.width == 320)
         #expect(resizedFrame.width > 100 && resizedFrame.width <= 288)
         #expect(host.bounds.contains(resizedFrame))
-        #expect(abs(resizedFrame.midX - host.bounds.midX) < 0.5)
+        let centeringErrorInPixels = abs(resizedFrame.midX - host.bounds.midX) * window.backingScaleFactor
+        #expect(centeringErrorInPixels <= 0.5)
         #expect(toast.layer?.cornerRadius == toast.bounds.height / 2)
     }
 
@@ -121,8 +122,12 @@ struct ToastTests {
         try await Task.sleep(for: .milliseconds(50))
         VellumToast.show("No selection", in: window)
         #expect(currentToast(in: window) === first)
-        try await Task.sleep(for: .milliseconds(400))
-        #expect(currentToast(in: window) == nil)
+        // Check the original timer separately from AppKit's asynchronous fade completion.
+        try await waitForTestCondition("The original timer did not start dismissing the repeated toast",
+                                       timeout: .seconds(1)) { first.alphaValue == 0 }
+        try await waitForTestCondition("The dismissed toast did not leave the window", timeout: .seconds(1)) {
+            currentToast(in: window) == nil
+        }
     }
 
     @Test
