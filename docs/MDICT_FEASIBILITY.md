@@ -1,0 +1,76 @@
+# 本地 MDict 查词方案
+
+调研日期：2026-10-25。本文记录可行性、只读格式探针结果与建议接入方式；应用尚未实现本地查词。
+
+## 结论与首版范围
+
+可以在 Vellum 内实现：选中 PDF 单词后触发查词，使用 `WKWebView` 显示原词典 HTML，并从同目录 MDD 中按需读取图片、字体和发音。建议先支持用户提供的 OALDPEX，不先做多词典管理、全文检索、词形推导或在线发音。
+
+首选接入形态是原生 Swift 查词层、WebKit 词典浮层、原生音频播放。本机词库已确认是未加密 v2，所有记录块均使用 zlib，因此首版采用窄范围 Swift 读取器加系统 libz 就能覆盖；需要维护二进制边界、跨块记录与兼容测试。若以后需要更广格式支持，再验证固定版本的 MIT Rust `mdictlib`。Python 适合一次性验证格式，不建议成为发布应用的前提。
+
+## 本地词库证据
+
+已对 `~/Documents/Dictionary/OALDPEX-Final/` 进行只读文件清单和小段头部检查，没有修改或整包展开词库：
+
+| 文件 | 字节数 | 作用 |
+| --- | ---: | --- |
+| `oaldpex.mdx` | 54,173,361 | 词条 |
+| `oaldpex.mdd` | 7,035,625 | 第一资源包 |
+| `oaldpex.1.mdd` | 970,259,153 | 分卷资源包 |
+| `oaldpex.2.mdd` | 1,115,011,718 | 分卷资源包 |
+| `oaldpex.css` | 211,134 | 外置样式 |
+| `oaldpex.js` | 191,191 | 外置交互脚本 |
+| `oaldpex.png` | 59,909 | 配图 |
+
+四个 MDX/MDD 文件头均声明 v2.0、`Encrypted=No`。MDX 声明 UTF-8、HTML、`StripKey=Yes`、`KeyCaseSensitive=No`；标题为 OALDPEX En-Cn 精装版 V2026.10.05。外置 JavaScript 使用 `localStorage` 和 `sound://`，包含在线发音回退逻辑；CSS 引用 Bookerly、Optima、SourceHan 和 LXGW 字体。
+
+一次性 Python 探针放在仓库外的临时环境，读取全部键表和每个记录块的类型字段，没有展开全部资源。结果如下：
+
+| 文件 | 索引条目数 | 记录块数 | 资源统计 |
+| --- | ---: | ---: | --- |
+| MDX | 293,809 | 4,985 | 词条 |
+| 基础 MDD | 48 | 19 | 字体、CSS、jQuery、图片等 |
+| `.1.mdd` | 162,679 | 13,347 | 160,805 MP3、1,872 PNG、2 JS |
+| `.2.mdd` | 112,783 | 20,263 | 112,782 MP3、1 JS |
+
+全部记录块类型均为 `2`，即 zlib。探针读取了 `hello`、`dictionary`、`running`、`apple` 的词条，验证实际 `sound://` 链接可定位 `.1.mdd` 的英美词语录音及 `.2.mdd` 的例句录音；读取资源时验证了解压长度与 ADLER32。系统 `afinfo` 识别一个 MP3 样本为单声道、22,050 Hz、约 2.247 秒，`afconvert` 成功将其解码为 49,536 帧、99,072 字节的 16-bit PCM。这证明了样本可读取和原生解码，尚未试听或渲染页面，也没有验证全部记录的完整性。
+
+当前缺少可选的 `.3.mdd` 预生成 TTS 资源包，其 `oaldpex_tts.js` 不在现有三个 MDD 或外置文件中；主脚本检测到缺失会自动关闭该选项。已有正式词语与例句录音可继续使用；不能据此承诺任意无录音句子的离线合成发音。
+
+## 读取与查词
+
+MDX 保存键到文字记录的映射，MDD 保存资源路径到二进制记录的映射；两者具有键块、记录块及偏移索引。v2 使用 64 位长度和偏移，块可能不压缩、使用 LZO 或使用 zlib，不能仅凭版本号推断压缩方式。社区格式说明来自逆向，存在明确的不完整声明。[格式说明](https://github.com/zhansliu/writemdict/blob/master/fileformat.md)
+
+建议后台打开 MDX 和三个 MDD，保留文件句柄、键索引和块索引；查询时定位记录范围，只读取并解压覆盖该范围的块。记录可能跨块，应按记录起止偏移拼接；不要把两 GB 资源全部读入内存，也无需先展开到磁盘。资源名统一处理 URL 百分号编码、正反斜杠与相对路径，外置文件只从用户选定的词库目录读取。该段是接入设计，不是已测得的性能结论。
+
+查词先精确匹配，再按词库头部声明处理大小写及忽略字符；同名词条应保留。词条正文以 `@@@LINK=` 开头时需继续查目标词，并检测重定向循环；页面的 `entry://` 则是用户点击后的新查询。`mdictlib` 明确把重定向解析留给应用，GoldenDict 的实现也将其视为另一次查询。[mdictlib 接口范围](https://github.com/lonelam/mdictlib/tree/v0.2.8)、[GoldenDict 重定向实现](https://github.com/goldendict/goldendict/blob/master/mdx.cc)
+
+若采用 Swift 读取器，zlib 块建议直接使用系统 libz 的解码与校验接口。Apple `COMPRESSION_ZLIB` 是 RFC 1951 raw DEFLATE，不能直接当作带头尾的 zlib stream 使用。校验文件范围、整数溢出、声明解压尺寸与 ADLER32；不支持的版本、加密或压缩方式应给出明确错误。[Apple 压缩格式](https://developer.apple.com/documentation/Compression/COMPRESSION_ZLIB)、[zlib 手册](https://www.zlib.net/manual.html)
+
+## 解析器与依赖选择
+
+| 方案 | 已核实能力及许可 | 对 Vellum 的取舍 |
+| --- | --- | --- |
+| 窄范围 Swift + 系统 libz | 需要自己实现当前 v2 未加密格式；libz 有宽松许可。[zlib LICENSE](https://www.zlib.net/zlib_license.html) | 无新增运行时；适合先服务此词库。必须补齐跨块、别名、坏文件测试，不能宣称通用 MDict 兼容。 |
+| Rust `mdictlib` 0.2.8 + 小型 C ABI | MIT；文件与块按需读取，支持 v1/v2、常用文本编码、zlib、可选 LZO、v2 键索引及密码保护键头。LZO 依赖 `lzokay` 也是 MIT。仍由应用处理 HTML、分卷发现和重定向。[LICENSE](https://github.com/lonelam/mdictlib/blob/v0.2.8/LICENSE)、[接口](https://github.com/lonelam/mdictlib/blob/v0.2.8/src/lib.rs)、[lzokay LICENSE](https://github.com/encounter/lzokay-rs/blob/main/LICENSE) | 广格式支持时优先验证的候选；增加 Rust/C ABI、arm64/x86_64 构建和依赖许可清单。当前 Cargo 声明 Rust 1.97；固定版本后再验真实词库。[Cargo 配置](https://github.com/lonelam/mdictlib/blob/v0.2.8/Cargo.toml) |
+| C++ `mdict-cpp` | 顶层 BSD-3-Clause，但仓库附带 GPL-2.0-or-later miniLZO；实际解析源码中的 LZO 分支仍未实现。[顶层许可](https://github.com/dictlab/mdict-cpp/blob/master/LICENSE)、[miniLZO](https://github.com/dictlab/mdict-cpp/blob/master/deps/minilzo/minilzo.c)、[解析实现](https://github.com/dictlab/mdict-cpp/blob/master/src/mdict.cc) | 不建议直接整体捆绑。首页许可与列出的能力不足以作为接入依据。 |
+| Python `readmdict` / `mdict-utils` | `mdict-utils` 顶层 MIT，但实际 `base/readmdict.py` 具有 GPL-3.0 文件头。[文件许可](https://github.com/liuyug/mdict-utils/blob/master/mdict_utils/base/readmdict.py) | 可以做独立本机探针；发布时需处理实际文件许可、解释器及压缩依赖。每次查词启动 Python 也应避免。 |
+| JavaScript `js-mdict` | 当前 v7 许可为 AGPL-3.0。[LICENSE](https://github.com/terasum/js-mdict/blob/master/LICENSE) | 不作为本次默认依赖；也不为了二进制解析另加 Node 运行时。 |
+
+`mdictlib` 的这些能力是上游源码与文档声明，不是 Vellum 对此词库的验证结果。它默认跳过可选 checksum 校验，接入时应显式选择 `ChecksumPolicy::Verify`，并保留尺寸、范围和工作内存上限。其源代码快照为 `v0.2.8` / `520410ab2d4dc32b05030519f03e564b46ac80ca`。[校验策略与限制](https://github.com/lonelam/mdictlib/blob/v0.2.8/README.md)
+
+## 页面与发音
+
+建议给一个独立词典 WebView 注册 `vellum-dictionary://`，词条 HTML、MDD 资源和同目录 CSS/JS 均经同一个 handler 提供，统一同源地址与 MIME 类型。`WKURLSchemeHandler` 就是 Apple 为本地自定义资源提供的接口；它接收每个资源请求，按 response、data、finish 顺序返回。内建 scheme 不能覆盖；任务取消后停止回调。[Apple 接口说明](https://developer.apple.com/documentation/webkit/wkurlschemehandler)、[WebKit scheme 配置契约](https://github.com/WebKit/WebKit/blob/main/Source/WebKit/UIProcess/API/Cocoa/WKWebViewConfiguration.h)、[资源任务契约](https://github.com/WebKit/WebKit/blob/main/Source/WebKit/UIProcess/API/Cocoa/WKURLSchemeTask.h)
+
+不需要本地 HTTP 服务。`loadFileURL(_:allowingReadAccessTo:)` 能给外置文件目录读权限，但不能直接把 MDD 当作目录，因此自定义资源入口更统一。用导航代理接管 `entry://` 与 `sound://`，未知协议不交给外部应用。音频从正确 MDD 分卷读出后，用 `AVAudioPlayer(data:)` 播放并保留 player 生命周期；不依赖系统 TTS。是否能解码以真实音频格式为准。[文件读取规则](https://developer.apple.com/documentation/webkit/wkwebview/loadfileurl(_:allowingreadaccessto:))、[导航策略](https://github.com/WebKit/WebKit/blob/main/Source/WebKit/UIProcess/API/Cocoa/WKNavigationDelegate.h)、[原生内存音频](https://developer.apple.com/documentation/avfaudio/avaudioplayer/init(data:filetypehint:))
+
+页面交互可能需要原词典 JavaScript，应使用独立 WebView，限制原生消息接口只接受查词和当前词库资源请求。用 `WKContentRuleList` 拦截远程 HTTP/HTTPS 子资源，并取消远程导航，保证词库脚本里的在线回退不会发送查词内容。只拦截导航不足以拦截脚本、图片或 fetch 请求。[Apple 资源规则](https://developer.apple.com/documentation/webkit/wkcontentruleliststore)、[WebKit 资源拦截说明](https://webkit.org/blog/3476/content-blockers-first-look/)
+
+## 接入验收
+
+现有接入点是 `Sources/VellumCore/PDF/View/VellumPDFView.swift` 的 `explainDoubleClickedTextIfNeeded`；它已经在智能选词和鼠标结束后触发 AI。键盘查词应先于 `KeyboardController.swift` 的选区移动分支处理，并让 `VimKeyMap.swift` 保留大写 `K`，否则它会被归一化为向上滚动的小写 `k`。现有 AI WebView 使用固定 Markdown 模板，词典应有独立 WebView，复用浮层外观与定位方式。设置和帮助文字需同步更新 `GeneralSettingsView.swift`、`AppLanguage.swift` 和 `ShortcutCatalog.swift`；文稿目录权限说明位于 `scripts/package-app.sh`。项目发布包同时包含 arm64 和 x86_64，解析器或依赖也需覆盖两种架构。
+
+首版应验证：选词触发、大小写与词条别名、分卷图片和字体、折叠/切换等 JavaScript 交互、自定义地址下的 `localStorage`、英美发音、关闭后停止播放、完全断网可用。性能需区分首次打开与重复查词，并观察后台索引期间主线程响应和峰值内存；尚无本机应用端延迟承诺。解析层用小型自建 fixture 覆盖跨块记录、重定向循环、缺资源和损坏长度，不把用户的整部词库放入仓库。
+
+建议将大写 `K` 用作选中单词查词，保留小写 `k` 的 Vim 上移操作；现有按键归一化需要相应区分大小写。双击已经用于 AI 解释，若加入自动查词，应设置明确的双击用途并复用选择流程，避免两个浮层同时弹出。此调研未改应用行为、未增加发布依赖、未打包发布；实际页面与播放效果仍需独立预览验收。
