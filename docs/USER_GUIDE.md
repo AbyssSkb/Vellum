@@ -219,7 +219,7 @@ Vellum reads the dictionary directly from disk. The first version supports unenc
 
 Automatic pronunciation is on by default, with American selected. Choose British pronunciation or turn automatic pronunciation off in General settings. Automatic playback needs a recognizable headword speaker link for the selected accent and skips playback if it is missing; entries with other layouts can still use their manual audio links. The entry's original UK / US speaker links play the corresponding local recordings regardless of the automatic preference.
 
-Press `Esc` or click outside to close the panel. Leaving the reader window stops pronunciation and closes the panel.
+Press `Esc` to close the panel and clear the PDF selection, or click outside to close the panel. Leaving the reader window stops pronunciation and closes the panel.
 
 While the dictionary is open, `j` / `k` scroll vertically, `h` / `l` scroll horizontally, `d` / `u` move half a viewport, `f` / `b` move a full viewport, and `Space` moves forward a viewport. Use `gg` / `G` for the top / bottom of the entry. These keys control the dictionary while its panel is open.
 

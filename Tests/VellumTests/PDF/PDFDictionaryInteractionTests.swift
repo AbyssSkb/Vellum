@@ -7,10 +7,12 @@ import Testing
 @Suite("Dictionary reader interaction")
 struct PDFDictionaryInteractionTests {
     @Test
-    func lookupFitsTheCanvasAndEscapeRestoresTheReaderSelection() async throws {
-        try await withReader { window, view, _ in
-            let selectedText = view.currentSelection?.string
-            view.vimLookupDictionary()
+    func doubleClickLookupFitsTheCanvasAndEscapeClearsTheReaderSelection() async throws {
+        try await withReader { window, view, page in
+            let bounds = try #require(view.currentSelection?.bounds(for: page))
+            let point = view.convert(NSPoint(x: bounds.midX, y: bounds.midY), from: page)
+            UserDefaults.standard.set(DoubleClickActionPreference.dictionary.rawValue, forKey: AppPreferenceKeys.doubleClickAction)
+            view.performDoubleClickActionIfNeeded(at: point)
             #expect(view.isDictionaryInteractionActive)
             let overlay = try #require(view.dictionaryOverlay)
             #expect(view.visibleRect.insetBy(dx: 17, dy: 17).contains(overlay.frame))
@@ -21,7 +23,9 @@ struct PDFDictionaryInteractionTests {
             ))
             #expect(view.handleDictionaryKeyEvent(escape))
             #expect(!view.isDictionaryInteractionActive)
-            #expect(view.currentSelection?.string == selectedText)
+            let retainedSelection = view.currentSelection != nil
+            #expect(!retainedSelection)
+            #expect(view.textSelectionNavigationState == nil)
             #expect(window.firstResponder === view)
         }
     }
@@ -107,12 +111,14 @@ struct PDFDictionaryInteractionTests {
     @Test(arguments: [NSWindow.didResignKeyNotification, NSWindow.willMiniaturizeNotification, NSWindow.willCloseNotification])
     func leavingTheReaderCancelsPendingLookupAndPronunciation(notification: Notification.Name) async throws {
         try await withReader { window, view, _ in
+            let selectedText = view.currentSelection?.string
             view.vimLookupDictionary()
             #expect(view.isDictionaryInteractionActive)
             NotificationCenter.default.post(name: notification, object: window)
             #expect(!view.isDictionaryInteractionActive)
             #expect(view.dictionaryPopover == nil)
             #expect(view.dictionaryLifecycleObservers.isEmpty)
+            #expect(view.currentSelection?.string == selectedText)
         }
     }
 

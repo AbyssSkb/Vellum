@@ -48,7 +48,12 @@ extension VellumPDFView {
 
     func handleDictionaryKeyEvent(_ event: NSEvent) -> Bool {
         guard isDictionaryInteractionActive else { return false }
-        return dictionaryPopover?.handleKeyEvent(event) ?? false
+        let handled = dictionaryPopover?.handleKeyEvent(event) ?? false
+        if handled, event.type == .keyDown, event.charactersIgnoringModifiers == "\u{1b}",
+           !isDictionaryInteractionActive {
+            clearTextSelectionForVimNavigation()
+        }
+        return handled
     }
 
     func dismissDictionaryPopover(restoreFocus: Bool = true) {
