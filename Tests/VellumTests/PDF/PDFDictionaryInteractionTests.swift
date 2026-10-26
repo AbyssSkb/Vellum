@@ -76,7 +76,7 @@ struct PDFDictionaryInteractionTests {
             #expect(popover.isLoading)
             #expect(!overlay.isHidden)
             #expect(overlay.alphaValue == 0)
-            try await waitForTestCondition("The dictionary entry is ready to present") { !popover.isLoading }
+            try await waitForTestCondition("The dictionary entry is ready to present", dispatchAppKitEvents: true) { !popover.isLoading }
             #expect(overlay.alphaValue == 1)
             #expect(overlay.frame.height > 300)
             let viewportHeight = try #require(viewportHeightWhenRevealed)
@@ -84,12 +84,12 @@ struct PDFDictionaryInteractionTests {
 
             popover.lookup("hello")
             #expect(overlay.alphaValue == 0)
-            try await waitForTestCondition("The next dictionary entry is ready to present") { !popover.isLoading }
+            try await waitForTestCondition("The next dictionary entry is ready to present", dispatchAppKitEvents: true) { !popover.isLoading }
             #expect(overlay.alphaValue == 1)
             #expect(overlay.frame.height > 300)
 
             popover.lookup("missing")
-            try await waitForTestCondition("A missing entry displays its result") { !popover.isLoading }
+            try await waitForTestCondition("A missing entry displays its result", dispatchAppKitEvents: true) { !popover.isLoading }
             #expect(overlay.alphaValue == 1)
             #expect(overlay.frame.height == 160)
         }

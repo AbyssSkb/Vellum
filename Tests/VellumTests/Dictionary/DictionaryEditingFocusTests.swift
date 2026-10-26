@@ -67,7 +67,7 @@ struct DictionaryEditingFocusTests {
     private func focus(_ field: String, in view: DictionaryPopoverView, barrier: DictionaryEditingBarrier) async throws {
         let previous = barrier.count
         _ = try await view.webView.evaluateJavaScript("document.getElementById('\(field)').focus();window.webkit.messageHandlers.dictionaryEditingTest.postMessage(null);null;", in: nil, contentWorld: .defaultClient)
-        try await waitForTestCondition("Editable focus reaches the native event bridge") { barrier.count > previous }
+        try await waitForTestCondition("Editable focus reaches the native event bridge", dispatchAppKitEvents: true) { barrier.count > previous }
     }
 
     private func keyEvent(_ key: String, type: NSEvent.EventType = .keyDown, in window: NSWindow) throws -> NSEvent {
@@ -104,7 +104,7 @@ struct DictionaryEditingFocusTests {
         window.makeKeyAndOrderFront(nil)
         defer { view.stop(); window.contentView = nil; window.close() }
         view.lookup("word")
-        try await waitForTestCondition("Dictionary editing fixture is ready") { !view.isLoading }
+        try await waitForTestCondition("Dictionary editing fixture is ready", dispatchAppKitEvents: true) { !view.isLoading }
         window.makeFirstResponder(view.webView)
         try await body(view, window, barrier)
     }

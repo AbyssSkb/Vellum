@@ -68,12 +68,12 @@ struct DictionaryPronunciationTests {
         let probe = DictionaryNavigationProbe(view: fixture.view)
         fixture.view.webView.navigationDelegate = probe
         fixture.view.lookup("hello")
-        try await waitForTestCondition("Dictionary navigation finished") { probe.finished }
-        try await waitForTestCondition("Dictionary page is ready for interaction") { !fixture.view.isLoading }
+        try await waitForTestCondition("Dictionary navigation finished", dispatchAppKitEvents: true) { probe.finished }
+        try await waitForTestCondition("Dictionary page is ready for interaction", dispatchAppKitEvents: true) { !fixture.view.isLoading }
         fixture.view.dismiss()
 
         _ = try await fixture.view.webView.evaluateJavaScript("location.href='\(link)';null;")
-        try await waitForTestCondition("Dismissed page navigation reached the real policy delegate") { !probe.decidedLinks.isEmpty }
+        try await waitForTestCondition("Dismissed page navigation reached the real policy delegate", dispatchAppKitEvents: true) { !probe.decidedLinks.isEmpty }
         try await fixture.drainPendingWork()
         let restartedAudio = fixture.view.player != nil
         let restartedLookup = probe.startedEntryLookup
@@ -89,12 +89,12 @@ struct DictionaryPronunciationTests {
         let probe = DictionaryNavigationProbe(view: fixture.view)
         fixture.view.webView.navigationDelegate = probe
         fixture.view.lookup("hello")
-        try await waitForTestCondition("Dictionary navigation finished") { probe.finished }
-        try await waitForTestCondition("Dictionary page is ready for interaction") { !fixture.view.isLoading }
+        try await waitForTestCondition("Dictionary navigation finished", dispatchAppKitEvents: true) { probe.finished }
+        try await waitForTestCondition("Dictionary page is ready for interaction", dispatchAppKitEvents: true) { !fixture.view.isLoading }
         #expect(fixture.view.player == nil)
 
         _ = try await fixture.view.webView.evaluateJavaScript("location.href='sound://us.wav';null;")
-        try await waitForTestCondition("Active page navigation reached the real policy delegate") { !probe.decidedLinks.isEmpty }
+        try await waitForTestCondition("Active page navigation reached the real policy delegate", dispatchAppKitEvents: true) { !probe.decidedLinks.isEmpty }
         try await fixture.waitForPlayback(fixture.american)
     }
 }
@@ -174,13 +174,13 @@ private final class DictionaryPronunciationFixture {
     }
 
     func waitForPlayback(_ data: Data) async throws {
-        try await waitForTestCondition("Dictionary starts the selected MDD recording") {
+        try await waitForTestCondition("Dictionary starts the selected MDD recording", dispatchAppKitEvents: true) {
             view.player?.data == data && view.player?.isPlaying == true
         }
     }
 
     func waitForDocumentAndPendingWork() async throws {
-        try await waitForTestCondition("Dictionary pronunciation page loaded") { !view.isLoading }
+        try await waitForTestCondition("Dictionary pronunciation page loaded", dispatchAppKitEvents: true) { !view.isLoading }
         _ = try await view.webView.evaluateJavaScript("null;")
         try await drainPendingWork()
     }

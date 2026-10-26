@@ -27,7 +27,7 @@ struct DictionaryOxfordHeightTests {
         window.makeKeyAndOrderFront(nil)
         defer { view.stop(); window.contentView = nil; window.close() }
         view.lookup("typography")
-        try await waitForTestCondition("Oxford typography document loaded", timeout: .seconds(20)) {
+        try await waitForTestCondition("Oxford typography document loaded", timeout: .seconds(20), dispatchAppKitEvents: true) {
             !view.isLoading && !view.webView.isLoading
         }
         _ = try await view.webView.callAsyncJavaScript("await document.fonts.ready; return true;", contentWorld: .page)

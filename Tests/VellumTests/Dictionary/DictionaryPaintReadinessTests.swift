@@ -55,7 +55,7 @@ struct DictionaryPaintReadinessTests {
             }
         }
         view.lookup("ready")
-        try await waitForTestCondition("Dictionary reveal state is captured") { styleAtReveal != nil || error != nil }
+        try await waitForTestCondition("Dictionary reveal state is captured", dispatchAppKitEvents: true) { styleAtReveal != nil || error != nil }
         if let error { throw error }
         #expect(readyStateAtReveal == "complete")
         #expect(styleAtReveal == "rgb(1, 2, 3)")
@@ -65,7 +65,7 @@ struct DictionaryPaintReadinessTests {
         #expect(viewport.count == 2)
         #expect(viewport.first == 600)
         #expect((viewport.last ?? 0) > 0)
-        try await waitForTestCondition("Dictionary script finishes") { !view.webView.isLoading }
+        try await waitForTestCondition("Dictionary script finishes", dispatchAppKitEvents: true) { !view.webView.isLoading }
         #expect(try await view.webView.evaluateJavaScript("window.dictionaryFinalStyleReady") as? Bool == true)
     }
 }

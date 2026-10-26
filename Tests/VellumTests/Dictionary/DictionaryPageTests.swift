@@ -80,7 +80,7 @@ struct DictionaryPageTests {
         defer { view.stop(); window.close() }
         view.lookup("Experts")
         do {
-            try await waitForTestCondition("Hosted dictionary lookup leaves its loading state", timeout: .seconds(20)) { !view.isLoading }
+            try await waitForTestCondition("Hosted dictionary lookup leaves its loading state", timeout: .seconds(20), dispatchAppKitEvents: true) { !view.isLoading }
         } catch {
             let readyState = try? await view.webView.evaluateJavaScript("document.readyState")
             let word = try? await view.webView.evaluateJavaScript("document.querySelector('.headword')?.textContent")
@@ -103,7 +103,7 @@ struct DictionaryPageTests {
         let probe = DictionaryPageProbe()
         view.webView.navigationDelegate = probe
         view.webView.loadHTMLString(DictionaryPage.document("<div style='width:3000px;height:6000px'>Scroll fixture</div>"), baseURL: nil)
-        try await waitForTestCondition("Scroll fixture loaded") { probe.finished }
+        try await waitForTestCondition("Scroll fixture loaded", dispatchAppKitEvents: true) { probe.finished }
         try await installScrollClock(in: view.webView)
         func send(_ type: NSEvent.EventType, modifiers: NSEvent.ModifierFlags = [], repeated: Bool = false) throws {
             let event = try #require(NSEvent.keyEvent(with: type, location: .zero, modifierFlags: modifiers, timestamp: 0,
@@ -148,7 +148,7 @@ struct DictionaryPageTests {
         let probe = DictionaryPageProbe()
         view.webView.navigationDelegate = probe
         view.webView.loadHTMLString(DictionaryPage.document("<div style='width:3000px;height:6000px'>Dictionary navigation</div>"), baseURL: nil)
-        try await waitForTestCondition("Dictionary scroll fixture loaded") { probe.finished }
+        try await waitForTestCondition("Dictionary scroll fixture loaded", dispatchAppKitEvents: true) { probe.finished }
         try await installScrollClock(in: view.webView)
         let height = try #require(try await view.webView.evaluateJavaScript("window.innerHeight") as? Double)
 
@@ -244,14 +244,14 @@ struct DictionaryPageTests {
             configuration.userContentController.removeAllScriptMessageHandlers()
         }
         webView.load(URLRequest(url: url))
-        try await waitForTestCondition("Dictionary custom-scheme page loaded") { probe.finished || probe.error != nil }
+        try await waitForTestCondition("Dictionary custom-scheme page loaded", dispatchAppKitEvents: true) { probe.finished || probe.error != nil }
         if let error = probe.error { throw error }
         #expect(try await webView.evaluateJavaScript("window.dictionaryScriptRan") as? Bool == true)
         #expect(try await webView.evaluateJavaScript("localStorage.getItem('vellum-dictionary-test')") as? String == "works")
         let pronunciations = try #require(try await webView.evaluateJavaScript(DictionaryPage.pronunciationScript) as? [String: String])
         #expect(pronunciations == ["american": "sound://hello__us.mp3", "british": "sound://hello__gb.mp3"])
         _ = try await webView.evaluateJavaScript("document.querySelector('.phonetics .pron-us').click();null;")
-        try await waitForTestCondition("Dictionary sound link reached isolated native bridge") { !probe.links.isEmpty }
+        try await waitForTestCondition("Dictionary sound link reached isolated native bridge", dispatchAppKitEvents: true) { !probe.links.isEmpty }
         #expect(probe.links == ["sound://hello__us.mp3"])
         let blocked = try await webView.callAsyncJavaScript("""
             return await new Promise(resolve => {

@@ -15,8 +15,8 @@ struct DictionaryDoubleClickLookupTests {
                 view.onLoadingChange = { if $0 { started = true } }
                 let selected = try await doubleClick("lookup", in: view)
                 #expect(selected == word)
-                try await waitForTestCondition("Double-clicked definition word starts lookup from the completed source page") { started }
-                try await waitForTestCondition("Double-clicked dictionary entry is presented") { !view.isLoading }
+                try await waitForTestCondition("Double-clicked definition word starts lookup from the completed source page", dispatchAppKitEvents: true) { started }
+                try await waitForTestCondition("Double-clicked dictionary entry is presented", dispatchAppKitEvents: true) { !view.isLoading }
                 #expect(try await headword(in: view) == word)
             }
         }
@@ -93,7 +93,7 @@ struct DictionaryDoubleClickLookupTests {
                 if case let .failure(failure) = result { error = failure }
                 finished = true
             }
-        try await waitForTestCondition("Double-click page events finish") { finished }
+        try await waitForTestCondition("Double-click page events finish", dispatchAppKitEvents: true) { finished }
         if let error { throw error }
         await nextTestMainQueueTurn()
     }
@@ -124,7 +124,7 @@ struct DictionaryDoubleClickLookupTests {
         window.makeKeyAndOrderFront(nil)
         defer { view.stop(); window.contentView = nil; window.close() }
         view.lookup("source")
-        try await waitForTestCondition("The initial dictionary page is fully presented") { !view.isLoading }
+        try await waitForTestCondition("The initial dictionary page is fully presented", dispatchAppKitEvents: true) { !view.isLoading }
         #expect(try await headword(in: view) == "source")
         try await body(view)
     }

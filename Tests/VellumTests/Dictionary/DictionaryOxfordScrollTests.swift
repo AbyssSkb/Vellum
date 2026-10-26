@@ -27,7 +27,7 @@ struct DictionaryOxfordScrollTests {
         window.makeKeyAndOrderFront(nil)
         defer { view.stop(); window.contentView = nil; window.close() }
         view.lookup("document")
-        try await waitForTestCondition("The actual Oxford document entry is presented", timeout: .seconds(20)) { !view.isLoading }
+        try await waitForTestCondition("The actual Oxford document entry is presented", timeout: .seconds(20), dispatchAppKitEvents: true) { !view.isLoading }
         let webView = view.webView
         #expect(try await webView.evaluateJavaScript("document.querySelector('.headword')?.textContent") as? String == "document")
         #expect(try await webView.evaluateJavaScript("document.scrollingElement.scrollHeight > window.innerHeight") as? Bool == true)

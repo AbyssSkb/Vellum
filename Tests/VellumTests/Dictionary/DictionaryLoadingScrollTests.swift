@@ -46,7 +46,7 @@ struct DictionaryLoadingScrollTests {
         #expect(view.isLoading)
         try send(.keyDown)
         if releasedWhileLoading { try send(.keyUp) }
-        try await waitForTestCondition("Dictionary content is ready after the scroll key was pressed", timeout: .seconds(20)) { !view.isLoading }
+        try await waitForTestCondition("Dictionary content is ready after the scroll key was pressed", timeout: .seconds(20), dispatchAppKitEvents: true) { !view.isLoading }
         _ = try await view.webView.evaluateJavaScript("""
             for (let i=0;i<30;i++) {
               window.dictionaryTestTime += 1000/60;

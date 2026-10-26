@@ -28,12 +28,13 @@ func makeTestAppState(defaults: UserDefaults) -> AppState {
 func waitForTestCondition(
     _ description: String,
     timeout: Duration = .seconds(5),
+    dispatchAppKitEvents: Bool = false,
     _ condition: () -> Bool
 ) async throws {
     let deadline = ContinuousClock.now.advanced(by: timeout)
     while !condition(), ContinuousClock.now < deadline {
         // The test host's CFRunLoop does not dispatch AppKit visibility events.
-        if let application = NSApp {
+        if dispatchAppKitEvents, let application = NSApp {
             while let event = application.nextEvent(matching: .any, until: .distantPast, inMode: .default, dequeue: true) {
                 application.sendEvent(event)
             }

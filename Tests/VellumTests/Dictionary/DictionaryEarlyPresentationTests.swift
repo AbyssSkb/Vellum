@@ -29,7 +29,7 @@ struct DictionaryEarlyPresentationTests {
             configuration.userContentController.removeAllUserScripts()
         }
         webView.load(URLRequest(url: DictionaryPage.entryURL(id: UUID())))
-        try await waitForTestCondition("Dictionary content is presented before its pending script finishes") {
+        try await waitForTestCondition("Dictionary content is presented before its pending script finishes", dispatchAppKitEvents: true) {
             (probe.height > 0 && handler.pendingTask != nil) || probe.error != nil
         }
         if let error = probe.error { throw error }
@@ -39,7 +39,7 @@ struct DictionaryEarlyPresentationTests {
         #expect(try await webView.evaluateJavaScript("document.readyState") as? String == "loading")
 
         handler.finishPendingScript()
-        try await waitForTestCondition("Dictionary document finishes after the pending script is released") {
+        try await waitForTestCondition("Dictionary document finishes after the pending script is released", dispatchAppKitEvents: true) {
             probe.finished || probe.error != nil
         }
         if let error = probe.error { throw error }
