@@ -221,7 +221,7 @@ Automatic pronunciation is on by default, with American selected. Choose British
 
 Press `Esc` to close the panel and clear the PDF selection, or click outside to close the panel. Leaving the reader window stops pronunciation and closes the panel.
 
-While the dictionary is open, `j` / `k` scroll vertically, `h` / `l` scroll horizontally, `d` / `u` move half a viewport, `f` / `b` move a full viewport, and `Space` moves forward a viewport. Use `gg` / `G` for the top / bottom of the entry. These keys control the dictionary while its panel is open.
+While the dictionary is open, `j` / `k` scroll vertically, `h` / `l` scroll horizontally, `d` / `u` move half a viewport, `f` / `b` move a full viewport, and `Space` moves forward a viewport. Use `gg` / `G` for the top / bottom of the entry. These keys control the dictionary while its panel is open. In a page input field or editable area, letters and spaces work as normal text input; `Esc` still closes the panel.
 
 Dictionary pages and audio stay offline. Vellum blocks remote resources, so features that require a website or online speech service are unavailable. Playback requires audio included in the local resource files; an optional sentence or TTS resource pack may be needed for passages without a regular recording. Missing companion files can also affect an entry's appearance or controls.
 

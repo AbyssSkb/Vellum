@@ -60,6 +60,12 @@ enum DictionaryPage {
     }
 
     static let linkCaptureScript = #"""
+    function reportEditingFocus(element) {
+      const editing = !!element && (element.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(element.tagName));
+      window.webkit.messageHandlers.dictionary.postMessage({type: 'editing', editing});
+    }
+    document.addEventListener('focusin', event => reportEditingFocus(event.target), true);
+    document.addEventListener('focusout', event => reportEditingFocus(event.relatedTarget), true);
     document.addEventListener('click', event => {
       const anchor = event.target.closest?.('a[href]');
       const href = anchor?.getAttribute('href') || '';

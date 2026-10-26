@@ -25,6 +25,7 @@ final class DictionaryPopoverView: NSView, WKNavigationDelegate, WKScriptMessage
     private var pendingAnchor: String?
     private var didAutoPronounce = false
     private var pendingG = false
+    private var isEditing = false
     private var scrollingKeyCode: UInt16?
     private var scrollingKey: String?
 
@@ -124,6 +125,7 @@ final class DictionaryPopoverView: NSView, WKNavigationDelegate, WKScriptMessage
 
     func stop() {
         pendingG = false
+        isEditing = false
         scrollingKeyCode = nil
         scrollingKey = nil
         scroll("cancel()")
@@ -145,6 +147,7 @@ final class DictionaryPopoverView: NSView, WKNavigationDelegate, WKScriptMessage
     }
 
     func handleKeyEvent(_ event: NSEvent) -> Bool {
+        if isEditing, event.charactersIgnoringModifiers != "\u{1b}" { return false }
         if event.type == .keyUp, event.keyCode == scrollingKeyCode {
             endKeyboardScroll()
             return true
@@ -294,6 +297,14 @@ final class DictionaryPopoverView: NSView, WKNavigationDelegate, WKScriptMessage
            let height = payload["height"] as? Double, height.isFinite, height > 0 {
             contentHeight = height
             updatePreferredHeight()
+        } else if let payload = message.body as? [String: Any], payload["type"] as? String == "editing",
+                  let editing = payload["editing"] as? Bool {
+            isEditing = editing
+            if editing {
+                pendingG = false
+                endKeyboardScroll()
+                scroll("cancel()")
+            }
         } else if let raw = message.body as? String, let link = DictionaryPage.link(raw) {
             follow(link)
         }
