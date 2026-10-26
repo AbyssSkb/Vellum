@@ -24,6 +24,15 @@ public actor DictionaryStore {
         current = nil
     }
 
+    public func requestAccess(at location: URL) {
+        guard location.isFileURL, location.pathExtension.lowercased() == "mdx",
+              current?.location != location.standardizedFileURL else { return }
+        // Resolve folder consent before lookup installs focus-dismiss observers; lookup reports access failures.
+        _ = try? FileManager.default.contentsOfDirectory(
+            at: location.resolvingSymlinksInPath().deletingLastPathComponent(), includingPropertiesForKeys: nil
+        )
+    }
+
     public func lookup(_ text: String, at location: URL) throws -> DictionaryEntry? {
         let word = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !word.isEmpty else { return nil }

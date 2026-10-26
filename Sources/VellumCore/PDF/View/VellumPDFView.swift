@@ -60,6 +60,8 @@ final class VellumPDFView: PDFView {
     var pendingActivationSnapshot: ReaderSnapshot?
     var explanationTrackingArea: NSTrackingArea?
     let aiInteraction = AIInteractionState()
+    var dictionaryAccessTask: Task<Void, Never>?
+    var dictionaryAccessCompletion: (() -> Void)?
     var dictionaryPopover: DictionaryPopoverView?
     var dictionaryOverlay: NSView?
     var dictionaryPreferredHeight: CGFloat = 160
@@ -130,6 +132,7 @@ final class VellumPDFView: PDFView {
     }
 
     deinit {
+        dictionaryAccessTask?.cancel()
         if let dictionaryDismissMonitor {
             NSEvent.removeMonitor(dictionaryDismissMonitor)
         }
@@ -228,6 +231,9 @@ final class VellumPDFView: PDFView {
             let canHandleSearchEscape = searchController?.canHandleEscape == true
             guard hasAnyTextSelection || canHandleSearchEscape else { return false }
             if eventType == .keyDown {
+                if dictionaryAccessTask != nil || dictionaryAccessCompletion != nil {
+                    dismissDictionaryPopover(restoreFocus: false)
+                }
                 if hasAnyTextSelection {
                     clearTextSelectionForVimNavigation()
                 } else if searchController?.handleEscape() == true {

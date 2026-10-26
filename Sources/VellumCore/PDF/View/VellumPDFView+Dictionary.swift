@@ -21,10 +21,44 @@ extension VellumPDFView {
         stopZoomState()
         hideAIExplanationPopover()
 
+        dictionaryAccessTask?.cancel()
+        dictionaryAccessCompletion = nil
         if let dictionaryPopover {
             dictionaryPopover.lookup(text)
             return
         }
+
+        guard let location = AppPreferences.dictionaryLocation() else {
+            presentDictionaryLookup(text)
+            return
+        }
+        let document = document
+        installDictionaryLifecycleObservers(observeFocus: false)
+        dictionaryAccessTask = Task { [weak self, weak window] in
+            await DictionaryStore.shared.requestAccess(at: location)
+            guard !Task.isCancelled, let self else { return }
+            self.dictionaryAccessTask = nil
+            self.dictionaryAccessCompletion = { [weak self, weak window] in
+                guard let self else { return }
+                guard let window, self.window === window, self.document === document,
+                      self.appState == nil || self.appState?.activeReaderController === self,
+                      AppPreferences.dictionaryLocation() == location,
+                      AISelectedTextNormalizer.normalized(self.currentSelection?.string ?? "") == text,
+                      window.isVisible, !window.isMiniaturized, window.attachedSheet == nil else {
+                    self.dismissDictionaryPopover(restoreFocus: false)
+                    return
+                }
+                // Consent can finish before AppKit restores the reader's key window.
+                guard NSApp.isActive, window.isKeyWindow else { return }
+                self.dictionaryAccessCompletion = nil
+                self.presentDictionaryLookup(text)
+            }
+            self.dictionaryAccessCompletion?()
+        }
+    }
+
+    private func presentDictionaryLookup(_ text: String) {
+        guard let window else { return }
 
         let popover: DictionaryPopoverView
         if let reusable = DictionaryPopoverView.reusable,
@@ -71,6 +105,11 @@ extension VellumPDFView {
     }
 
     func dismissDictionaryPopover(restoreFocus: Bool = true) {
+        dictionaryAccessTask?.cancel()
+        dictionaryAccessTask = nil
+        dictionaryAccessCompletion = nil
+        dictionaryLifecycleObservers.forEach(NotificationCenter.default.removeObserver)
+        dictionaryLifecycleObservers = []
         guard dictionaryPopover != nil else { return }
         dictionaryPopover?.stop()
         DictionaryPopoverView.reusable = dictionaryPopover
@@ -85,8 +124,6 @@ extension VellumPDFView {
             NSEvent.removeMonitor(dictionaryDismissMonitor)
             self.dictionaryDismissMonitor = nil
         }
-        dictionaryLifecycleObservers.forEach(NotificationCenter.default.removeObserver)
-        dictionaryLifecycleObservers = []
         updateSelectionEndpointOverlay()
         if restoreFocus { focus() }
     }
@@ -115,13 +152,31 @@ extension VellumPDFView {
         }
     }
 
-    private func installDictionaryLifecycleObservers() {
-        dictionaryLifecycleObservers = [
-            NSWindow.didResignKeyNotification, NSWindow.willMiniaturizeNotification, NSWindow.willCloseNotification
-        ].map { name in
+    private func installDictionaryLifecycleObservers(observeFocus: Bool = true) {
+        dictionaryLifecycleObservers.forEach(NotificationCenter.default.removeObserver)
+        let names: [Notification.Name] = [NSWindow.willMiniaturizeNotification, NSWindow.willCloseNotification]
+            + (observeFocus ? [NSWindow.didResignKeyNotification] : [])
+        dictionaryLifecycleObservers = names.map { name in
             NotificationCenter.default.addObserver(forName: name, object: window, queue: .main) { [weak self] _ in
                 MainActor.assumeIsolated { self?.dismissDictionaryPopover(restoreFocus: false) }
             }
+        }
+        guard observeFocus else {
+            for name in [NSApplication.didBecomeActiveNotification, NSWindow.didBecomeKeyNotification] {
+                dictionaryLifecycleObservers.append(NotificationCenter.default.addObserver(
+                    forName: name, object: nil, queue: .main
+                ) { [weak self] notification in
+                    MainActor.assumeIsolated {
+                        guard let self else { return }
+                        if let keyWindow = notification.object as? NSWindow, keyWindow !== self.window {
+                            self.dismissDictionaryPopover(restoreFocus: false)
+                        } else {
+                            self.dictionaryAccessCompletion?()
+                        }
+                    }
+                })
+            }
+            return
         }
         dictionaryLifecycleObservers.append(NotificationCenter.default.addObserver(
             forName: NSApplication.willResignActiveNotification, object: nil, queue: .main

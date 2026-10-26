@@ -13,6 +13,7 @@ struct PDFDictionaryInteractionTests {
             let point = view.convert(NSPoint(x: bounds.midX, y: bounds.midY), from: page)
             UserDefaults.standard.set(DoubleClickActionPreference.dictionary.rawValue, forKey: AppPreferenceKeys.doubleClickAction)
             view.performDoubleClickActionIfNeeded(at: point)
+            try await waitForDictionary(in: view)
             #expect(view.isDictionaryInteractionActive)
             let overlay = try #require(view.dictionaryOverlay)
             #expect(view.visibleRect.insetBy(dx: 17, dy: 17).contains(overlay.frame))
@@ -34,10 +35,12 @@ struct PDFDictionaryInteractionTests {
     func reopeningTheDictionaryReusesItsWebView(restoreFocus: Bool) async throws {
         try await withReader { _, view, _ in
             view.vimLookupDictionary()
+            try await waitForDictionary(in: view)
             let first = try #require(view.dictionaryPopover)
             view.dismissDictionaryPopover(restoreFocus: restoreFocus)
             #expect(!view.isDictionaryInteractionActive)
             view.vimLookupDictionary()
+            try await waitForDictionary(in: view)
             #expect(view.dictionaryPopover === first)
         }
     }
@@ -46,10 +49,12 @@ struct PDFDictionaryInteractionTests {
     func changingDictionaryFilesDoesNotReuseThePreviousPage() async throws {
         try await withReader { _, view, _ in
             view.vimLookupDictionary()
+            try await waitForDictionary(in: view)
             let first = try #require(view.dictionaryPopover)
             first.dismiss()
             UserDefaults.standard.set("/another-dictionary-test.mdx", forKey: AppPreferenceKeys.dictionaryPath)
             view.vimLookupDictionary()
+            try await waitForDictionary(in: view)
             #expect(view.dictionaryPopover !== first)
         }
     }
@@ -65,6 +70,7 @@ struct PDFDictionaryInteractionTests {
             UserDefaults.standard.set(mdx.path, forKey: AppPreferenceKeys.dictionaryPath)
 
             view.vimLookupDictionary()
+            try await waitForDictionary(in: view)
             let popover = try #require(view.dictionaryPopover)
             let overlay = try #require(view.dictionaryOverlay)
             var viewportHeightWhenRevealed: CGFloat?
@@ -96,9 +102,76 @@ struct PDFDictionaryInteractionTests {
     }
 
     @Test
+    func firstDoubleClickContinuesAfterDictionaryPermissionInterruptsFocus() async throws {
+        try await withReader { window, view, page in
+            let directory = FileManager.default.temporaryDirectory.appendingPathComponent("VellumDictionaryPermission-\(UUID().uuidString)")
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: directory) }
+            let mdx = directory.appendingPathComponent("fixture.mdx")
+            try MDictFixture(entries: [("hello", Data("<p id='definition'>First lookup definition</p>".utf8))]).data.write(to: mdx)
+            UserDefaults.standard.set(mdx.path, forKey: AppPreferenceKeys.dictionaryPath)
+            UserDefaults.standard.set(DoubleClickActionPreference.dictionary.rawValue, forKey: AppPreferenceKeys.doubleClickAction)
+            let bounds = try #require(view.currentSelection?.bounds(for: page))
+            let point = view.convert(NSPoint(x: bounds.midX, y: bounds.midY), from: page)
+
+            view.performDoubleClickActionIfNeeded(at: point)
+            NotificationCenter.default.post(name: NSWindow.didResignKeyNotification, object: window)
+            NotificationCenter.default.post(name: NSApplication.willResignActiveNotification, object: NSApp)
+            NSApp.activate(ignoringOtherApps: true)
+            window.makeKeyAndOrderFront(nil)
+
+            try await waitForTestCondition("The first lookup presents after permission returns focus", dispatchAppKitEvents: true) {
+                view.dictionaryPopover?.isLoading == false && view.dictionaryOverlay?.alphaValue == 1
+            }
+            let popover = try #require(view.dictionaryPopover)
+            #expect(view.isDictionaryInteractionActive)
+            #expect(try await popover.webView.evaluateJavaScript("document.getElementById('definition')?.textContent") as? String == "First lookup definition")
+        }
+    }
+
+    @Test(arguments: [true, false])
+    func firstDoubleClickWaitsForTheReaderToRegainKeyAfterPermission(applicationActivationFirst: Bool) async throws {
+        try await withReader { window, view, page in
+            let window = try #require(window as? DictionaryReaderTestWindow)
+            let directory = FileManager.default.temporaryDirectory.appendingPathComponent("VellumDictionaryPermissionFocus-\(UUID().uuidString)")
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: directory) }
+            let mdx = directory.appendingPathComponent("fixture.mdx")
+            try MDictFixture(entries: [("hello", Data("<p id='definition'>Permission restored definition</p>".utf8))]).data.write(to: mdx)
+            UserDefaults.standard.set(mdx.path, forKey: AppPreferenceKeys.dictionaryPath)
+            UserDefaults.standard.set(DoubleClickActionPreference.dictionary.rawValue, forKey: AppPreferenceKeys.doubleClickAction)
+            let bounds = try #require(view.currentSelection?.bounds(for: page))
+            let point = view.convert(NSPoint(x: bounds.midX, y: bounds.midY), from: page)
+
+            view.performDoubleClickActionIfNeeded(at: point)
+            window.reportedKeyWindow = false
+            let pending = try #require(view.dictionaryAccessTask)
+            await pending.value
+            #expect(!view.isDictionaryInteractionActive)
+            #expect(view.dictionaryPopover == nil)
+
+            if applicationActivationFirst {
+                NotificationCenter.default.post(name: NSApplication.didBecomeActiveNotification, object: NSApp)
+                #expect(view.dictionaryPopover == nil)
+            }
+            window.reportedKeyWindow = true
+            NotificationCenter.default.post(name: NSWindow.didBecomeKeyNotification, object: window)
+            if !applicationActivationFirst {
+                NotificationCenter.default.post(name: NSApplication.didBecomeActiveNotification, object: NSApp)
+            }
+            try await waitForTestCondition("The first lookup resumes when the permission prompt returns key focus", dispatchAppKitEvents: true) {
+                view.dictionaryPopover?.isLoading == false && view.dictionaryOverlay?.alphaValue == 1
+            }
+            let popover = try #require(view.dictionaryPopover)
+            #expect(try await popover.webView.evaluateJavaScript("document.getElementById('definition')?.textContent") as? String == "Permission restored definition")
+        }
+    }
+
+    @Test
     func dictionaryHeightStartsCompactAndFollowsShortContent() async throws {
         try await withReader { _, view, _ in
             view.vimLookupDictionary()
+            try await waitForDictionary(in: view)
             let popover = try #require(view.dictionaryPopover)
             let overlay = try #require(view.dictionaryOverlay)
             #expect(overlay.frame.height <= 180)
@@ -115,6 +188,7 @@ struct PDFDictionaryInteractionTests {
             window.setContentSize(NSSize(width: 850, height: 1_000))
             window.contentView?.layoutSubtreeIfNeeded()
             view.vimLookupDictionary()
+            try await waitForDictionary(in: view)
             let popover = try #require(view.dictionaryPopover)
             let overlay = try #require(view.dictionaryOverlay)
             popover.onPreferredHeightChange?(2_000)
@@ -129,6 +203,7 @@ struct PDFDictionaryInteractionTests {
     func resizingTheCanvasClampsAndRestoresTheDictionaryPreferredHeight() async throws {
         try await withReader { window, view, _ in
             view.vimLookupDictionary()
+            try await waitForDictionary(in: view)
             let popover = try #require(view.dictionaryPopover)
             let overlay = try #require(view.dictionaryOverlay)
             popover.onPreferredHeightChange?(300)
@@ -159,6 +234,7 @@ struct PDFDictionaryInteractionTests {
             view.performDoubleClickActionIfNeeded(at: NSPoint(x: -100, y: -100))
             #expect(!view.isDictionaryInteractionActive)
             view.performDoubleClickActionIfNeeded(at: point)
+            try await waitForDictionary(in: view)
             #expect(view.isDictionaryInteractionActive)
         }
     }
@@ -167,6 +243,7 @@ struct PDFDictionaryInteractionTests {
     func replacingTheDocumentDismissesTheDictionary() async throws {
         try await withReader { _, view, _ in
             view.vimLookupDictionary()
+            try await waitForDictionary(in: view)
             #expect(view.isDictionaryInteractionActive)
             view.document = try makeTextPDF(pages: [[("another", NSPoint(x: 72, y: 720))]])
             #expect(!view.isDictionaryInteractionActive)
@@ -178,12 +255,64 @@ struct PDFDictionaryInteractionTests {
         try await withReader { window, view, _ in
             let selectedText = view.currentSelection?.string
             view.vimLookupDictionary()
+            try await waitForDictionary(in: view)
             #expect(view.isDictionaryInteractionActive)
             NotificationCenter.default.post(name: notification, object: window)
             #expect(!view.isDictionaryInteractionActive)
             #expect(view.dictionaryPopover == nil)
             #expect(view.dictionaryLifecycleObservers.isEmpty)
             #expect(view.currentSelection?.string == selectedText)
+        }
+    }
+
+    @Test(arguments: ["escape", "dismiss", "document", "selection", "dictionary", "hide", "minimize", "close", "anotherWindow"], [false, true])
+    func cancelledDictionaryAccessDoesNotPresentALateLookup(action: String, afterAccess: Bool) async throws {
+        try await withReader { window, view, page in
+            let readerWindow = try #require(window as? DictionaryReaderTestWindow)
+            view.vimLookupDictionary()
+            let pending = try #require(view.dictionaryAccessTask)
+            if afterAccess {
+                readerWindow.reportedKeyWindow = false
+                await pending.value
+                #expect(view.dictionaryAccessCompletion != nil)
+            }
+            var otherWindow: NSWindow?
+            defer { otherWindow?.close() }
+            switch action {
+            case "escape":
+                #expect(view.handleTextSelectionKey("\u{1b}", eventType: .keyDown))
+            case "dismiss":
+                view.dismissDictionaryPopover()
+            case "document":
+                view.document = try makeTextPDF(pages: [[("another", NSPoint(x: 72, y: 720))]])
+            case "selection":
+                let text = try #require(page.string as NSString?)
+                view.setCurrentSelection(page.selection(for: text.range(of: "world")), animate: false)
+            case "dictionary":
+                UserDefaults.standard.set("/another-dictionary-test.mdx", forKey: AppPreferenceKeys.dictionaryPath)
+            case "hide":
+                window.orderOut(nil)
+            case "minimize":
+                NotificationCenter.default.post(name: NSWindow.willMiniaturizeNotification, object: window)
+            case "close":
+                NotificationCenter.default.post(name: NSWindow.willCloseNotification, object: window)
+            case "anotherWindow":
+                let other = DictionaryReaderTestWindow(contentRect: window.frame, styleMask: .borderless, backing: .buffered, defer: false)
+                other.isReleasedWhenClosed = false
+                otherWindow = other
+                other.makeKeyAndOrderFront(nil)
+                #expect(other.isKeyWindow)
+            default:
+                Issue.record("Unexpected cancellation action: \(action)")
+            }
+            await pending.value
+            readerWindow.reportedKeyWindow = true
+            NotificationCenter.default.post(name: NSWindow.didBecomeKeyNotification, object: window)
+            await nextTestMainQueueTurn()
+            #expect(view.dictionaryAccessTask == nil)
+            #expect(view.dictionaryAccessCompletion == nil)
+            #expect(!view.isDictionaryInteractionActive)
+            #expect(view.dictionaryPopover == nil)
         }
     }
 
@@ -239,6 +368,11 @@ struct PDFDictionaryInteractionTests {
 
     private func withReader(_ body: @MainActor (NSWindow, VellumPDFView, PDFPage) async throws -> Void) async throws {
         _ = NSApplication.shared
+        if !Self.didFinishLaunching {
+            NSApp.setActivationPolicy(.regular)
+            NSApp.finishLaunching()
+            Self.didFinishLaunching = true
+        }
         let defaults = UserDefaults.standard
         let keys = [AppPreferenceKeys.dictionaryPath, AppPreferenceKeys.dictionaryAutoPronunciationEnabled,
                     AppPreferenceKeys.doubleClickAction]
@@ -253,9 +387,10 @@ struct PDFDictionaryInteractionTests {
         let document = try makeTextPDF(pages: [[("hello world", NSPoint(x: 72, y: 720))]])
         let page = try #require(document.page(at: 0))
         let view = VellumPDFView(frame: NSRect(x: 0, y: 0, width: 520, height: 500))
-        let window = NSWindow(contentRect: view.frame, styleMask: .borderless, backing: .buffered, defer: false)
+        let window = DictionaryReaderTestWindow(contentRect: view.frame, styleMask: .borderless, backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
         window.contentView = PDFReaderContainer(reader: view)
+        NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
         defer {
             view.dismissDictionaryPopover(restoreFocus: false)
@@ -272,6 +407,23 @@ struct PDFDictionaryInteractionTests {
         let text = try #require(page.string as NSString?)
         let selection = try #require(page.selection(for: text.range(of: "hello")))
         view.setCurrentSelection(selection, animate: false)
+        try await waitForTestCondition("The dictionary reader is active", dispatchAppKitEvents: true) {
+            NSApp.isActive && window.isKeyWindow
+        }
         try await body(window, view, page)
     }
+
+    private static var didFinishLaunching = false
+
+    private func waitForDictionary(in view: VellumPDFView) async throws {
+        try await waitForTestCondition("The dictionary popover is created", dispatchAppKitEvents: true) {
+            view.dictionaryPopover != nil
+        }
+    }
+}
+
+private final class DictionaryReaderTestWindow: NSWindow {
+    var reportedKeyWindow: Bool?
+    override var isKeyWindow: Bool { reportedKeyWindow ?? super.isKeyWindow }
+    override var canBecomeKey: Bool { true }
 }
