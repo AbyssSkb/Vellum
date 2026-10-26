@@ -59,6 +59,69 @@ struct DictionaryPronunciationTests {
         #expect(headword == "hello")
         #expect(fixture.view.player?.data != fixture.stale)
     }
+
+    @Test(.timeLimit(.minutes(1)), arguments: ["sound://us.wav", "entry://british-only"])
+    func dismissedPagesCannotRestartAudioOrLookUpAnotherEntry(link: String) async throws {
+        let fixture = try DictionaryPronunciationFixture()
+        defer { fixture.close() }
+        UserDefaults.standard.set(false, forKey: AppPreferenceKeys.dictionaryAutoPronunciationEnabled)
+        let probe = DictionaryNavigationProbe(view: fixture.view)
+        fixture.view.webView.navigationDelegate = probe
+        fixture.view.lookup("hello")
+        try await waitForTestCondition("Dictionary document finished loading") { probe.finished }
+        fixture.view.dismiss()
+
+        _ = try await fixture.view.webView.evaluateJavaScript("location.href='\(link)';null;")
+        try await waitForTestCondition("Dismissed page navigation reached the real policy delegate") { !probe.decidedLinks.isEmpty }
+        try await fixture.drainPendingWork()
+        let restartedAudio = fixture.view.player != nil
+        let restartedLookup = probe.startedEntryLookup
+        #expect(!restartedAudio)
+        #expect(!restartedLookup)
+    }
+
+    @Test(.timeLimit(.minutes(1)))
+    func activePagesCanPlayRecordedAudioThroughNativeNavigation() async throws {
+        let fixture = try DictionaryPronunciationFixture()
+        defer { fixture.close() }
+        UserDefaults.standard.set(false, forKey: AppPreferenceKeys.dictionaryAutoPronunciationEnabled)
+        let probe = DictionaryNavigationProbe(view: fixture.view)
+        fixture.view.webView.navigationDelegate = probe
+        fixture.view.lookup("hello")
+        try await waitForTestCondition("Dictionary document finished loading") { probe.finished }
+        #expect(fixture.view.player == nil)
+
+        _ = try await fixture.view.webView.evaluateJavaScript("location.href='sound://us.wav';null;")
+        try await waitForTestCondition("Active page navigation reached the real policy delegate") { !probe.decidedLinks.isEmpty }
+        try await fixture.waitForPlayback(fixture.american)
+    }
+}
+
+@MainActor
+private final class DictionaryNavigationProbe: NSObject, WKNavigationDelegate {
+    let view: DictionaryPopoverView
+    var finished = false
+    var decidedLinks: [String] = []
+    var startedEntryLookup = false
+
+    init(view: DictionaryPopoverView) { self.view = view }
+
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        view.webView(webView, didFinish: navigation)
+        finished = webView.url?.scheme == DictionaryPage.scheme && !view.isLoading
+    }
+
+    func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction,
+                 decisionHandler: @escaping @MainActor @Sendable (WKNavigationActionPolicy) -> Void) {
+        let link = navigationAction.request.url.flatMap { DictionaryPage.link($0.absoluteString) }
+        view.webView(webView, decidePolicyFor: navigationAction) { [self] policy in
+            if let link {
+                decidedLinks.append(link.kind)
+                if link.kind == "entry" { startedEntryLookup = view.isLoading }
+            }
+            decisionHandler(policy)
+        }
+    }
 }
 
 @MainActor

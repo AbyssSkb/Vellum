@@ -26,7 +26,14 @@ extension VellumPDFView {
             return
         }
 
-        let popover = DictionaryPopoverView()
+        let popover: DictionaryPopoverView
+        if let reusable = DictionaryPopoverView.reusable,
+           reusable.location == AppPreferences.dictionaryLocation() {
+            popover = reusable
+        } else {
+            popover = DictionaryPopoverView()
+        }
+        DictionaryPopoverView.reusable = nil
         popover.onDismiss = { [weak self] in self?.dismissDictionaryPopover() }
         popover.onPreferredHeightChange = { [weak self, weak popover] height in
             guard let self, let popover, self.dictionaryPopover === popover else { return }
@@ -36,6 +43,7 @@ extension VellumPDFView {
         let overlay = AIFloatingOverlayContainerView(contentView: popover)
         dictionaryPopover = popover
         dictionaryOverlay = overlay
+        popover.lookup(text)
         dictionaryPreferredHeight = popover.preferredHeight
         updateDictionaryOverlayFrame()
         addSubview(overlay)
@@ -43,7 +51,6 @@ extension VellumPDFView {
         window.makeFirstResponder(overlay)
         installDictionaryDismissMonitor()
         installDictionaryLifecycleObservers()
-        popover.lookup(text)
     }
 
     func handleDictionaryKeyEvent(_ event: NSEvent) -> Bool {
@@ -59,6 +66,7 @@ extension VellumPDFView {
     func dismissDictionaryPopover(restoreFocus: Bool = true) {
         guard dictionaryPopover != nil else { return }
         dictionaryPopover?.stop()
+        DictionaryPopoverView.reusable = dictionaryPopover
         dictionaryPopover = nil
         if let overlay = dictionaryOverlay, let responder = window?.firstResponder as? NSView,
            responder === overlay || responder.isDescendant(of: overlay) {

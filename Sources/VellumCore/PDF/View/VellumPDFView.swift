@@ -518,12 +518,17 @@ final class VellumPDFView: PDFView {
                 }
             }
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) { [weak self] in
+        let completeSelection: @MainActor @Sendable () -> Void = { [weak self] in
             guard let self else { return }
             self.isMouseSelectingText = false
             guard NSApp.isActive, let window = self.window, window.isKeyWindow, window.isVisible,
                   !window.isMiniaturized, window.attachedSheet == nil else { return }
             self.performDoubleClickActionIfNeeded(at: doubleClickPoint)
+        }
+        if doubleClickPoint != nil, AppPreferences.doubleClickAction() == .dictionary {
+            DispatchQueue.main.async(execute: completeSelection)
+        } else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.18, execute: completeSelection)
         }
     }
 

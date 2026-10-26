@@ -5,6 +5,9 @@ import WebKit
 
 @MainActor
 final class DictionaryPopoverView: NSView, WKNavigationDelegate, WKScriptMessageHandler {
+    // Keep one closed page ready so the next lookup can reuse WebKit's loaded resources.
+    static var reusable: DictionaryPopoverView?
+
     var onDismiss: (() -> Void)?
     var onPreferredHeightChange: ((CGFloat) -> Void)?
     private(set) var preferredHeight: CGFloat = 160
@@ -17,7 +20,7 @@ final class DictionaryPopoverView: NSView, WKNavigationDelegate, WKScriptMessage
     private(set) var player: AVAudioPlayer?
     private var activeNavigation: WKNavigation?
     private var lookupID = UUID()
-    private var location = URL(fileURLWithPath: "/")
+    private(set) var location = URL(fileURLWithPath: "/")
     private var pendingAnchor: String?
     private var didAutoPronounce = false
     private var pendingG = false
@@ -253,7 +256,9 @@ final class DictionaryPopoverView: NSView, WKNavigationDelegate, WKScriptMessage
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping @MainActor @Sendable (WKNavigationActionPolicy) -> Void) {
         guard let url = navigationAction.request.url else { decisionHandler(.cancel); return }
         if let link = DictionaryPage.link(url.absoluteString) {
-            follow(link)
+            if DictionaryPage.isEntryURL(navigationAction.sourceFrame.request.url, id: lookupID) {
+                follow(link)
+            }
             decisionHandler(.cancel)
         } else if DictionaryPage.isEntryURL(url, id: lookupID) {
             decisionHandler(.allow)

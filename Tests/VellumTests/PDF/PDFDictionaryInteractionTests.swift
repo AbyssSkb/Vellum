@@ -30,6 +30,30 @@ struct PDFDictionaryInteractionTests {
         }
     }
 
+    @Test(arguments: [true, false])
+    func reopeningTheDictionaryReusesItsWebView(restoreFocus: Bool) async throws {
+        try await withReader { _, view, _ in
+            view.vimLookupDictionary()
+            let first = try #require(view.dictionaryPopover)
+            view.dismissDictionaryPopover(restoreFocus: restoreFocus)
+            #expect(!view.isDictionaryInteractionActive)
+            view.vimLookupDictionary()
+            #expect(view.dictionaryPopover === first)
+        }
+    }
+
+    @Test
+    func changingDictionaryFilesDoesNotReuseThePreviousPage() async throws {
+        try await withReader { _, view, _ in
+            view.vimLookupDictionary()
+            let first = try #require(view.dictionaryPopover)
+            first.dismiss()
+            UserDefaults.standard.set("/another-dictionary-test.mdx", forKey: AppPreferenceKeys.dictionaryPath)
+            view.vimLookupDictionary()
+            #expect(view.dictionaryPopover !== first)
+        }
+    }
+
     @Test
     func dictionaryHeightStartsCompactAndFollowsShortContent() async throws {
         try await withReader { _, view, _ in
@@ -119,6 +143,29 @@ struct PDFDictionaryInteractionTests {
             #expect(view.dictionaryPopover == nil)
             #expect(view.dictionaryLifecycleObservers.isEmpty)
             #expect(view.currentSelection?.string == selectedText)
+        }
+    }
+
+    @Test
+    func dictionaryDoubleClickCompletesOnTheNextMainQueueTurn() async throws {
+        try await withReader { window, view, page in
+            let bounds = try #require(view.currentSelection?.bounds(for: page))
+            let point = view.convert(NSPoint(x: bounds.midX, y: bounds.midY), from: page)
+            UserDefaults.standard.set(DoubleClickActionPreference.dictionary.rawValue, forKey: AppPreferenceKeys.doubleClickAction)
+            view.isMouseSelectingText = true
+            view.pendingDoubleClickTextSelectionPoint = point
+            view.didHandleDoubleClickTextSelectionMouseDown = true
+            let event = try #require(NSEvent.mouseEvent(
+                with: .leftMouseUp, location: view.convert(point, to: nil), modifierFlags: [], timestamp: 0,
+                windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 2, pressure: 0
+            ))
+            view.mouseUp(with: event)
+            let completed = await withCheckedContinuation { continuation in
+                DispatchQueue.main.async {
+                    continuation.resume(returning: !view.isMouseSelectingText)
+                }
+            }
+            #expect(completed)
         }
     }
 

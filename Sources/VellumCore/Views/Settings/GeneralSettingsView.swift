@@ -169,6 +169,7 @@ struct GeneralSettingsView: View {
             guard response == .OK, let url = panel.url else { return }
             Task { @MainActor in
                 await DictionaryStore.shared.invalidate()
+                DictionaryPopoverView.reusable = nil
                 dictionaryPath = url.path
             }
         }
