@@ -51,6 +51,25 @@ struct HyphenatedWordSelectionTests {
         #expect(selection.string == pageText.substring(with: expectedRange))
     }
 
+    @Test(arguments: ["word", "word."], ["word", "Next"])
+    @MainActor
+    func smartSelectionKeepsAnOrdinaryLineEndSeparateFromTheNextLine(lastWord: String, selectedWord: String) throws {
+        let document = try makeTextPDF(pages: [[
+            ("The selected \(lastWord)", NSPoint(x: 72, y: 720)),
+            ("Next begins below.", NSPoint(x: 72, y: 693))
+        ]])
+        let page = try #require(document.page(at: 0))
+        let view = VellumPDFView(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
+        view.document = document
+        let text = try #require(page.string as NSString?)
+        let range = try #require(foundRange(text.range(of: selectedWord)))
+        let bounds = try #require(page.selection(for: range)?.bounds(for: page))
+
+        let selection = try #require(view.smartWordSelection(at: center(of: bounds), on: page))
+
+        #expect(selection.string == selectedWord)
+    }
+
     private func center(of rect: NSRect) -> NSPoint {
         NSPoint(x: rect.midX, y: rect.midY)
     }

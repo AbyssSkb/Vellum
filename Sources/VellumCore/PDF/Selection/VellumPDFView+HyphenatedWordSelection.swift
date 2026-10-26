@@ -30,6 +30,14 @@ extension VellumPDFView {
         var start = clampedRange.location
         var end = clampedRange.location + clampedRange.length
 
+        // PDFKit can include a trailing newline in a word's character range.
+        while start < end, isHorizontalWhitespace(text.character(at: start)) || isLineBreak(text.character(at: start)) {
+            start += 1
+        }
+        while end > start, isHorizontalWhitespace(text.character(at: end - 1)) || isLineBreak(text.character(at: end - 1)) {
+            end -= 1
+        }
+
         while start > 0, isWordCharacter(text.character(at: start - 1)) {
             start -= 1
         }
