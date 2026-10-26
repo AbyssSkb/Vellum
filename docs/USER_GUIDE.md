@@ -205,7 +205,7 @@ Word jump uses extractable PDF text. Scanned pages need a text layer before word
 
 ## Local dictionaries
 
-Select a word in the PDF and press `K` (`Shift-K`) to look it up. Lowercase `k` keeps its existing scrolling and selection behavior. You can also set the text double-click action to **Dictionary** in **Settings → General**. The entry opens in a floating panel with the dictionary's HTML formatting, styles, images, and local scripts. Follow a word link inside an entry to look up that word.
+Select a word in the PDF and press `K` (`Shift-K`) to look it up. Lowercase `k` keeps its existing scrolling and selection behavior. You can also set the text double-click action to **Dictionary** in **Settings → General**. The entry opens in a floating panel with the dictionary's HTML formatting, styles, images, and local scripts. Double-click a word or follow a word link inside an entry to look it up in the same panel.
 
 ### Set up a dictionary
 

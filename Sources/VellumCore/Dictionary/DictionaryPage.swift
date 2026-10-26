@@ -68,6 +68,18 @@ enum DictionaryPage {
       event.stopImmediatePropagation();
       window.webkit.messageHandlers.dictionary.postMessage(href);
     }, true);
+    document.addEventListener('dblclick', event => {
+      if (event.button !== 0 || event.target.closest?.('a,button,input,textarea,select,[role="button"]') || event.target.isContentEditable) return;
+      const selection = window.getSelection();
+      const word = selection?.toString().trim();
+      if (!word || /\s/u.test(word) || selection.rangeCount !== 1) return;
+      const clickedSelection = Array.from(selection.getRangeAt(0).getClientRects()).some(rect =>
+        event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom);
+      if (!clickedSelection) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      window.webkit.messageHandlers.dictionary.postMessage('entry://' + encodeURIComponent(word));
+    }, true);
     """#
 
     static let pronunciationScript = #"""
