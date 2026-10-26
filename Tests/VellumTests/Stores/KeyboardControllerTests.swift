@@ -1287,7 +1287,7 @@ struct KeyboardControllerTests {
     @Test(arguments: [
         ("H", VimCommand.previousTab), ("L", .nextTab), ("o", .open), ("O", .openInNewTab),
         ("x", .closeTab), ("X", .restoreClosedTab), ("T", .showTabSwitcher), ("/", .beginSearch),
-        ("Z", .showPDFQuickOpen),
+        ("Z", .showPDFQuickOpen), ("K", .lookupDictionary),
         ("A", .showAIExplanationHistory), ("I", .showAIConversationHistory), ("M", .showHighlights),
         ("[", .previousTab), ("]", .nextTab), ("n", .searchNext), ("N", .searchPrevious)
     ])
@@ -1301,9 +1301,11 @@ struct KeyboardControllerTests {
         let delegate = RecordingKeyboardDelegate()
         controller.delegate = delegate
         delegate.readerWindow = window
+        delegate.reader.hasNavigableTextSelection = key == "K"
         let event = WindowKeyboardEvent()
         event.targetWindow = window
         event.key = key
+        event.flags = key == "K" ? .shift : []
 
         #expect(!controller.routeKeyEvent(event))
         #expect(delegate.commands.isEmpty)
