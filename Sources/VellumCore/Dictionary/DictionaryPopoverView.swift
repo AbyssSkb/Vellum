@@ -160,9 +160,7 @@ final class DictionaryPopoverView: NSView, WKNavigationDelegate, WKScriptMessage
             guard !event.isARepeat, scrollingKey != key else { return true }
             scrollingKeyCode = event.keyCode
             scrollingKey = key
-            let x = key == "h" ? -1 : key == "l" ? 1 : 0
-            let y = key == "k" ? -1 : key == "j" ? 1 : 0
-            scroll("start(\(x),\(y))")
+            startKeyboardScroll()
             return true
         }
         endKeyboardScroll()
@@ -192,6 +190,13 @@ final class DictionaryPopoverView: NSView, WKNavigationDelegate, WKScriptMessage
         return true
     }
 
+    private func startKeyboardScroll() {
+        guard !model.isLoading, let key = scrollingKey else { return }
+        let x = key == "h" ? -1 : key == "l" ? 1 : 0
+        let y = key == "k" ? -1 : key == "j" ? 1 : 0
+        scroll("start(\(x),\(y))")
+    }
+
     private func endKeyboardScroll() {
         guard scrollingKeyCode != nil else { return }
         scrollingKeyCode = nil
@@ -210,6 +215,7 @@ final class DictionaryPopoverView: NSView, WKNavigationDelegate, WKScriptMessage
     }
 
     private func presentEntry() {
+        let wasLoading = model.isLoading
         model.isLoading = false
         model.message = nil
         if let anchor = pendingAnchor,
@@ -218,6 +224,7 @@ final class DictionaryPopoverView: NSView, WKNavigationDelegate, WKScriptMessage
             webView.evaluateJavaScript("document.getElementById(\(encoded)[0])?.scrollIntoView();null;")
         }
         pendingAnchor = nil
+        if wasLoading { startKeyboardScroll() }
     }
 
     private func autoPronounceIfNeeded(finishedLoading: Bool) {
