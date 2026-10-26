@@ -82,6 +82,61 @@ enum DictionaryPage {
     })();
     """#
 
+    static let presentationScript = #"""
+    (() => {
+      let pending = false, observedBody = null, previousHeight = -1;
+      const resizeObserver = new ResizeObserver(schedule);
+      function report() {
+        pending = false;
+        const body = document.body;
+        if (!body) return;
+        if (observedBody !== body) {
+          resizeObserver.disconnect();
+          resizeObserver.observe(body);
+          observedBody = body;
+          document.fonts?.ready.then(schedule);
+        }
+        if (document.readyState !== 'complete' && Array.from(document.querySelectorAll('link[rel~="stylesheet"]')).some(link => !link.sheet && !link.disabled)) return;
+        const style = getComputedStyle(body);
+        let bottom = -Infinity;
+        function include(rect) {
+          if (rect.width > 0 && rect.height > 0) bottom = Math.max(bottom, rect.bottom);
+        }
+        function measure(node) {
+          if (node.nodeType === Node.TEXT_NODE) {
+            if (!node.textContent.trim() || getComputedStyle(node.parentElement).visibility !== 'visible') return;
+            const range = document.createRange();
+            range.selectNodeContents(node);
+            Array.from(range.getClientRects()).forEach(include);
+          } else if (node.nodeType === Node.ELEMENT_NODE) {
+            const childStyle = getComputedStyle(node);
+            if (childStyle.display === 'none') return;
+            if (childStyle.visibility === 'visible') include(node.getBoundingClientRect());
+            // Clipped descendants cannot extend the container's visible bounds.
+            if (childStyle.overflowY !== 'visible') return;
+            node.childNodes.forEach(measure);
+          }
+        }
+        body.childNodes.forEach(measure);
+        if (!Number.isFinite(bottom)) return;
+        const height = Math.ceil(bottom + scrollY + (parseFloat(style.paddingBottom) || 0) + (parseFloat(style.marginBottom) || 0));
+        if (height === previousHeight) return;
+        previousHeight = height;
+        window.webkit.messageHandlers.dictionary.postMessage({type: 'layout', height});
+      }
+      function schedule() {
+        if (pending) return;
+        pending = true;
+        queueMicrotask(report);
+      }
+      new MutationObserver(schedule).observe(document, {subtree: true, childList: true, attributes: true, characterData: true});
+      document.addEventListener('readystatechange', schedule);
+      window.addEventListener('resize', schedule);
+      window.addEventListener('load', schedule, true);
+      schedule();
+    })();
+    """#
+
     static let scrollScript = #"""
     (() => {
       let frame = null, lastTime = 0;

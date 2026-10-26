@@ -27,6 +27,57 @@ struct PDFDictionaryInteractionTests {
     }
 
     @Test
+    func dictionaryHeightStartsCompactAndFollowsShortContent() async throws {
+        try await withReader { _, view, _ in
+            view.vimLookupDictionary()
+            let popover = try #require(view.dictionaryPopover)
+            let overlay = try #require(view.dictionaryOverlay)
+            #expect(overlay.frame.height <= 180)
+            popover.onPreferredHeightChange?(300)
+            #expect(abs(overlay.frame.height - 300) < 1)
+            popover.onPreferredHeightChange?(180)
+            #expect(abs(overlay.frame.height - 180) < 1)
+        }
+    }
+
+    @Test
+    func longDictionaryContentUsesTheAvailableCanvasHeight() async throws {
+        try await withReader { window, view, _ in
+            window.setContentSize(NSSize(width: 850, height: 1_000))
+            window.contentView?.layoutSubtreeIfNeeded()
+            view.vimLookupDictionary()
+            let popover = try #require(view.dictionaryPopover)
+            let overlay = try #require(view.dictionaryOverlay)
+            popover.onPreferredHeightChange?(2_000)
+            #expect(overlay.frame.height > 620)
+            #expect(abs(overlay.frame.height - (view.visibleRect.height - 94)) < 1)
+            #expect(overlay.frame.width == 600)
+            #expect(view.visibleRect.insetBy(dx: 17, dy: 17).contains(overlay.frame))
+        }
+    }
+
+    @Test
+    func resizingTheCanvasClampsAndRestoresTheDictionaryPreferredHeight() async throws {
+        try await withReader { window, view, _ in
+            view.vimLookupDictionary()
+            let popover = try #require(view.dictionaryPopover)
+            let overlay = try #require(view.dictionaryOverlay)
+            popover.onPreferredHeightChange?(300)
+            window.setContentSize(NSSize(width: 420, height: 280))
+            window.contentView?.layoutSubtreeIfNeeded()
+            view.needsLayout = true
+            view.layoutSubtreeIfNeeded()
+            #expect(abs(overlay.frame.height - (view.visibleRect.height - 94)) < 1)
+            #expect(view.visibleRect.insetBy(dx: 17, dy: 17).contains(overlay.frame))
+            window.setContentSize(NSSize(width: 520, height: 700))
+            window.contentView?.layoutSubtreeIfNeeded()
+            view.needsLayout = true
+            view.layoutSubtreeIfNeeded()
+            #expect(abs(overlay.frame.height - 300) < 1)
+        }
+    }
+
+    @Test
     func doubleClickUsesTheConfiguredActionAndIgnoresPointsOutsideTheSelection() async throws {
         try await withReader { _, view, page in
             let bounds = try #require(view.currentSelection?.bounds(for: page))
@@ -108,13 +159,18 @@ struct PDFDictionaryInteractionTests {
         let document = try makeTextPDF(pages: [[("hello world", NSPoint(x: 72, y: 720))]])
         let page = try #require(document.page(at: 0))
         let view = VellumPDFView(frame: NSRect(x: 0, y: 0, width: 520, height: 500))
-        let window = NSWindow(contentRect: view.frame, styleMask: [.titled], backing: .buffered, defer: false)
+        let window = NSWindow(contentRect: view.frame, styleMask: .borderless, backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
-        window.contentView = view
+        window.contentView = PDFReaderContainer(reader: view)
         window.makeKeyAndOrderFront(nil)
         defer {
             view.dismissDictionaryPopover(restoreFocus: false)
-            view.document = nil
+            view.cancelPendingRestore()
+            view.stopScrollAnimation()
+            view.stopZoomState()
+            view.readingPositionReportWorkItem?.cancel()
+            view.readerStateSaveWorkItem?.cancel()
+            window.contentView = nil
             window.close()
         }
         view.document = document

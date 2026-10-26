@@ -6,6 +6,9 @@ import WebKit
 @MainActor
 final class DictionaryPopoverView: NSView, WKNavigationDelegate, WKScriptMessageHandler {
     var onDismiss: (() -> Void)?
+    var onPreferredHeightChange: ((CGFloat) -> Void)?
+    private(set) var preferredHeight: CGFloat = 160
+    private var contentHeight: CGFloat?
     private let model = DictionaryPopoverModel()
     private let resourceHandler: DictionaryResourceHandler
     let webView: WKWebView
@@ -37,6 +40,12 @@ final class DictionaryPopoverView: NSView, WKNavigationDelegate, WKScriptMessage
         ))
         configuration.userContentController.addUserScript(WKUserScript(
             source: DictionaryPage.scrollScript,
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: true,
+            in: .defaultClient
+        ))
+        configuration.userContentController.addUserScript(WKUserScript(
+            source: DictionaryPage.presentationScript,
             injectionTime: .atDocumentStart,
             forMainFrameOnly: true,
             in: .defaultClient
@@ -73,6 +82,8 @@ final class DictionaryPopoverView: NSView, WKNavigationDelegate, WKScriptMessage
         let word = text.trimmingCharacters(in: .whitespacesAndNewlines)
         model.word = word
         model.audioStatus = nil
+        contentHeight = nil
+        updatePreferredHeight()
         didAutoPronounce = false
         pendingAnchor = anchor
         guard !word.isEmpty else {
@@ -194,20 +205,31 @@ final class DictionaryPopoverView: NSView, WKNavigationDelegate, WKScriptMessage
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         guard navigation === activeNavigation, DictionaryPage.isEntryURL(webView.url, id: lookupID) else { return }
+        presentEntry()
+        autoPronounceIfNeeded(finishedLoading: true)
+    }
+
+    private func presentEntry() {
         model.isLoading = false
         model.message = nil
-        let id = lookupID
         if let anchor = pendingAnchor,
            let data = try? JSONSerialization.data(withJSONObject: [anchor]),
            let encoded = String(data: data, encoding: .utf8) {
             webView.evaluateJavaScript("document.getElementById(\(encoded)[0])?.scrollIntoView();null;")
         }
         pendingAnchor = nil
+    }
+
+    private func autoPronounceIfNeeded(finishedLoading: Bool) {
+        guard AppPreferences.automaticallyPronouncesDictionary(), !didAutoPronounce else { return }
+        let id = lookupID
         webView.evaluateJavaScript(DictionaryPage.pronunciationScript) { [weak self] result, _ in
             guard let self, self.lookupID == id else { return }
             guard AppPreferences.automaticallyPronouncesDictionary(), !self.didAutoPronounce else { return }
+            let links = result as? [String: String] ?? [:]
+            guard finishedLoading || links[AppPreferences.dictionaryPronunciationAccent().rawValue] != nil else { return }
             self.didAutoPronounce = true
-            self.pronounce(links: result as? [String: String] ?? [:])
+            self.pronounce(links: links)
         }
     }
 
@@ -235,9 +257,17 @@ final class DictionaryPopoverView: NSView, WKNavigationDelegate, WKScriptMessage
 
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
         guard message.name == "dictionary", message.frameInfo.isMainFrame,
-              DictionaryPage.isEntryURL(message.frameInfo.request.url, id: lookupID),
-              let raw = message.body as? String, let link = DictionaryPage.link(raw) else { return }
-        follow(link)
+              DictionaryPage.isEntryURL(message.frameInfo.request.url, id: lookupID) else { return }
+        if let payload = message.body as? [String: Any], payload["type"] as? String == "layout",
+           let height = payload["height"] as? Double, height.isFinite, height > 0 {
+            let wasLoading = model.isLoading
+            contentHeight = height
+            updatePreferredHeight()
+            presentEntry()
+            if wasLoading { autoPronounceIfNeeded(finishedLoading: false) }
+        } else if let raw = message.body as? String, let link = DictionaryPage.link(raw) {
+            follow(link)
+        }
     }
 
     private var language: AppUILanguage { AppUILanguage.saved() }
@@ -253,10 +283,10 @@ final class DictionaryPopoverView: NSView, WKNavigationDelegate, WKScriptMessage
     private func pronounce(links: [String: String]) {
         let accent = AppPreferences.dictionaryPronunciationAccent()
         if let raw = links[accent.rawValue], let link = DictionaryPage.link(raw) {
-            model.audioStatus = nil
+            setAudioStatus(nil)
             play(link.value)
         } else {
-            model.audioStatus = language.text(.dictionaryAudioUnavailable)
+            setAudioStatus(language.text(.dictionaryAudioUnavailable))
         }
     }
 
@@ -277,7 +307,7 @@ final class DictionaryPopoverView: NSView, WKNavigationDelegate, WKScriptMessage
                 guard player.play() else { throw URLError(.cannotDecodeContentData) }
             } catch {
                 guard !Task.isCancelled, let self, self.lookupID == id else { return }
-                self.model.audioStatus = self.language.text(.dictionaryAudioUnavailable)
+                self.setAudioStatus(self.language.text(.dictionaryAudioUnavailable))
             }
         }
     }
@@ -290,6 +320,20 @@ final class DictionaryPopoverView: NSView, WKNavigationDelegate, WKScriptMessage
     private func showMessage(_ message: String) {
         model.isLoading = false
         model.message = message
+        contentHeight = nil
+        updatePreferredHeight()
+    }
+
+    private func setAudioStatus(_ status: String?) {
+        model.audioStatus = status
+        updatePreferredHeight()
+    }
+
+    private func updatePreferredHeight() {
+        let height = contentHeight.map { max(100, ceil($0) + 43 + (model.audioStatus == nil ? 0 : 24)) } ?? 160
+        guard abs(height - preferredHeight) > 0.5 else { return }
+        preferredHeight = height
+        onPreferredHeightChange?(height)
     }
 
     private func message(for error: Error) -> String {

@@ -28,9 +28,15 @@ extension VellumPDFView {
 
         let popover = DictionaryPopoverView()
         popover.onDismiss = { [weak self] in self?.dismissDictionaryPopover() }
+        popover.onPreferredHeightChange = { [weak self, weak popover] height in
+            guard let self, let popover, self.dictionaryPopover === popover else { return }
+            self.dictionaryPreferredHeight = height
+            self.updateDictionaryOverlayFrame()
+        }
         let overlay = AIFloatingOverlayContainerView(contentView: popover)
         dictionaryPopover = popover
         dictionaryOverlay = overlay
+        dictionaryPreferredHeight = popover.preferredHeight
         updateDictionaryOverlayFrame()
         addSubview(overlay)
         selectionEndpointOverlay?.isHidden = true
@@ -68,7 +74,7 @@ extension VellumPDFView {
     func updateDictionaryOverlayFrame() {
         guard let dictionaryOverlay else { return }
         let size = NSSize(width: min(600, max(1, visibleRect.width - 36)),
-                          height: min(620, max(1, visibleRect.height - 94)))
+                          height: min(dictionaryPreferredHeight, max(1, visibleRect.height - 94)))
         dictionaryOverlay.frame = AIFloatingOverlayLayout.frame(
             in: visibleRect, size: size, backingScale: backingScale
         )

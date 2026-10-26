@@ -62,6 +62,7 @@ final class VellumPDFView: PDFView {
     let aiInteraction = AIInteractionState()
     var dictionaryPopover: DictionaryPopoverView?
     var dictionaryOverlay: NSView?
+    var dictionaryPreferredHeight: CGFloat = 160
     nonisolated(unsafe) var dictionaryDismissMonitor: Any?
     nonisolated(unsafe) var dictionaryLifecycleObservers: [NSObjectProtocol] = []
     var isMouseSelectingText = false {
