@@ -18,6 +18,7 @@ final class MDictArchive {
     struct ReadBudget {
         var records = 1_024
         var bytes = 64 * 1_024 * 1_024
+        var decompressedBytes = 64 * 1_024 * 1_024
     }
 
     private struct Key {
@@ -193,7 +194,7 @@ final class MDictArchive {
             guard size <= budget.bytes else { throw DictionaryError.invalidArchive }
             budget.bytes -= size
         }
-        return try ordinals.map { (keys[$0].text, try record(at: $0)) }
+        return try ordinals.map { (keys[$0].text, try record(at: $0, budget: &budget)) }
     }
 
     func text(from data: Data) throws -> String {
@@ -210,7 +211,7 @@ final class MDictArchive {
         return stripKey ? String(text.unicodeScalars.filter { !Self.ignoredKeyCharacters.contains($0) }) : text
     }
 
-    private func record(at ordinal: Int) throws -> Data {
+    private func record(at ordinal: Int, budget: inout ReadBudget) throws -> Data {
         let key = keys[ordinal]
         guard key.end - key.offset <= Self.maximumBlockSize else { throw DictionaryError.invalidArchive }
         var result = Data()
@@ -229,6 +230,8 @@ final class MDictArchive {
             if let cachedBlock, cachedBlock.index == index {
                 data = cachedBlock.data
             } else {
+                guard block.size <= budget.decompressedBytes else { throw DictionaryError.invalidArchive }
+                budget.decompressedBytes -= block.size
                 data = try decode(offset: block.fileOffset, compressedSize: block.compressedSize, size: block.size)
                 cachedBlock = (index, data)
             }
