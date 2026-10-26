@@ -68,7 +68,8 @@ struct DictionaryPronunciationTests {
         let probe = DictionaryNavigationProbe(view: fixture.view)
         fixture.view.webView.navigationDelegate = probe
         fixture.view.lookup("hello")
-        try await waitForTestCondition("Dictionary document finished loading") { probe.finished }
+        try await waitForTestCondition("Dictionary navigation finished") { probe.finished }
+        try await waitForTestCondition("Dictionary page is ready for interaction") { !fixture.view.isLoading }
         fixture.view.dismiss()
 
         _ = try await fixture.view.webView.evaluateJavaScript("location.href='\(link)';null;")
@@ -88,7 +89,8 @@ struct DictionaryPronunciationTests {
         let probe = DictionaryNavigationProbe(view: fixture.view)
         fixture.view.webView.navigationDelegate = probe
         fixture.view.lookup("hello")
-        try await waitForTestCondition("Dictionary document finished loading") { probe.finished }
+        try await waitForTestCondition("Dictionary navigation finished") { probe.finished }
+        try await waitForTestCondition("Dictionary page is ready for interaction") { !fixture.view.isLoading }
         #expect(fixture.view.player == nil)
 
         _ = try await fixture.view.webView.evaluateJavaScript("location.href='sound://us.wav';null;")
@@ -108,7 +110,7 @@ private final class DictionaryNavigationProbe: NSObject, WKNavigationDelegate {
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         view.webView(webView, didFinish: navigation)
-        finished = webView.url?.scheme == DictionaryPage.scheme && !view.isLoading
+        finished = webView.url?.scheme == DictionaryPage.scheme
     }
 
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction,
@@ -191,6 +193,7 @@ private final class DictionaryPronunciationFixture {
 
     func close() {
         view.stop()
+        window.contentView = nil
         window.close()
         let defaults = UserDefaults.standard
         for (key, value) in zip(Self.preferenceKeys, previousPreferences) {

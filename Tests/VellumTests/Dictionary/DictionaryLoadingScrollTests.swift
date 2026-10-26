@@ -25,14 +25,17 @@ struct DictionaryLoadingScrollTests {
         defaults.set(false, forKey: keys[1])
         let view = DictionaryPopoverView()
         view.frame = NSRect(x: 0, y: 0, width: 600, height: 620)
-        view.webView.frame = NSRect(x: 0, y: 0, width: 600, height: 560)
         view.webView.configuration.userContentController.addUserScript(WKUserScript(source: """
             window.dictionaryTestTime = 1000;
             performance.now = () => window.dictionaryTestTime;
             window.requestAnimationFrame = callback => { window.dictionaryTestFrame = callback; return 1; };
             window.cancelAnimationFrame = () => { window.dictionaryTestFrame = null; };
             """, injectionTime: .atDocumentStart, forMainFrameOnly: true, in: .defaultClient))
-        defer { view.stop() }
+        let window = NSWindow(contentRect: view.frame, styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentView = view
+        window.makeKeyAndOrderFront(nil)
+        defer { view.stop(); window.contentView = nil; window.close() }
         func send(_ type: NSEvent.EventType) throws {
             let event = try #require(NSEvent.keyEvent(with: type, location: .zero, modifierFlags: [], timestamp: 0,
                                                     windowNumber: 0, context: nil, characters: "j",

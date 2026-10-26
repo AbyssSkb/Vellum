@@ -10,6 +10,7 @@ final class DictionaryPopoverView: NSView, WKNavigationDelegate, WKScriptMessage
 
     var onDismiss: (() -> Void)?
     var onPreferredHeightChange: ((CGFloat) -> Void)?
+    var onLoadingChange: ((Bool) -> Void)?
     private(set) var preferredHeight: CGFloat = 160
     private var contentHeight: CGFloat?
     private let model = DictionaryPopoverModel()
@@ -82,6 +83,8 @@ final class DictionaryPopoverView: NSView, WKNavigationDelegate, WKScriptMessage
 
     private func lookup(_ text: String, anchor: String?) {
         stop()
+        model.isLoading = true
+        onLoadingChange?(true)
         let word = text.trimmingCharacters(in: .whitespacesAndNewlines)
         model.word = word
         model.audioStatus = nil
@@ -90,11 +93,10 @@ final class DictionaryPopoverView: NSView, WKNavigationDelegate, WKScriptMessage
         didAutoPronounce = false
         pendingAnchor = anchor
         guard !word.isEmpty else {
-            model.message = language.text(.dictionaryNoSelection)
+            showMessage(language.text(.dictionaryNoSelection))
             return
         }
-        model.isLoading = true
-        model.message = language.text(.dictionaryLoading)
+        model.message = nil
         let id = lookupID
         guard let location = AppPreferences.dictionaryLocation() else {
             showMessage(language.text(.dictionaryUnavailable))
@@ -213,31 +215,49 @@ final class DictionaryPopoverView: NSView, WKNavigationDelegate, WKScriptMessage
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         guard navigation === activeNavigation, DictionaryPage.isEntryURL(webView.url, id: lookupID) else { return }
-        presentEntry()
-        autoPronounceIfNeeded(finishedLoading: true)
+        let id = lookupID
+        webView.callAsyncJavaScript("return await window.vellumDictionaryPresentation.prepare();", in: nil, in: .defaultClient) { [weak self] result in
+            guard let self, self.lookupID == id, self.model.isLoading else { return }
+            switch result {
+            case let .failure(error):
+                self.navigationFailed(error)
+                return
+            case let .success(value):
+                if let height = value as? Double, height.isFinite, height > 0 {
+                    self.contentHeight = height
+                    self.updatePreferredHeight()
+                }
+            }
+            self.superview?.layoutSubtreeIfNeeded()
+            self.layoutSubtreeIfNeeded()
+            self.webView.callAsyncJavaScript("await window.vellumDictionaryPresentation.paint(anchor);", arguments: ["anchor": self.pendingAnchor ?? ""], in: nil, in: .defaultClient) { [weak self] result in
+                guard let self, self.lookupID == id, self.model.isLoading else { return }
+                switch result {
+                case let .failure(error): self.navigationFailed(error)
+                case .success:
+                    self.presentEntry()
+                    self.autoPronounceIfNeeded()
+                }
+            }
+        }
     }
 
     private func presentEntry() {
         let wasLoading = model.isLoading
         model.isLoading = false
         model.message = nil
-        if let anchor = pendingAnchor,
-           let data = try? JSONSerialization.data(withJSONObject: [anchor]),
-           let encoded = String(data: data, encoding: .utf8) {
-            webView.evaluateJavaScript("document.getElementById(\(encoded)[0])?.scrollIntoView();null;")
-        }
+        if wasLoading { onLoadingChange?(false) }
         pendingAnchor = nil
         if wasLoading { startKeyboardScroll() }
     }
 
-    private func autoPronounceIfNeeded(finishedLoading: Bool) {
+    private func autoPronounceIfNeeded() {
         guard AppPreferences.automaticallyPronouncesDictionary(), !didAutoPronounce else { return }
         let id = lookupID
         webView.evaluateJavaScript(DictionaryPage.pronunciationScript) { [weak self] result, _ in
             guard let self, self.lookupID == id else { return }
             guard AppPreferences.automaticallyPronouncesDictionary(), !self.didAutoPronounce else { return }
             let links = result as? [String: String] ?? [:]
-            guard finishedLoading || links[AppPreferences.dictionaryPronunciationAccent().rawValue] != nil else { return }
             self.didAutoPronounce = true
             self.pronounce(links: links)
         }
@@ -272,11 +292,8 @@ final class DictionaryPopoverView: NSView, WKNavigationDelegate, WKScriptMessage
               DictionaryPage.isEntryURL(message.frameInfo.request.url, id: lookupID) else { return }
         if let payload = message.body as? [String: Any], payload["type"] as? String == "layout",
            let height = payload["height"] as? Double, height.isFinite, height > 0 {
-            let wasLoading = model.isLoading
             contentHeight = height
             updatePreferredHeight()
-            presentEntry()
-            if wasLoading { autoPronounceIfNeeded(finishedLoading: false) }
         } else if let raw = message.body as? String, let link = DictionaryPage.link(raw) {
             follow(link)
         }
@@ -334,6 +351,7 @@ final class DictionaryPopoverView: NSView, WKNavigationDelegate, WKScriptMessage
         model.message = message
         contentHeight = nil
         updatePreferredHeight()
+        onLoadingChange?(false)
     }
 
     private func setAudioStatus(_ status: String?) {
@@ -390,13 +408,10 @@ private struct DictionaryPopoverSurface: View {
             ZStack {
                 DictionaryWebContent(webView: webView)
                 if let message = model.message {
-                    VStack(spacing: 12) {
-                        if model.isLoading { ProgressView().controlSize(.small) }
-                        Text(message).font(.system(size: 13)).foregroundStyle(VellumColors.mutedColor)
-                            .multilineTextAlignment(.center).textSelection(.enabled)
-                    }
-                    .padding(24).frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(VellumColors.panelColor)
+                    Text(message).font(.system(size: 13)).foregroundStyle(VellumColors.mutedColor)
+                        .multilineTextAlignment(.center).textSelection(.enabled)
+                        .padding(24).frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(VellumColors.panelColor)
                 }
             }
         }

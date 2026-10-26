@@ -7,14 +7,47 @@ import Testing
 @MainActor
 struct DictionaryPresentationTests {
     @Test
-    func presentsDOMContentWithoutWaitingForNavigationCompletion() async throws {
+    func keepsTheEntryHiddenUntilNavigationCompletionIsForwarded() async throws {
         try await withPopover { view in
             let delegate = DictionaryUnfinishedNavigation()
             view.webView.navigationDelegate = delegate
             view.lookup("short")
-            try await waitForTestCondition("DOM-ready dictionary content is presented") { !view.isLoading }
+            try await waitForTestCondition("Dictionary navigation finishes without forwarding its callback") { delegate.navigation != nil }
+            #expect(view.isLoading)
             #expect(try await view.webView.evaluateJavaScript("document.querySelector('.headword').textContent") as? String == "short")
+            let navigation = try #require(delegate.navigation)
+            view.webView(view.webView, didFinish: navigation)
+            try await waitForTestCondition("Completed dictionary content is presented") { !view.isLoading }
             #expect(view.preferredHeight < 180)
+        }
+    }
+
+    @Test
+    func stoppedNavigationCannotRevealTheEntryAfterReadinessWorkCompletes() async throws {
+        try await withPopover { view in
+            let delegate = DictionaryUnfinishedNavigation()
+            view.webView.navigationDelegate = delegate
+            var loadingChanges: [Bool] = []
+            view.onLoadingChange = { loadingChanges.append($0) }
+            view.lookup("short")
+            try await waitForTestCondition("Dictionary navigation finishes before readiness work starts") { delegate.navigation != nil }
+            let navigation = try #require(delegate.navigation)
+            view.webView(view.webView, didFinish: navigation)
+            view.stop()
+            var finished = false
+            var error: Error?
+            view.webView.callAsyncJavaScript("""
+                await document.fonts.ready;
+                await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+                return true;
+                """, in: nil, in: .page) { result in
+                if case let .failure(failure) = result { error = failure }
+                finished = true
+            }
+            try await waitForTestCondition("Cancelled page readiness callbacks finish") { finished }
+            if let error { throw error }
+            await nextTestMainQueueTurn()
+            #expect(loadingChanges == [true])
         }
     }
 
@@ -32,7 +65,7 @@ struct DictionaryPresentationTests {
             try await waitForTestCondition("Collapsed dictionary content shrinks the panel") { view.preferredHeight < 180 }
 
             view.lookup("long")
-            try await waitForTestCondition("Long dictionary entry reports its full height") { view.preferredHeight > 2000 }
+            try await waitForTestCondition("Long dictionary entry reports its full height") { !view.isLoading && view.preferredHeight > 2000 }
             view.lookup("short")
             try await waitForTestCondition("A shorter lookup resets the previous content height") {
                 !view.isLoading && view.preferredHeight < 180
@@ -79,10 +112,14 @@ struct DictionaryPresentationTests {
         window.isReleasedWhenClosed = false
         window.contentView = view
         window.makeKeyAndOrderFront(nil)
-        defer { view.stop(); window.close() }
+        defer { view.stop(); window.contentView = nil; window.close() }
         try await body(view)
     }
 }
 
-// Intentionally omit didFinish to check that presentation uses the earlier DOM-ready signal.
-private final class DictionaryUnfinishedNavigation: NSObject, WKNavigationDelegate {}
+@MainActor
+private final class DictionaryUnfinishedNavigation: NSObject, WKNavigationDelegate {
+    var navigation: WKNavigation?
+
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) { self.navigation = navigation }
+}

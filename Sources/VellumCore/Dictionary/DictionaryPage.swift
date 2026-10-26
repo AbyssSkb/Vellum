@@ -85,6 +85,7 @@ enum DictionaryPage {
     static let presentationScript = #"""
     (() => {
       let pending = false, observedBody = null, previousHeight = -1;
+      const requestFrame = window.requestAnimationFrame.bind(window);
       const resizeObserver = new ResizeObserver(schedule);
       function report() {
         pending = false;
@@ -120,15 +121,37 @@ enum DictionaryPage {
         body.childNodes.forEach(measure);
         if (!Number.isFinite(bottom)) return;
         const height = Math.ceil(bottom + scrollY + (parseFloat(style.paddingBottom) || 0) + (parseFloat(style.marginBottom) || 0));
-        if (height === previousHeight) return;
-        previousHeight = height;
-        window.webkit.messageHandlers.dictionary.postMessage({type: 'layout', height});
+        if (height !== previousHeight) {
+          previousHeight = height;
+          window.webkit.messageHandlers.dictionary.postMessage({type: 'layout', height});
+        }
+        return height;
       }
       function schedule() {
         if (pending) return;
         pending = true;
         queueMicrotask(report);
       }
+      window.vellumDictionaryPresentation = {
+        async prepare() {
+          if (document.readyState !== 'complete') {
+            await new Promise(resolve => window.addEventListener('load', resolve, {once: true}));
+          }
+          await document.fonts.ready;
+          return report();
+        },
+        async paint(anchor) {
+          if (anchor) document.getElementById(anchor)?.scrollIntoView();
+          const images = Array.from(document.images).filter(image => {
+            const rect = image.getBoundingClientRect();
+            return image.getClientRects().length && getComputedStyle(image).visibility === 'visible'
+              && rect.bottom >= 0 && rect.top <= innerHeight && rect.right >= 0 && rect.left <= innerWidth;
+          });
+          await Promise.allSettled(images.map(image => image.decode()));
+          await document.fonts.ready;
+          await new Promise(resolve => requestFrame(() => requestFrame(resolve)));
+        }
+      };
       new MutationObserver(schedule).observe(document, {subtree: true, childList: true, attributes: true, characterData: true});
       document.addEventListener('readystatechange', schedule);
       window.addEventListener('resize', schedule);

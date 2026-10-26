@@ -39,6 +39,13 @@ extension VellumPDFView {
             guard let self, let popover, self.dictionaryPopover === popover else { return }
             self.dictionaryPreferredHeight = height
             self.updateDictionaryOverlayFrame()
+            self.dictionaryOverlay?.layoutSubtreeIfNeeded()
+        }
+        popover.onLoadingChange = { [weak self, weak popover] loading in
+            guard let self, let popover, self.dictionaryPopover === popover else { return }
+            if !loading { self.dictionaryOverlay?.layoutSubtreeIfNeeded() }
+            // Keep WebKit visible to its renderer while preparing the first painted frame.
+            self.dictionaryOverlay?.alphaValue = loading ? 0 : 1
         }
         let overlay = AIFloatingOverlayContainerView(contentView: popover)
         dictionaryPopover = popover

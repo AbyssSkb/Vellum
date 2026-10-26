@@ -21,8 +21,11 @@ struct DictionaryOxfordHeightTests {
         }
         let view = DictionaryPopoverView()
         view.frame = NSRect(x: 0, y: 0, width: 600, height: 620)
-        view.webView.frame = NSRect(x: 0, y: 0, width: 600, height: 560)
-        defer { view.stop() }
+        let window = NSWindow(contentRect: view.frame, styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentView = view
+        window.makeKeyAndOrderFront(nil)
+        defer { view.stop(); window.contentView = nil; window.close() }
         view.lookup("typography")
         try await waitForTestCondition("Oxford typography document loaded", timeout: .seconds(20)) {
             !view.isLoading && !view.webView.isLoading

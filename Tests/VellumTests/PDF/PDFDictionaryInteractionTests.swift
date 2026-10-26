@@ -55,6 +55,47 @@ struct PDFDictionaryInteractionTests {
     }
 
     @Test
+    func dictionaryPresentsTheEntryAtItsMeasuredHeightWithoutFlashingALoadingPanel() async throws {
+        try await withReader { _, view, _ in
+            let directory = FileManager.default.temporaryDirectory.appendingPathComponent("VellumDictionaryReveal-\(UUID().uuidString)")
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: directory) }
+            let mdx = directory.appendingPathComponent("fixture.mdx")
+            try MDictFixture(entries: [("hello", Data("<div style='height:300px'>Definition</div>".utf8))]).data.write(to: mdx)
+            UserDefaults.standard.set(mdx.path, forKey: AppPreferenceKeys.dictionaryPath)
+
+            view.vimLookupDictionary()
+            let popover = try #require(view.dictionaryPopover)
+            let overlay = try #require(view.dictionaryOverlay)
+            var viewportHeightWhenRevealed: CGFloat?
+            let onLoadingChange = popover.onLoadingChange
+            popover.onLoadingChange = { [weak popover] loading in
+                onLoadingChange?(loading)
+                if !loading { viewportHeightWhenRevealed = popover?.webView.bounds.height }
+            }
+            #expect(popover.isLoading)
+            #expect(!overlay.isHidden)
+            #expect(overlay.alphaValue == 0)
+            try await waitForTestCondition("The dictionary entry is ready to present") { !popover.isLoading }
+            #expect(overlay.alphaValue == 1)
+            #expect(overlay.frame.height > 300)
+            let viewportHeight = try #require(viewportHeightWhenRevealed)
+            #expect(abs(viewportHeight - overlay.frame.height + 43) < 1)
+
+            popover.lookup("hello")
+            #expect(overlay.alphaValue == 0)
+            try await waitForTestCondition("The next dictionary entry is ready to present") { !popover.isLoading }
+            #expect(overlay.alphaValue == 1)
+            #expect(overlay.frame.height > 300)
+
+            popover.lookup("missing")
+            try await waitForTestCondition("A missing entry displays its result") { !popover.isLoading }
+            #expect(overlay.alphaValue == 1)
+            #expect(overlay.frame.height == 160)
+        }
+    }
+
+    @Test
     func dictionaryHeightStartsCompactAndFollowsShortContent() async throws {
         try await withReader { _, view, _ in
             view.vimLookupDictionary()
