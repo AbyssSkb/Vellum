@@ -2,9 +2,11 @@ import SwiftUI
 
 public struct AISettingsView: View {
     @AppStorage(AppPreferenceKeys.appLanguage) private var appLanguage = AppUILanguage.systemDefault().rawValue
-    @State private var selection: SettingsSection = .general
+    @ObservedObject private var navigation: SettingsNavigation
 
-    public init() {}
+    public init(navigation: SettingsNavigation = SettingsNavigation()) {
+        self.navigation = navigation
+    }
 
     public var body: some View {
         HStack(spacing: 0) {
@@ -13,9 +15,13 @@ public struct AISettingsView: View {
             VellumDivider(axis: .vertical)
 
             Group {
-                switch selection {
+                switch navigation.page {
                 case .general:
-                    GeneralSettingsView()
+                    GeneralSettingsView(page: .general)
+                case .reading:
+                    GeneralSettingsView(page: .reading)
+                case .dictionary:
+                    GeneralSettingsView(page: .dictionary)
                 case .aiProviders:
                     AIProviderSettingsDetailView()
                 case .aiExplanation:
@@ -24,6 +30,8 @@ public struct AISettingsView: View {
                     AISettingsDetailView(page: .conversation)
                 case .shortcuts:
                     ShortcutSettingsView()
+                case .about:
+                    AboutSettingsView()
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -35,6 +43,8 @@ public struct AISettingsView: View {
         .tint(VellumColors.blueColor)
         .preferredColorScheme(.dark)
         .environment(\.appUILanguage, language)
+        .environmentObject(navigation)
+        .background(SettingsKeyboardBridge(navigation: navigation))
         .ignoresSafeArea()
     }
 
@@ -59,39 +69,71 @@ public struct AISettingsView: View {
             }
             .padding(.horizontal, 18)
 
-            VStack(spacing: 3) {
-                ForEach(SettingsSection.allCases) { section in
-                    SettingsSidebarRow(
-                        section: section,
-                        isSelected: selection == section
-                    ) {
-                        selection = section
-                    }
+            VStack(alignment: .leading, spacing: 16) {
+                sidebarGroup([.general, .reading, .dictionary])
+
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(language.text(.ai))
+                        .font(.system(size: 10.5, weight: .medium))
+                        .foregroundStyle(VellumColors.mutedColor.opacity(0.8))
+                        .padding(.horizontal, 10)
+                    sidebarGroup([.aiProviders, .aiExplanation, .aiConversation])
                 }
+
+                sidebarGroup([.shortcuts])
             }
             .padding(.horizontal, 10)
 
-            Spacer()
+            Spacer(minLength: 16)
+
+            sidebarGroup([.about])
+                .padding(.horizontal, 10)
+                .padding(.bottom, 14)
         }
-        .frame(width: 212)
+        .frame(width: 192)
         .background(VellumColors.backgroundDeepColor)
         .ignoresSafeArea()
     }
+
+    private func sidebarGroup(_ pages: [SettingsPage]) -> some View {
+        VStack(spacing: 3) {
+            ForEach(pages) { page in
+                SettingsSidebarRow(
+                    section: page,
+                    isSelected: navigation.page == page,
+                    isFocused: navigation.isSidebarFocused && navigation.page == page
+                ) {
+                    navigation.selectPage(page)
+                    navigation.focusSidebar()
+                }
+            }
+        }
+    }
+
 }
 
-private enum SettingsSection: String, CaseIterable, Identifiable {
+public enum SettingsPage: String, CaseIterable, Identifiable {
     case general
+    case reading
+    case dictionary
     case aiProviders
     case aiExplanation
     case aiConversation
     case shortcuts
+    case about
 
-    var id: String { rawValue }
+    public var id: String { rawValue }
 
     func title(language: AppUILanguage) -> String {
         switch self {
         case .general:
             return language.text(.general)
+        case .reading:
+            return language.text(.reading)
+        case .dictionary:
+            return language.text(.localDictionary)
+        case .about:
+            return language.text(.aboutAndUpdates)
         case .aiProviders:
             return language.text(.aiProviders)
         case .aiExplanation:
@@ -107,6 +149,12 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
         switch self {
         case .general:
             return "gearshape"
+        case .reading:
+            return "book"
+        case .dictionary:
+            return "character.book.closed"
+        case .about:
+            return "info.circle"
         case .aiProviders:
             return "building.2"
         case .aiExplanation:
@@ -121,10 +169,13 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
 
 private struct SettingsSidebarRow: View {
     @Environment(\.appUILanguage) private var language
-    let section: SettingsSection
+    @EnvironmentObject private var navigation: SettingsNavigation
+    let section: SettingsPage
     let isSelected: Bool
+    let isFocused: Bool
     let action: () -> Void
     @State private var isHovered = false
+    @FocusState private var hasKeyboardFocus: Bool
 
     var body: some View {
         Button(action: action) {
@@ -132,7 +183,7 @@ private struct SettingsSidebarRow: View {
                 Image(systemName: section.systemImage)
                     .font(.system(size: 13, weight: .regular))
                     .frame(width: 17)
-                    .foregroundStyle(isSelected ? VellumColors.blueColor : VellumColors.mutedColor)
+                    .foregroundStyle(isFocused ? VellumColors.blueColor : VellumColors.mutedColor)
 
                 Text(section.title(language: language))
                     .font(.system(size: 13, weight: isSelected ? .medium : .regular))
@@ -147,18 +198,20 @@ private struct SettingsSidebarRow: View {
                 isSelected ? VellumColors.selectionColor.opacity(0.65) : (isHovered ? VellumColors.panelColor : .clear),
                 in: RoundedRectangle(cornerRadius: 7, style: .continuous)
             )
-            .overlay(alignment: .leading) {
-                if isSelected {
-                    RoundedRectangle(cornerRadius: 1, style: .continuous)
-                        .fill(VellumColors.blueColor.opacity(0.85))
-                        .frame(width: 2, height: 12)
-                        .padding(.leading, 3)
-                        .allowsHitTesting(false)
-                }
+            .overlay {
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .stroke(isFocused ? VellumColors.blueColor.opacity(0.8) : .clear, lineWidth: 1)
             }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .focusable()
+        .focused($hasKeyboardFocus)
+        .focusEffectDisabled()
+        .settingsSidebarItem(section, focused: $hasKeyboardFocus)
+        .onChange(of: hasKeyboardFocus) { _, focused in
+            if focused { navigation.didFocusSidebar(section) }
+        }
         .onHover { isHovered = $0 }
     }
 }

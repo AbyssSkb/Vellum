@@ -10,6 +10,18 @@ enum ShortcutCatalog {
 
     private static let englishGroups: [ShortcutGroup] = [
         ShortcutGroup(
+            title: "Settings",
+            systemImage: "gearshape",
+            items: [
+                ShortcutItem(keys: ["j", "k"], action: "Move focus vertically through categories and controls"),
+                ShortcutItem(keys: ["l"], action: "Enter the selected category"),
+                ShortcutItem(keys: ["h", "l"], action: "Move focus horizontally; h at the left edge returns to categories"),
+                ShortcutItem(keys: ["Enter", "Space"], action: "Apply the focused option, toggle a switch, or activate a button; Enter edits a field"),
+                ShortcutItem(keys: ["Esc"], action: "Return to categories; leave text editing first"),
+                ShortcutItem(keys: ["j", "k"], action: "Scroll reading content; continue to adjacent controls at its edges")
+            ]
+        ),
+        ShortcutGroup(
             title: "Files and Tabs",
             systemImage: "doc.on.doc",
             items: [
@@ -182,6 +194,18 @@ enum ShortcutCatalog {
     ]
 
     private static let chineseGroups: [ShortcutGroup] = [
+        ShortcutGroup(
+            title: "设置",
+            systemImage: "gearshape",
+            items: [
+                ShortcutItem(keys: ["j", "k"], action: "在分类和控件之间上下移动焦点"),
+                ShortcutItem(keys: ["l"], action: "进入选中的分类"),
+                ShortcutItem(keys: ["h", "l"], action: "左右移动焦点；最左侧按 h 返回分类"),
+                ShortcutItem(keys: ["Enter", "Space"], action: "应用当前选项、切换开关或执行按钮；Enter 编辑输入框"),
+                ShortcutItem(keys: ["Esc"], action: "返回分类；文字编辑时先退出编辑"),
+                ShortcutItem(keys: ["j", "k"], action: "滚动阅读内容；到边缘后继续移到相邻控件")
+            ]
+        ),
         ShortcutGroup(
             title: "文件与标签页",
             systemImage: "doc.on.doc",

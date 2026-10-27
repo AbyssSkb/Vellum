@@ -3,9 +3,9 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct GeneralSettingsView: View {
+    let page: SettingsPage
     @Environment(\.appUILanguage) private var language
     @AppStorage(AppPreferenceKeys.appLanguage) private var appLanguage = AppUILanguage.systemDefault().rawValue
-    @AppStorage(AppPreferenceKeys.automaticallyCheckForUpdates) private var automaticallyCheckForUpdates = true
     @AppStorage(AppPreferenceKeys.defaultPDFOpenMode) private var defaultPDFOpenMode = DefaultPDFOpenModePreference.currentTab.rawValue
     @AppStorage(AppPreferenceKeys.defaultHighlightColor) private var defaultHighlightColor = HighlightColor.yellow.rawValue
     @AppStorage(AppPreferenceKeys.doubleClickAction) private var doubleClickAction = AppPreferences.doubleClickAction().rawValue
@@ -20,12 +20,18 @@ struct GeneralSettingsView: View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: 24) {
                 header
-                interfaceSection
-                startupSection
-                readingSection
-                dictionarySection
-                updatesSection
-                diagnosticsSection
+                switch page {
+                case .general:
+                    interfaceSection
+                    startupSection
+                    diagnosticsSection
+                case .reading:
+                    readingSection
+                case .dictionary:
+                    dictionarySection
+                default:
+                    EmptyView()
+                }
             }
             .padding(.horizontal, 24)
             .padding(.vertical, 22)
@@ -38,17 +44,17 @@ struct GeneralSettingsView: View {
 
     private var header: some View {
         HStack(alignment: .center, spacing: 12) {
-            Image(systemName: "gearshape")
+            Image(systemName: page.systemImage)
                 .font(.system(size: 19, weight: .regular))
                 .foregroundStyle(VellumColors.mutedColor)
                 .frame(width: 24)
 
             VStack(alignment: .leading, spacing: 3) {
-                Text(language.text(.general))
+                Text(page.title(language: language))
                     .font(.system(size: 20, weight: .medium))
                     .foregroundStyle(VellumColors.foregroundColor)
 
-                Text(language.text(.generalHeaderSubtitle))
+                Text(headerSubtitle)
                     .font(.system(size: 12.5))
                     .foregroundStyle(VellumColors.mutedColor)
                     .fixedSize(horizontal: false, vertical: true)
@@ -59,9 +65,17 @@ struct GeneralSettingsView: View {
         .padding(.bottom, 4)
     }
 
+    private var headerSubtitle: String {
+        switch page {
+        case .reading: return language.text(.readingHeaderSubtitle)
+        case .dictionary: return language.text(.dictionaryHeaderSubtitle)
+        default: return language.text(.generalHeaderSubtitle)
+        }
+    }
+
     private var interfaceSection: some View {
         GeneralSettingsPanel(title: language.text(.appUI), systemImage: "globe") {
-            GeneralOptionRow(title: language.text(.appLanguage), subtitle: language.text(.appLanguageSubtitle)) {
+            GeneralOptionRow(id: "app-language", title: language.text(.appLanguage), subtitle: language.text(.appLanguageSubtitle)) {
                 LanguageSegmentedControl(selection: $appLanguage)
             }
         }
@@ -71,18 +85,11 @@ struct GeneralSettingsView: View {
         GeneralSettingsPanel(title: language.text(.startup), systemImage: "power") {
             VStack(spacing: 0) {
                 GeneralToggleRow(
+                    id: "restore-previous-tabs",
                     title: language.text(.restorePreviousTabs),
                     subtitle: language.text(.restorePreviousTabsSubtitle),
                     isOn: $restorePreviousTabs
                 )
-
-                GeneralOptionRow(title: language.text(.defaultOpenMode), subtitle: language.text(.defaultOpenModeSubtitle)) {
-                    GeneralSegmentedControl(
-                        selection: $defaultPDFOpenMode,
-                        options: DefaultPDFOpenModePreference.allCases,
-                        language: language
-                    )
-                }
             }
         }
     }
@@ -90,10 +97,18 @@ struct GeneralSettingsView: View {
     private var readingSection: some View {
         GeneralSettingsPanel(title: language.text(.reading), systemImage: "doc.text.magnifyingglass") {
             VStack(spacing: 0) {
-                GeneralOptionRow(title: language.text(.doubleClickAction), subtitle: language.text(.doubleClickActionSubtitle)) {
+                GeneralOptionRow(id: "default-open-mode", title: language.text(.defaultOpenMode), subtitle: language.text(.defaultOpenModeSubtitle)) {
+                    GeneralSegmentedControl(
+                        selection: $defaultPDFOpenMode,
+                        options: DefaultPDFOpenModePreference.allCases,
+                        language: language
+                    )
+                }
+                GeneralOptionRow(id: "double-click-action", title: language.text(.doubleClickAction), subtitle: language.text(.doubleClickActionSubtitle)) {
                     HStack(spacing: 4) {
                         ForEach(DoubleClickActionPreference.allCases) { option in
                             GeneralSegmentButton(
+                                id: option.rawValue,
                                 title: option.title(language: language),
                                 systemImage: option.systemImage,
                                 isSelected: doubleClickAction == option.rawValue
@@ -106,11 +121,11 @@ struct GeneralSettingsView: View {
                     .background(VellumColors.backgroundDeepColor.opacity(0.7), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                 }
 
-                GeneralOptionRow(title: language.text(.openFileZoom), subtitle: language.text(.openFileZoomSubtitle)) {
+                GeneralOptionRow(id: "open-file-zoom", title: language.text(.openFileZoom), subtitle: language.text(.openFileZoomSubtitle)) {
                     OpenFileZoomSegmentedControl(selection: $openFileZoomBehavior, language: language)
                 }
 
-                GeneralOptionRow(title: language.text(.defaultHighlight), subtitle: language.text(.defaultHighlightSubtitle)) {
+                GeneralOptionRow(id: "default-highlight", title: language.text(.defaultHighlight), subtitle: language.text(.defaultHighlightSubtitle)) {
                     HighlightColorPicker(selection: $defaultHighlightColor, language: language)
                 }
             }
@@ -121,6 +136,7 @@ struct GeneralSettingsView: View {
         GeneralSettingsPanel(title: language.text(.localDictionary), systemImage: "character.book.closed") {
             VStack(spacing: 0) {
                 GeneralOptionRow(
+                    id: "dictionary-file",
                     title: language.text(.dictionaryFile),
                     subtitle: "\(dictionaryPath.isEmpty ? language.text(.dictionaryNotAdded) : (dictionaryPath as NSString).abbreviatingWithTildeInPath)\n\(language.text(.dictionaryFileSubtitle))"
                 ) {
@@ -128,21 +144,25 @@ struct GeneralSettingsView: View {
                         Label(language.text(.chooseFile), systemImage: "folder")
                     }
                     .buttonStyle(GeneralActionButtonStyle())
+                    .settingsControl("choose-dictionary", action: chooseDictionaryFile)
                 }
 
                 GeneralToggleRow(
+                    id: "dictionary-auto-pronunciation",
                     title: language.text(.dictionaryAutoPronunciation),
                     subtitle: language.text(.dictionaryAutoPronunciationSubtitle),
                     isOn: $dictionaryAutoPronunciation
                 )
 
                 GeneralOptionRow(
+                    id: "dictionary-pronunciation-accent",
                     title: language.text(.dictionaryPronunciationAccent),
                     subtitle: language.text(.dictionaryPronunciationAccentSubtitle)
                 ) {
                     HStack(spacing: 4) {
                         ForEach(AIPronunciationAccentPreference.allCases) { option in
                             GeneralSegmentButton(
+                                id: option.rawValue,
                                 title: option.title(language: language),
                                 systemImage: option.systemImage,
                                 isSelected: dictionaryPronunciationAccent == option.rawValue
@@ -175,82 +195,22 @@ struct GeneralSettingsView: View {
         }
     }
 
-    private var updatesSection: some View {
-        GeneralSettingsPanel(title: language.text(.updates), systemImage: "arrow.triangle.2.circlepath") {
-            VStack(spacing: 0) {
-                GeneralToggleRow(
-                    title: language.text(.automaticallyCheck),
-                    subtitle: language.text(.automaticallyCheckSubtitle),
-                    isOn: $automaticallyCheckForUpdates
-                )
-
-                HStack(spacing: 12) {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(language.text(.currentVersion))
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(VellumColors.foregroundColor)
-
-                        Text(appVersionText)
-                            .font(.system(size: 12))
-                            .foregroundStyle(VellumColors.mutedColor)
-                    }
-
-                    Spacer()
-
-                    Button {
-                        NotificationCenter.default.post(name: VellumAppNotification.checkForUpdatesRequested, object: nil)
-                    } label: {
-                        Label(language.text(.checkNow), systemImage: "arrow.clockwise")
-                    }
-                    .buttonStyle(GeneralActionButtonStyle())
-                }
-                .padding(.vertical, 12)
-                .frame(minHeight: 54)
-            }
-        }
-    }
-
-    private var appVersionText: String {
-        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
-        return version?.nilIfEmpty ?? "Development"
-    }
-
     private var diagnosticsSection: some View {
         GeneralSettingsPanel(title: language.text(.diagnostics), systemImage: "waveform.path.ecg") {
-            VStack(spacing: 0) {
-                HStack(spacing: 12) {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(language.text(.aiRequestLogs))
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(VellumColors.foregroundColor)
-
-                        Text(language.text(.aiRequestLogsSubtitle))
-                            .font(.system(size: 12))
-                            .foregroundStyle(VellumColors.mutedColor)
-                            .fixedSize(horizontal: false, vertical: true)
+            GeneralOptionRow(id: "ai-request-logs", title: language.text(.aiRequestLogs), subtitle: language.text(.aiRequestLogsSubtitle)) {
+                HStack(spacing: 8) {
+                    Button(action: openAIRequestLog) {
+                        Label(language.text(.openLog), systemImage: "doc.text.magnifyingglass")
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .buttonStyle(GeneralActionButtonStyle())
+                    .settingsControl("open-log", action: openAIRequestLog)
 
-                    Spacer()
-
-                    HStack(spacing: 8) {
-                        Button {
-                            openAIRequestLog()
-                        } label: {
-                            Label(language.text(.openLog), systemImage: "doc.text.magnifyingglass")
-                        }
-                        .buttonStyle(GeneralActionButtonStyle())
-
-                        Button {
-                            clearAIRequestLog()
-                        } label: {
-                            Label(language.text(.clearLog), systemImage: "trash")
-                        }
-                        .buttonStyle(GeneralActionButtonStyle())
+                    Button(action: clearAIRequestLog) {
+                        Label(language.text(.clearLog), systemImage: "trash")
                     }
+                    .buttonStyle(GeneralActionButtonStyle())
+                    .settingsControl("clear-log", action: clearAIRequestLog)
                 }
-                .padding(.vertical, 12)
-                .frame(minHeight: 62)
             }
         }
     }
@@ -274,7 +234,7 @@ struct GeneralSettingsView: View {
     }
 }
 
-private struct GeneralSettingsPanel<Content: View>: View {
+struct GeneralSettingsPanel<Content: View>: View {
     let title: String
     let systemImage: String
     @ViewBuilder let content: Content
@@ -297,7 +257,8 @@ private struct GeneralSettingsPanel<Content: View>: View {
     }
 }
 
-private struct GeneralToggleRow: View {
+struct GeneralToggleRow: View {
+    let id: String
     let title: String
     let subtitle: String
     @Binding var isOn: Bool
@@ -331,17 +292,24 @@ private struct GeneralToggleRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .settingsControl(id, action: { isOn.toggle() })
+        .settingsRow(id)
         .onHover { isHovered = $0 }
     }
 }
 
-private struct GeneralOptionRow<Content: View>: View {
+struct GeneralOptionRow<Content: View>: View {
+    let id: String
     let title: String
     let subtitle: String
     @ViewBuilder let content: Content
+    @State private var isCompact = false
 
     var body: some View {
-        HStack(spacing: 12) {
+        let layout = isCompact
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12))
+            : AnyLayout(HStackLayout(alignment: .center, spacing: 18))
+        layout {
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
                     .font(.system(size: 13, weight: .medium))
@@ -354,12 +322,16 @@ private struct GeneralOptionRow<Content: View>: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            Spacer()
-
             content
+                .fixedSize(horizontal: true, vertical: false)
         }
         .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .frame(minHeight: 58)
+        .onGeometryChange(for: Bool.self) { geometry in
+            geometry.size.width < 540
+        } action: { isCompact = $0 }
+        .settingsRow(id)
     }
 }
 
@@ -372,6 +344,7 @@ private struct GeneralSegmentedControl: View {
         HStack(spacing: 4) {
             ForEach(options) { option in
                 GeneralSegmentButton(
+                    id: option.rawValue,
                     title: option.title(language: language),
                     systemImage: option.systemImage,
                     isSelected: selection == option.rawValue
@@ -393,6 +366,7 @@ private struct OpenFileZoomSegmentedControl: View {
         HStack(spacing: 4) {
             ForEach(OpenFileZoomPreference.allCases) { option in
                 GeneralSegmentButton(
+                    id: option.rawValue,
                     title: option.title(language: language),
                     systemImage: option.systemImage,
                     isSelected: selection == option.rawValue
@@ -413,6 +387,7 @@ private struct LanguageSegmentedControl: View {
         HStack(spacing: 4) {
             ForEach(AppUILanguage.allCases) { language in
                 GeneralSegmentButton(
+                    id: language.rawValue,
                     title: language.displayName,
                     systemImage: language.systemImage,
                     isSelected: selection == language.rawValue
@@ -421,12 +396,14 @@ private struct LanguageSegmentedControl: View {
                 }
             }
         }
+        .labelStyle(.titleOnly)
         .padding(3)
         .background(VellumColors.backgroundDeepColor.opacity(0.7), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
     }
 }
 
 private struct GeneralSegmentButton: View {
+    let id: String
     let title: String
     let systemImage: String
     let isSelected: Bool
@@ -449,6 +426,7 @@ private struct GeneralSegmentButton: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .settingsControl(id, isSelected: isSelected, action: action)
         .onHover { isHovered = $0 }
     }
 
@@ -510,11 +488,12 @@ private struct HighlightColorButton: View {
                 )
                 .overlay {
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .stroke(isSelected ? VellumColors.blueColor.opacity(0.65) : .clear, lineWidth: 1)
+                        .stroke(isSelected ? VellumColors.foregroundColor.opacity(0.65) : .clear, lineWidth: 1)
                 }
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .settingsControl(color.rawValue, isSelected: isSelected, action: action)
         .help(color.helpText(language: language))
         .onHover { isHovered = $0 }
     }
@@ -540,7 +519,7 @@ private struct TogglePill: View {
     }
 }
 
-private struct GeneralActionButtonStyle: ButtonStyle {
+struct GeneralActionButtonStyle: ButtonStyle {
     @State private var isHovered = false
 
     func makeBody(configuration: Configuration) -> some View {

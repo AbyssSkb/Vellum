@@ -150,13 +150,14 @@ struct AIProviderSettingsDetailView: View {
                     }
                 }
             }
+            .settingsRow("providers")
         }
     }
 
     private var endpointSection: some View {
         SettingsPanel(title: language.text(.endpoint), systemImage: "network") {
             VStack(alignment: .leading, spacing: 14) {
-                LabeledSettingsField(title: language.text(.baseURL)) {
+                LabeledSettingsField(id: "base-url", title: language.text(.baseURL)) {
                     StyledTextField(
                         text: $baseURL,
                         placeholder: selectedPreset.baseURL,
@@ -164,7 +165,7 @@ struct AIProviderSettingsDetailView: View {
                     )
                 }
 
-                LabeledSettingsField(title: language.text(.apiKey)) {
+                LabeledSettingsField(id: "api-key", title: language.text(.apiKey)) {
                     StyledSecureField(
                         text: $apiKey,
                         placeholder: selectedPreset.id == "anthropic" ? "sk-ant-..." : "sk-..."
@@ -177,7 +178,7 @@ struct AIProviderSettingsDetailView: View {
     private var codexSection: some View {
         SettingsPanel(title: language.text(.codex), systemImage: "terminal") {
             VStack(alignment: .leading, spacing: 14) {
-                LabeledSettingsField(title: language.text(.executable)) {
+                LabeledSettingsField(id: "executable", title: language.text(.executable)) {
                     StyledTextField(
                         text: $baseURL,
                         placeholder: selectedPreset.baseURL,
@@ -185,7 +186,7 @@ struct AIProviderSettingsDetailView: View {
                     )
                 }
 
-                LabeledSettingsField(title: language.text(.profile)) {
+                LabeledSettingsField(id: "profile", title: language.text(.profile)) {
                     StyledTextField(
                         text: $apiKey,
                         placeholder: language.text(.useDefaultProfile),
@@ -206,6 +207,7 @@ struct AIProviderSettingsDetailView: View {
                         Label(validation.isTesting ? language.text(.testing) : connectionTestTitle, systemImage: connectionTestIcon)
                     }
                     .buttonStyle(SettingsActionButtonStyle())
+                    .settingsControl("test-connection", action: testConnection)
                     .disabled(isBusy)
 
                     Button {
@@ -214,6 +216,7 @@ struct AIProviderSettingsDetailView: View {
                         Label(validation.isFetchingModels ? language.text(.fetching) : language.text(.fetchModels), systemImage: "arrow.clockwise")
                     }
                     .buttonStyle(SettingsActionButtonStyle())
+                    .settingsControl("fetch-models", action: fetchModels)
                     .disabled(isBusy)
 
                     Text(modelsSummary)
@@ -223,6 +226,7 @@ struct AIProviderSettingsDetailView: View {
 
                     Spacer()
                 }
+                .settingsRow("validation")
 
                 if validation.status.isIdle || isBusy {
                     AIConnectionStatusRow(status: validation.status, isBusy: isBusy)
@@ -348,6 +352,7 @@ struct AISettingsDetailView: View {
     @State var promptTemplate = AIPromptSettings.defaultTemplate
     @State private var didLoadProviderSettings = false
     @State private var didLoadPromptSettings = false
+    @State private var isDiagnosticsExpanded = false
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
@@ -463,6 +468,7 @@ struct AISettingsDetailView: View {
                     }
                 }
             }
+            .settingsRow("providers")
         }
     }
 
@@ -480,7 +486,7 @@ struct AISettingsDetailView: View {
     private var modelSection: some View {
         SettingsPanel(title: language.text(.model), systemImage: "cpu") {
             VStack(alignment: .leading, spacing: 14) {
-                LabeledSettingsField(title: modelFieldTitle) {
+                LabeledSettingsField(id: "model", title: modelFieldTitle) {
                     StyledTextField(
                         text: $model,
                         placeholder: modelFieldPlaceholder,
@@ -499,6 +505,7 @@ struct AISettingsDetailView: View {
                         Label(validation.isFetchingModels ? language.text(.fetching) : language.text(.fetchModels), systemImage: "arrow.clockwise")
                     }
                     .buttonStyle(SettingsActionButtonStyle())
+                    .settingsControl("fetch-models", action: fetchModels)
                     .disabled(isBusy)
 
                     Text(modelsSummary)
@@ -508,6 +515,7 @@ struct AISettingsDetailView: View {
 
                     Spacer()
                 }
+                .settingsRow("fetch-models")
 
                 if selectedPreset.format.usesCodexExecutable {
                     reasoningEffortField
@@ -517,7 +525,7 @@ struct AISettingsDetailView: View {
     }
 
     private var reasoningEffortField: some View {
-        LabeledSettingsField(title: language.text(.reasoningDepth)) {
+        LabeledSettingsField(id: "reasoning", title: language.text(.reasoningDepth)) {
             VStack(alignment: .leading, spacing: 8) {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 112), spacing: 8)], spacing: 8) {
                     ForEach(reasoningEffortChoices, id: \.self) { effort in
@@ -536,9 +544,10 @@ struct AISettingsDetailView: View {
                             }
                         }
                         .buttonStyle(SettingsActionButtonStyle())
+                        .settingsControl("reasoning-\(effort)", isSelected: reasoningEffort == effort, action: { reasoningEffort = effort })
                         .overlay {
                             RoundedRectangle(cornerRadius: 7, style: .continuous)
-                                .stroke(reasoningEffort == effort ? VellumColors.blueColor.opacity(0.65) : .clear, lineWidth: 1)
+                                .stroke(reasoningEffort == effort ? VellumColors.borderColor.opacity(0.65) : .clear, lineWidth: 1)
                                 .allowsHitTesting(false)
                         }
                         .disabled(knownModelReasoningEfforts.map { !$0.contains(effort) } ?? false)
@@ -580,7 +589,7 @@ struct AISettingsDetailView: View {
     private var promptSection: some View {
         SettingsPanel(title: language.text(.prompt), systemImage: "text.bubble") {
             VStack(alignment: .leading, spacing: 14) {
-                LabeledSettingsField(title: language.text(.promptTargetLanguage)) {
+                LabeledSettingsField(id: "target-language", title: language.text(.promptTargetLanguage)) {
                     StyledTextField(
                         text: $targetLanguage,
                         placeholder: AIPromptSettings.defaultTargetLanguage,
@@ -588,7 +597,7 @@ struct AISettingsDetailView: View {
                     )
                 }
 
-                LabeledSettingsField(title: language.text(.promptTemplate)) {
+                LabeledSettingsField(id: "prompt-template", title: language.text(.promptTemplate)) {
                     StyledPromptEditor(text: $promptTemplate)
                 }
 
@@ -617,6 +626,7 @@ struct AISettingsDetailView: View {
                         Label(language.text(.promptReset), systemImage: "arrow.counterclockwise")
                     }
                     .buttonStyle(SettingsActionButtonStyle())
+                    .settingsControl("reset-prompt", action: resetPromptSettings)
 
                     Text(language.text(.promptVariablesHint))
                         .font(.system(size: 12))
@@ -625,6 +635,7 @@ struct AISettingsDetailView: View {
 
                     Spacer()
                 }
+                .settingsRow("reset-prompt")
             }
         }
     }
@@ -663,16 +674,18 @@ struct AISettingsDetailView: View {
                         Label(validation.isTesting ? language.text(.testing) : language.text(.testModel), systemImage: "sparkles")
                     }
                     .buttonStyle(SettingsPrimaryButtonStyle())
+                    .settingsControl("test-function", action: testFunction)
                     .disabled(isBusy || unsupportedReasoningEffort != nil)
 
                     Spacer()
                 }
+                .settingsRow("validation")
 
                 if validation.isTesting {
                     AIConnectionStatusRow(status: validation.status, isBusy: validation.isTesting)
                 }
 
-                DisclosureGroup(language.text(.diagnostics)) {
+                DisclosureGroup(language.text(.diagnostics), isExpanded: $isDiagnosticsExpanded) {
                     VStack(alignment: .leading, spacing: 8) {
                         ForEach(diagnosticRows, id: \.title) { row in
                             diagnosticRow(row.title, row.value)
@@ -685,6 +698,8 @@ struct AISettingsDetailView: View {
                 .foregroundStyle(VellumColors.mutedColor)
                 .tint(VellumColors.mutedColor)
                 .padding(.top, 2)
+                .settingsControl("diagnostics", action: { isDiagnosticsExpanded.toggle() })
+                .settingsRow("diagnostics")
             }
         }
     }
@@ -843,6 +858,8 @@ private struct AIPronunciationToggleRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .settingsControl("auto-pronunciation", action: { isOn.toggle() })
+        .settingsRow("auto-pronunciation")
         .onHover { isHovered = $0 }
     }
 }
@@ -870,6 +887,7 @@ private struct AIPronunciationOptionRow<Content: View>: View {
         }
         .padding(.vertical, 12)
         .frame(minHeight: 58)
+        .settingsRow("pronunciation-accent")
     }
 }
 
@@ -881,6 +899,7 @@ private struct AIPronunciationAccentSegmentedControl: View {
         HStack(spacing: 4) {
             ForEach(AIPronunciationAccentPreference.allCases) { option in
                 AIPronunciationSegmentButton(
+                    id: option.rawValue,
                     title: option.title(language: language),
                     systemImage: option.systemImage,
                     isSelected: selection == option.rawValue
@@ -895,6 +914,7 @@ private struct AIPronunciationAccentSegmentedControl: View {
 }
 
 private struct AIPronunciationSegmentButton: View {
+    let id: String
     let title: String
     let systemImage: String
     let isSelected: Bool
@@ -917,6 +937,7 @@ private struct AIPronunciationSegmentButton: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .settingsControl("accent-\(id)", isSelected: isSelected, action: action)
         .onHover { isHovered = $0 }
     }
 
@@ -1001,6 +1022,7 @@ private struct SettingsPanel<Content: View>: View {
 }
 
 private struct LabeledSettingsField<Content: View>: View {
+    let id: String
     let title: String
     @ViewBuilder let content: Content
 
@@ -1012,10 +1034,12 @@ private struct LabeledSettingsField<Content: View>: View {
 
             content
         }
+        .settingsRow(id)
     }
 }
 
 private struct StyledTextField: View {
+    @EnvironmentObject private var navigation: SettingsNavigation
     @Binding var text: String
     let placeholder: String
     let systemImage: String
@@ -1025,7 +1049,7 @@ private struct StyledTextField: View {
         HStack(spacing: 9) {
             Image(systemName: systemImage)
                 .font(.system(size: 12, weight: .regular))
-                .foregroundStyle(isFocused ? VellumColors.blueColor : VellumColors.mutedColor)
+                .foregroundStyle(navigation.focusedControlID == systemImage ? VellumColors.blueColor : VellumColors.mutedColor)
                 .frame(width: 16)
 
             TextField(placeholder, text: $text)
@@ -1033,13 +1057,14 @@ private struct StyledTextField: View {
                 .font(.system(size: 13))
                 .foregroundStyle(VellumColors.foregroundColor)
                 .textSelection(.enabled)
-                .focused($isFocused)
+                .settingsField(systemImage, focused: $isFocused)
         }
-        .settingsInputChrome(isFocused: isFocused)
+        .settingsInputChrome(isFocused: navigation.focusedControlID == systemImage)
     }
 }
 
 private struct StyledSecureField: View {
+    @EnvironmentObject private var navigation: SettingsNavigation
     @Binding var text: String
     let placeholder: String
     @FocusState private var isFocused: Bool
@@ -1048,20 +1073,21 @@ private struct StyledSecureField: View {
         HStack(spacing: 9) {
             Image(systemName: "key.fill")
                 .font(.system(size: 12, weight: .regular))
-                .foregroundStyle(isFocused ? VellumColors.blueColor : VellumColors.mutedColor)
+                .foregroundStyle(navigation.focusedControlID == "api-key" ? VellumColors.blueColor : VellumColors.mutedColor)
                 .frame(width: 16)
 
             SecureField(placeholder, text: $text)
                 .textFieldStyle(.plain)
                 .font(.system(size: 13))
                 .foregroundStyle(VellumColors.foregroundColor)
-                .focused($isFocused)
+                .settingsField("api-key", focused: $isFocused)
         }
-        .settingsInputChrome(isFocused: isFocused)
+        .settingsInputChrome(isFocused: navigation.focusedControlID == "api-key")
     }
 }
 
 private struct StyledPromptEditor: View {
+    @EnvironmentObject private var navigation: SettingsNavigation
     @Binding var text: String
     @FocusState private var isFocused: Bool
 
@@ -1071,14 +1097,14 @@ private struct StyledPromptEditor: View {
             .foregroundStyle(VellumColors.foregroundColor)
             .scrollContentBackground(.hidden)
             .background(Color.clear)
-            .focused($isFocused)
+            .settingsField("prompt-template", focused: $isFocused)
             .padding(.horizontal, 10)
             .padding(.vertical, 9)
             .frame(height: 260)
             .background(VellumColors.panelColor, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .stroke(isFocused ? VellumColors.blueColor.opacity(0.8) : VellumColors.borderColor.opacity(0.45), lineWidth: 1)
+                    .stroke(navigation.focusedControlID == "prompt-template" ? VellumColors.blueColor.opacity(0.8) : VellumColors.borderColor.opacity(0.45), lineWidth: 1)
             }
     }
 }
@@ -1173,6 +1199,7 @@ private struct ProviderPresetRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .settingsControl("provider-\(preset.id)", isSelected: isSelected, action: action)
         .onHover { isHovered = $0 }
     }
 }
@@ -1237,15 +1264,17 @@ private struct ModelChoiceGrid: View {
                     .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                     .overlay {
                         RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .stroke(selection == model ? VellumColors.blueColor.opacity(0.5) : VellumColors.borderColor.opacity(hoveredModel == model ? 0.85 : 0.55), lineWidth: 1)
+                            .stroke(VellumColors.borderColor.opacity(selection == model || hoveredModel == model ? 0.85 : 0.55), lineWidth: 1)
                     }
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .settingsControl("model-\(model)", isSelected: selection == model, action: { selection = model })
                 .onHover { hoveredModel = $0 ? model : nil }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .settingsRow("model-choices")
     }
 }
 

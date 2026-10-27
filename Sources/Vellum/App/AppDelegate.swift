@@ -65,11 +65,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         updateChecker.checkForUpdates()
     }
 
-    func openSettings() {
+    func openSettings(page: SettingsPage? = nil) {
         if settingsWindowController == nil {
             settingsWindowController = SettingsWindowController()
         }
-        settingsWindowController?.show()
+        settingsWindowController?.show(page: page)
     }
 
     private func closeDuplicateMainWindows() {

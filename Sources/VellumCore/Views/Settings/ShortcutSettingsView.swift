@@ -37,5 +37,6 @@ struct ShortcutSettingsView: View {
         }
         .background(VellumColors.backgroundColor)
         .background(SettingsScrollChromeConfigurator())
+        .settingsReadingArea("shortcuts")
     }
 }

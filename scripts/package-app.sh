@@ -21,6 +21,11 @@ if [ -z "${APP_VERSION:-}" ]; then
     APP_VERSION="${APP_VERSION:-0.1.1}"
 fi
 
+if [ -n "${APP_RELEASE_NOTES_FILE:-}" ] && [ ! -s "$APP_RELEASE_NOTES_FILE" ]; then
+    echo "Release notes file is missing or empty: $APP_RELEASE_NOTES_FILE" >&2
+    exit 1
+fi
+
 CLANG_MODULE_CACHE_PATH="$ROOT_DIR/.build/ModuleCache" \
     swift build --configuration "$BUILD_CONFIG" --arch arm64 --arch x86_64 --cache-path "$ROOT_DIR/.build/SwiftPMCache"
 PRODUCT_DIR="$(CLANG_MODULE_CACHE_PATH="$ROOT_DIR/.build/ModuleCache" swift build --configuration "$BUILD_CONFIG" --arch arm64 --arch x86_64 --cache-path "$ROOT_DIR/.build/SwiftPMCache" --show-bin-path)"
@@ -34,6 +39,10 @@ SPARKLE_SOURCE="$SPARKLE_ARTIFACT_DIR/Sparkle.xcframework/macos-arm64_x86_64/Spa
 
 rm -rf "$APP_DIR"
 mkdir -p "$MACOS_DIR" "$RESOURCES_DIR" "$FRAMEWORKS_DIR"
+
+if [ -n "${APP_RELEASE_NOTES_FILE:-}" ]; then
+    cp "$APP_RELEASE_NOTES_FILE" "$RESOURCES_DIR/ReleaseNotes-$APP_VERSION.md"
+fi
 
 cp "$EXECUTABLE" "$MACOS_DIR/Vellum"
 ditto "$SPARKLE_SOURCE" "$FRAMEWORKS_DIR/Sparkle.framework"

@@ -16,7 +16,11 @@ struct VellumApp: App {
         }
         .windowStyle(.hiddenTitleBar)
         .commands {
-            CommandGroup(after: .appInfo) {
+            CommandGroup(replacing: .appInfo) {
+                Button(language.text(.aboutVellum)) {
+                    appDelegate.openSettings(page: .about)
+                }
+                Divider()
                 Button(language.text(.checkForUpdatesMenu)) {
                     appDelegate.checkForUpdates()
                 }

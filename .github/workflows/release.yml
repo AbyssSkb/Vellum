@@ -135,6 +135,7 @@ jobs:
       - name: Package app
         env:
           APP_VERSION: ${{ steps.version.outputs.version }}
+          APP_RELEASE_NOTES_FILE: ${{ steps.release_notes.outputs.path }}
           CODE_SIGN_IDENTITY: ${{ steps.signing.outputs.identity }}
         run: scripts/package-app.sh
 

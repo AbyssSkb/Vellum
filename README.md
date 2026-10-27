@@ -50,7 +50,7 @@ Press `s`, type the beginning of a visible word, then type its letter label to s
 
 ## Look up words offline
 
-Select a word and press `K` (`Shift-K`), or set double-clicks to **Dictionary** in General settings. Vellum displays entries from a local MDict dictionary with their original formatting, images, and pronunciation recordings. Vellum starts with no dictionary included or selected. Choose your `.mdx` file in **Settings → General**; see the [dictionary setup](docs/USER_GUIDE.md#local-dictionaries) for supported files and controls.
+Select a word and press `K` (`Shift-K`), or set double-clicks to **Dictionary** in **Settings → Reading**. Vellum displays entries from a local MDict dictionary with their original formatting, images, and pronunciation recordings. Vellum starts with no dictionary included or selected. Choose your `.mdx` file in **Settings → Local Dictionary**; see the [dictionary setup](docs/USER_GUIDE.md#local-dictionaries) for supported files and controls.
 
 ## Experimental AI
 
@@ -88,9 +88,9 @@ Letter shortcuts apply to the focused reading surface. The [user guide](docs/USE
 
 ## Preferences and updates
 
-Settings include English and Chinese UI, default file-opening behavior, initial page fit, highlight color, local dictionaries, optional session restoration, and AI configuration. Session restoration is off by default.
+Settings include English and Chinese UI, default file-opening behavior, initial page fit, highlight color, local dictionaries, optional session restoration, and AI configuration. Session restoration is off by default. Choose a category with `j` / `k` and enter it with `l`. Inside a page, `h` / `j` / `k` / `l` moves focus, and `Enter` or `Space` activates the focused control. Press `Enter` to edit a text field and `Esc` to leave editing. **About & Updates** shows the installed version’s bundled release notes offline.
 
-Sparkle handles automatic updates, with checks enabled by default. A new version downloads and prepares in the background, then Vellum offers to restart and update now or install when you normally quit. Manual checks from the Vellum menu or General settings use the same update window, with Vim-style release-note scrolling and letter shortcuts shown on its buttons. See the [update controls](docs/USER_GUIDE.md#settings-and-updates).
+Sparkle handles automatic updates, with checks enabled by default. A new version downloads and prepares in the background, then Vellum offers to restart and update now or install when you normally quit. Manual checks from the Vellum menu or **Settings → About & Updates** use the same update window, with Vim-style release-note scrolling and letter shortcuts shown on its buttons. See the [update controls](docs/USER_GUIDE.md#settings-and-updates).
 
 ## Build from source
 

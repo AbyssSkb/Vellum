@@ -4,6 +4,8 @@ import VellumCore
 
 @MainActor
 final class SettingsWindowController: NSWindowController {
+    let navigation = SettingsNavigation()
+
     private static let contentSize = NSSize(width: 820, height: 680)
     private static let minimumContentSize = NSSize(width: 720, height: 560)
 
@@ -25,7 +27,7 @@ final class SettingsWindowController: NSWindowController {
         window.contentMinSize = Self.minimumContentSize
         window.standardWindowButton(.zoomButton)?.isEnabled = true
 
-        let hostingView = NSHostingView(rootView: AISettingsView())
+        let hostingView = NSHostingView(rootView: AISettingsView(navigation: navigation))
         hostingView.frame = NSRect(origin: .zero, size: Self.contentSize)
         hostingView.autoresizingMask = [.width, .height]
         window.contentView = hostingView
@@ -38,7 +40,9 @@ final class SettingsWindowController: NSWindowController {
         nil
     }
 
-    func show() {
+    func show(page: SettingsPage? = nil) {
+        if let page { navigation.selectPage(page) }
+        navigation.focusSidebar()
         guard let window else { return }
         if !window.isVisible {
             window.center()

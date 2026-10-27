@@ -10,7 +10,7 @@ Vellum is a native macOS PDF reader with keyboard navigation, an immersive page 
 
 Download the app from [GitHub Releases](https://github.com/AbyssSkb/Vellum/releases/latest), open the disk image, and drag Vellum to Applications. Launch it and press `o` to open a PDF.
 
-`Command-O`, or `o` when no text is selected, follows **Settings → General → Default open mode**, initially set to replace the current tab. With text selected in the reader, `o` switches the selection endpoint being adjusted; `Command-O` still opens a PDF. `O` opens PDFs in new tabs and supports selecting several files at once. Files opened through Finder also open in new tabs.
+`Command-O`, or `o` when no text is selected, follows **Settings → Reading → Default open mode**, initially set to replace the current tab. With text selected in the reader, `o` switches the selection endpoint being adjusted; `Command-O` still opens a PDF. `O` opens PDFs in new tabs and supports selecting several files at once. Files opened through Finder also open in new tabs.
 
 Each file has one tab. Opening an already open file selects its existing tab. If it has changed on disk, reopening reloads its current contents after protecting any unsaved annotations. `X` restores the most recently closed PDF from disk.
 
@@ -60,7 +60,7 @@ Short taps move the page; holding a scroll or zoom key continues the movement.
 | `0` | Fit the whole page |
 | `z` | Fit page width |
 
-Page jumps and outline destinations are included in jump history. Numeric page jumps use the PDF's one-based page position. Fitting preserves the page's proportions: `z` fills the reading width, while `0` keeps the whole page visible. General settings let you choose Fit width or Fit page when opening a file.
+Page jumps and outline destinations are included in jump history. Numeric page jumps use the PDF's one-based page position. Fitting preserves the page's proportions: `z` fills the reading width, while `0` keeps the whole page visible. Reading settings let you choose Fit width or Fit page when opening a file.
 
 Reader motions accept counts: `10j` scrolls ten steps, `5f` moves five pages, and `3n` / `3N` move three search matches forward / backward. Page movement stops at the first or last page; search wraps through the results. With text selected, `3w` repeats the word motion three times; counts also apply to `h` / `j` / `k` / `l` / `b` / `e`. Counts execute once, up to 1,000 steps per command. Bare scroll keys still support holding. `Esc` clears a pending count, and `12G` / `12gg` remain absolute page jumps.
 
@@ -205,19 +205,19 @@ Word jump uses extractable PDF text. Scanned pages need a text layer before word
 
 ## Local dictionaries
 
-Select a word in the PDF and press `K` (`Shift-K`) to look it up. Lowercase `k` keeps its existing scrolling and selection behavior. You can also set the text double-click action to **Dictionary** in **Settings → General**. The entry opens in a floating panel with the dictionary's HTML formatting, styles, images, and local scripts. Double-click a word or follow a word link inside an entry to look it up in the same panel.
+Select a word in the PDF and press `K` (`Shift-K`) to look it up. Lowercase `k` keeps its existing scrolling and selection behavior. You can also set the text double-click action to **Dictionary** in **Settings → Reading**. The entry opens in a floating panel with the dictionary's HTML formatting, styles, images, and local scripts. Double-click a word or follow a word link inside an entry to look it up in the same panel.
 
 ### Set up a dictionary
 
 1. Keep your `.mdx` file, its `.mdd` resource files, and any companion CSS or JavaScript files together in one folder. Keep numbered resource volumes such as `dictionary.1.mdd` alongside `dictionary.mdd`.
-2. Vellum starts with no dictionary selected. Open **Settings → General** and choose the local dictionary's `.mdx` file. Allow access if macOS requests permission to read the folder.
+2. Vellum starts with no dictionary selected. Open **Settings → Local Dictionary** and choose the local dictionary's `.mdx` file. Allow access if macOS requests permission to read the folder.
 3. Select a word and press `K`, or double-click it when the double-click action is **Dictionary**.
 
 Vellum reads the dictionary directly from disk. The first version supports unencrypted MDict 2.x files with UTF-8 or UTF-16 text and uncompressed or zlib blocks. Other versions, encodings, encryption, and LZO compression are unsupported. One dictionary is active at a time. The app does not include dictionary content.
 
 ### Pronunciation and double-clicks
 
-Automatic pronunciation is on by default, with American selected. Choose British pronunciation or turn automatic pronunciation off in General settings. Automatic playback needs a recognizable headword speaker link for the selected accent and skips playback if it is missing; entries with other layouts can still use their manual audio links. The entry's original UK / US speaker links play the corresponding local recordings regardless of the automatic preference.
+Automatic pronunciation is on by default, with American selected. Choose British pronunciation or turn automatic pronunciation off in Local Dictionary settings. Automatic playback needs a recognizable headword speaker link for the selected accent and skips playback if it is missing; entries with other layouts can still use their manual audio links. The entry's original UK / US speaker links play the corresponding local recordings regardless of the automatic preference.
 
 Press `Esc` to close the panel and clear the PDF selection, or click outside to close the panel. Leaving the reader window stops pronunciation and closes the panel.
 
@@ -265,7 +265,7 @@ AI requests send the selection and extracted nearby context, such as its page, o
 | `A` | Browse explanation history for the current PDF |
 | `I` | Browse conversation history for the current PDF |
 
-Choose **AI** as the text double-click action in General settings to trigger an explanation or translation by double-clicking. A middle click on selected text is another explanation trigger.
+Choose **AI** as the text double-click action in Reading settings to trigger an explanation or translation by double-clicking. A middle click on selected text is another explanation trigger.
 
 In an explanation, use `j` / `k` to scroll, `c` to choose a highlight color, and `m` to save the passage and answer together as a PDF highlight. `Esc` dismisses the explanation. Hover a highlight with a saved explanation to reopen its answer.
 
@@ -275,13 +275,15 @@ In a conversation, type a follow-up question and press `Enter` to send. `Shift-E
 
 ## Settings and updates
 
-**General** contains the interface language, tab restoration, default open mode, initial page fit, default highlight color, local dictionary and pronunciation settings, the text double-click action, update checks, and AI logs. **AI Providers**, **AI Explanation**, and **AI Conversation** configure AI. **Shortcuts** contains an in-app key reference.
+**General** contains the interface language, tab restoration, and AI diagnostics. **Reading** contains the default open mode, text double-click action, initial page fit, and default highlight color. **Local Dictionary** contains the dictionary file, automatic pronunciation, and accent. The AI group contains **AI Providers**, **AI Explanation**, and **AI Conversation**. **Shortcuts** contains an in-app key reference. **About & Updates** shows the installed version, its bundled release notes, and update controls; **About Vellum** in the Vellum menu opens this same page. The bundled notes remain available offline.
+
+Use `j` / `k` to choose a category and `l` or `Enter` to enter its settings. In the content, `h` / `j` / `k` / `l` moves focus left, down, up, or right between controls, including the visible rows and columns of option grids. Moving focus leaves settings unchanged. Press `Enter` or `Space` to apply the focused option, toggle a switch, or activate a button. Press `Enter` to edit a text field; letters then type normally, and `Esc` leaves editing after the input method has handled any active composition. The same input keeps its focus outline before and during editing. At the left edge, `h` returns to categories; `Esc` also returns when you are not editing. Mouse and Tab navigation share the same focus. In the release notes and shortcut reference, `j` / `k` scroll smoothly; at a scroll edge, continuing in that direction moves to an adjacent control when one is available.
 
 Operation feedback appears as a Toast at the top of the window and disappears after a few seconds. It keeps the current keyboard focus, so you can continue reading or typing. Update check results use the same notifications; an error offers a details action. Ongoing update progress and annotation save recovery keep their interaction windows so you can finish or resolve them.
 
 Unavailable keyboard actions explain the reason, such as missing selected text, highlights, a search query, or jump history. Copying text briefly confirms success. Repeating the same notification does not extend its display time. Failed file opens, restores, and reloads report the filename and a confirmed reason; batch failures appear together. Hover over a long message or use accessibility to read its full contents.
 
-Sparkle handles updates, with automatic checks enabled initially. New versions download and prepare in the background. Once ready, choose **Restart and Update** to install immediately, or **Later** to keep reading; a prepared update can also install when you normally quit Vellum. Manual checks in General settings or the Vellum menu use the same update window. Choose **Update and Restart** to download, install, and restart in one step. Vellum saves annotations and the reading session before restarting.
+Sparkle handles updates, with automatic checks enabled initially. New versions download and prepare in the background. Once ready, choose **Restart and Update** to install immediately, or **Later** to keep reading; a prepared update can also install when you normally quit Vellum. Manual checks in About & Updates or the Vellum menu use the same update window. Choose **Update and Restart** to download, install, and restart in one step. Vellum saves annotations and the reading session before restarting.
 
 A Toast with a green checkmark confirms Vellum is up to date. Scroll long release notes with the keys below; the action buttons stay visible. Press a letter shown on a button to activate it; lowercase and uppercase both work.
 

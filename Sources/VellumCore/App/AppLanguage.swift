@@ -48,6 +48,13 @@ public enum AppUILanguage: String, CaseIterable, Identifiable, Sendable {
 }
 
 public enum AppText {
+    case aboutVellum
+    case aboutAndUpdates
+    case currentReleaseNotes
+    case localReleaseNotesUnavailable
+    case developmentBuild
+    case readingHeaderSubtitle
+    case dictionaryHeaderSubtitle
     case aiInvalidBaseURL
     case aiMissingModel
     case aiMissingAPIKey
@@ -513,7 +520,14 @@ public extension AppText {
         case .fitPage: return "Fit Page"
         case .fitWidth: return "Fit Width"
         case .general: return "General"
-        case .generalHeaderSubtitle: return "Set startup, reading, and update behavior."
+        case .generalHeaderSubtitle: return "Set interface, startup, and diagnostic preferences."
+        case .aboutVellum: return "About Vellum"
+        case .aboutAndUpdates: return "About & Updates"
+        case .currentReleaseNotes: return "What’s New"
+        case .localReleaseNotesUnavailable: return "Release notes are not included in this build."
+        case .developmentBuild: return "Development"
+        case .readingHeaderSubtitle: return "Set how PDFs open and respond while reading."
+        case .dictionaryHeaderSubtitle: return "Choose a local dictionary and its pronunciation preferences."
         case .highlightsAndAI: return "Highlights and AI"
         case .installingVersion(let version): return "Installing Vellum \(version)"
         case .installingDetail: return "Vellum will quit, update itself, and reopen."
@@ -838,7 +852,14 @@ public extension AppText {
         case .fitPage: return "适合整页"
         case .fitWidth: return "适合宽度"
         case .general: return "通用"
-        case .generalHeaderSubtitle: return "设置启动、阅读和更新行为。"
+        case .generalHeaderSubtitle: return "设置界面、启动和诊断偏好。"
+        case .aboutVellum: return "关于 Vellum"
+        case .aboutAndUpdates: return "关于与更新"
+        case .currentReleaseNotes: return "本次更新"
+        case .localReleaseNotesUnavailable: return "此构建未附带更新说明。"
+        case .developmentBuild: return "开发版"
+        case .readingHeaderSubtitle: return "设置 PDF 的打开方式与阅读交互。"
+        case .dictionaryHeaderSubtitle: return "选择本地词典并设置发音偏好。"
         case .highlightsAndAI: return "高亮与 AI"
         case .installingVersion(let version): return "正在安装 Vellum \(version)"
         case .installingDetail: return "Vellum 会退出、更新自己，然后重新打开。"
