@@ -196,8 +196,13 @@ struct SettingsNavigationTests {
                 context: nil, eventNumber: 1, clickCount: 1, pressure: type == .leftMouseDown ? 1 : 0))
             NSApp.postEvent(event, atStart: false)
         }
-        try await waitForTestCondition("Clicking a switch focuses and changes that setting", dispatchAppKitEvents: true) {
-            fixture.model.value && fixture.navigation.controlID == "toggle"
+        do {
+            try await waitForTestCondition("Clicking a switch focuses and changes that setting", dispatchAppKitEvents: true) {
+                fixture.model.value && fixture.navigation.controlID == "toggle"
+            }
+        } catch {
+            print("Settings click: value=\(fixture.model.value), control=\(fixture.navigation.controlID ?? "nil"), bounds=\(bounds), key=\(fixture.window.isKeyWindow), active=\(NSApp.isActive), responder=\(String(describing: fixture.window.firstResponder))")
+            throw error
         }
         #expect(try fixture.press("j"))
         #expect(fixture.navigation.rowID == "choices-row")
@@ -681,6 +686,7 @@ struct SettingsNavigationTests {
                     .padding(8)
                     .settingsRow("editor-row")
             }
+            .buttonStyle(.plain)
             .padding(20)
         }
     }
