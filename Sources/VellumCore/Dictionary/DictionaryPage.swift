@@ -167,7 +167,13 @@ enum DictionaryPage {
           });
           await Promise.allSettled(images.map(image => image.decode()));
           await document.fonts.ready;
-          await new Promise(resolve => requestFrame(() => requestFrame(resolve)));
+          await new Promise(resolve => requestFrame(() => {
+            // Reveal the final theme colors without disabling subsequent hover and click transitions.
+            for (const animation of document.getAnimations()) {
+              if (animation instanceof CSSTransition) animation.finish();
+            }
+            requestFrame(resolve);
+          }));
         }
       };
       new MutationObserver(schedule).observe(document, {subtree: true, childList: true, attributes: true, characterData: true});
