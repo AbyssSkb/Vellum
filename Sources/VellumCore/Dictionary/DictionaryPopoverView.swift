@@ -9,6 +9,7 @@ final class DictionaryPopoverView: NSView, WKNavigationDelegate, WKScriptMessage
     static var reusable: DictionaryPopoverView?
 
     var onDismiss: (() -> Void)?
+    var onLookupMiss: ((String) -> Void)?
     var onPreferredHeightChange: ((CGFloat) -> Void)?
     var onLoadingChange: ((Bool) -> Void)?
     private(set) var preferredHeight: CGFloat = 160
@@ -109,7 +110,11 @@ final class DictionaryPopoverView: NSView, WKNavigationDelegate, WKScriptMessage
                 let entry = try await DictionaryStore.shared.lookup(word, at: location)
                 guard !Task.isCancelled, let self, self.lookupID == id else { return }
                 guard let entry else {
-                    self.showMessage(self.language.text(.dictionaryNotFound(word)))
+                    if let onLookupMiss = self.onLookupMiss {
+                        onLookupMiss(word)
+                    } else {
+                        self.showMessage(self.language.text(.dictionaryNotFound(word)))
+                    }
                     return
                 }
                 self.model.word = entry.word

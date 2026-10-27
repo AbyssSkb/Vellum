@@ -205,7 +205,9 @@ Word jump uses extractable PDF text. Scanned pages need a text layer before word
 
 ## Local dictionaries
 
-Press `K` (`Shift-K`) to look up selected text in the PDF. With no text selected, it starts the same word hints as `s`: type a word prefix, then its label; Vellum looks up the chosen word automatically. `Esc` cancels this selection without a lookup. Ordinary `s` still selects text without opening the dictionary. Lowercase `k` keeps its existing scrolling and selection behavior. You can also set the text double-click action to **Dictionary** in **Settings → Reading**. The entry opens in a floating panel with the dictionary's HTML formatting, styles, images, and local scripts. Double-click a word or follow a word link inside an entry to look it up in the same panel.
+Press `K` (`Shift-K`) to look up selected text in the PDF. With a dictionary configured and no text selected, it starts the same word hints as `s`: type a word prefix, then its label; Vellum looks up the chosen word automatically. `Esc` cancels this selection without a lookup. Ordinary `s` still selects text without opening the dictionary. Lowercase `k` keeps its existing scrolling and selection behavior. You can also set the text double-click action to **Dictionary** in **Settings → Reading**. The entry opens in a floating panel with the dictionary's HTML formatting, styles, images, and local scripts. Double-click a word or follow a word link inside an entry to look it up in the same panel.
+
+If no dictionary is configured or the word has no entry, a brief notification appears and focus returns to the reader with the selection cleared. No empty dictionary panel needs to be dismissed.
 
 ### Set up a dictionary
 

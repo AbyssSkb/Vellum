@@ -6,26 +6,23 @@ import Testing
 @MainActor
 @Suite("Dictionary reader interaction")
 struct PDFDictionaryInteractionTests {
-    @Test(arguments: [false, true])
-    func dictionaryKeyWithoutSelectionLooksUpTheChosenWord(hasDictionary: Bool) async throws {
+    @Test
+    func dictionaryKeyWithoutSelectionLooksUpTheChosenWord() async throws {
         try await withReader { window, view, _ in
             let directory = FileManager.default.temporaryDirectory.appendingPathComponent("VellumDictionaryWordJump-\(UUID().uuidString)")
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             defer { try? FileManager.default.removeItem(at: directory) }
-            if hasDictionary {
-                let mdx = directory.appendingPathComponent("fixture.mdx")
-                try MDictFixture(entries: [("world", Data("<p id='definition'>Chosen word definition</p>".utf8))]).data.write(to: mdx)
-                UserDefaults.standard.set(mdx.path, forKey: AppPreferenceKeys.dictionaryPath)
-            } else {
-                UserDefaults.standard.removeObject(forKey: AppPreferenceKeys.dictionaryPath)
-            }
+            let mdx = directory.appendingPathComponent("fixture.mdx")
+            try MDictFixture(entries: [("world", Data("<p id='definition'>Chosen word definition</p>".utf8))]).data.write(to: mdx)
+            UserDefaults.standard.set(mdx.path, forKey: AppPreferenceKeys.dictionaryPath)
             view.clearTextSelectionForVimNavigation()
             let keyboard = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false)
             let delegate = DictionaryKeyboardDelegate(reader: view)
             keyboard.delegate = delegate
             defer { keyboard.cancelInput() }
 
-            #expect(try keyboard.routeKeyEvent(keyEvent("K", in: window)))
+            let start = try keyEvent("K", in: window)
+            #expect(keyboard.routeKeyEvent(start))
             #expect(try keyboard.routeKeyEvent(keyEvent("K", in: window, type: .keyUp)))
             #expect(view.isWordJumpActive)
             #expect(view.dictionaryPopover == nil)
@@ -40,13 +37,153 @@ struct PDFDictionaryInteractionTests {
             #expect(window.firstResponder === view.dictionaryOverlay)
             #expect(try !view.handleWordJumpKey(keyEvent("\r", in: window)))
             #expect(view.dictionaryPopover === popover)
-            if hasDictionary {
-                try await waitForTestCondition("The chosen word loads its local definition", dispatchAppKitEvents: true) { !popover.isLoading }
-                #expect(try await popover.webView.evaluateJavaScript("document.getElementById('definition')?.textContent") as? String == "Chosen word definition")
-            } else {
-                #expect(AppPreferences.dictionaryLocation() == nil)
-                #expect(!popover.isLoading)
+            try await waitForTestCondition("The chosen word loads its local definition", dispatchAppKitEvents: true) { !popover.isLoading }
+            #expect(try await popover.webView.evaluateJavaScript("document.getElementById('definition')?.textContent") as? String == "Chosen word definition")
+        }
+    }
+
+    @Test(arguments: [false, true])
+    func unconfiguredDictionaryKeyShowsAToastWithoutStartingASelectionOrPopover(hasSelection: Bool) async throws {
+        try await withReader { window, view, _ in
+            UserDefaults.standard.removeObject(forKey: AppPreferenceKeys.dictionaryPath)
+            if !hasSelection { view.clearTextSelectionForVimNavigation() }
+            let keyboard = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false)
+            let delegate = DictionaryKeyboardDelegate(reader: view)
+            keyboard.delegate = delegate
+            defer { keyboard.cancelInput() }
+
+            let start = try keyEvent("K", in: window)
+            #expect(keyboard.routeKeyEvent(start))
+            #expect(try keyboard.routeKeyEvent(keyEvent("K", in: window, type: .keyUp)))
+
+            #expect(currentToast(in: window)?.message == AppUILanguage.saved().text(.dictionaryUnavailable))
+            #expect(!view.isWordJumpActive)
+            #expect(!view.isDictionaryInteractionActive)
+            #expect(view.dictionaryPopover == nil)
+            #expect(view.dictionaryAccessTask == nil)
+            #expect(view.currentSelection == nil)
+            #expect(window.firstResponder === view)
+        }
+    }
+
+    @Test(arguments: ["wordSelection", "access", "popover"])
+    func removingTheDictionaryCancelsExistingLookupInteraction(interaction: String) async throws {
+        try await withReader { window, view, _ in
+            if interaction == "wordSelection" { view.clearTextSelectionForVimNavigation() }
+            view.vimLookupDictionary()
+            if interaction == "popover" { try await waitForDictionary(in: view) }
+            let pendingAccess = view.dictionaryAccessTask
+            #expect(interaction != "wordSelection" || view.isWordJumpActive)
+            #expect(interaction != "access" || pendingAccess != nil)
+            #expect(interaction != "popover" || view.dictionaryPopover != nil)
+
+            UserDefaults.standard.removeObject(forKey: AppPreferenceKeys.dictionaryPath)
+            view.vimLookupDictionary()
+            await pendingAccess?.value
+            await nextTestMainQueueTurn()
+
+            #expect(currentToast(in: window)?.message == AppUILanguage.saved().text(.dictionaryUnavailable))
+            #expect(!view.isWordJumpActive)
+            #expect(!view.isDictionaryInteractionActive)
+            #expect(view.dictionaryPopover == nil)
+            #expect(view.dictionaryAccessTask == nil)
+            #expect(view.dictionaryAccessCompletion == nil)
+            #expect(view.dictionaryLifecycleObservers.isEmpty)
+            #expect(view.currentSelection == nil)
+            #expect(window.firstResponder === view)
+        }
+    }
+
+    @Test(arguments: [false, true])
+    func missingDictionaryEntryShowsAToastAndReturnsToReading(selectWithDictionaryKey: Bool) async throws {
+        try await withReader { window, view, _ in
+            let directory = FileManager.default.temporaryDirectory.appendingPathComponent("VellumDictionaryMiss-\(UUID().uuidString)")
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: directory) }
+            let mdx = directory.appendingPathComponent("fixture.mdx")
+            try MDictFixture(entries: [("another", Data("<p>Another definition</p>".utf8))]).data.write(to: mdx)
+            UserDefaults.standard.set(mdx.path, forKey: AppPreferenceKeys.dictionaryPath)
+            if selectWithDictionaryKey { view.clearTextSelectionForVimNavigation() }
+            let keyboard = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false)
+            let delegate = DictionaryKeyboardDelegate(reader: view)
+            keyboard.delegate = delegate
+            defer { keyboard.cancelInput() }
+
+            #expect(try keyboard.routeKeyEvent(keyEvent("K", in: window)))
+            #expect(try keyboard.routeKeyEvent(keyEvent("K", in: window, type: .keyUp)))
+            if selectWithDictionaryKey {
+                #expect(view.isWordJumpActive)
+                #expect(try keyboard.routeKeyEvent(keyEvent("h", in: window)))
+                #expect(try keyboard.routeKeyEvent(keyEvent("\r", in: window)))
             }
+            try await waitForTestCondition("An absent entry reports its result without an empty popover", dispatchAppKitEvents: true) {
+                currentToast(in: window)?.message == AppUILanguage.saved().text(.dictionaryNotFound("hello"))
+            }
+
+            #expect(!view.isWordJumpActive)
+            #expect(!view.isDictionaryInteractionActive)
+            #expect(view.dictionaryPopover == nil)
+            #expect(view.dictionaryOverlay == nil)
+            #expect(view.dictionaryAccessTask == nil)
+            #expect(view.dictionaryLifecycleObservers.isEmpty)
+            #expect(view.dictionaryDismissMonitor == nil)
+            #expect(view.currentSelection == nil)
+            #expect(window.firstResponder === view)
+            #expect(try keyboard.routeKeyEvent(keyEvent("j", in: window)))
+            #expect(!view.isDictionaryInteractionActive)
+        }
+    }
+
+    @Test
+    func anUnreadableDictionaryKeepsItsErrorDistinctFromAMissingEntry() async throws {
+        try await withReader { window, view, _ in
+            view.vimLookupDictionary()
+            try await waitForDictionary(in: view)
+            let popover = try #require(view.dictionaryPopover)
+            try await waitForTestCondition("The unreadable dictionary reports its error", dispatchAppKitEvents: true) { !popover.isLoading }
+
+            #expect(view.isDictionaryInteractionActive)
+            #expect(currentToast(in: window) == nil)
+            #expect(view.currentSelection?.string == "hello")
+        }
+    }
+
+    @Test(arguments: ["application", "window", "document", "close"])
+    func cancellingAMissingEntryLookupDoesNotShowALateToast(cancellation: String) async throws {
+        try await withReader { window, view, _ in
+            let directory = FileManager.default.temporaryDirectory.appendingPathComponent("VellumDictionaryCancelledMiss-\(UUID().uuidString)")
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: directory) }
+            let mdx = directory.appendingPathComponent("fixture.mdx")
+            try MDictFixture(entries: [("hello", Data("<p>Definition</p>".utf8))]).data.write(to: mdx)
+            UserDefaults.standard.set(mdx.path, forKey: AppPreferenceKeys.dictionaryPath)
+            view.vimLookupDictionary()
+            try await waitForDictionary(in: view)
+            let popover = try #require(view.dictionaryPopover)
+            try await waitForTestCondition("The entry loads before testing cancellation", dispatchAppKitEvents: true) { !popover.isLoading }
+            let selectedText = view.currentSelection?.string
+
+            popover.lookup("missing")
+            #expect(popover.isLoading)
+            switch cancellation {
+            case "application":
+                NotificationCenter.default.post(name: NSApplication.willResignActiveNotification, object: NSApp)
+            case "window":
+                NotificationCenter.default.post(name: NSWindow.didResignKeyNotification, object: window)
+            case "document":
+                view.document = try makeTextPDF(pages: [[("another", NSPoint(x: 72, y: 720))]])
+            default:
+                window.close()
+            }
+            await nextTestMainQueueTurn()
+            await DictionaryStore.shared.invalidate()
+            await nextTestMainQueueTurn()
+
+            #expect(currentToast(in: window) == nil)
+            #expect(!view.isDictionaryInteractionActive)
+            #expect(view.dictionaryPopover == nil)
+            #expect(view.dictionaryLifecycleObservers.isEmpty)
+            if cancellation != "document" { #expect(view.currentSelection?.string == selectedText) }
         }
     }
 
@@ -138,12 +275,12 @@ struct PDFDictionaryInteractionTests {
 
     @Test
     func dictionaryPresentsTheEntryAtItsMeasuredHeightWithoutFlashingALoadingPanel() async throws {
-        try await withReader { _, view, _ in
+        try await withReader { window, view, _ in
             let directory = FileManager.default.temporaryDirectory.appendingPathComponent("VellumDictionaryReveal-\(UUID().uuidString)")
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             defer { try? FileManager.default.removeItem(at: directory) }
             let mdx = directory.appendingPathComponent("fixture.mdx")
-            try MDictFixture(entries: [("hello", Data("<div style='height:300px'>Definition</div>".utf8))]).data.write(to: mdx)
+            try MDictFixture(entries: [("hello", Data("<div style='height:300px'>Definition <a id='missing' href='entry://missing'>Missing entry</a></div>".utf8))]).data.write(to: mdx)
             UserDefaults.standard.set(mdx.path, forKey: AppPreferenceKeys.dictionaryPath)
 
             view.vimLookupDictionary()
@@ -171,10 +308,14 @@ struct PDFDictionaryInteractionTests {
             #expect(overlay.alphaValue == 1)
             #expect(overlay.frame.height > 300)
 
-            popover.lookup("missing")
-            try await waitForTestCondition("A missing entry displays its result", dispatchAppKitEvents: true) { !popover.isLoading }
-            #expect(overlay.alphaValue == 1)
-            #expect(overlay.frame.height == 160)
+            _ = try await popover.webView.evaluateJavaScript("document.getElementById('missing').click()")
+            try await waitForTestCondition("A missing entry closes the popover and shows a toast", dispatchAppKitEvents: true) {
+                currentToast(in: window)?.message == AppUILanguage.saved().text(.dictionaryNotFound("missing"))
+            }
+            #expect(!view.isDictionaryInteractionActive)
+            #expect(overlay.superview == nil)
+            #expect(view.currentSelection == nil)
+            #expect(window.firstResponder === view)
         }
     }
 
@@ -390,6 +531,7 @@ struct PDFDictionaryInteractionTests {
             #expect(view.dictionaryAccessCompletion == nil)
             #expect(!view.isDictionaryInteractionActive)
             #expect(view.dictionaryPopover == nil)
+            #expect(currentToast(in: window) == nil)
         }
     }
 
@@ -502,6 +644,10 @@ struct PDFDictionaryInteractionTests {
         try await waitForTestCondition("The dictionary popover is created", dispatchAppKitEvents: true) {
             view.dictionaryPopover != nil
         }
+    }
+
+    private func currentToast(in window: NSWindow) -> ToastView? {
+        window.contentView?.superview?.subviews.compactMap { $0 as? ToastView }.first
     }
 }
 

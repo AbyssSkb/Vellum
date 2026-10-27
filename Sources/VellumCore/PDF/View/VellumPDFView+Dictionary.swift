@@ -8,6 +8,13 @@ extension VellumPDFView {
 
     func vimLookupDictionary() {
         guard appState == nil || appState?.activeReaderController === self else { return }
+        guard let location = AppPreferences.dictionaryLocation() else {
+            cancelWordJump()
+            dismissDictionaryPopover(restoreFocus: false)
+            clearTextSelectionForVimNavigation()
+            showNotification(AppUILanguage.saved().text(.dictionaryUnavailable))
+            return
+        }
         let text = AISelectedTextNormalizer.normalized(currentSelection?.string ?? "")
         guard !text.isEmpty else {
             if wordJumpController == nil { wordJumpController = PDFWordJumpController(pdfView: self) }
@@ -30,10 +37,6 @@ extension VellumPDFView {
             return
         }
 
-        guard let location = AppPreferences.dictionaryLocation() else {
-            presentDictionaryLookup(text)
-            return
-        }
         let document = document
         installDictionaryLifecycleObservers(observeFocus: false)
         dictionaryAccessTask = Task { [weak self, weak window] in
@@ -71,6 +74,12 @@ extension VellumPDFView {
         }
         DictionaryPopoverView.reusable = nil
         popover.onDismiss = { [weak self] in self?.dismissDictionaryPopover() }
+        popover.onLookupMiss = { [weak self, weak popover] word in
+            guard let self, let popover, self.dictionaryPopover === popover else { return }
+            self.dismissDictionaryPopover(restoreFocus: false)
+            self.clearTextSelectionForVimNavigation()
+            self.showNotification(AppUILanguage.saved().text(.dictionaryNotFound(word)))
+        }
         popover.onPreferredHeightChange = { [weak self, weak popover] height in
             guard let self, let popover, self.dictionaryPopover === popover else { return }
             self.dictionaryPreferredHeight = height
