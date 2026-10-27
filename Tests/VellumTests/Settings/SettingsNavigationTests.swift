@@ -189,11 +189,21 @@ struct SettingsNavigationTests {
         try await fixture.ready()
         let toggle = try #require(fixture.anchor("toggle"))
         let bounds = toggle.convert(toggle.bounds, to: nil)
+        let activeBeforeClick = NSApp.isActive
+        var deliveredClicks: [String] = []
+        let monitor = try #require(NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .leftMouseUp]) { event in
+            MainActor.assumeIsolated {
+                deliveredClicks.append("\(event.type): window=\(event.windowNumber), point=\(event.locationInWindow)")
+            }
+            return event
+        })
+        defer { NSEvent.removeMonitor(monitor) }
         for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
             let event = try #require(NSEvent.mouseEvent(with: type,
                 location: NSPoint(x: bounds.midX, y: bounds.midY), modifierFlags: [],
                 timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: fixture.window.windowNumber,
                 context: nil, eventNumber: 1, clickCount: 1, pressure: type == .leftMouseDown ? 1 : 0))
+            #expect(event.window === fixture.window)
             NSApp.postEvent(event, atStart: false)
         }
         do {
@@ -201,7 +211,7 @@ struct SettingsNavigationTests {
                 fixture.model.value && fixture.navigation.controlID == "toggle"
             }
         } catch {
-            print("Settings click: value=\(fixture.model.value), control=\(fixture.navigation.controlID ?? "nil"), bounds=\(bounds), key=\(fixture.window.isKeyWindow), active=\(NSApp.isActive), responder=\(String(describing: fixture.window.firstResponder))")
+            print("Settings click: value=\(fixture.model.value), control=\(fixture.navigation.controlID ?? "nil"), bounds=\(bounds) -> \(toggle.convert(toggle.bounds, to: nil)), window=\(fixture.window.windowNumber), key=\(fixture.window.isKeyWindow), active=\(activeBeforeClick) -> \(NSApp.isActive), delivered=\(deliveredClicks), responder=\(String(describing: fixture.window.firstResponder))")
             throw error
         }
         #expect(try fixture.press("j"))
@@ -753,12 +763,12 @@ struct SettingsNavigationTests {
 
         func ready() async throws {
             do {
-                try await waitForTestCondition("Settings controls are mounted in a key window", dispatchAppKitEvents: true) {
+                try await waitForTestCondition("Settings controls are mounted in an active key window", dispatchAppKitEvents: true) {
                     self.host.layoutSubtreeIfNeeded()
                     let mounted = self.lazyGrid ? self.anchor("grid-0") != nil : self.readingOnly
                         ? self.anchor("notes-row")?.page == self.navigation.page
                         : self.anchor("editor-row")?.page == self.navigation.page && self.nativeFields.count >= 2
-                    return self.window.isKeyWindow && mounted
+                    return NSApp.isActive && self.window.isKeyWindow && mounted
                 }
             } catch {
                 let mountedAnchors = descendants(of: SettingsAnchorView.self, in: host).map { "\($0.id):\($0.page.rawValue)" }
