@@ -34,6 +34,8 @@ The app's `CFBundleVersion` and `CFBundleShortVersionString` both use the releas
 
 Set `APP_RELEASE_NOTES_FILE` to a nonempty English Markdown file containing the notes for `APP_VERSION` when packaging a preview or release. The package script copies it to `Contents/Resources/ReleaseNotes-$APP_VERSION.md`. **About & Updates** reads only the resource matching the installed `CFBundleShortVersionString`, so the notes remain available offline and do not show a newer version's changes. Without a matching file, the page reports that local release notes are unavailable. The release workflow passes the same generated notes to packaging and GitHub publication.
 
+Use `## What's Changed` followed by one English commit subject and short SHA per bullet, in commit order: `- Commit subject (abcdef0)`. Keep the generated list consistent across GitHub, bundled notes, and Sparkle, including when editing a published release.
+
 ## Keyboard zoom performance check
 
 Run the foreground probe with a local PDF that reproduces the problem:
