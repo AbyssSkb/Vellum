@@ -189,11 +189,12 @@ struct SettingsNavigationTests {
         try await fixture.ready()
         let toggle = try #require(fixture.anchor("toggle"))
         let bounds = toggle.convert(toggle.bounds, to: nil)
-        let activeBeforeClick = NSApp.isActive
-        var deliveredClicks: [String] = []
+        let point = NSPoint(x: bounds.midX, y: bounds.midY)
+        let screen = try #require(NSScreen.screens.first)
+        try #require(screen.visibleFrame.contains(fixture.window.convertPoint(toScreen: point)))
         let monitor = try #require(NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .leftMouseUp]) { event in
             MainActor.assumeIsolated {
-                deliveredClicks.append("\(event.type): window=\(event.windowNumber), point=\(event.locationInWindow)")
+                if event.window === fixture.window { #expect(event.locationInWindow == point) }
             }
             return event
         })
@@ -206,13 +207,8 @@ struct SettingsNavigationTests {
             #expect(event.window === fixture.window)
             NSApp.postEvent(event, atStart: false)
         }
-        do {
-            try await waitForTestCondition("Clicking a switch focuses and changes that setting", dispatchAppKitEvents: true) {
-                fixture.model.value && fixture.navigation.controlID == "toggle"
-            }
-        } catch {
-            print("Settings click: value=\(fixture.model.value), control=\(fixture.navigation.controlID ?? "nil"), bounds=\(bounds) -> \(toggle.convert(toggle.bounds, to: nil)), window=\(fixture.window.windowNumber), key=\(fixture.window.isKeyWindow), active=\(activeBeforeClick) -> \(NSApp.isActive), delivered=\(deliveredClicks), responder=\(String(describing: fixture.window.firstResponder))")
-            throw error
+        try await waitForTestCondition("Clicking a switch focuses and changes that setting", dispatchAppKitEvents: true) {
+            fixture.model.value && fixture.navigation.controlID == "toggle"
         }
         #expect(try fixture.press("j"))
         #expect(fixture.navigation.rowID == "choices-row")
@@ -735,6 +731,11 @@ struct SettingsNavigationTests {
     }
 
     @MainActor
+    private final class FixtureWindow: NSWindow {
+        override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect { frameRect }
+    }
+
+    @MainActor
     private final class Fixture {
         let model = Model()
         let navigation = SettingsNavigation()
@@ -749,7 +750,7 @@ struct SettingsNavigationTests {
             _ = NSApplication.shared
             // The command-line test host must opt in before it can own a key window.
             NSApp.setActivationPolicy(.accessory)
-            window = NSWindow(contentRect: NSRect(x: 60, y: 60, width: 620, height: 640), styleMask: [.titled, .closable], backing: .buffered, defer: false)
+            window = FixtureWindow(contentRect: NSRect(x: 60, y: 60, width: 620, height: 640), styleMask: [.titled, .closable], backing: .buffered, defer: false)
             window.isReleasedWhenClosed = false
             let content = readingOnly ? AnyView(ReadingContent())
                 : lazyGrid ? AnyView(LazyGridContent(model: model)) : AnyView(Content(model: model))
@@ -777,6 +778,9 @@ struct SettingsNavigationTests {
             }
             navigation.focusSidebar()
             await nextTestMainQueueTurn()
+            let screen = try #require(NSScreen.screens.first)
+            window.setFrameTopLeftPoint(NSPoint(x: screen.frame.minX, y: screen.frame.maxY))
+            try #require(window.frame.minX == screen.frame.minX && window.frame.maxY == screen.frame.maxY)
         }
 
         func anchor(_ id: String) -> SettingsAnchorView? {
