@@ -5,6 +5,36 @@ import Testing
 @Suite("AI request logger")
 struct AIRequestLoggerTests {
     @Test
+    func defaultLogDirectoryPreservesProductionAndUnbundledPaths() {
+        let appSupport = URL(fileURLWithPath: "/test-support", isDirectory: true)
+        let production = appSupport.appendingPathComponent("Vellum/Logs", isDirectory: true)
+
+        #expect(AIRequestLogger.defaultLogsDirectoryURL(
+            applicationSupportURL: appSupport, bundleIdentifier: "com.abyssskb.vellum"
+        ) == production)
+        #expect(AIRequestLogger.defaultLogsDirectoryURL(
+            applicationSupportURL: appSupport, bundleIdentifier: nil
+        ) == production)
+    }
+
+    @Test
+    func defaultLogDirectoryIsolatesPreviewIdentities() {
+        let appSupport = URL(fileURLWithPath: "/test-support", isDirectory: true)
+        let first = AIRequestLogger.defaultLogsDirectoryURL(
+            applicationSupportURL: appSupport, bundleIdentifier: "com.abyssskb.vellum.preview.first"
+        )
+        let second = AIRequestLogger.defaultLogsDirectoryURL(
+            applicationSupportURL: appSupport, bundleIdentifier: "com.abyssskb.vellum.preview.second"
+        )
+
+        #expect(first == appSupport.appendingPathComponent("com.abyssskb.vellum.preview.first/Logs", isDirectory: true))
+        #expect(second == appSupport.appendingPathComponent("com.abyssskb.vellum.preview.second/Logs", isDirectory: true))
+        #expect(first != second)
+        #expect(first != appSupport.appendingPathComponent("Vellum/Logs", isDirectory: true))
+        #expect(second != appSupport.appendingPathComponent("Vellum/Logs", isDirectory: true))
+    }
+
+    @Test
     func openLogReportsRejectedLaunch() throws {
         var openedURL: URL?
 

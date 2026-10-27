@@ -151,8 +151,13 @@ enum AIRequestLogger {
 
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? FileManager.default.homeDirectoryForCurrentUser
-        return appSupport
-            .appendingPathComponent("Vellum", isDirectory: true)
+        return defaultLogsDirectoryURL(applicationSupportURL: appSupport, bundleIdentifier: Bundle.main.bundleIdentifier)
+    }
+
+    static func defaultLogsDirectoryURL(applicationSupportURL: URL, bundleIdentifier: String?) -> URL {
+        let directoryName = bundleIdentifier == "com.abyssskb.vellum" ? "Vellum" : (bundleIdentifier ?? "Vellum")
+        return applicationSupportURL
+            .appendingPathComponent(directoryName, isDirectory: true)
             .appendingPathComponent("Logs", isDirectory: true)
     }
 

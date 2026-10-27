@@ -12,6 +12,7 @@ open "dist/Vellum Preview $preview_id.app"
 ```
 
 Keep the user's current Vellum running while opening the preview.
+Independent previews keep their AI request logs under `Application Support/<bundle identifier>/Logs`.
 
 For end-to-end updater tests, sign local fixtures with a temporary Ed25519 key and embed its public key in the isolated preview.
 
