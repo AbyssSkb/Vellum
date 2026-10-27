@@ -341,6 +341,16 @@ struct PDFWordJumpTests {
 
     @Test(arguments: ["scroll", "resize", "document"], [false, true]) @MainActor
     func changingTheViewportOrDocumentCancelsStaleLabels(change: String, lookupAfterSelection: Bool) async throws {
+        let defaults = UserDefaults.standard
+        let previousDictionary = defaults.object(forKey: AppPreferenceKeys.dictionaryPath)
+        let dictionary = FileManager.default.temporaryDirectory.appendingPathComponent("VellumWordJump-\(UUID().uuidString).mdx")
+        defer {
+            if let previousDictionary { defaults.set(previousDictionary, forKey: AppPreferenceKeys.dictionaryPath) }
+            else { defaults.removeObject(forKey: AppPreferenceKeys.dictionaryPath) }
+            try? FileManager.default.removeItem(at: dictionary)
+        }
+        try MDictFixture(entries: [("alpha", Data("<p>Definition</p>".utf8))]).data.write(to: dictionary)
+        defaults.set(dictionary.path, forKey: AppPreferenceKeys.dictionaryPath)
         let (window, view) = try await makeReader(pages: [
             [("alpha", NSPoint(x: 72, y: 650))],
             [("beta", NSPoint(x: 72, y: 650))]
