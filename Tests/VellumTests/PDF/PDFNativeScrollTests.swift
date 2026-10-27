@@ -5,6 +5,58 @@ import Testing
 
 @Suite("PDF native scroll settlement")
 struct PDFNativeScrollTests {
+    @Test(arguments: [Int32(-1), Int32(1)]) @MainActor
+    func smallDiagonalTrackpadStartReachesNativeScrollingAsVertical(direction: Int32) throws {
+        let recorder = NativeScrollEventRecorder()
+        let scrollView: NSScrollView = recorder
+        PDFOverlayScrollerStyleLock.install(on: scrollView)
+        let cgEvent = try #require(try scrollEvent(direction, x: 2 * direction, phase: .began).cgEvent)
+        cgEvent.setDoubleValueField(.scrollWheelEventRawDeltaAxis2, value: Double(2 * direction))
+        cgEvent.setDoubleValueField(.scrollWheelEventAcceleratedDeltaAxis2, value: Double(2 * direction))
+        cgEvent.setIntegerValueField(.eventSourceUserData, value: 42)
+        let event = try #require(NSEvent(cgEvent: cgEvent))
+        try #require(event.hasPreciseScrollingDeltas)
+
+        scrollView.scrollWheel(with: event)
+
+        let received = try #require(recorder.event)
+        let receivedCGEvent = try #require(received.cgEvent)
+        #expect(received.scrollingDeltaX == 0)
+        #expect(received.scrollingDeltaY == event.scrollingDeltaY)
+        #expect(received.phase == event.phase)
+        #expect(received.momentumPhase == event.momentumPhase)
+        #expect(received.hasPreciseScrollingDeltas == event.hasPreciseScrollingDeltas)
+        #expect(received.timestamp == event.timestamp)
+        #expect(received.modifierFlags == event.modifierFlags)
+        #expect(receivedCGEvent.getIntegerValueField(.eventSourceUserData) == 42)
+        for field: CGEventField in [.scrollWheelEventDeltaAxis2, .scrollWheelEventPointDeltaAxis2,
+                                   .scrollWheelEventFixedPtDeltaAxis2, .scrollWheelEventRawDeltaAxis2,
+                                   .scrollWheelEventAcceleratedDeltaAxis2] {
+            #expect(receivedCGEvent.getDoubleValueField(field) == 0)
+        }
+        #expect(event.scrollingDeltaX == CGFloat(2 * direction))
+    }
+
+    @Test(arguments: ["horizontal", "threshold", "diagonal", "vertical", "changed", "momentum", "mouse", "shift"]) @MainActor
+    func otherNativeScrollEventsKeepTheirOriginalAxes(input: String) throws {
+        let recorder = NativeScrollEventRecorder()
+        let scrollView: NSScrollView = recorder
+        PDFOverlayScrollerStyleLock.install(on: scrollView)
+        let x: Int32 = input == "threshold" ? 4 : input == "diagonal" ? 40 : input == "vertical" ? 0 : 2
+        let y: Int32 = input == "horizontal" ? 0 : 1
+        let phase: CGScrollPhase? = input == "mouse" || input == "momentum" ? nil : input == "changed" ? .changed : .began
+        let cgEvent = try #require(try scrollEvent(y, x: x, phase: phase,
+                                                  momentum: input == "momentum" ? .begin : .none,
+                                                  units: input == "mouse" ? .line : .pixel).cgEvent)
+        if input == "shift" { cgEvent.flags = .maskShift }
+        let event = try #require(NSEvent(cgEvent: cgEvent))
+        if input == "mouse" { try #require(!event.hasPreciseScrollingDeltas) }
+
+        scrollView.scrollWheel(with: event)
+
+        #expect(recorder.event === event)
+    }
+
     @Test(arguments: ["j", "k", "d", "u", "D", "U"]) @MainActor
     func vimKeysMoveInReadingDirection(key: String) async throws {
         let (window, view, page) = try makeReader()
@@ -552,12 +604,12 @@ struct PDFNativeScrollTests {
 
     @MainActor
     private func scrollEvent(
-        _ delta: Int32, phase: CGScrollPhase? = nil,
-        momentum: CGMomentumScrollPhase = .none
+        _ delta: Int32, x: Int32 = 0, phase: CGScrollPhase? = nil,
+        momentum: CGMomentumScrollPhase = .none, units: CGScrollEventUnit = .pixel
     ) throws -> NSEvent {
         let cgEvent = try #require(CGEvent(
-            scrollWheelEvent2Source: nil, units: .pixel,
-            wheelCount: 1, wheel1: delta, wheel2: 0, wheel3: 0
+            scrollWheelEvent2Source: nil, units: units,
+            wheelCount: x == 0 ? 1 : 2, wheel1: delta, wheel2: x, wheel3: 0
         ))
         if phase != nil || momentum != .none {
             cgEvent.setIntegerValueField(.scrollWheelEventIsContinuous, value: 1)
@@ -619,5 +671,14 @@ struct PDFNativeScrollTests {
         let page = try #require(document.page(at: 1))
         view.centerBothAxes(on: view.pageCenterDestination(for: page))
         return (window, view, page)
+    }
+}
+
+@MainActor
+private class NativeScrollEventRecorder: NSScrollView {
+    var event: NSEvent?
+
+    override func scrollWheel(with event: NSEvent) {
+        self.event = event
     }
 }

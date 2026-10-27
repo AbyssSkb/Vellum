@@ -66,8 +66,21 @@ enum PDFOverlayScrollerStyleLock {
         typealias ScrollWheel = @convention(c) @Sendable (AnyObject, Selector, NSEvent) -> Void
         let originalScrollWheel = unsafeBitCast(method_getImplementation(wheelMethod), to: ScrollWheel.self)
         let constrainedScrollWheel: @convention(block) @MainActor (NSScrollView, NSEvent) -> Void = { scrollView, event in
-            PDFNativeScrollBoundsConstraint.withNativeScroll(on: scrollView, event: event) {
-                originalScrollWheel(scrollView, wheelSelector, event)
+            var scrollingEvent = event
+            if event.hasPreciseScrollingDeltas, event.phase.contains(.began),
+               event.scrollingDeltaY != 0, event.scrollingDeltaX != 0, abs(event.scrollingDeltaX) < 4,
+               event.modifierFlags.intersection([.shift, .control, .option, .command]).isEmpty,
+               let cgEvent = event.cgEvent?.copy() {
+                // Keep a small diagonal start from latching native scrolling to finger drift.
+                cgEvent.setIntegerValueField(.scrollWheelEventDeltaAxis2, value: 0)
+                cgEvent.setIntegerValueField(.scrollWheelEventPointDeltaAxis2, value: 0)
+                cgEvent.setDoubleValueField(.scrollWheelEventFixedPtDeltaAxis2, value: 0)
+                cgEvent.setDoubleValueField(.scrollWheelEventRawDeltaAxis2, value: 0)
+                cgEvent.setDoubleValueField(.scrollWheelEventAcceleratedDeltaAxis2, value: 0)
+                scrollingEvent = NSEvent(cgEvent: cgEvent) ?? event
+            }
+            PDFNativeScrollBoundsConstraint.withNativeScroll(on: scrollView, event: scrollingEvent) {
+                originalScrollWheel(scrollView, wheelSelector, scrollingEvent)
             }
         }
         guard class_addMethod(

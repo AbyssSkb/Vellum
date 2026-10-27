@@ -588,6 +588,7 @@ final class VellumPDFView: PDFView {
             scrollView.backgroundColor = .clear
         }
         scrollView.verticalScrollElasticity = .automatic
+        scrollView.usesPredominantAxisScrolling = true
         configuredPDFScrollView = scrollView
         configureReaderStatePersistence(for: scrollView)
     }
