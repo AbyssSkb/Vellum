@@ -564,6 +564,43 @@ struct KeyboardControllerTests {
         #expect(delegate.reader.actions == [.aiKey, .beginWordJump, .aiKey, .wordJumpKey("g")])
     }
 
+    @Test(arguments: [false, true], [NSApplication.willResignActiveNotification, NSWindow.didResignKeyNotification])
+    func dictionaryWordSelectionTracksReaderFocusAndCancelsOnDeactivation(fromOutline: Bool, notification: Notification.Name) {
+        let window = makeWindow()
+        defer { window.close() }
+        let readerView = KeyboardFocusView(frame: window.contentView!.bounds)
+        let outline = PDFOutlineKeyView(frame: window.contentView!.bounds)
+        window.contentView?.addSubview(readerView)
+        window.contentView?.addSubview(outline)
+        #expect(window.makeFirstResponder(fromOutline ? outline : nil))
+        let controller = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false, notificationCenter: notificationCenter)
+        let delegate = RecordingKeyboardDelegate()
+        delegate.readerWindow = window
+        delegate.onLookupDictionary = { delegate.reader.beginWordJumpCommand() }
+        delegate.reader.onBeginWordJump = { #expect(window.makeFirstResponder(readerView)) }
+        controller.delegate = delegate
+        let event = WindowKeyboardEvent()
+        event.targetWindow = window
+        event.key = "K"
+        event.flags = .shift
+        #expect(fromOutline ? controller.routeOutlineGlobalKeyEvent(event) : controller.routeKeyEvent(event))
+        #expect(delegate.reader.isWordJumpActive)
+        event.eventType = .keyUp
+        #expect(controller.routeKeyEvent(event))
+        event.eventType = .keyDown
+        event.key = "w"
+        event.flags = []
+        #expect(controller.routeKeyEvent(event))
+        #expect(delegate.reader.isWordJumpActive)
+        #expect(delegate.reader.actions.contains(.wordJumpKey("w")))
+        #expect(delegate.commands == [.lookupDictionary])
+
+        notificationCenter.post(name: notification, object: nil)
+        #expect(!delegate.reader.isWordJumpActive)
+        #expect(delegate.reader.actions.last == .cancelWordJump)
+        delegate.onLookupDictionary = nil
+    }
+
     @Test
     func shortTabPressSwitchesReadingFocusOnRelease() {
         let controller = KeyboardController(
@@ -1545,6 +1582,7 @@ private final class RecordingKeyboardDelegate: KeyboardControllerDelegate {
     var hasActiveReader = true
     var readerWindow: NSWindow?
     var hasBlockingReaderPresentation = false
+    var onLookupDictionary: (() -> Void)?
     private(set) var focusSwitches = 0
     private(set) var readerFocusRequests = 0
     private(set) var commands: [VimCommand] = []
@@ -1562,6 +1600,8 @@ private final class RecordingKeyboardDelegate: KeyboardControllerDelegate {
             activeReaderController?.beginLinkJumpCommand()
         } else if command == .beginLinkPreview {
             activeReaderController?.beginLinkPreviewCommand()
+        } else if command == .lookupDictionary {
+            onLookupDictionary?()
         }
     }
 

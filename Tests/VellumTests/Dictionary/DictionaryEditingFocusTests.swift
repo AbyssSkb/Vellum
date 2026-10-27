@@ -10,7 +10,7 @@ struct DictionaryEditingFocusTests {
     func editingReceivesVimLettersAndSpaces(_ field: String) async throws {
         try await withPopover { view, window, barrier in
             try await focus(field, in: view, barrier: barrier)
-            for key in ["k", "i", "n", "d", " "] {
+            for key in ["k", "i", "n", "d", " ", "p"] {
                 for type in [NSEvent.EventType.keyDown, .keyUp] {
                     let event = try keyEvent(key, type: type, in: window)
                     let handled = view.handleKeyEvent(event)
@@ -26,10 +26,10 @@ struct DictionaryEditingFocusTests {
             repeat {
                 let text = try await view.webView.evaluateJavaScript("document.getElementById('\(field)').value ?? document.getElementById('\(field)').textContent") as? String
                 value = text?.replacingOccurrences(of: "\u{00a0}", with: " ")
-                if value == "kind " { break }
+                if value == "kind p" { break }
                 await nextTestMainQueueTurn()
             } while ContinuousClock.now < deadline
-            #expect(value == "kind ")
+            #expect(value == "kind p")
         }
     }
 
@@ -71,7 +71,7 @@ struct DictionaryEditingFocusTests {
     }
 
     private func keyEvent(_ key: String, type: NSEvent.EventType = .keyDown, in window: NSWindow) throws -> NSEvent {
-        let codes: [String: UInt16] = ["k": 40, "i": 34, "n": 45, "d": 2, " ": 49, "g": 5, "j": 38, "\u{1b}": 53]
+        let codes: [String: UInt16] = ["k": 40, "i": 34, "n": 45, "d": 2, " ": 49, "p": 35, "g": 5, "j": 38, "\u{1b}": 53]
         return try #require(NSEvent.keyEvent(with: type, location: .zero, modifierFlags: [], timestamp: 0,
                                             windowNumber: window.windowNumber, context: nil, characters: key,
                                             charactersIgnoringModifiers: key, isARepeat: false, keyCode: codes[key] ?? 0))

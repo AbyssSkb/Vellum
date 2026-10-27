@@ -10,7 +10,9 @@ extension VellumPDFView {
         guard appState == nil || appState?.activeReaderController === self else { return }
         let text = AISelectedTextNormalizer.normalized(currentSelection?.string ?? "")
         guard !text.isEmpty else {
-            showNotification(AppUILanguage.saved().text(.dictionaryNoSelection))
+            if wordJumpController == nil { wordJumpController = PDFWordJumpController(pdfView: self) }
+            wordJumpController?.begin(mode: .lookupWord)
+            updateSelectionEndpointOverlay()
             return
         }
         guard let window else { return }

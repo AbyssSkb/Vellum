@@ -339,14 +339,14 @@ struct PDFWordJumpTests {
         }
     }
 
-    @Test(arguments: ["scroll", "resize", "document"]) @MainActor
-    func changingTheViewportOrDocumentCancelsStaleLabels(change: String) async throws {
+    @Test(arguments: ["scroll", "resize", "document"], [false, true]) @MainActor
+    func changingTheViewportOrDocumentCancelsStaleLabels(change: String, lookupAfterSelection: Bool) async throws {
         let (window, view) = try await makeReader(pages: [
             [("alpha", NSPoint(x: 72, y: 650))],
             [("beta", NSPoint(x: 72, y: 650))]
         ])
         defer { window.close() }
-        view.beginWordJumpCommand()
+        if lookupAfterSelection { view.vimLookupDictionary() } else { view.beginWordJumpCommand() }
         try send("a", to: view)
         let controller = try #require(view.wordJumpController)
         let label = try #require(controller.session.matches.first).label
@@ -359,6 +359,8 @@ struct PDFWordJumpTests {
         #expect(!view.isWordJumpActive)
         #expect(controller.targets.isEmpty)
         #expect(view.currentSelection == nil)
+        #expect(view.dictionaryAccessTask == nil)
+        #expect(view.dictionaryPopover == nil)
     }
 
     @Test @MainActor

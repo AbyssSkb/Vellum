@@ -205,7 +205,7 @@ Word jump uses extractable PDF text. Scanned pages need a text layer before word
 
 ## Local dictionaries
 
-Select a word in the PDF and press `K` (`Shift-K`) to look it up. Lowercase `k` keeps its existing scrolling and selection behavior. You can also set the text double-click action to **Dictionary** in **Settings → Reading**. The entry opens in a floating panel with the dictionary's HTML formatting, styles, images, and local scripts. Double-click a word or follow a word link inside an entry to look it up in the same panel.
+Press `K` (`Shift-K`) to look up selected text in the PDF. With no text selected, it starts the same word hints as `s`: type a word prefix, then its label; Vellum looks up the chosen word automatically. `Esc` cancels this selection without a lookup. Ordinary `s` still selects text without opening the dictionary. Lowercase `k` keeps its existing scrolling and selection behavior. You can also set the text double-click action to **Dictionary** in **Settings → Reading**. The entry opens in a floating panel with the dictionary's HTML formatting, styles, images, and local scripts. Double-click a word or follow a word link inside an entry to look it up in the same panel.
 
 ### Set up a dictionary
 
@@ -218,6 +218,8 @@ Vellum reads the dictionary directly from disk. The first version supports unenc
 ### Pronunciation and double-clicks
 
 Automatic pronunciation is on by default, with American selected. Choose British pronunciation or turn automatic pronunciation off in Local Dictionary settings. Automatic playback needs a recognizable headword speaker link for the selected accent and skips playback if it is missing; entries with other layouts can still use their manual audio links. The entry's original UK / US speaker links play the corresponding local recordings regardless of the automatic preference.
+
+Press `p` in the dictionary panel to play or replay the headword recording in your selected accent, including when automatic pronunciation is off. It uses the same local recordings and reports when the selected accent is unavailable.
 
 Press `Esc` to close the panel and clear the PDF selection, or click outside to close the panel. Leaving the reader window stops pronunciation and closes the panel.
 

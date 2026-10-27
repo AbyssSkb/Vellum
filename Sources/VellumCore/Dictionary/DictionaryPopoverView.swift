@@ -158,7 +158,8 @@ final class DictionaryPopoverView: NSView, WKNavigationDelegate, WKScriptMessage
             return false
         }
         let key = event.charactersIgnoringModifiers ?? ""
-        let navigationKeys = ["j", "k", "h", "l", "d", "u", "f", "b", " ", "g", "G", "\u{1b}"]
+        if key == "p", event.modifierFlags.contains(.shift) { return false }
+        let navigationKeys = ["j", "k", "h", "l", "d", "u", "f", "b", " ", "g", "G", "p", "\u{1b}"]
         if event.type == .keyUp {
             return navigationKeys.contains(key)
         }
@@ -174,6 +175,10 @@ final class DictionaryPopoverView: NSView, WKNavigationDelegate, WKScriptMessage
         endKeyboardScroll()
         let script: String
         switch key {
+        case "p":
+            pendingG = false
+            if !event.isARepeat { pronounce(automatically: false) }
+            return true
         case "d": script = "by(0,window.innerHeight/2)"
         case "u": script = "by(0,-window.innerHeight/2)"
         case "f", " ": script = "by(0,window.innerHeight)"
@@ -239,7 +244,7 @@ final class DictionaryPopoverView: NSView, WKNavigationDelegate, WKScriptMessage
                 case let .failure(error): self.navigationFailed(error)
                 case .success:
                     self.presentEntry()
-                    self.autoPronounceIfNeeded()
+                    self.pronounce(automatically: true)
                 }
             }
         }
@@ -254,12 +259,17 @@ final class DictionaryPopoverView: NSView, WKNavigationDelegate, WKScriptMessage
         if wasLoading { startKeyboardScroll() }
     }
 
-    private func autoPronounceIfNeeded() {
-        guard AppPreferences.automaticallyPronouncesDictionary(), !didAutoPronounce else { return }
+    private func pronounce(automatically: Bool) {
+        guard !model.isLoading, model.message == nil, DictionaryPage.isEntryURL(webView.url, id: lookupID) else { return }
+        if automatically {
+            guard AppPreferences.automaticallyPronouncesDictionary(), !didAutoPronounce else { return }
+        }
         let id = lookupID
         webView.evaluateJavaScript(DictionaryPage.pronunciationScript) { [weak self] result, _ in
             guard let self, self.lookupID == id else { return }
-            guard AppPreferences.automaticallyPronouncesDictionary(), !self.didAutoPronounce else { return }
+            if automatically {
+                guard AppPreferences.automaticallyPronouncesDictionary(), !self.didAutoPronounce else { return }
+            }
             let links = result as? [String: String] ?? [:]
             self.didAutoPronounce = true
             self.pronounce(links: links)

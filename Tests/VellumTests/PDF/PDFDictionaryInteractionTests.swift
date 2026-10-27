@@ -6,6 +6,83 @@ import Testing
 @MainActor
 @Suite("Dictionary reader interaction")
 struct PDFDictionaryInteractionTests {
+    @Test(arguments: [false, true])
+    func dictionaryKeyWithoutSelectionLooksUpTheChosenWord(hasDictionary: Bool) async throws {
+        try await withReader { window, view, _ in
+            let directory = FileManager.default.temporaryDirectory.appendingPathComponent("VellumDictionaryWordJump-\(UUID().uuidString)")
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: directory) }
+            if hasDictionary {
+                let mdx = directory.appendingPathComponent("fixture.mdx")
+                try MDictFixture(entries: [("world", Data("<p id='definition'>Chosen word definition</p>".utf8))]).data.write(to: mdx)
+                UserDefaults.standard.set(mdx.path, forKey: AppPreferenceKeys.dictionaryPath)
+            } else {
+                UserDefaults.standard.removeObject(forKey: AppPreferenceKeys.dictionaryPath)
+            }
+            view.clearTextSelectionForVimNavigation()
+            let keyboard = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false)
+            let delegate = DictionaryKeyboardDelegate(reader: view)
+            keyboard.delegate = delegate
+            defer { keyboard.cancelInput() }
+
+            #expect(try keyboard.routeKeyEvent(keyEvent("K", in: window)))
+            #expect(try keyboard.routeKeyEvent(keyEvent("K", in: window, type: .keyUp)))
+            #expect(view.isWordJumpActive)
+            #expect(view.dictionaryPopover == nil)
+            #expect(view.dictionaryAccessTask == nil)
+            #expect(try keyboard.routeKeyEvent(keyEvent("w", in: window)))
+            #expect(try keyboard.routeKeyEvent(keyEvent("\r", in: window)))
+
+            #expect(!view.isWordJumpActive)
+            #expect(view.currentSelection?.string == "world")
+            try await waitForDictionary(in: view)
+            let popover = try #require(view.dictionaryPopover)
+            #expect(window.firstResponder === view.dictionaryOverlay)
+            #expect(try !view.handleWordJumpKey(keyEvent("\r", in: window)))
+            #expect(view.dictionaryPopover === popover)
+            if hasDictionary {
+                try await waitForTestCondition("The chosen word loads its local definition", dispatchAppKitEvents: true) { !popover.isLoading }
+                #expect(try await popover.webView.evaluateJavaScript("document.getElementById('definition')?.textContent") as? String == "Chosen word definition")
+            } else {
+                #expect(AppPreferences.dictionaryLocation() == nil)
+                #expect(!popover.isLoading)
+            }
+        }
+    }
+
+    @Test(arguments: ["escape", "application", "window"])
+    func cancellingDictionaryWordJumpDoesNotTurnOrdinarySelectionIntoALookup(cancellation: String) async throws {
+        try await withReader { window, view, _ in
+            view.clearTextSelectionForVimNavigation()
+            let keyboard = KeyboardController(installsKeyMonitor: false, installsOpenURLObserver: false)
+            let delegate = DictionaryKeyboardDelegate(reader: view)
+            keyboard.delegate = delegate
+            defer { keyboard.cancelInput() }
+            let start = try keyEvent("K", in: window)
+            #expect(keyboard.routeKeyEvent(start))
+            #expect(try keyboard.routeKeyEvent(keyEvent("K", in: window, type: .keyUp)))
+            #expect(view.isWordJumpActive)
+            switch cancellation {
+            case "application":
+                NotificationCenter.default.post(name: NSApplication.willResignActiveNotification, object: NSApp)
+            case "window":
+                NotificationCenter.default.post(name: NSWindow.didResignKeyNotification, object: window)
+            default:
+                #expect(try keyboard.routeKeyEvent(keyEvent("\u{1b}", in: window)))
+            }
+            #expect(!view.isWordJumpActive)
+            #expect(view.dictionaryAccessTask == nil)
+            #expect(try keyboard.routeKeyEvent(keyEvent("s", in: window)))
+            #expect(try keyboard.routeKeyEvent(keyEvent("s", in: window, type: .keyUp)))
+            #expect(try keyboard.routeKeyEvent(keyEvent("w", in: window)))
+            #expect(try keyboard.routeKeyEvent(keyEvent("\r", in: window)))
+            #expect(view.currentSelection?.string == "world")
+            #expect(!view.isWordJumpActive)
+            #expect(view.dictionaryAccessTask == nil)
+            #expect(view.dictionaryPopover == nil)
+        }
+    }
+
     @Test
     func doubleClickLookupFitsTheCanvasAndEscapeClearsTheReaderSelection() async throws {
         try await withReader { window, view, page in
@@ -415,11 +492,33 @@ struct PDFDictionaryInteractionTests {
 
     private static var didFinishLaunching = false
 
+    private func keyEvent(_ key: String, in window: NSWindow, type: NSEvent.EventType = .keyDown) throws -> NSEvent {
+        try #require(NSEvent.keyEvent(with: type, location: .zero, modifierFlags: key == "K" ? .shift : [],
+            timestamp: 0, windowNumber: window.windowNumber, context: nil,
+            characters: key, charactersIgnoringModifiers: key, isARepeat: false, keyCode: 0))
+    }
+
     private func waitForDictionary(in view: VellumPDFView) async throws {
         try await waitForTestCondition("The dictionary popover is created", dispatchAppKitEvents: true) {
             view.dictionaryPopover != nil
         }
     }
+}
+
+@MainActor
+private final class DictionaryKeyboardDelegate: KeyboardControllerDelegate {
+    let reader: VellumPDFView
+    var activeReaderController: ReaderController? { reader }
+    var readerWindow: NSWindow? { reader.window }
+
+    init(reader: VellumPDFView) { self.reader = reader }
+
+    func handleVimCommand(_ command: VimCommand) {
+        if command == .lookupDictionary { reader.vimLookupDictionary() }
+        if command == .beginWordJump { reader.beginWordJumpCommand() }
+    }
+
+    func open(urls: [URL]) {}
 }
 
 private final class DictionaryReaderTestWindow: NSWindow {

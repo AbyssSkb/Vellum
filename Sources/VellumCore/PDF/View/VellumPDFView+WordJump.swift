@@ -109,7 +109,11 @@ final class PDFWordJumpController {
 
     init(pdfView: VellumPDFView) { self.pdfView = pdfView }
 
-    enum Mode { case words, followLinks, previewLinks }
+    enum Mode {
+        case words, lookupWord, followLinks, previewLinks
+
+        var selectsWords: Bool { self == .words || self == .lookupWord }
+    }
 
     func begin(mode: Mode = .words) {
         cancel()
@@ -126,14 +130,14 @@ final class PDFWordJumpController {
         self.mode = mode
         viewport = pdfView.wordJumpViewport
         scale = pdfView.scaleFactor
-        targets = mode == .words ? visibleWords(in: pdfView, document: document) : visibleLinks(in: pdfView, document: document)
+        targets = mode.selectsWords ? visibleWords(in: pdfView, document: document) : visibleLinks(in: pdfView, document: document)
         guard !targets.isEmpty else {
             cancel()
-            let reason: AppText = mode == .words ? .wordJumpNoText : (mode == .previewLinks ? .linkPreviewNoLinks : .linkJumpNoLinks)
+            let reason: AppText = mode.selectsWords ? .wordJumpNoText : (mode == .previewLinks ? .linkPreviewNoLinks : .linkJumpNoLinks)
             pdfView.showNotification(AppUILanguage.saved().text(reason))
             return
         }
-        session = WordJumpSession(words: targets.map(\.word), labelsOnly: mode != .words)
+        session = WordJumpSession(words: targets.map(\.word), labelsOnly: !mode.selectsWords)
         let overlay = WordJumpOverlayView(frame: pdfView.bounds)
         overlay.autoresizingMask = [.width, .height]
         pdfView.addSubview(overlay)
@@ -167,6 +171,9 @@ final class PDFWordJumpController {
                 pdfView?.setCurrentSelection(selection, animate: false)
             }
             pdfView?.focus()
+            if selectedMode == .lookupWord, target.selection != nil {
+                pdfView?.vimLookupDictionary()
+            }
         }
         return true
     }
@@ -176,6 +183,7 @@ final class PDFWordJumpController {
         overlay = nil
         targets = []
         session = WordJumpSession(words: [])
+        mode = .words
         document = nil
     }
 
@@ -237,7 +245,7 @@ final class PDFWordJumpController {
         overlay.targets = targets
         overlay.session = session
         overlay.isLinkPreview = mode == .previewLinks
-        overlay.setAccessibilityLabel(AppUILanguage.saved().text(mode == .words ? .wordJump : (mode == .previewLinks ? .linkPreview : .linkJump)))
+        overlay.setAccessibilityLabel(AppUILanguage.saved().text(mode.selectsWords ? .wordJump : (mode == .previewLinks ? .linkPreview : .linkJump)))
         overlay.needsDisplay = true
         overlay.setAccessibilityValue(overlay.statusText + ". " + session.displayedMatches.map {
             "\($0.label): \(targets[$0.wordIndex].word)"

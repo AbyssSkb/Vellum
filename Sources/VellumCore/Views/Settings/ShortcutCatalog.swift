@@ -59,7 +59,8 @@ enum ShortcutCatalog {
             title: "Local Dictionary",
             systemImage: "character.book.closed",
             items: [
-                ShortcutItem(keys: ["K"], action: "Look up the selected word (Shift+K)"),
+                ShortcutItem(keys: ["K"], action: "Look up a word; use word hints when none is selected (Shift+K)"),
+                ShortcutItem(keys: ["p"], action: "Play the headword recording in the selected accent"),
                 ShortcutItem(keys: ["j", "k"], action: "Scroll dictionary entry"),
                 ShortcutItem(keys: ["h", "l"], action: "Scroll dictionary horizontally"),
                 ShortcutItem(keys: ["d", "u"], action: "Scroll half a dictionary viewport"),
@@ -244,7 +245,8 @@ enum ShortcutCatalog {
             title: "本地词典",
             systemImage: "character.book.closed",
             items: [
-                ShortcutItem(keys: ["K"], action: "查询选中的单词（Shift+K）"),
+                ShortcutItem(keys: ["K"], action: "查询单词；未选中时进入选词模式（Shift+K）"),
+                ShortcutItem(keys: ["p"], action: "按当前口音播放词头录音"),
                 ShortcutItem(keys: ["j", "k"], action: "滚动词典内容"),
                 ShortcutItem(keys: ["h", "l"], action: "左右滚动词典内容"),
                 ShortcutItem(keys: ["d", "u"], action: "滚动半个词典视口"),

@@ -50,7 +50,7 @@ Press `s`, type the beginning of a visible word, then type its letter label to s
 
 ## Look up words offline
 
-Select a word and press `K` (`Shift-K`), or set double-clicks to **Dictionary** in **Settings → Reading**. Vellum displays entries from a local MDict dictionary with their original formatting, images, and pronunciation recordings. Vellum starts with no dictionary included or selected. Choose your `.mdx` file in **Settings → Local Dictionary**; see the [dictionary setup](docs/USER_GUIDE.md#local-dictionaries) for supported files and controls.
+Press `K` (`Shift-K`) to look up selected text, or choose a word with the same hints as `s` when nothing is selected. You can also set double-clicks to **Dictionary** in **Settings → Reading**. Vellum displays entries from a local MDict dictionary with their original formatting, images, and pronunciation recordings. Press `p` inside the dictionary to replay the headword in your selected accent. Vellum starts with no dictionary included or selected. Choose your `.mdx` file in **Settings → Local Dictionary**; see the [dictionary setup](docs/USER_GUIDE.md#local-dictionaries) for supported files and controls.
 
 ## Experimental AI
 
@@ -75,7 +75,7 @@ AI assistance is optional and experimental. See the [user guide](docs/USER_GUIDE
 | `Z` (`Shift-Z`) | Fuzzy search indexed PDF filenames and paths in your home folder |
 | `/` / `*`, `n` / `N` | Search a query / selected text; next / previous match |
 | `s` | Type a visible word prefix and its label to select |
-| `K` (`Shift-K`) | Look up the selected word in a local dictionary |
+| `K` (`Shift-K`) | Look up a word, selecting one with word hints when needed |
 | `o` with text selected | Switch the endpoint adjusted by selection motions |
 | `^` / `$` with text selected | First text / end of visual line |
 | `gv` | Restore the last text selection |

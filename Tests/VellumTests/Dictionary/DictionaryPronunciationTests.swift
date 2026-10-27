@@ -44,6 +44,80 @@ struct DictionaryPronunciationTests {
     }
 
     @Test(.timeLimit(.minutes(1)))
+    func manualPronunciationWorksWithoutAutoplayAndReplaysThePreferredAccent() async throws {
+        let fixture = try DictionaryPronunciationFixture()
+        defer { fixture.close() }
+        UserDefaults.standard.set(false, forKey: AppPreferenceKeys.dictionaryAutoPronunciationEnabled)
+        fixture.view.lookup("hello")
+        try await fixture.waitForDocumentAndPendingWork()
+        #expect(fixture.view.player == nil)
+
+        #expect(try fixture.sendPronunciationKey())
+        try await fixture.waitForPlayback(fixture.american)
+        let first = try #require(fixture.view.player)
+        #expect(try fixture.sendPronunciationKey())
+        try await fixture.waitForPlayback(fixture.american, replacing: first)
+        #expect(!first.isPlaying)
+        let second = try #require(fixture.view.player)
+
+        UserDefaults.standard.set(AIPronunciationAccentPreference.british.rawValue, forKey: AppPreferenceKeys.dictionaryPronunciationAccent)
+        #expect(try fixture.sendPronunciationKey())
+        try await fixture.waitForPlayback(fixture.british, replacing: second)
+        #expect(!second.isPlaying)
+    }
+
+    @Test(.timeLimit(.minutes(1)))
+    func manualPronunciationIgnoresModifiersKeyReleaseAndRepeatedKeyDown() async throws {
+        let fixture = try DictionaryPronunciationFixture()
+        defer { fixture.close() }
+        UserDefaults.standard.set(false, forKey: AppPreferenceKeys.dictionaryAutoPronunciationEnabled)
+        fixture.view.lookup("hello")
+        try await fixture.waitForDocumentAndPendingWork()
+
+        for modifiers in [NSEvent.ModifierFlags.shift, .command, .control, .option] {
+            #expect(try !fixture.sendPronunciationKey(modifiers: modifiers))
+        }
+        #expect(try fixture.sendPronunciationKey(type: .keyUp))
+        #expect(try fixture.sendPronunciationKey(repeated: true))
+        _ = try await fixture.view.webView.evaluateJavaScript("null;")
+        try await fixture.drainPendingWork()
+        #expect(fixture.view.player == nil)
+
+        #expect(try fixture.sendPronunciationKey())
+        try await fixture.waitForPlayback(fixture.american)
+        let player = try #require(fixture.view.player)
+        #expect(try fixture.sendPronunciationKey(repeated: true))
+        _ = try await fixture.view.webView.evaluateJavaScript("null;")
+        try await fixture.drainPendingWork()
+        #expect(fixture.view.player === player)
+    }
+
+    @Test(.timeLimit(.minutes(1)))
+    func pendingManualPronunciationCannotPlayAfterDismissalOrANewLookup() async throws {
+        let fixture = try DictionaryPronunciationFixture()
+        defer { fixture.close() }
+        UserDefaults.standard.set(false, forKey: AppPreferenceKeys.dictionaryAutoPronunciationEnabled)
+        fixture.view.lookup("hello")
+        try await fixture.waitForDocumentAndPendingWork()
+        #expect(try fixture.sendPronunciationKey())
+        fixture.view.dismiss()
+        _ = try await fixture.view.webView.evaluateJavaScript("null;")
+        try await fixture.drainPendingWork()
+        #expect(fixture.view.player == nil)
+
+        fixture.view.lookup("hello")
+        try await fixture.waitForDocumentAndPendingWork()
+        #expect(try fixture.sendPronunciationKey())
+        fixture.view.lookup("british-only")
+        try await fixture.waitForDocumentAndPendingWork()
+        #expect(fixture.view.player == nil)
+        #expect(try fixture.sendPronunciationKey())
+        _ = try await fixture.view.webView.evaluateJavaScript("null;")
+        try await fixture.drainPendingWork()
+        #expect(fixture.view.player == nil)
+    }
+
+    @Test(.timeLimit(.minutes(1)))
     func unfinishedLookupsCannotStartStalePlaybackAfterDismissalOrReplacement() async throws {
         let fixture = try DictionaryPronunciationFixture()
         defer { fixture.close() }
@@ -173,9 +247,16 @@ private final class DictionaryPronunciationFixture {
         window.makeKeyAndOrderFront(nil)
     }
 
-    func waitForPlayback(_ data: Data) async throws {
+    func sendPronunciationKey(type: NSEvent.EventType = .keyDown, modifiers: NSEvent.ModifierFlags = [], repeated: Bool = false) throws -> Bool {
+        let event = try #require(NSEvent.keyEvent(with: type, location: .zero, modifierFlags: modifiers, timestamp: 0,
+                                                windowNumber: window.windowNumber, context: nil, characters: "p",
+                                                charactersIgnoringModifiers: "p", isARepeat: repeated, keyCode: 35))
+        return view.handleKeyEvent(event)
+    }
+
+    func waitForPlayback(_ data: Data, replacing previous: AVAudioPlayer? = nil) async throws {
         try await waitForTestCondition("Dictionary starts the selected MDD recording", dispatchAppKitEvents: true) {
-            view.player?.data == data && view.player?.isPlaying == true
+            view.player?.data == data && view.player?.isPlaying == true && view.player !== previous
         }
     }
 

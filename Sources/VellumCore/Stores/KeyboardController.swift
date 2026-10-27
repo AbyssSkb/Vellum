@@ -154,7 +154,7 @@ final class KeyboardController {
             stopHeldKeyTimer()
             vimInput.clearPendingInput()
             if event.type == .keyDown, !event.isARepeat {
-                delegate?.handleVimCommand(.lookupDictionary)
+                _ = applyVimInputAction(.command(.lookupDictionary))
                 completedSequenceKey = key
             }
             return true
@@ -607,8 +607,12 @@ final class KeyboardController {
             return true
         case .command(let command):
             stopHeldKeyTimer()
+            if command == .lookupDictionary {
+                inputWindow = delegate?.readerWindow ?? inputWindow
+                inputReader = delegate?.activeReaderController
+            }
             delegate?.handleVimCommand(command)
-            if command == .beginWordJump || command == .beginLinkJump || command == .beginLinkPreview {
+            if command == .beginWordJump || command == .beginLinkJump || command == .beginLinkPreview || command == .lookupDictionary {
                 inputResponder = inputWindow?.firstResponder
             }
             return true
