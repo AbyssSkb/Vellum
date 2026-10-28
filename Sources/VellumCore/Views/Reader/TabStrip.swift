@@ -44,7 +44,7 @@ struct TabStrip: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
             }
             .frame(height: 38 + edgeInset)
-            .padding(.leading, appState.isOutlineVisible ? 122 + edgeInset : 0)
+            .padding(.leading, appState.isOutlineVisible ? 122 : 0)
             .layoutPriority(1)
 
             HighlightToolbar()

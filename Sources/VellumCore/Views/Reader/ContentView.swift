@@ -10,55 +10,46 @@ public struct ContentView: View {
     public var body: some View {
         GeometryReader { geometry in
             let emptyLayout = EmptyReaderLayout(size: geometry.size)
-            let joinsLeadingTab = appState.hasOpenTabs && appState.isOutlineVisible
-                && appState.tabs.first?.id == appState.selectedTabID
             let edgeInset = emptyLayout.inset
             let cornerRadius = emptyLayout.cornerRadius
             let readerShape = UnevenRoundedRectangle(
-                topLeadingRadius: joinsLeadingTab ? 0 : cornerRadius,
-                bottomLeadingRadius: cornerRadius,
-                bottomTrailingRadius: cornerRadius,
+                topLeadingRadius: cornerRadius,
+                bottomLeadingRadius: 0,
+                bottomTrailingRadius: 0,
                 topTrailingRadius: cornerRadius,
-                style: appState.hasOpenTabs ? .continuous : .circular
+                style: .circular
             )
 
             ZStack {
                 VStack(spacing: 0) {
                     if appState.hasOpenTabs {
                         TabStrip(edgeInset: edgeInset)
+                    } else {
+                        VellumColors.backgroundDeepColor.frame(height: 46)
                     }
 
                     HStack(spacing: 0) {
                         if appState.isOutlineVisible, appState.hasOpenTabs {
                             OutlineSidebar(tab: appState.selectedTab)
                                 .frame(width: 256)
-                                .padding(.leading, edgeInset)
-                                .padding(.bottom, edgeInset)
                         }
 
                         ReaderStack(emptyScale: emptyLayout.scale)
-                            .clipShape(readerShape)
-                            .background {
-                                readerShape
-                                    .fill(VellumColors.panelColor)
-                            }
-                            .overlay {
-                                readerShape
-                                    .strokeBorder(
-                                        LinearGradient(colors: [VellumColors.foregroundColor.opacity(0.10),
-                                                                VellumColors.foregroundColor.opacity(0.025)],
-                                                       startPoint: .top, endPoint: .bottom),
-                                        lineWidth: 0.5
-                                    )
-                                    .mask(Rectangle().padding(.top, appState.hasOpenTabs ? 1 : 0))
-                                    .allowsHitTesting(false)
-                            }
-                            .padding(.trailing, edgeInset)
-                            .padding(.bottom, edgeInset)
-                            .padding(.leading, appState.isOutlineVisible && appState.hasOpenTabs ? 0 : edgeInset)
-                            .padding(.top, appState.hasOpenTabs ? 0 : edgeInset)
+                            .background(VellumColors.panelColor)
                     }
                     .background(VellumColors.backgroundDeepColor)
+                    .clipShape(readerShape)
+                    .overlay {
+                        readerShape
+                            .strokeBorder(
+                                LinearGradient(colors: [VellumColors.foregroundColor.opacity(0.10),
+                                                        VellumColors.foregroundColor.opacity(0.025)],
+                                               startPoint: .top, endPoint: .bottom),
+                                lineWidth: 0.5
+                            )
+                            .mask(Rectangle().padding(.top, appState.hasOpenTabs ? 1 : 0))
+                            .allowsHitTesting(false)
+                    }
                 }
 
                 .allowsHitTesting(!appState.isTabSwitcherPresented && !appState.isHighlightsPresented && !appState.isPDFQuickOpenPresented)
@@ -66,9 +57,7 @@ public struct ContentView: View {
 
                 if appState.isTabSwitcherPresented {
                     TabSwitcherOverlay()
-                        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-                        .padding(.horizontal, edgeInset)
-                        .padding(.bottom, edgeInset)
+                        .clipShape(readerShape)
                         .padding(.top, 38 + edgeInset)
                 }
 

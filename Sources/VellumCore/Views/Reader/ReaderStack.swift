@@ -3,7 +3,7 @@ import SwiftUI
 struct EmptyReaderLayout {
     let scale: CGFloat
     var inset: CGFloat { 8 * scale }
-    var cornerRadius: CGFloat { 14 - inset }
+    var cornerRadius: CGFloat { 14 }
 
     init(size: CGSize) {
         scale = min(max(min(size.width / 900, size.height / 650), 0.9), 1.2)
