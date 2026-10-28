@@ -41,13 +41,27 @@ public enum VellumToast {
         actionTitle: String? = nil,
         action: (() -> Void)? = nil
     ) {
-        guard let window, let content = window.contentView, let host = content.superview else { return }
+        show(message, kind: kind, in: window, autoDismiss: true, actionTitle: actionTitle, action: action)
+    }
+
+    @discardableResult
+    static func show(
+        _ message: String,
+        kind: ToastKind = .info,
+        in window: NSWindow?,
+        autoDismiss: Bool,
+        actionTitle: String? = nil,
+        action: (() -> Void)? = nil
+    ) -> ToastView? {
+        guard let window, let content = window.contentView, let host = content.superview else { return nil }
         let currentToasts = host.subviews.compactMap { $0 as? ToastView }
-        if action == nil, currentToasts.contains(where: {
-            !$0.hasAction && $0.message == message && $0.kind == kind && $0.alphaValue > 0
-        }) { return }
+        if action == nil, let current = currentToasts.first(where: {
+            !$0.hasAction && $0.message == message && $0.kind == kind
+                && $0.autoDismiss == autoDismiss && $0.alphaValue > 0
+        }) { return current }
         currentToasts.forEach { $0.dismiss(animated: false) }
-        let toast = ToastView(message: message, kind: kind, actionTitle: actionTitle, action: action)
+        let toast = ToastView(message: message, kind: kind, autoDismiss: autoDismiss,
+                              actionTitle: actionTitle, action: action)
         toast.translatesAutoresizingMaskIntoConstraints = false
         toast.alphaValue = 0
         // SwiftUI owns its hosting view's child layout; keep the banner beside that content.
@@ -65,11 +79,12 @@ public enum VellumToast {
             context.duration = 0.16
             toast.animator().alphaValue = 1
         }
-        toast.scheduleDismiss(after: kind == .error ? 5 : 3.2)
+        if autoDismiss { toast.scheduleDismiss(after: kind == .error ? 5 : 3.2) }
         NSAccessibility.post(element: toast, notification: .announcementRequested, userInfo: [
             .announcement: message,
             .priority: NSAccessibilityPriorityLevel.medium.rawValue
         ])
+        return toast
     }
 }
 
@@ -111,14 +126,16 @@ extension AppState {
 final class ToastView: NSView {
     let message: String
     let kind: ToastKind
+    let autoDismiss: Bool
     var hasAction: Bool { action != nil }
     private var dismissalTask: Task<Void, Never>?
     private var action: (() -> Void)?
     private var actionButton: NSButton?
 
-    init(message: String, kind: ToastKind, actionTitle: String?, action: (() -> Void)?) {
+    init(message: String, kind: ToastKind, autoDismiss: Bool, actionTitle: String?, action: (() -> Void)?) {
         self.message = message
         self.kind = kind
+        self.autoDismiss = autoDismiss
         self.action = action
         super.init(frame: .zero)
         wantsLayer = true

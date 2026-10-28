@@ -132,6 +132,53 @@ struct ToastTests {
     }
 
     @Test
+    func persistentFeedbackWaitsForExplicitDismissal() async throws {
+        let window = makeWindow()
+        defer { window.close() }
+        #expect(VellumToast.show("Choose a letter", in: nil, autoDismiss: false) == nil)
+        let toast = try #require(VellumToast.show("Choose a letter", in: window, autoDismiss: false))
+
+        try await Task.sleep(for: .milliseconds(3500))
+
+        #expect(currentToast(in: window) === toast)
+        #expect(toast.alphaValue > 0.9)
+        #expect(VellumToast.show("Choose a letter", in: window, autoDismiss: false) === toast)
+        toast.dismiss(animated: false)
+        #expect(currentToast(in: window) == nil)
+    }
+
+    @Test
+    func changingExpiryPolicyReplacesIdenticalFeedback() throws {
+        let window = makeWindow()
+        defer { window.close() }
+        VellumToast.show("Choose a letter", in: window)
+        let automatic = try #require(currentToast(in: window))
+        let persistent = try #require(VellumToast.show("Choose a letter", in: window, autoDismiss: false))
+        #expect(persistent !== automatic)
+        #expect(automatic.superview == nil)
+
+        VellumToast.show("Choose a letter", in: window)
+
+        let replacement = try #require(currentToast(in: window))
+        #expect(replacement !== persistent)
+        #expect(persistent.superview == nil)
+    }
+
+    @Test
+    func dismissingRetiredPersistentFeedbackKeepsItsReplacement() throws {
+        let window = makeWindow()
+        defer { window.close() }
+        let retired = try #require(VellumToast.show("Choose a letter", in: window, autoDismiss: false))
+        VellumToast.show("No matching word", in: window)
+        let replacement = try #require(currentToast(in: window))
+
+        retired.dismiss(animated: false)
+
+        #expect(currentToast(in: window) === replacement)
+        #expect(replacement.message == "No matching word")
+    }
+
+    @Test
     func repeatedActionMessageReplacesItsHandler() throws {
         let window = makeWindow()
         defer { window.close() }

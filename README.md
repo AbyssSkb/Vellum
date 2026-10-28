@@ -42,7 +42,7 @@ Revisit highlights with `gn` / `gN`, or use `M` to search highlighted text and p
 
 ![Search matches with a compact query field and result counter](docs/images/vellum-search.png)
 
-Press `s`, type the beginning of a visible word, then type its letter label to select the whole word. Refine the selection with Vim motions; a thin caret marks the endpoint being adjusted, and `o` switches to the other end. Use `^` / `$` to reach the first text / end of the visual line. Copy with `y` or highlight with `m`, then use `gv` to restore the last selection. Labels adapt to the displayed text size and stay in place as you enter a multi-letter label.
+Press `s`, type the beginning of a visible word, then type the letter label over its beginning to select the whole word. The entry toast stays until the first matching letter; an unmatched prefix exits with a toast. Refine the selection with Vim motions; a thin caret marks the endpoint being adjusted, and `o` switches to the other end. Use `^` / `$` to reach the first text / end of the visual line. Copy with `y` or highlight with `m`, then use `gv` to restore the last selection. Labels adapt to the displayed text size and stay in place as you enter a multi-letter label.
 
 ![Visible words highlighted with letter labels for keyboard selection](docs/images/vellum-word-jump.png)
 

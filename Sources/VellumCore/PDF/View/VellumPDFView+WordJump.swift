@@ -40,56 +40,85 @@ struct PDFWordJumpTarget {
     let link: PDFAnnotation?
 
     var rotation: Int { selection?.pages.first?.rotation ?? link?.page?.rotation ?? 0 }
+
+    @MainActor
+    func labelArea(characterCount: Int, in pdfView: VellumPDFView) -> (rect: NSRect, characterCount: Int)? {
+        guard let selection, let document = pdfView.document, characterCount > 0 else { return nil }
+        let lines = selection.selectionsByLine()
+        for line in lines.isEmpty ? [selection] : lines {
+            for page in line.pages {
+                guard let text = pdfView.textSelectionCache.text(on: page, in: document) else { continue }
+                for rangeIndex in 0..<line.numberOfTextRanges(on: page) {
+                    let range = line.range(at: rangeIndex, on: page)
+                    guard range.location != NSNotFound, range.location < text.length else { continue }
+                    let end = min(NSMaxRange(range), text.length)
+                    var index = range.location
+                    var area: NSRect?
+                    var count = 0
+                    while index < end, count < characterCount {
+                        let characterRange = text.rangeOfComposedCharacterSequence(at: index)
+                        index = NSMaxRange(characterRange)
+                        guard characterRange.location >= range.location, index <= end,
+                              let character = text.substring(with: characterRange).first,
+                              character.isLetter || character.isNumber || character == "_",
+                              let characterSelection = page.selection(for: characterRange) else { continue }
+                        let bounds = characterSelection.bounds(for: page).intersection(page.bounds(for: pdfView.displayBox))
+                        guard !bounds.isEmpty, let rect = pdfView.viewRect(for: bounds, on: page),
+                              rect.intersects(pdfView.wordJumpViewport) else { continue }
+                        area = area.map { $0.union(rect) } ?? rect
+                        count += 1
+                    }
+                    if let area { return (area, count) }
+                }
+            }
+        }
+        return nil
+    }
 }
 
 enum WordJumpLabelGeometry {
-    static func fontSize(for word: NSRect, rotation: Int = 0) -> CGFloat {
-        let height = rotation % 180 == 0 ? word.height : word.width
-        return min(20, max(12, height * 0.8))
+    static func visibleLabel(_ label: String, typedPrefix: String, characterCount: Int) -> String {
+        label.count <= characterCount ? label : String(label.dropFirst(typedPrefix.count).prefix(characterCount))
     }
 
-    static func frame(for word: NSRect, labelSize: NSSize, in viewport: NSRect, avoiding occupied: [NSRect]) -> NSRect {
+    static func fontSize(for word: NSRect, rotation: Int = 0) -> CGFloat {
+        let height = rotation % 180 == 0 ? word.height : word.width
+        return min(14, max(11, height * 0.72))
+    }
+
+    static func frame(for word: NSRect, labelSize: NSSize, in viewport: NSRect,
+                      avoiding occupied: [NSRect], rotation: Int = 0) -> NSRect {
         let bounds = viewport.insetBy(dx: 2, dy: 2)
         let size = NSSize(width: min(labelSize.width, bounds.width), height: min(labelSize.height, bounds.height))
-        let gap: CGFloat = 2
-        let right = NSPoint(x: word.maxX + gap, y: word.midY - size.height / 2)
-        let left = NSPoint(x: word.minX - size.width - gap, y: right.y)
-        let obstacles = occupied + [word]
+        let rotation = (rotation % 360 + 360) % 360
+        let vertical = rotation % 180 != 0
+        let origin: NSPoint
+        switch rotation {
+        case 90: origin = NSPoint(x: word.midX - size.width / 2, y: word.maxY - size.height)
+        case 180: origin = NSPoint(x: word.maxX - size.width, y: word.midY - size.height / 2)
+        case 270: origin = NSPoint(x: word.midX - size.width / 2, y: word.minY)
+        default: origin = NSPoint(x: word.minX, y: word.midY - size.height / 2)
+        }
+        let crossSize = vertical ? size.width : size.height
+        let wordCrossSize = vertical ? word.width : word.height
+        let offset = max(0, min(crossSize + 1, (wordCrossSize + crossSize) / 2 - 2))
         var best = NSRect.zero
         var leastOverlap = CGFloat.greatestFiniteMagnitude
-
-        func place(_ origin: NSPoint) -> NSRect? {
-            let frame = NSRect(x: min(max(origin.x, bounds.minX), bounds.maxX - size.width),
-                               y: min(max(origin.y, bounds.minY), bounds.maxY - size.height),
+        for shift in [CGFloat.zero, offset, -offset] {
+            let frame = NSRect(x: min(max(origin.x + (vertical ? shift : 0), bounds.minX), bounds.maxX - size.width),
+                               y: min(max(origin.y + (vertical ? 0 : shift), bounds.minY), bounds.maxY - size.height),
                                width: size.width, height: size.height)
-            let overlap = obstacles.reduce(CGFloat.zero) { area, obstacle in
-                let padded = obstacle.insetBy(dx: -1, dy: -1)
-                guard frame.intersects(padded) else { return area }
-                let intersection = frame.intersection(padded)
+            let overlap = occupied.reduce(CGFloat.zero) { area, obstacle in
+                guard frame.intersects(obstacle) else { return area }
+                let intersection = frame.intersection(obstacle)
                 return area + intersection.width * intersection.height
             }
             if overlap < leastOverlap {
                 best = frame
                 leastOverlap = overlap
             }
-            return overlap == 0 ? frame : nil
+            if overlap == 0 { return frame }
         }
-
-        for origin in [right, left,
-                       NSPoint(x: word.minX, y: word.maxY + gap),
-                       NSPoint(x: word.minX, y: word.minY - size.height - gap)] {
-            if let frame = place(origin) { return frame }
-        }
-        for step in 1...max(1, Int(ceil(bounds.height / (size.height + gap)))) {
-            let offset = CGFloat(step) * (size.height + gap)
-            for origin in [NSPoint(x: right.x, y: right.y + offset),
-                           NSPoint(x: right.x, y: right.y - offset),
-                           NSPoint(x: left.x, y: left.y + offset),
-                           NSPoint(x: left.x, y: left.y - offset)] {
-                if let frame = place(origin) { return frame }
-            }
-        }
-        // shortcut: Filled nearby columns use the least overlap; widen placement if dense prefixes need it.
         return best
     }
 }
@@ -99,6 +128,7 @@ final class PDFWordJumpController {
     private weak var pdfView: VellumPDFView?
     private weak var document: PDFDocument?
     private var overlay: WordJumpOverlayView?
+    private weak var entryHint: ToastView?
     private var viewport = NSRect.zero
     private var scale: CGFloat = 1
     private var mode = Mode.words
@@ -143,6 +173,10 @@ final class PDFWordJumpController {
         pdfView.addSubview(overlay)
         self.overlay = overlay
         refreshOverlay()
+        if mode.selectsWords {
+            entryHint = VellumToast.show(AppUILanguage.saved().text(.wordJumpTypeHint),
+                                        in: pdfView.window, autoDismiss: false)
+        }
     }
 
     func handleKey(_ event: NSEvent) -> Bool {
@@ -153,6 +187,15 @@ final class PDFWordJumpController {
         guard !event.isARepeat, let key = event.charactersIgnoringModifiers else { return true }
         switch session.input(key) {
         case .updated:
+            if mode.selectsWords, !session.query.isEmpty {
+                guard !session.matches.isEmpty else {
+                    cancel()
+                    pdfView?.showNotification(AppUILanguage.saved().text(.wordJumpNoMatch))
+                    return true
+                }
+                entryHint?.dismiss(animated: false)
+                entryHint = nil
+            }
             refreshOverlay()
         case .cancelled:
             cancel()
@@ -179,6 +222,8 @@ final class PDFWordJumpController {
     }
 
     func cancel() {
+        entryHint?.dismiss(animated: false)
+        entryHint = nil
         overlay?.removeFromSuperview()
         overlay = nil
         targets = []
@@ -259,6 +304,7 @@ private final class WordJumpOverlayView: NSView {
     var session = WordJumpSession(words: [])
     var isLinkPreview = false
     private var labelFrames: [Int: NSRect] = [:]
+    private var labelCharacterCounts: [Int: Int] = [:]
 
     var statusText: String {
         statusText(labelPrefix: session.labelPrefix, count: session.displayedMatches.count)
@@ -305,29 +351,36 @@ private final class WordJumpOverlayView: NSView {
     }
 
     private func updateLabelFrames() {
-        let candidates = session.matches.compactMap { match -> (index: Int, word: NSRect, size: NSSize)? in
-            guard !match.label.isEmpty, let rect = targets[match.wordIndex].rects.first else { return nil }
-            let word = convert(rect, from: superview)
-            let rotation = targets[match.wordIndex].rotation
-            let font = NSFont.monospacedSystemFont(ofSize: WordJumpLabelGeometry.fontSize(for: word, rotation: rotation), weight: .bold)
-            let textSize = (match.label as NSString).size(withAttributes: [.font: font])
-            return (match.wordIndex, word,
-                    NSSize(width: textSize.width + font.pointSize * 2 / 3, height: textSize.height + font.pointSize / 4))
-        }
         let previous = labelFrames
         labelFrames = [:]
-        var occupied = [statusFrame]
+        labelCharacterCounts = [:]
+        let candidates = session.matches.compactMap { match -> (index: Int, word: NSRect, size: NSSize)? in
+            guard !match.label.isEmpty, let rect = targets[match.wordIndex].rects.first else { return nil }
+            if !session.labelsOnly, let pdfView = superview as? VellumPDFView,
+               let area = targets[match.wordIndex].labelArea(characterCount: match.label.count, in: pdfView) {
+                labelFrames[match.wordIndex] = convert(area.rect, from: pdfView)
+                labelCharacterCounts[match.wordIndex] = area.characterCount
+                return nil
+            }
+            let word = convert(rect, from: superview)
+            let rotation = targets[match.wordIndex].rotation
+            let font = NSFont.monospacedSystemFont(ofSize: WordJumpLabelGeometry.fontSize(for: word, rotation: rotation), weight: .medium)
+            let textSize = (match.label as NSString).size(withAttributes: [.font: font])
+            return (match.wordIndex, word,
+                    NSSize(width: textSize.width + 4, height: textSize.height))
+        }
+        var occupied = session.labelsOnly ? [statusFrame] : Array(labelFrames.values)
         for candidate in candidates {
             if let frame = previous[candidate.index], frame.size == candidate.size,
-               viewport.insetBy(dx: 2, dy: 2).contains(frame),
-               !occupied.contains(where: { frame.intersects($0.insetBy(dx: -1, dy: -1)) }) {
+               viewport.insetBy(dx: 2, dy: 2).contains(frame) {
                 labelFrames[candidate.index] = frame
                 occupied.append(frame)
             }
         }
         for candidate in candidates where labelFrames[candidate.index] == nil {
             let frame = WordJumpLabelGeometry.frame(for: candidate.word, labelSize: candidate.size,
-                                                   in: viewport, avoiding: occupied)
+                                                   in: viewport, avoiding: occupied,
+                                                   rotation: targets[candidate.index].rotation)
             labelFrames[candidate.index] = frame
             occupied.append(frame)
         }
@@ -335,10 +388,13 @@ private final class WordJumpOverlayView: NSView {
 
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
+        NSGraphicsContext.saveGraphicsState()
+        NSBezierPath(rect: viewport).addClip()
+        defer { NSGraphicsContext.restoreGraphicsState() }
         updateLabelFrames()
-        for match in session.displayedMatches {
+        for match in session.displayedMatches where match.label.isEmpty {
             let rects = targets[match.wordIndex].rects.map { convert($0, from: superview) }
-            VellumColors.cyan.withAlphaComponent(0.3).setFill()
+            VellumColors.blue.withAlphaComponent(0.14).setFill()
             for rect in rects {
                 NSBezierPath(roundedRect: rect.insetBy(dx: -1, dy: -1), xRadius: 2, yRadius: 2).fill()
             }
@@ -347,32 +403,38 @@ private final class WordJumpOverlayView: NSView {
             guard let frame = labelFrames[match.wordIndex],
                   let word = targets[match.wordIndex].rects.first else { continue }
             let rect = convert(word, from: superview)
-            let label = String(match.label.dropFirst(session.labelPrefix.count)) as NSString
-            let rotation = targets[match.wordIndex].rotation
-            let fontSize = WordJumpLabelGeometry.fontSize(for: rect, rotation: rotation)
+            let usesTextGeometry = labelCharacterCounts[match.wordIndex] != nil
+            let characterCount = labelCharacterCounts[match.wordIndex] ?? match.label.count
+            let showsRemainingLetters = characterCount < match.label.count
+            let label = WordJumpLabelGeometry.visibleLabel(match.label, typedPrefix: session.labelPrefix,
+                                                         characterCount: characterCount) as NSString
+            let rotation = usesTextGeometry ? (targets[match.wordIndex].rotation % 360 + 360) % 360 : 0
+            let textArea = rotation % 180 == 0 ? frame.size : NSSize(width: frame.height, height: frame.width)
+            let fontSize = usesTextGeometry ? textArea.height * 0.8
+                : WordJumpLabelGeometry.fontSize(for: rect, rotation: targets[match.wordIndex].rotation)
             let attributes: [NSAttributedString.Key: Any] = [
-                .font: NSFont.monospacedSystemFont(ofSize: fontSize, weight: .bold),
-                .foregroundColor: VellumColors.backgroundDeep
+                .font: NSFont.monospacedSystemFont(ofSize: fontSize, weight: .medium),
+                .foregroundColor: VellumColors.foreground
             ]
             let size = label.size(withAttributes: attributes)
-            let end = NSPoint(x: min(max(rect.midX, frame.minX), frame.maxX),
-                              y: min(max(rect.midY, frame.minY), frame.maxY))
-            let start = NSPoint(x: min(max(end.x, rect.minX), rect.maxX),
-                                y: min(max(end.y, rect.minY), rect.maxY))
-            if hypot(end.x - start.x, end.y - start.y) > 6 {
-                VellumColors.cyan.withAlphaComponent(0.65).setStroke()
-                let connection = NSBezierPath()
-                connection.move(to: start)
-                connection.line(to: end)
-                connection.lineWidth = 1
-                connection.stroke()
-            }
-            VellumColors.cyan.setFill()
-            NSBezierPath(roundedRect: frame, xRadius: fontSize / 4, yRadius: fontSize / 4).fill()
-            label.draw(at: NSPoint(x: frame.midX - size.width / 2, y: frame.midY - size.height / 2),
-                       withAttributes: attributes)
+            VellumColors.panel.setFill()
+            let path = usesTextGeometry ? NSBezierPath(rect: frame)
+                : NSBezierPath(roundedRect: frame, xRadius: 2, yRadius: 2)
+            path.fill()
+            let text = NSMutableAttributedString(string: label as String, attributes: attributes)
+            text.addAttribute(.foregroundColor, value: VellumColors.muted.withAlphaComponent(0.6),
+                              range: NSRange(location: 0, length: showsRemainingLetters ? 0 : session.labelPrefix.utf16.count))
+            NSGraphicsContext.saveGraphicsState()
+            let transform = NSAffineTransform()
+            transform.translateX(by: frame.midX, yBy: frame.midY)
+            transform.rotate(byDegrees: -CGFloat(rotation))
+            transform.scaleX(by: min(1, textArea.width / size.width), yBy: 1)
+            transform.concat()
+            text.draw(at: NSPoint(x: -size.width / 2, y: -size.height / 2))
+            NSGraphicsContext.restoreGraphicsState()
         }
 
+        guard session.labelsOnly else { return }
         let text = statusText as NSString
         let paragraph = NSMutableParagraphStyle()
         paragraph.lineBreakMode = .byTruncatingMiddle

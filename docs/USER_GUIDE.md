@@ -188,12 +188,12 @@ Press `*` to search a selected word or phrase without opening the search field. 
 ### Select a visible word
 
 1. With the reader focused, press `s` and type the beginning of a word on screen. Matching ignores case.
-2. Matching words receive letter labels. Type the target's label to select the whole word. For a multi-letter label, enter its letters in order; its position and size stay stable while you type.
+2. Matching words receive letter labels that cover the corresponding letters at their beginnings. Type the target's label to select the whole word. For a multi-letter label, enter its letters in order; its position and size stay stable while you type. If the word is shorter than its label, the remaining label letters appear as you type.
 3. Use `h` / `j` / `k` / `l` or `w` / `b` / `e` to adjust the selection, `y` to copy, or `m` to highlight.
 
 ![Visible words highlighted with letter labels for keyboard selection](images/vellum-word-jump.png)
 
-Labels adapt to the displayed text size and avoid letters that could continue the word prefix. Keep typing the word to narrow a crowded set of matches.
+The entry toast stays visible until you type a matching letter. A prefix with no matching word exits the mode and shows a toast. Labels adapt to the displayed text size and avoid letters that could continue the word prefix. Keep typing the word to narrow a crowded set of matches.
 
 | Key while word jump is open | Action |
 | --- | --- |

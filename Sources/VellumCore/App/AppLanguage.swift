@@ -269,6 +269,7 @@ public enum AppText {
     case wordJump
     case wordJumpTypeHint
     case wordJumpNoText
+    case wordJumpNoMatch
     case linkJump
     case linkJumpTypeHint
     case linkJumpNoLinks
@@ -610,6 +611,7 @@ public extension AppText {
         case .wordJump: return "Select word"
         case .wordJumpTypeHint: return "Type a word prefix"
         case .wordJumpNoText: return "No selectable text on screen"
+        case .wordJumpNoMatch: return "No matching word. Word selection cancelled."
         case .linkJump: return "Follow link"
         case .linkJumpTypeHint: return "Type a label · Esc to cancel"
         case .linkJumpNoLinks: return "No links in view"
@@ -942,6 +944,7 @@ public extension AppText {
         case .wordJump: return "定位单词"
         case .wordJumpTypeHint: return "输入单词开头"
         case .wordJumpNoText: return "屏幕内没有可选文字"
+        case .wordJumpNoMatch: return "没有匹配的单词，已退出选词"
         case .linkJump: return "打开链接"
         case .linkJumpTypeHint: return "输入标签 · Esc 取消"
         case .linkJumpNoLinks: return "当前视野内没有链接"

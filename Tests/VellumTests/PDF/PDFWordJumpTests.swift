@@ -6,6 +6,23 @@ import Testing
 @Suite("PDF word jump")
 struct PDFWordJumpTests {
     @Test @MainActor
+    func entryHintUsesAToastUntilTheFirstMatchingLetter() async throws {
+        let (window, view) = try await makeReader(pages: [[("alpha beta", NSPoint(x: 72, y: 650))]])
+        defer { view.cancelWordJump(); window.close() }
+        view.beginWordJumpCommand()
+        let hint = try #require(window.contentView?.superview?.subviews.compactMap { $0 as? ToastView }.first)
+        #expect(hint.message == AppUILanguage.saved().text(.wordJumpTypeHint))
+        #expect(!hint.autoDismiss)
+        try send("\r", to: view)
+        try send("\u{7f}", to: view)
+        #expect(hint.superview != nil)
+        try send("a", to: view)
+        #expect(view.isWordJumpActive)
+        #expect(view.wordJumpController?.session.matches.count == 1)
+        #expect(hint.superview == nil)
+    }
+
+    @Test @MainActor
     func linkHintsIncludeVisibleActionsWithoutRequiringATextLayer() async throws {
         let (window, view) = try await makeReader(pages: [[], []])
         defer { window.close() }
@@ -148,6 +165,67 @@ struct PDFWordJumpTests {
         #expect(controller.targets.allSatisfy { $0.rects.allSatisfy { $0.intersects(view.visibleRect) } })
     }
 
+    @Test(arguments: [1, 2]) @MainActor
+    func labelAreaCoversTheExactOriginalCharactersAtDifferentWidths(characterCount: Int) async throws {
+        let (window, view) = try await makeReader(pages: [[("ill WWW", NSPoint(x: 72, y: 650))]])
+        defer { view.cancelWordJump(); window.close() }
+        let page = try #require(view.document?.page(at: 0))
+        let text = try #require(page.string) as NSString
+        view.beginWordJumpCommand()
+        let targets = try #require(view.wordJumpController).targets
+        var areas: [NSRect] = []
+        for word in ["ill", "WWW"] {
+            let target = try #require(targets.first { $0.word == word })
+            let range = NSRange(location: text.range(of: word).location, length: characterCount)
+            let prefixSelection = try #require(page.selection(for: range))
+            let expected = try #require(view.viewRect(for: prefixSelection.bounds(for: page), on: page))
+            let area = try #require(target.labelArea(characterCount: characterCount, in: view))
+            #expect(area.characterCount == characterCount)
+            expectSameRect(area.rect, expected)
+            areas.append(area.rect)
+        }
+        #expect(areas[1].width > areas[0].width * 2)
+    }
+
+    @Test @MainActor
+    func labelAreaStopsAtTheEndOfAShortWordAndDoesNotIncludeTheNextWord() async throws {
+        let (window, view) = try await makeReader(pages: [[("a broader", NSPoint(x: 72, y: 650))]])
+        defer { view.cancelWordJump(); window.close() }
+        let page = try #require(view.document?.page(at: 0))
+        let text = try #require(page.string) as NSString
+        view.beginWordJumpCommand()
+        let target = try #require(view.wordJumpController?.targets.first { $0.word == "a" })
+        let original = try #require(page.selection(for: text.range(of: "a")))
+        let expected = try #require(view.viewRect(for: original.bounds(for: page), on: page))
+        for count in [2, 99] {
+            let area = try #require(target.labelArea(characterCount: count, in: view))
+            #expect(area.characterCount == 1)
+            expectSameRect(area.rect, expected)
+        }
+        #expect(target.labelArea(characterCount: 0, in: view) == nil)
+        let link = PDFWordJumpTarget(selection: nil, word: "a", rects: [expected], link: nil)
+        #expect(link.labelArea(characterCount: 2, in: view) == nil)
+    }
+
+    @Test @MainActor
+    func labelAreaDoesNotBridgeDifferentSelectedRangesOnTheSameLine() async throws {
+        let (window, view) = try await makeReader(pages: [[("alpha beta", NSPoint(x: 72, y: 650))]])
+        defer { window.close() }
+        let document = try #require(view.document)
+        let page = try #require(document.page(at: 0))
+        let text = try #require(page.string) as NSString
+        let firstRange = NSRange(location: text.range(of: "alpha").location, length: 1)
+        let first = try #require(page.selection(for: firstRange))
+        let selection = PDFSelection(document: document)
+        selection.add(first)
+        selection.add(try #require(page.selection(for: text.range(of: "beta"))))
+        #expect(selection.numberOfTextRanges(on: page) == 2)
+        let target = PDFWordJumpTarget(selection: selection, word: "abeta", rects: [], link: nil)
+        let area = try #require(target.labelArea(characterCount: 2, in: view))
+        #expect(area.characterCount == 1)
+        expectSameRect(area.rect, try #require(view.viewRect(for: first.bounds(for: page), on: page)))
+    }
+
     @Test @MainActor
     func unclippedAncestorsDoNotIncludeWordsOutsideTheReadingViewport() async throws {
         let (window, view) = try await makeReader(pages: [[
@@ -218,7 +296,7 @@ struct PDFWordJumpTests {
     }
 
     @Test @MainActor
-    func cancellingEditingAndUnmatchedEnterPreserveTheExistingSelection() async throws {
+    func cancellingAndBackspacingPreserveTheExistingSelection() async throws {
         let (window, view) = try await makeReader(pages: [[("alpha beta", NSPoint(x: 72, y: 650))]])
         defer { window.close() }
         let page = try #require(view.document?.page(at: 0))
@@ -231,13 +309,49 @@ struct PDFWordJumpTests {
         try send("a", to: view)
         try send("\u{7f}", to: view)
         #expect(view.currentSelection?.range(at: 0, on: page) == originalRange)
-        for character in "unmatched" { try send(String(character), to: view) }
-        try send("\r", to: view)
-        #expect(view.isWordJumpActive)
-        #expect(view.currentSelection?.range(at: 0, on: page) == originalRange)
         try send("\u{1b}", to: view)
         #expect(!view.isWordJumpActive)
         #expect(view.currentSelection?.range(at: 0, on: page) == originalRange)
+    }
+
+    @Test(arguments: ["", "al"]) @MainActor
+    func unmatchedInputExitsWordSelectionAndReportsAToast(prefix: String) async throws {
+        let (window, view) = try await makeReader(pages: [[("alpha beta", NSPoint(x: 72, y: 650))]])
+        defer { view.cancelWordJump(); window.close() }
+        let page = try #require(view.document?.page(at: 0))
+        let original = (try #require(page.string) as NSString).range(of: "beta")
+        view.setCurrentSelection(page.selection(for: original), animate: false)
+        view.beginWordJumpCommand()
+        for letter in prefix { try send(String(letter), to: view) }
+
+        try send("9", to: view)
+
+        #expect(!view.isWordJumpActive)
+        #expect(view.currentSelection?.range(at: 0, on: page) == original)
+        let toast = try #require(window.contentView?.superview?.subviews.compactMap { $0 as? ToastView }.first)
+        #expect(toast.message == AppUILanguage.saved().text(.wordJumpNoMatch))
+        #expect(toast.autoDismiss)
+        #expect(!view.handleWordJumpKey(try event("a", in: window)))
+    }
+
+    @Test(arguments: ["escape", "cancel", "viewport", "replacement"]) @MainActor
+    func cancellingWordSelectionOnlyDismissesItsOwnHint(action: String) async throws {
+        let (window, view) = try await makeReader(pages: [[("alpha beta", NSPoint(x: 72, y: 650))]])
+        defer { view.cancelWordJump(); window.close() }
+        view.beginWordJumpCommand()
+        let hint = try #require(window.contentView?.superview?.subviews.compactMap { $0 as? ToastView }.first)
+        switch action {
+        case "escape": try send("\u{1b}", to: view)
+        case "viewport": view.setFrameSize(NSSize(width: 700, height: 400)); view.layout()
+        case "replacement":
+            view.showNotification("Another operation finished")
+            view.cancelWordJump()
+        default: view.cancelWordJump()
+        }
+        #expect(!view.isWordJumpActive)
+        #expect(hint.superview == nil)
+        let toasts = window.contentView?.superview?.subviews.compactMap { $0 as? ToastView } ?? []
+        #expect(toasts.map(\.message) == (action == "replacement" ? ["Another operation finished"] : []))
     }
 
     @Test @MainActor
@@ -252,6 +366,15 @@ struct PDFWordJumpTests {
         let controller = try #require(view.wordJumpController)
         #expect(controller.targets.filter { $0.word == "brokenword" }.count == 1)
         #expect(!controller.targets.contains { $0.word == "broken" || $0.word == "word" })
+        let target = try #require(controller.targets.first { $0.word == "brokenword" })
+        let text = try #require(page.string) as NSString
+        for (count, prefix) in [(2, "br"), (99, "broken")] {
+            let prefixSelection = try #require(page.selection(for: text.range(of: prefix)))
+            let expected = try #require(view.viewRect(for: prefixSelection.bounds(for: page), on: page))
+            let area = try #require(target.labelArea(characterCount: count, in: view))
+            #expect(area.characterCount == prefix.count)
+            expectSameRect(area.rect, expected)
+        }
         for character in "brokenw" { try send(String(character), to: view) }
         let match = try #require(controller.session.matches.first)
         #expect(controller.targets[match.wordIndex].rects.count == 2)
@@ -298,6 +421,11 @@ struct PDFWordJumpTests {
         #expect(controller.targets.filter { $0.word == "brokenword" }.count == 1)
         #expect(target.rects.count == 1)
         #expect(target.rects[0].intersects(view.visibleRect))
+        let prefixSelection = try #require(page.selection(for: NSRange(location: suffixRange.location, length: 2)))
+        let expected = try #require(view.viewRect(for: prefixSelection.bounds(for: page), on: page))
+        let area = try #require(target.labelArea(characterCount: 2, in: view))
+        #expect(area.characterCount == 2)
+        expectSameRect(area.rect, expected)
     }
 
     @Test(arguments: [0, 90, 180, 270]) @MainActor
@@ -336,6 +464,13 @@ struct PDFWordJumpTests {
             #expect(abs(actual.width - displayedSize.width * view.scaleFactor) < 0.001)
             #expect(abs(actual.height - displayedSize.height * view.scaleFactor) < 0.001)
             #expect(actual.intersects(view.visibleRect))
+            let text = try #require(page.string) as NSString
+            let prefix = NSRange(location: text.range(of: target.word).location, length: 2)
+            let prefixSelection = try #require(page.selection(for: prefix))
+            let prefixBounds = try #require(view.viewRect(for: prefixSelection.bounds(for: page), on: page))
+            let area = try #require(target.labelArea(characterCount: 2, in: view))
+            #expect(area.characterCount == 2)
+            expectSameRect(area.rect, prefixBounds)
         }
     }
 
@@ -405,6 +540,13 @@ struct PDFWordJumpTests {
         #expect(!view.aiInteraction.isActive)
         #expect(view.aiInteraction.hoveredAnnotation == nil)
         #expect(window.firstResponder === view)
+    }
+
+    private func expectSameRect(_ actual: NSRect, _ expected: NSRect) {
+        #expect(abs(actual.minX - expected.minX) < 0.000001)
+        #expect(abs(actual.minY - expected.minY) < 0.000001)
+        #expect(abs(actual.width - expected.width) < 0.000001)
+        #expect(abs(actual.height - expected.height) < 0.000001)
     }
 
     @MainActor
