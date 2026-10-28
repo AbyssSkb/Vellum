@@ -14,10 +14,12 @@ struct PDFTextActionFeedbackTests {
 
         view.vimHighlightSelection(color: .yellow)
         #expect(currentToast(in: window)?.message == AppUILanguage.saved().text(.noTextToHighlight))
+        #expect(currentToast(in: window)?.kind == .warning)
         #expect(view.document?.page(at: 0)?.annotations.isEmpty == true)
 
         view.vimCopySelection()
         #expect(currentToast(in: window)?.message == AppUILanguage.saved().text(.noTextToCopy))
+        #expect(currentToast(in: window)?.kind == .warning)
         #expect(NSPasteboard.general.changeCount == clipboardChangeCount)
         #expect(!view.vimDeleteHighlightsForSelection())
     }
@@ -32,6 +34,7 @@ struct PDFTextActionFeedbackTests {
         #expect(view.vimDeleteHighlightsForSelection())
 
         #expect(currentToast(in: window)?.message == AppUILanguage.saved().text(.noHighlightsInSelection))
+        #expect(currentToast(in: window)?.kind == .warning)
         #expect(view.currentSelection?.string == "alpha")
     }
 
@@ -69,6 +72,7 @@ struct PDFTextActionFeedbackTests {
 
         #expect(clipboard.string(forType: .string) == (useSearch ? "beta" : "alpha"))
         #expect(currentToast(in: window)?.message == AppUILanguage.saved().text(.textCopied))
+        #expect(currentToast(in: window)?.kind == .success)
         #expect(view.currentSelection == nil)
         if useSearch {
             #expect(view.searchController?.hasVisibleHighlights == true)

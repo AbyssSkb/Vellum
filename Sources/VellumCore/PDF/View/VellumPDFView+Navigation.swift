@@ -56,7 +56,7 @@ extension VellumPDFView {
             self.go(to: destination)
             self.scheduleReadingPositionReport(userNavigated: self.readingPositionChanged(from: previous))
             if pageNumber < 1 || pageNumber > pageCount {
-                self.showNotification(AppUILanguage.saved().text(.pageNumberOutOfRange(pageCount)))
+                self.showNotification(AppUILanguage.saved().text(.pageNumberOutOfRange(pageCount)), kind: .warning)
             }
         }
     }
@@ -88,7 +88,7 @@ extension VellumPDFView {
 
     func vimJumpBack() {
         guard let targetSnapshot = jumpBackStack.popLast() else {
-            showNotification(AppUILanguage.saved().text(.noEarlierReadingPosition))
+            showNotification(AppUILanguage.saved().text(.noEarlierReadingPosition), kind: .warning)
             return
         }
 
@@ -106,7 +106,7 @@ extension VellumPDFView {
 
     func vimJumpForward() {
         guard let targetSnapshot = jumpForwardStack.popLast() else {
-            showNotification(AppUILanguage.saved().text(.noLaterReadingPosition))
+            showNotification(AppUILanguage.saved().text(.noLaterReadingPosition), kind: .warning)
             return
         }
 

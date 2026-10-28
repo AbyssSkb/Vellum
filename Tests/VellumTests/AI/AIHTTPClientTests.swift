@@ -5,6 +5,16 @@ import Testing
 @Suite("AI HTTP client")
 @MainActor
 struct AIHTTPClientTests {
+    @Test(arguments: ["completion", "anthropic"])
+    func modelValidationReturnsAStatusInsteadOfTheGeneratedText(fixture: String) async throws {
+        let session = makeSession()
+        defer { session.invalidateAndCancel() }
+        let result = try await OpenAICompatibleAIExplanationClient(session: session)
+            .testFunction(configuration: makeConfiguration(fixture: fixture))
+
+        #expect(result == AppUILanguage.saved().text(.aiModelResponded))
+    }
+
     @Test(arguments: [false, true], ["done", "finished", "anthropic"])
     func bothEntryPointsCompleteAndPublishChunks(conversation: Bool, fixture: String) async throws {
         let session = makeSession()
@@ -112,6 +122,8 @@ private final class AIHTTPStubProtocol: URLProtocol, @unchecked Sendable {
 
         let body: String
         switch fixture {
+        case "completion":
+            body = #"{"choices":[{"message":{"role":"assistant","content":"A complete model response that should not be repeated in a transient notification."}}]}"#
         case "anthropic":
             body = #"{"content":[{"type":"text","text":"Hello world"}]}"#
         case "provider-error":

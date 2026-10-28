@@ -2,12 +2,13 @@ import AppKit
 import SwiftUI
 
 public enum ToastKind: Equatable, Sendable {
-    case info, success, error
+    case info, success, warning, error
 
     var symbol: String {
         switch self {
         case .info: "info.circle.fill"
         case .success: "checkmark.circle.fill"
+        case .warning: "exclamationmark.triangle.fill"
         case .error: "exclamationmark.circle.fill"
         }
     }
@@ -16,6 +17,7 @@ public enum ToastKind: Equatable, Sendable {
         switch self {
         case .info: VellumColors.blue
         case .success: .systemGreen
+        case .warning: .systemOrange
         case .error: VellumColors.red
         }
     }
@@ -165,6 +167,7 @@ final class ToastView: NSView {
         label.lineBreakMode = .byTruncatingTail
         label.translatesAutoresizingMaskIntoConstraints = false
         label.setAccessibilityElement(false)
+        label.toolTip = message
         addSubview(icon)
         addSubview(label)
         NSLayoutConstraint.activate([

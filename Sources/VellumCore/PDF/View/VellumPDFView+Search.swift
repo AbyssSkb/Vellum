@@ -212,7 +212,7 @@ extension VellumPDFView {
     func vimSearchSelectedText() {
         guard let text = currentSelection?.string?.trimmingCharacters(in: .whitespacesAndNewlines),
               !text.isEmpty, document != nil else {
-            showNotification(AppUILanguage.saved().text(.noTextToSearch))
+            showNotification(AppUILanguage.saved().text(.noTextToSearch), kind: .warning)
             return
         }
 
@@ -229,7 +229,7 @@ extension VellumPDFView {
     func vimSearchBy(_ delta: Int) {
         guard delta != 0 else { return }
         guard let searchController else {
-            showNotification(AppUILanguage.saved().text(.noSearchQuery))
+            showNotification(AppUILanguage.saved().text(.noSearchQuery), kind: .warning)
             return
         }
         let count = Int(min(delta.magnitude, UInt(VimInputController.maximumRepeatCount)))
@@ -238,7 +238,7 @@ extension VellumPDFView {
 
     func vimMaterializeSearchSelection() {
         guard let searchController else {
-            showNotification(AppUILanguage.saved().text(.noSearchMatch))
+            showNotification(AppUILanguage.saved().text(.noSearchMatch), kind: .warning)
             return
         }
         searchController.materializeActiveMatch()
@@ -405,7 +405,7 @@ final class PDFSearchController {
     func move(_ direction: Direction, count: Int = 1) {
         guard count > 0 else { return }
         guard !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            pdfView?.showNotification(AppUILanguage.saved().text(.noSearchQuery))
+            pdfView?.showNotification(AppUILanguage.saved().text(.noSearchQuery), kind: .warning)
             return
         }
         guard continueSearchIfNeeded() else {
@@ -489,7 +489,7 @@ final class PDFSearchController {
     func materializeActiveMatch() -> Bool {
         guard let pdfView, let selection = activeSearchSelection else {
             if overlay == nil {
-                pdfView?.showNotification(AppUILanguage.saved().text(.noSearchMatch))
+                pdfView?.showNotification(AppUILanguage.saved().text(.noSearchMatch), kind: .warning)
             }
             return false
         }
@@ -1091,14 +1091,14 @@ final class PDFSearchController {
 
     private func overlayStatus() -> SearchCommandOverlayView.Status {
         if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return .hint(AppUILanguage.saved().text(.searchTypeHint))
+            return .hint("")
         } else if isSearchPending, !results.isEmpty {
             let displayIndex = activeIndex ?? anchoredIndex(for: .next, materializeLocations: false) ?? 0
-            return .hint("\(displayIndex + 1)/\(results.count)...")
+            return .searching(current: displayIndex + 1, total: results.count)
         } else if isSearchPending {
-            return .hint("...")
+            return .searching(current: nil, total: 0)
         } else if results.isEmpty {
-            return .error(AppUILanguage.saved().text(.searchNoMatch))
+            return .noMatch(AppUILanguage.saved().text(.searchNoMatch))
         } else {
             let displayIndex = activeIndex ?? anchoredIndex(for: .next, materializeLocations: false) ?? 0
             return .count(current: displayIndex + 1, total: results.count)
@@ -1119,7 +1119,7 @@ final class PDFSearchController {
 }
 
 @MainActor
-private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
+final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
     private enum Presentation {
         case editing
         case mini
@@ -1127,38 +1127,29 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
 
     enum Status {
         case hint(String)
-        case error(String)
+        case searching(current: Int?, total: Int)
+        case noMatch(String)
         case count(current: Int, total: Int)
 
         var text: String {
             switch self {
-            case .hint(let text), .error(let text):
+            case .hint(let text), .noMatch(let text):
                 return text
+            case .searching(let current, let total):
+                return current.map { "\($0) / \(total)" } ?? ""
             case .count(let current, let total):
-                return "\(current)/\(total)"
+                return "\(current) / \(total)"
             }
+        }
+
+        var isSearching: Bool {
+            if case .searching = self { return true }
+            return false
         }
 
         var color: NSColor {
-            switch self {
-            case .hint:
-                return VellumColors.muted
-            case .error:
-                return VellumColors.red
-            case .count:
-                return VellumColors.muted
-            }
-        }
-
-        var accentColor: NSColor {
-            switch self {
-            case .hint:
-                return .clear
-            case .error:
-                return VellumColors.red.withAlphaComponent(0.24)
-            case .count:
-                return .clear
-            }
+            if case .noMatch = self { return .systemOrange }
+            return VellumColors.muted
         }
     }
 
@@ -1173,40 +1164,27 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
     }
 
     private let container = NSVisualEffectView()
-    private let inputFocusLine = CALayer()
-    private let miniContainer = NSVisualEffectView()
-    private let miniLabel = CenteredTextLabel(text: "")
     private let iconView = NSImageView()
     private let textField = SearchCommandTextField()
-    private let statusPill = NSVisualEffectView()
-    private let statusLabel = CenteredTextLabel(text: "")
+    private let queryLabel = NSTextField(labelWithString: "")
+    private let statusLabel = NSTextField(labelWithString: "")
+    private let progressIndicator = NSProgressIndicator()
     private var presentation: Presentation = .editing
     private var currentStatus: Status = .hint("")
-    private var miniQuery = ""
 
     init(query: String) {
         super.init(frame: .zero)
-        wantsLayer = false
-        currentStatus = .hint(AppUILanguage.saved().text(.searchTypeHint))
-        statusLabel.stringValue = currentStatus.text
         configureContainer()
         configureLabels()
         configureTextField(query: query)
 
         addSubview(container)
-        addSubview(miniContainer)
         container.addSubview(iconView)
         container.addSubview(textField)
-        container.addSubview(statusPill)
-        statusPill.addSubview(statusLabel)
-        miniContainer.addSubview(miniLabel)
-        updatePresentation(animated: false)
-
-        alphaValue = 0
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.08
-            animator().alphaValue = 1
-        }
+        container.addSubview(queryLabel)
+        container.addSubview(statusLabel)
+        container.addSubview(progressIndicator)
+        updatePresentation()
     }
 
     required init?(coder: NSCoder) {
@@ -1216,51 +1194,31 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
     override func layout() {
         super.layout()
 
-        let horizontalMargin: CGFloat = 20
-        let height: CGFloat = 44
-        let width = min(max(bounds.width * 0.46, 460), bounds.width - horizontalMargin * 2, 720)
-        container.frame = NSRect(
-            x: bounds.midX - width / 2,
-            y: 24,
-            width: width,
-            height: height
-        )
-        inputFocusLine.frame = NSRect(x: 12, y: 1, width: container.bounds.width - 24, height: 1)
+        let availableWidth = max(0, bounds.width - 40)
+        let isEditing = presentation == .editing
+        let progressWidth: CGFloat = currentStatus.isSearching ? 20 : 0
+        let preferredStatusWidth = max(84, measuredWidth(currentStatus.text, font: statusLabel.font) + 4 + progressWidth)
+        let preferredQueryWidth = max(46, measuredWidth(queryLabel.stringValue, font: queryLabel.font))
+        let preferredWidth = isEditing
+            ? min(max(bounds.width * 0.44, 360), 520)
+            : min(max(preferredQueryWidth + 64 + preferredStatusWidth, 220), 360)
+        let width = min(preferredWidth, availableWidth)
+        let height: CGFloat = isEditing ? 38 : 32
+        container.frame = NSRect(x: bounds.midX - width / 2, y: 24, width: width, height: height)
 
-        let centerY = container.bounds.midY
-        iconView.frame = centeredFrame(x: 16, size: NSSize(width: 16, height: 16), in: container.bounds)
-        let statusPillWidth = min(max(measuredWidth(statusLabel.stringValue, font: statusLabel.font) + 24, 62), 130)
-        statusPill.frame = NSRect(
-            x: container.bounds.maxX - statusPillWidth - 12,
-            y: centerY - 14,
-            width: statusPillWidth,
-            height: 28
-        )
-        statusLabel.frame = NSRect(
-            x: 12,
-            y: 0,
-            width: statusPill.bounds.width - 24,
-            height: statusPill.bounds.height
-        )
-        textField.frame = NSRect(
-            x: iconView.frame.maxX + 14,
-            y: centerY - 13,
-            width: max(120, statusPill.frame.minX - iconView.frame.maxX - 28),
-            height: 26
-        )
-
-        let miniWidth = min(max(measuredWidth(miniLabel.stringValue, font: miniLabel.font) + 34, 128), bounds.width - horizontalMargin * 2, 360)
-        miniContainer.frame = NSRect(
-            x: bounds.midX - miniWidth / 2,
-            y: 24,
-            width: miniWidth,
-            height: 34
-        )
-        miniLabel.frame = centeredTextFrame(
-            x: 17,
-            width: miniContainer.bounds.width - 34,
-            height: miniContainer.bounds.height,
-            in: miniContainer.bounds
+        iconView.frame = NSRect(x: 14, y: (height - 14) / 2, width: 14, height: 14)
+        let statusWidth = min(preferredStatusWidth, max(0, width - 110))
+        let statusMinX = width - statusWidth - 14
+        let progressSlotWidth = min(progressWidth, statusWidth)
+        statusLabel.frame = NSRect(x: statusMinX + progressSlotWidth, y: (height - 22) / 2,
+                                   width: statusWidth - progressSlotWidth, height: 22)
+        let textFrame = NSRect(x: 38, y: (height - 24) / 2,
+                               width: max(0, statusMinX - 50), height: 24)
+        textField.frame = textFrame
+        queryLabel.frame = textFrame
+        progressIndicator.frame = NSRect(
+            x: statusMinX + 3,
+            y: (height - 14) / 2, width: 14, height: 14
         )
     }
 
@@ -1272,7 +1230,8 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
 
     func focus() {
         layoutSubtreeIfNeeded()
-        showEditing()
+        presentation = .editing
+        updatePresentation()
 
         let expectedResponder = window?.firstResponder
         DispatchQueue.main.async { [weak self, weak expectedResponder] in
@@ -1294,22 +1253,20 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
         currentStatus = status
         statusLabel.stringValue = status.text
         statusLabel.textColor = status.color
-        statusPill.layer?.borderColor = status.accentColor.cgColor
-        updateMiniLabel()
+        progressIndicator.isHidden = !status.isSearching
+        if status.isSearching {
+            progressIndicator.startAnimation(nil)
+        } else {
+            progressIndicator.stopAnimation(nil)
+        }
+        updateBorder()
         needsLayout = true
     }
 
     func showMini(query: String) {
-        miniQuery = query
-        updateMiniLabel()
+        queryLabel.stringValue = query
         presentation = .mini
-        updatePresentation(animated: true)
-        needsLayout = true
-    }
-
-    private func showEditing() {
-        presentation = .editing
-        updatePresentation(animated: false)
+        updatePresentation()
     }
 
     func controlTextDidChange(_ notification: Notification) {
@@ -1335,61 +1292,57 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
     }
 
     private func configureContainer() {
+        container.identifier = NSUserInterfaceItemIdentifier("pdf-search-bar")
         container.material = .hudWindow
         container.blendingMode = .withinWindow
         container.state = .active
         container.wantsLayer = true
-        container.layer?.backgroundColor = VellumColors.panel.withAlphaComponent(0.98).cgColor
-        container.layer?.borderColor = VellumColors.foreground.withAlphaComponent(0.12).cgColor
+        container.layer?.backgroundColor = VellumColors.background.withAlphaComponent(0.92).cgColor
         container.layer?.borderWidth = 1
         container.layer?.cornerRadius = 8
         container.layer?.shadowColor = NSColor.black.cgColor
         container.layer?.shadowOpacity = 0.18
-        container.layer?.shadowRadius = 16
-        container.layer?.shadowOffset = NSSize(width: 0, height: 5)
-        inputFocusLine.backgroundColor = VellumColors.blue.withAlphaComponent(0.7).cgColor
-        inputFocusLine.actions = ["position": NSNull(), "bounds": NSNull()]
-        container.layer?.addSublayer(inputFocusLine)
-
-        miniContainer.material = .hudWindow
-        miniContainer.blendingMode = .withinWindow
-        miniContainer.state = .active
-        miniContainer.wantsLayer = true
-        miniContainer.layer?.backgroundColor = VellumColors.panel.withAlphaComponent(0.98).cgColor
-        miniContainer.layer?.borderColor = VellumColors.foreground.withAlphaComponent(0.12).cgColor
-        miniContainer.layer?.borderWidth = 1
-        miniContainer.layer?.cornerRadius = 8
-        miniContainer.layer?.shadowColor = NSColor.black.cgColor
-        miniContainer.layer?.shadowOpacity = 0.16
-        miniContainer.layer?.shadowRadius = 14
-        miniContainer.layer?.shadowOffset = NSSize(width: 0, height: 4)
+        container.layer?.shadowRadius = 12
+        container.layer?.shadowOffset = NSSize(width: 0, height: -3)
     }
 
     private func configureLabels() {
         iconView.image = NSImage(systemSymbolName: "magnifyingglass", accessibilityDescription: nil)
-        iconView.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 13, weight: .medium)
+        iconView.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 13, weight: .regular)
         iconView.contentTintColor = VellumColors.muted
 
-        statusLabel.font = .monospacedDigitSystemFont(ofSize: 12, weight: .regular)
-        statusLabel.textColor = VellumColors.muted.withAlphaComponent(0.95)
-        miniLabel.font = .monospacedDigitSystemFont(ofSize: 12, weight: .regular)
-        miniLabel.textColor = VellumColors.foreground.withAlphaComponent(0.94)
-        miniLabel.lineBreakMode = .byTruncatingMiddle
+        queryLabel.identifier = NSUserInterfaceItemIdentifier("pdf-search-query")
+        statusLabel.identifier = NSUserInterfaceItemIdentifier("pdf-search-status")
+        for label in [queryLabel, statusLabel] {
+            label.cell = VerticallyCenteredTextFieldCell(textCell: "")
+            label.isBordered = false
+            label.isBezeled = false
+            label.drawsBackground = false
+            label.isEditable = false
+            label.isSelectable = false
+            label.maximumNumberOfLines = 1
+            label.cell?.usesSingleLineMode = true
+        }
+        queryLabel.font = .systemFont(ofSize: 13, weight: .regular)
+        queryLabel.textColor = VellumColors.foreground
+        queryLabel.lineBreakMode = .byTruncatingMiddle
+        statusLabel.font = .monospacedDigitSystemFont(ofSize: 11, weight: .regular)
+        statusLabel.alignment = .right
+        statusLabel.textColor = VellumColors.muted
+        statusLabel.lineBreakMode = .byClipping
 
-        statusPill.material = .hudWindow
-        statusPill.blendingMode = .withinWindow
-        statusPill.state = .active
-        statusPill.wantsLayer = true
-        statusPill.layer?.backgroundColor = VellumColors.backgroundDeep.withAlphaComponent(0.94).cgColor
-        statusPill.layer?.borderColor = currentStatus.accentColor.cgColor
-        statusPill.layer?.borderWidth = 1
-        statusPill.layer?.cornerRadius = 7
+        progressIndicator.identifier = NSUserInterfaceItemIdentifier("pdf-search-progress")
+        progressIndicator.style = .spinning
+        progressIndicator.controlSize = .small
+        progressIndicator.isDisplayedWhenStopped = false
+        progressIndicator.isHidden = true
     }
 
     private func configureTextField(query: String) {
+        textField.identifier = NSUserInterfaceItemIdentifier("pdf-search-input")
         textField.cell = VerticallyCenteredTextFieldCell(textCell: "")
         textField.stringValue = query
-        textField.font = .systemFont(ofSize: 14, weight: .medium)
+        textField.font = .systemFont(ofSize: 14, weight: .regular)
         textField.textColor = VellumColors.foreground
         textField.placeholderAttributedString = NSAttributedString(
             string: AppUILanguage.saved().text(.search),
@@ -1417,61 +1370,23 @@ private final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
         }
     }
 
-    private func updateMiniLabel() {
-        let queryText = miniQuery.isEmpty ? textField.stringValue : miniQuery
-        let statusText = currentStatus.text
-        miniLabel.stringValue = queryText.isEmpty ? statusText : "\(queryText)  \(statusText)"
+    private func updatePresentation() {
+        let isEditing = presentation == .editing
+        textField.isHidden = !isEditing
+        queryLabel.isHidden = isEditing
+        updateBorder()
+        needsLayout = true
     }
 
-    private func updatePresentation(animated: Bool) {
-        let showEditing = presentation == .editing
-        let changes = {
-            self.container.alphaValue = showEditing ? 1 : 0
-            self.miniContainer.alphaValue = showEditing ? 0 : 1
-        }
-
-        container.isHidden = false
-        miniContainer.isHidden = false
-        guard animated else {
-            changes()
-            container.isHidden = !showEditing
-            miniContainer.isHidden = showEditing
-            return
-        }
-
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.12
-            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-            changes()
-        } completionHandler: { [weak self] in
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                self.container.isHidden = !showEditing
-                self.miniContainer.isHidden = showEditing
-            }
-        }
+    private func updateBorder() {
+        let color = presentation == .editing
+            ? VellumColors.blue.withAlphaComponent(0.45)
+            : VellumColors.border
+        container.layer?.borderColor = color.cgColor
     }
 
-    private func centeredFrame(x: CGFloat, size: NSSize, in bounds: NSRect) -> NSRect {
-        NSRect(
-            x: x,
-            y: bounds.midY - size.height / 2,
-            width: size.width,
-            height: size.height
-        )
-    }
-
-    private func centeredTextFrame(x: CGFloat, width: CGFloat, height: CGFloat, in bounds: NSRect) -> NSRect {
-        NSRect(
-            x: x,
-            y: bounds.midY - height / 2,
-            width: width,
-            height: height
-        )
-    }
-
-    private func measuredWidth(_ text: String, font: NSFont) -> CGFloat {
-        ceil(text.size(withAttributes: [.font: font]).width)
+    private func measuredWidth(_ text: String, font: NSFont?) -> CGFloat {
+        ceil(text.size(withAttributes: [.font: font ?? NSFont.systemFont(ofSize: 13)]).width)
     }
 }
 
@@ -1491,58 +1406,6 @@ enum SearchCommandEditingCommand {
         default:
             return nil
         }
-    }
-}
-
-private final class CenteredTextLabel: NSView {
-    var stringValue: String {
-        didSet { needsDisplay = true }
-    }
-
-    var font: NSFont = .systemFont(ofSize: NSFont.systemFontSize) {
-        didSet { needsDisplay = true }
-    }
-
-    var textColor: NSColor = .labelColor {
-        didSet { needsDisplay = true }
-    }
-
-    var lineBreakMode: NSLineBreakMode = .byClipping {
-        didSet { needsDisplay = true }
-    }
-
-    init(text: String) {
-        self.stringValue = text
-        super.init(frame: .zero)
-        wantsLayer = false
-    }
-
-    required init?(coder: NSCoder) {
-        nil
-    }
-
-    override var isFlipped: Bool {
-        true
-    }
-
-    override func draw(_ dirtyRect: NSRect) {
-        super.draw(dirtyRect)
-        let paragraphStyle = NSMutableParagraphStyle()
-        paragraphStyle.alignment = .center
-        paragraphStyle.lineBreakMode = lineBreakMode
-        let attributes: [NSAttributedString.Key: Any] = [
-            .font: font,
-            .foregroundColor: textColor,
-            .paragraphStyle: paragraphStyle
-        ]
-        let size = stringValue.size(withAttributes: attributes)
-        let drawRect = NSRect(
-            x: 0,
-            y: (bounds.height - size.height) / 2,
-            width: bounds.width,
-            height: size.height
-        )
-        stringValue.draw(in: drawRect, withAttributes: attributes)
     }
 }
 

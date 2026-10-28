@@ -128,6 +128,7 @@ struct PDFSelectionRestoreTests {
         #expect(view.currentSelection == nil)
         #expect(view.savedTextSelection == nil)
         #expect(currentToast(in: window)?.message == AppUILanguage.saved().text(.noPreviousTextSelection))
+        #expect(currentToast(in: window)?.kind == .warning)
     }
 
     @Test
@@ -150,6 +151,7 @@ struct PDFSelectionRestoreTests {
         #expect(view.currentSelection == nil)
         #expect(view.savedTextSelection == nil)
         #expect(currentToast(in: window)?.message == AppUILanguage.saved().text(.noPreviousTextSelection))
+        #expect(currentToast(in: window)?.kind == .warning)
     }
 
     @Test
@@ -187,6 +189,7 @@ struct PDFSelectionRestoreTests {
 
         #expect(view.currentSelection == nil)
         #expect(currentToast(in: window)?.message == AppUILanguage.saved().text(.noPreviousTextSelection))
+        #expect(currentToast(in: window)?.kind == .warning)
         #expect(window.firstResponder === view)
     }
 

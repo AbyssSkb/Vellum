@@ -38,8 +38,8 @@ struct OpenAICompatibleAIExplanationClient: AIExplaining {
         try validate(data: data, response: response)
 
         do {
-            let text = try AIResponseParser.completionText(from: data, providerFormat: configuration.providerFormat)
-            return AppUILanguage.saved().text(.aiModelResponded(text))
+            _ = try AIResponseParser.completionText(from: data, providerFormat: configuration.providerFormat)
+            return AppUILanguage.saved().text(.aiModelResponded)
         } catch AIExplanationError.emptyResponse {
             return AppUILanguage.saved().text(.aiModelEmptyResponse)
         }

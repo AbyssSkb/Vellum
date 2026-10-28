@@ -149,7 +149,7 @@ extension AppState {
 
     func restoreClosedPDFTab() {
         guard let url = tabStore.nextClosedPDFTabURL else {
-            showNotification(AppUILanguage.saved().text(.noClosedTabs))
+            showNotification(AppUILanguage.saved().text(.noClosedTabs), kind: .warning)
             return
         }
         let previousSelectedTabID = selectedTabID

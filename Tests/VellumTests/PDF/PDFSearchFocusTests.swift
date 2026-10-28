@@ -7,6 +7,95 @@ import Testing
 @Suite("PDF search focus")
 struct PDFSearchFocusTests {
     @Test(arguments: [false, true])
+    func longResultCountsHaveRoomBesideTheProgressIndicator(mini: Bool) throws {
+        _ = NSApplication.shared
+        let overlay = SearchCommandOverlayView(query: "alpha")
+        overlay.frame = NSRect(x: 0, y: 0, width: 700, height: 600)
+        if mini { overlay.showMini(query: "alpha") }
+        let surface = try #require(overlay.subviews.first as? NSVisualEffectView)
+        let input = try #require(surface.subviews.first { $0.identifier?.rawValue == "pdf-search-input" })
+        let status = try #require(surface.subviews.first { $0.identifier?.rawValue == "pdf-search-status" } as? NSTextField)
+        let progress = try #require(surface.subviews.first { $0.identifier?.rawValue == "pdf-search-progress" })
+
+        overlay.layoutSubtreeIfNeeded()
+        let initialInputFrame = input.frame
+        for state in [SearchCommandOverlayView.Status.searching(current: nil, total: 0),
+                      .searching(current: 1, total: 2), .count(current: 1, total: 2), .hint("")] {
+            overlay.update(status: state)
+            overlay.layoutSubtreeIfNeeded()
+            #expect(input.frame == initialInputFrame)
+        }
+
+        for pending in [true, false] {
+            overlay.update(status: pending ? .searching(current: 100000, total: 1000000) : .count(current: 100000, total: 1000000))
+            overlay.layoutSubtreeIfNeeded()
+            let measuredTextWidth = ceil(status.stringValue.size(withAttributes: [.font: try #require(status.font)]).width)
+            #expect(status.frame.width >= measuredTextWidth + 4)
+            #expect(progress.isHidden == !pending)
+            #expect(!pending || progress.frame.maxX < status.frame.minX)
+            #expect(input.frame.maxX < (pending ? progress.frame.minX : status.frame.minX))
+            #expect(surface.bounds.contains(status.frame))
+            #expect(surface.frame.width <= (mini ? 360 : 520))
+        }
+    }
+
+    @Test
+    func searchUsesOneSurfaceAndKeepsTheInputStableAcrossStatuses() async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let field = try fixture.begin()
+        let surface = try #require(field.superview as? NSVisualEffectView)
+        let status = try #require(surface.subviews.first { $0.identifier?.rawValue == "pdf-search-status" } as? NSTextField)
+        let progress = try #require(surface.subviews.first { $0.identifier?.rawValue == "pdf-search-progress" } as? NSProgressIndicator)
+        fixture.reader.layoutSubtreeIfNeeded()
+        let inputFrame = field.frame
+        #expect(surface.subviews.allSatisfy { !($0 is NSVisualEffectView) })
+        #expect(surface.frame.width <= 520)
+        #expect(status.stringValue.isEmpty)
+        #expect(progress.isHidden)
+
+        let controller = try #require(fixture.reader.searchController)
+        for query in ["alpha", "missing"] {
+            field.stringValue = query
+            field.delegate?.controlTextDidChange?(Notification(name: NSControl.textDidChangeNotification, object: field))
+            fixture.reader.layoutSubtreeIfNeeded()
+            #expect(!progress.isHidden)
+            #expect(field.frame == inputFrame)
+            try await waitForTestCondition("Search status is complete") { !controller.isSearchPending }
+            fixture.reader.layoutSubtreeIfNeeded()
+            #expect(progress.isHidden)
+            #expect(field.frame == inputFrame)
+            #expect(status.stringValue == (query == "alpha" ? "1 / 1" : AppUILanguage.saved().text(.searchNoMatch)))
+            #expect(status.textColor == (query == "alpha" ? VellumColors.muted : NSColor.systemOrange))
+        }
+    }
+
+    @Test
+    func committedSearchReusesTheSurfaceAndStopsInterceptingItsExpandedArea() async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let field = try fixture.begin()
+        let surface = try #require(field.superview as? NSVisualEffectView)
+        let overlay = try #require(surface.superview)
+        let controller = try #require(fixture.reader.searchController)
+        field.stringValue = "alpha"
+        field.delegate?.controlTextDidChange?(Notification(name: NSControl.textDidChangeNotification, object: field))
+        try await waitForTestCondition("Search finds its result") { !controller.isSearchPending }
+        fixture.reader.layoutSubtreeIfNeeded()
+        let expandedEdge = NSPoint(x: surface.frame.minX + 2, y: surface.frame.midY)
+
+        #expect(field.delegate?.control?(field, textView: NSTextView(), doCommandBy: #selector(NSResponder.insertNewline(_:))) == true)
+        fixture.reader.layoutSubtreeIfNeeded()
+
+        let query = try #require(surface.subviews.first { $0.identifier?.rawValue == "pdf-search-query" } as? NSTextField)
+        #expect(surface.superview === overlay)
+        #expect(field.isHidden)
+        #expect(!query.isHidden && query.stringValue == "alpha")
+        #expect(surface.frame.width < 360)
+        #expect(overlay.hitTest(expandedEdge) == nil)
+    }
+
+    @Test(arguments: [false, true])
     func noMatchCommitKeepsTheQueryEditable(previewComplete: Bool) async throws {
         let fixture = try Fixture()
         defer { fixture.cleanUp() }

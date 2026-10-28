@@ -9,14 +9,14 @@ struct CodexAppServerAIExplanationClient: AIExplaining {
     }
 
     func testFunction(configuration: AIConfiguration) async throws -> String {
-        let text = try await runTurn(
+        _ = try await runTurn(
             operation: "codex.testFunction",
             prompt: "Reply with OK.",
             configuration: configuration,
             timeout: 90,
             onChunk: nil
         )
-        return AppUILanguage.saved().text(.codexResponded(text))
+        return AppUILanguage.saved().text(.codexResponded)
     }
 
     func fetchModels(configuration: AIConfiguration) async throws -> [String] {

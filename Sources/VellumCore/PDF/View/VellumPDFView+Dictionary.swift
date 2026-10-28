@@ -12,7 +12,7 @@ extension VellumPDFView {
             cancelWordJump()
             dismissDictionaryPopover(restoreFocus: false)
             clearTextSelectionForVimNavigation()
-            showNotification(AppUILanguage.saved().text(.dictionaryUnavailable))
+            showNotification(AppUILanguage.saved().text(.dictionaryUnavailable), kind: .warning)
             return
         }
         let text = AISelectedTextNormalizer.normalized(currentSelection?.string ?? "")
@@ -78,7 +78,7 @@ extension VellumPDFView {
             guard let self, let popover, self.dictionaryPopover === popover else { return }
             self.dismissDictionaryPopover(restoreFocus: false)
             self.clearTextSelectionForVimNavigation()
-            self.showNotification(AppUILanguage.saved().text(.dictionaryNotFound(word)))
+            self.showNotification(AppUILanguage.saved().text(.dictionaryNotFound(word)), kind: .warning)
         }
         popover.onPreferredHeightChange = { [weak self, weak popover] height in
             guard let self, let popover, self.dictionaryPopover === popover else { return }

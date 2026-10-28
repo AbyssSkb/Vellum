@@ -4,13 +4,13 @@ extension VellumPDFView {
     func vimHighlightSelection(color: NSColor) {
         let usedSearchSelection = currentSelection == nil
         guard let selection = currentSelection ?? searchController?.activeSearchSelection else {
-            showNotification(AppUILanguage.saved().text(.noTextToHighlight))
+            showNotification(AppUILanguage.saved().text(.noTextToHighlight), kind: .warning)
             return
         }
 
         let annotations = addHighlightAnnotations(for: selection, color: color)
         guard !annotations.isEmpty else {
-            showNotification(AppUILanguage.saved().text(.noHighlightableText))
+            showNotification(AppUILanguage.saved().text(.noHighlightableText), kind: .warning)
             return
         }
 
@@ -81,7 +81,7 @@ extension VellumPDFView {
         }
 
         guard didRemoveHighlight else {
-            showNotification(AppUILanguage.saved().text(.noHighlightsInSelection))
+            showNotification(AppUILanguage.saved().text(.noHighlightsInSelection), kind: .warning)
             return true
         }
 
@@ -101,7 +101,7 @@ extension VellumPDFView {
               let selectedText = selection.string?
                 .trimmingCharacters(in: .whitespacesAndNewlines),
               !selectedText.isEmpty else {
-            showNotification(AIExplanationError.noSelection.localizedDescription)
+            showNotification(AIExplanationError.noSelection.localizedDescription, kind: .warning)
             return
         }
 
@@ -111,7 +111,7 @@ extension VellumPDFView {
         do {
             configuration = try AIConfiguration.current()
         } catch {
-            showNotification(error.localizedDescription, kind: .error)
+            showNotification(error.localizedDescription, kind: .warning)
             return
         }
 
@@ -120,7 +120,7 @@ extension VellumPDFView {
             selectedText: selectedText,
             document: document
         ) else {
-            showNotification(AIExplanationError.noSelection.localizedDescription)
+            showNotification(AIExplanationError.noSelection.localizedDescription, kind: .warning)
             return
         }
 
@@ -218,7 +218,7 @@ extension VellumPDFView {
               let selectedText = selection.string?
                 .trimmingCharacters(in: .whitespacesAndNewlines),
               !selectedText.isEmpty else {
-            showNotification(AIExplanationError.noSelection.localizedDescription)
+            showNotification(AIExplanationError.noSelection.localizedDescription, kind: .warning)
             return
         }
 
@@ -227,7 +227,7 @@ extension VellumPDFView {
             selectedText: selectedText,
             document: document
         ) else {
-            showNotification(AIExplanationError.noSelection.localizedDescription)
+            showNotification(AIExplanationError.noSelection.localizedDescription, kind: .warning)
             return
         }
 

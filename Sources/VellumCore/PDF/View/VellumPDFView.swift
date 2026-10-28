@@ -332,7 +332,7 @@ final class VellumPDFView: PDFView {
     func vimCopySelection() {
         let selectionText = currentSelection?.string?.nilIfEmpty
         guard let selectedText = selectionText ?? searchController?.activeSearchSelection?.string?.nilIfEmpty else {
-            showNotification(AppUILanguage.saved().text(.noTextToCopy))
+            showNotification(AppUILanguage.saved().text(.noTextToCopy), kind: .warning)
             return
         }
 

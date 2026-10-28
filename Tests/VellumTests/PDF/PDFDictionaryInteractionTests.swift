@@ -57,6 +57,7 @@ struct PDFDictionaryInteractionTests {
             #expect(try keyboard.routeKeyEvent(keyEvent("K", in: window, type: .keyUp)))
 
             #expect(currentToast(in: window)?.message == AppUILanguage.saved().text(.dictionaryUnavailable))
+            #expect(currentToast(in: window)?.kind == .warning)
             #expect(!view.isWordJumpActive)
             #expect(!view.isDictionaryInteractionActive)
             #expect(view.dictionaryPopover == nil)
@@ -83,6 +84,7 @@ struct PDFDictionaryInteractionTests {
             await nextTestMainQueueTurn()
 
             #expect(currentToast(in: window)?.message == AppUILanguage.saved().text(.dictionaryUnavailable))
+            #expect(currentToast(in: window)?.kind == .warning)
             #expect(!view.isWordJumpActive)
             #expect(!view.isDictionaryInteractionActive)
             #expect(view.dictionaryPopover == nil)

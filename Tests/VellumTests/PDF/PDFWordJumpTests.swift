@@ -12,6 +12,7 @@ struct PDFWordJumpTests {
         view.beginWordJumpCommand()
         let hint = try #require(window.contentView?.superview?.subviews.compactMap { $0 as? ToastView }.first)
         #expect(hint.message == AppUILanguage.saved().text(.wordJumpTypeHint))
+        #expect(hint.kind == .info)
         #expect(!hint.autoDismiss)
         try send("\r", to: view)
         try send("\u{7f}", to: view)
@@ -330,6 +331,7 @@ struct PDFWordJumpTests {
         #expect(view.currentSelection?.range(at: 0, on: page) == original)
         let toast = try #require(window.contentView?.superview?.subviews.compactMap { $0 as? ToastView }.first)
         #expect(toast.message == AppUILanguage.saved().text(.wordJumpNoMatch))
+        #expect(toast.kind == .warning)
         #expect(toast.autoDismiss)
         #expect(!view.handleWordJumpKey(try event("a", in: window)))
     }

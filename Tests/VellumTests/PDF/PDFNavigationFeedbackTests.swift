@@ -25,6 +25,7 @@ struct PDFNavigationFeedbackTests {
         }
 
         #expect(currentToast(in: window)?.message == AppUILanguage.saved().text(.noSearchQuery))
+        #expect(currentToast(in: window)?.kind == .warning)
         #expect(view.jumpBackStack.isEmpty)
         #expect(window.firstResponder === responder)
     }
@@ -38,6 +39,7 @@ struct PDFNavigationFeedbackTests {
         view.vimMaterializeSearchSelection()
 
         #expect(currentToast(in: window)?.message == AppUILanguage.saved().text(.noSearchMatch))
+        #expect(currentToast(in: window)?.kind == .warning)
         #expect(view.currentSelection == nil)
     }
 
@@ -74,6 +76,7 @@ struct PDFNavigationFeedbackTests {
 
         let text: AppText = forward ? .noLaterReadingPosition : .noEarlierReadingPosition
         #expect(currentToast(in: window)?.message == AppUILanguage.saved().text(text))
+        #expect(currentToast(in: window)?.kind == .warning)
         #expect(view.currentPage === originalPage)
         #expect(view.jumpBackStack.isEmpty && view.jumpForwardStack.isEmpty)
     }
@@ -88,6 +91,7 @@ struct PDFNavigationFeedbackTests {
 
         #expect(view.currentPage === view.document?.page(at: pageNumber < 1 ? 0 : 2))
         #expect(currentToast(in: window)?.message == AppUILanguage.saved().text(.pageNumberOutOfRange(3)))
+        #expect(currentToast(in: window)?.kind == .warning)
     }
 
     @Test(arguments: [1, 2, 3])

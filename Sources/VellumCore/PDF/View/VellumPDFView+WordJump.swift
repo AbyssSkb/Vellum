@@ -164,7 +164,7 @@ final class PDFWordJumpController {
         guard !targets.isEmpty else {
             cancel()
             let reason: AppText = mode.selectsWords ? .wordJumpNoText : (mode == .previewLinks ? .linkPreviewNoLinks : .linkJumpNoLinks)
-            pdfView.showNotification(AppUILanguage.saved().text(reason))
+            pdfView.showNotification(AppUILanguage.saved().text(reason), kind: .warning)
             return
         }
         session = WordJumpSession(words: targets.map(\.word), labelsOnly: !mode.selectsWords)
@@ -190,7 +190,7 @@ final class PDFWordJumpController {
             if mode.selectsWords, !session.query.isEmpty {
                 guard !session.matches.isEmpty else {
                     cancel()
-                    pdfView?.showNotification(AppUILanguage.saved().text(.wordJumpNoMatch))
+                    pdfView?.showNotification(AppUILanguage.saved().text(.wordJumpNoMatch), kind: .warning)
                     return true
                 }
                 entryHint?.dismiss(animated: false)
@@ -414,15 +414,15 @@ private final class WordJumpOverlayView: NSView {
                 : WordJumpLabelGeometry.fontSize(for: rect, rotation: targets[match.wordIndex].rotation)
             let attributes: [NSAttributedString.Key: Any] = [
                 .font: NSFont.monospacedSystemFont(ofSize: fontSize, weight: .medium),
-                .foregroundColor: VellumColors.foreground
+                .foregroundColor: VellumColors.backgroundDeep
             ]
             let size = label.size(withAttributes: attributes)
-            VellumColors.panel.setFill()
+            VellumColors.cyan.setFill()
             let path = usesTextGeometry ? NSBezierPath(rect: frame)
                 : NSBezierPath(roundedRect: frame, xRadius: 2, yRadius: 2)
             path.fill()
             let text = NSMutableAttributedString(string: label as String, attributes: attributes)
-            text.addAttribute(.foregroundColor, value: VellumColors.muted.withAlphaComponent(0.6),
+            text.addAttribute(.foregroundColor, value: VellumColors.backgroundDeep.withAlphaComponent(0.45),
                               range: NSRange(location: 0, length: showsRemainingLetters ? 0 : session.labelPrefix.utf16.count))
             NSGraphicsContext.saveGraphicsState()
             let transform = NSAffineTransform()

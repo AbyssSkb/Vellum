@@ -32,7 +32,7 @@ extension VellumPDFView {
               saved.document === document, !saved.selection.pages.isEmpty,
               saved.selection.pages.allSatisfy({ $0.document === document }) else {
             savedTextSelection = nil
-            showNotification(AppUILanguage.saved().text(.noPreviousTextSelection))
+            showNotification(AppUILanguage.saved().text(.noPreviousTextSelection), kind: .warning)
             return
         }
 

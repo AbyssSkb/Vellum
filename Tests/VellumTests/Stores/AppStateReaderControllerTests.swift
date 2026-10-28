@@ -335,14 +335,14 @@ struct AppStateReaderControllerTests {
         appState.setActiveReaderController(reader, for: tab.id)
 
         appState.showAIExplanationHistory()
-        appState.showAIConversationHistory()
-
         #expect(!appState.isAIExplanationHistoryPresented)
+        #expect(appState.pendingNotification?.text == AppUILanguage.saved().text(.noAIExplanationsInFile))
+        #expect(appState.pendingNotification?.kind == .warning)
+
+        appState.showAIConversationHistory()
         #expect(!appState.isAIConversationHistoryPresented)
-        #expect(reader.notifications == [
-            AppUILanguage.saved().text(.noAIExplanationsInFile),
-            AppUILanguage.saved().text(.noAIConversationsInFile)
-        ])
+        #expect(appState.pendingNotification?.text == AppUILanguage.saved().text(.noAIConversationsInFile))
+        #expect(appState.pendingNotification?.kind == .warning)
     }
 
     private func conversationHistoryItem(
@@ -376,7 +376,6 @@ private final class RecordingReaderController: ReaderController {
     var aiExplanationHistory: [AIExplanationHistoryItem]
     private let savedSnapshot: ReaderSnapshot?
     private(set) var actions: [Action] = []
-    private(set) var notifications: [String] = []
 
     init(
         snapshot: ReaderSnapshot? = nil,
@@ -457,10 +456,6 @@ private final class RecordingReaderController: ReaderController {
 
     func aiExplanationHistoryItems() -> [AIExplanationHistoryItem] {
         aiExplanationHistory
-    }
-
-    func showNotification(_ message: String) {
-        notifications.append(message)
     }
 
     func vimScroll(x: CGFloat, y: CGFloat) {

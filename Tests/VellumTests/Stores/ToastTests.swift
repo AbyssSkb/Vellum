@@ -114,6 +114,38 @@ struct ToastTests {
     }
 
     @Test
+    func warningUsesItsOwnSemanticSymbolAndColor() throws {
+        let window = makeWindow()
+        defer { window.close() }
+        VellumToast.show("No matching word", kind: .warning, in: window)
+
+        let toast = try #require(currentToast(in: window))
+        let icon = try #require(toast.subviews.compactMap { $0 as? NSImageView }.first)
+        #expect(toast.kind == .warning)
+        #expect(ToastKind.warning.symbol == "exclamationmark.triangle.fill")
+        #expect(icon.contentTintColor == NSColor.systemOrange)
+        #expect(toast.accessibilityLabel() == "No matching word")
+    }
+
+    @Test(arguments: [CGFloat(320), CGFloat(800)])
+    func longFeedbackRespectsLayoutLimitsAndKeepsItsFullDetails(windowWidth: CGFloat) throws {
+        let window = makeWindow(width: windowWidth)
+        defer { window.close() }
+        let message = String(repeating: "A useful error message. ", count: 20)
+        VellumToast.show(message, kind: .error, in: window)
+
+        let toast = try #require(currentToast(in: window))
+        let label = try #require(toast.subviews.compactMap { $0 as? NSTextField }.first)
+        #expect(toast.frame.width <= min(500, windowWidth - 32))
+        #expect(toast.frame.height >= 40 && toast.frame.height <= 122)
+        #expect(label.maximumNumberOfLines == 5)
+        #expect(label.stringValue == message)
+        #expect(label.toolTip == message)
+        #expect(toast.toolTip == message)
+        #expect(toast.accessibilityLabel() == message)
+    }
+
+    @Test
     func identicalPassiveFeedbackKeepsItsOriginalExpiry() async throws {
         let window = makeWindow()
         defer { window.close() }

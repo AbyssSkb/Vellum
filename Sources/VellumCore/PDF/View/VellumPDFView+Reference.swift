@@ -11,7 +11,7 @@ extension VellumPDFView {
     func showLinkPreview(for annotation: PDFAnnotation) {
         guard let document,
               let destination = PDFLinkNavigation.previewDestination(for: annotation, in: document) else {
-            showNotification(AppUILanguage.saved().text(.referenceUnavailable))
+            showNotification(AppUILanguage.saved().text(.referenceUnavailable), kind: .warning)
             return
         }
         let crop: NSRect?
@@ -39,7 +39,7 @@ extension VellumPDFView {
         guard let content = PDFReferenceContent(document: document, destination: resolvedDestination, crop: crop,
                                                 fitsEntireCrop: fitsEntireCrop, title: title,
                                                 continuation: continuation, additionalFragments: additionalFragments) else {
-            showNotification(AppUILanguage.saved().text(.referenceUnavailable))
+            showNotification(AppUILanguage.saved().text(.referenceUnavailable), kind: .warning)
             return
         }
         if referenceController == nil { referenceController = PDFReferenceController(reader: self) }
@@ -255,7 +255,7 @@ final class PDFReferenceController {
         guard let panel = preview else { return false }
         guard panel.content.isValid(in: reader.document) else {
             closePreview()
-            reader.showNotification(AppUILanguage.saved().text(.referenceUnavailable))
+            reader.showNotification(AppUILanguage.saved().text(.referenceUnavailable), kind: .warning)
             return true
         }
         guard event.type == .keyDown else { return true }
@@ -289,7 +289,7 @@ final class PDFReferenceController {
         guard let reader else { return }
         closePreview()
         guard content.isValid(in: reader.document) else {
-            reader.showNotification(AppUILanguage.saved().text(.referenceUnavailable))
+            reader.showNotification(AppUILanguage.saved().text(.referenceUnavailable), kind: .warning)
             return
         }
         reader.clearTextSelectionForVimNavigation()

@@ -91,7 +91,7 @@ extension VellumPDFView {
     func vimNavigateHighlight(_ direction: Int) {
         let items = highlightListItems()
         guard !items.isEmpty, let document else {
-            showNotification(AppUILanguage.saved().text(.noHighlightsInFile))
+            showNotification(AppUILanguage.saved().text(.noHighlightsInFile), kind: .warning)
             return
         }
         let selected = currentSelection.map(highlightedAnnotations(intersecting:)) ?? []
