@@ -19,13 +19,20 @@ struct PDFSearchFocusTests {
 
         overlay.layoutSubtreeIfNeeded()
         let initialInputFrame = input.frame
+        #expect(surface.layer?.cornerRadius == surface.bounds.height / 2)
+        #expect(surface.layer?.cornerCurve == .circular)
+        #expect(surface.layer?.masksToBounds == true)
         for state in [SearchCommandOverlayView.Status.searching(current: nil, total: 0),
-                      .searching(current: 1, total: 2), .count(current: 1, total: 2), .hint("")] {
+                      .searching(current: 1, total: 100), .count(current: 1, total: 100),
+                      .searching(current: 100, total: 100), .count(current: 100, total: 100),
+                      .noMatch(AppUILanguage.english.text(.searchNoMatch)),
+                      .noMatch(AppUILanguage.chinese.text(.searchNoMatch)), .hint("")] {
             overlay.update(status: state)
             overlay.layoutSubtreeIfNeeded()
             #expect(input.frame == initialInputFrame)
         }
 
+        var pendingInputFrame: NSRect?
         for pending in [true, false] {
             overlay.update(status: pending ? .searching(current: 100000, total: 1000000) : .count(current: 100000, total: 1000000))
             overlay.layoutSubtreeIfNeeded()
@@ -35,7 +42,13 @@ struct PDFSearchFocusTests {
             #expect(!pending || progress.frame.maxX < status.frame.minX)
             #expect(input.frame.maxX < (pending ? progress.frame.minX : status.frame.minX))
             #expect(surface.bounds.contains(status.frame))
-            #expect(surface.frame.width <= (mini ? 360 : 520))
+            #expect(surface.frame.width <= 224)
+            #expect(surface.layer?.cornerRadius == surface.bounds.height / 2)
+            if pending {
+                pendingInputFrame = input.frame
+            } else {
+                #expect(input.frame == pendingInputFrame)
+            }
         }
     }
 
@@ -50,7 +63,7 @@ struct PDFSearchFocusTests {
         fixture.reader.layoutSubtreeIfNeeded()
         let inputFrame = field.frame
         #expect(surface.subviews.allSatisfy { !($0 is NSVisualEffectView) })
-        #expect(surface.frame.width <= 520)
+        #expect(surface.frame.width <= 224)
         #expect(status.stringValue.isEmpty)
         #expect(progress.isHidden)
 
@@ -71,7 +84,7 @@ struct PDFSearchFocusTests {
     }
 
     @Test
-    func committedSearchReusesTheSurfaceAndStopsInterceptingItsExpandedArea() async throws {
+    func committedSearchKeepsTheCapsuleAndTextGeometry() async throws {
         let fixture = try Fixture()
         defer { fixture.cleanUp() }
         let field = try fixture.begin()
@@ -82,7 +95,10 @@ struct PDFSearchFocusTests {
         field.delegate?.controlTextDidChange?(Notification(name: NSControl.textDidChangeNotification, object: field))
         try await waitForTestCondition("Search finds its result") { !controller.isSearchPending }
         fixture.reader.layoutSubtreeIfNeeded()
-        let expandedEdge = NSPoint(x: surface.frame.minX + 2, y: surface.frame.midY)
+        let editingFrame = surface.frame
+        let inputFrame = field.frame
+        let status = try #require(surface.subviews.first { $0.identifier?.rawValue == "pdf-search-status" })
+        let statusFrame = status.frame
 
         #expect(field.delegate?.control?(field, textView: NSTextView(), doCommandBy: #selector(NSResponder.insertNewline(_:))) == true)
         fixture.reader.layoutSubtreeIfNeeded()
@@ -91,8 +107,11 @@ struct PDFSearchFocusTests {
         #expect(surface.superview === overlay)
         #expect(field.isHidden)
         #expect(!query.isHidden && query.stringValue == "alpha")
-        #expect(surface.frame.width < 360)
-        #expect(overlay.hitTest(expandedEdge) == nil)
+        #expect(surface.frame == editingFrame)
+        #expect(query.frame == inputFrame)
+        #expect(query.font == field.font)
+        #expect(status.frame == statusFrame)
+        #expect(overlay.hitTest(NSPoint(x: surface.frame.minX - 1, y: surface.frame.midY)) == nil)
     }
 
     @Test(arguments: [false, true])
@@ -148,11 +167,16 @@ struct PDFSearchFocusTests {
         let editor = try await fixture.focusedEditor(for: field)
         field.stringValue = "alpha"
         field.delegate?.controlTextDidChange?(Notification(name: NSControl.textDidChangeNotification, object: field))
+        fixture.reader.layoutSubtreeIfNeeded()
+        let surface = try #require(field.superview)
+        let editingFrame = surface.frame
         #expect(field.delegate?.control?(field, textView: editor, doCommandBy: #selector(NSResponder.insertNewline(_:))) == true)
         let controller = try #require(fixture.reader.searchController)
         try await waitForTestCondition("Committed search returns focus to outline") {
             controller.hasVisibleHighlights && fixture.window.firstResponder === fixture.outline
         }
+        fixture.reader.layoutSubtreeIfNeeded()
+        #expect(surface.frame == editingFrame)
 
         let reopened = try fixture.begin()
         _ = try await fixture.focusedEditor(for: reopened)

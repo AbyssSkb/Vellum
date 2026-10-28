@@ -1195,25 +1195,22 @@ final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
         super.layout()
 
         let availableWidth = max(0, bounds.width - 40)
-        let isEditing = presentation == .editing
         let progressWidth: CGFloat = currentStatus.isSearching ? 20 : 0
-        let preferredStatusWidth = max(84, measuredWidth(currentStatus.text, font: statusLabel.font) + 4 + progressWidth)
-        let preferredQueryWidth = max(46, measuredWidth(queryLabel.stringValue, font: queryLabel.font))
-        let preferredWidth = isEditing
-            ? min(max(bounds.width * 0.44, 360), 520)
-            : min(max(preferredQueryWidth + 64 + preferredStatusWidth, 220), 360)
-        let width = min(preferredWidth, availableWidth)
-        let height: CGFloat = isEditing ? 38 : 32
+        // Keep the spinner's space reserved so finishing a search does not resize the input.
+        let preferredStatusWidth = max(76, measuredWidth(currentStatus.text, font: statusLabel.font) + 4 + 20)
+        let width = min(224, availableWidth)
+        let height: CGFloat = 36
         container.frame = NSRect(x: bounds.midX - width / 2, y: 24, width: width, height: height)
+        container.layer?.cornerRadius = height / 2
 
-        iconView.frame = NSRect(x: 14, y: (height - 14) / 2, width: 14, height: 14)
-        let statusWidth = min(preferredStatusWidth, max(0, width - 110))
-        let statusMinX = width - statusWidth - 14
+        iconView.frame = NSRect(x: 12, y: (height - 12) / 2, width: 12, height: 12)
+        let statusWidth = min(preferredStatusWidth, max(0, width - 96))
+        let statusMinX = width - statusWidth - 12
         let progressSlotWidth = min(progressWidth, statusWidth)
         statusLabel.frame = NSRect(x: statusMinX + progressSlotWidth, y: (height - 22) / 2,
                                    width: statusWidth - progressSlotWidth, height: 22)
-        let textFrame = NSRect(x: 38, y: (height - 24) / 2,
-                               width: max(0, statusMinX - 50), height: 24)
+        let textFrame = NSRect(x: 32, y: (height - 24) / 2,
+                               width: max(0, statusMinX - 42), height: 24)
         textField.frame = textFrame
         queryLabel.frame = textFrame
         progressIndicator.frame = NSRect(
@@ -1298,17 +1295,14 @@ final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
         container.state = .active
         container.wantsLayer = true
         container.layer?.backgroundColor = VellumColors.background.withAlphaComponent(0.92).cgColor
-        container.layer?.borderWidth = 1
-        container.layer?.cornerRadius = 8
-        container.layer?.shadowColor = NSColor.black.cgColor
-        container.layer?.shadowOpacity = 0.18
-        container.layer?.shadowRadius = 12
-        container.layer?.shadowOffset = NSSize(width: 0, height: -3)
+        container.layer?.borderWidth = 0.75
+        container.layer?.cornerCurve = .circular
+        container.layer?.masksToBounds = true
     }
 
     private func configureLabels() {
         iconView.image = NSImage(systemSymbolName: "magnifyingglass", accessibilityDescription: nil)
-        iconView.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 13, weight: .regular)
+        iconView.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 12, weight: .regular)
         iconView.contentTintColor = VellumColors.muted
 
         queryLabel.identifier = NSUserInterfaceItemIdentifier("pdf-search-query")
@@ -1342,13 +1336,13 @@ final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
         textField.identifier = NSUserInterfaceItemIdentifier("pdf-search-input")
         textField.cell = VerticallyCenteredTextFieldCell(textCell: "")
         textField.stringValue = query
-        textField.font = .systemFont(ofSize: 14, weight: .regular)
+        textField.font = .systemFont(ofSize: 13, weight: .regular)
         textField.textColor = VellumColors.foreground
         textField.placeholderAttributedString = NSAttributedString(
             string: AppUILanguage.saved().text(.search),
             attributes: [
                 .foregroundColor: VellumColors.muted,
-                .font: NSFont.systemFont(ofSize: 14, weight: .regular)
+                .font: NSFont.systemFont(ofSize: 13, weight: .regular)
             ]
         )
         textField.isBordered = false
@@ -1380,7 +1374,7 @@ final class SearchCommandOverlayView: NSView, NSTextFieldDelegate {
 
     private func updateBorder() {
         let color = presentation == .editing
-            ? VellumColors.blue.withAlphaComponent(0.45)
+            ? VellumColors.blue.withAlphaComponent(0.32)
             : VellumColors.border
         container.layer?.borderColor = color.cgColor
     }
