@@ -17,8 +17,11 @@ struct PDFScrollerChromeTests {
         let scrollView = try #require(view.pdfScrollView)
 
         scrollView.scrollerStyle = .legacy
+        untouchedScrollView.scrollerStyle = .overlay
+        untouchedScrollView.scrollerStyle = .legacy
 
         #expect(scrollView.scrollerStyle == .overlay)
+        #expect(untouchedScrollView.scrollerStyle == .legacy)
         #expect(scrollView.autohidesScrollers)
         #expect(scrollView.drawsBackground == false)
     }

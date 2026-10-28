@@ -8,6 +8,82 @@ import Testing
 @MainActor
 @Suite("PDF reader teardown")
 struct PDFReaderLifecycleTests {
+    @Test(arguments: [1, 2])
+    func closeCommandReleasesMountedReadersAfterRepeatedOpening(tabCount: Int) async throws {
+        let fixture = try CloseCommandFixture(tabCount: tabCount)
+        defer { fixture.cleanUp() }
+
+        for _ in 0..<8 {
+            autoreleasepool {
+                fixture.state.openInNewTabs(urls: fixture.urls)
+            }
+            for remainingCount in stride(from: tabCount, through: 1, by: -1) {
+                try await waitForTestCondition("Selected reader mounted before closing", dispatchAppKitEvents: true) {
+                    fixture.host.layoutSubtreeIfNeeded()
+                    return (fixture.state.activeReaderController as? VellumPDFView)?.window === fixture.window
+                }
+                weak var closingReader: VellumPDFView?
+                try autoreleasepool {
+                    let reader = try #require(fixture.state.activeReaderController as? VellumPDFView)
+                    closingReader = reader
+                    #expect((reader.document?.pageCount ?? 0) > 1)
+                    reader.layoutDocumentView()
+                    fixture.window.displayIfNeeded()
+                }
+
+                autoreleasepool {
+                    fixture.state.handleVimCommand(.closeTab)
+                    fixture.host.layoutSubtreeIfNeeded()
+                }
+                #expect(fixture.state.tabs.count == remainingCount - 1)
+                try await waitForTestCondition("Closed reader detached from its window", dispatchAppKitEvents: true) {
+                    autoreleasepool {
+                        fixture.host.layoutSubtreeIfNeeded()
+                        return closingReader?.window == nil
+                    }
+                }
+                try await waitForTestCondition("Closed reader finally deallocated", dispatchAppKitEvents: true) {
+                    autoreleasepool { closingReader == nil }
+                }
+                await nextTestMainQueueTurn()
+            }
+            #expect(fixture.state.activeReaderController == nil)
+        }
+    }
+
+    @Test
+    func closeCommandReleasesReaderWithRealDocument() async throws {
+        let fixture = try CloseCommandFixture(tabCount: 1, useRealDocument: true)
+        defer { fixture.cleanUp() }
+        fixture.state.openInNewTabs(urls: fixture.urls)
+        try await waitForTestCondition("Real document reader mounted", dispatchAppKitEvents: true) {
+            fixture.host.layoutSubtreeIfNeeded()
+            return (fixture.state.activeReaderController as? VellumPDFView)?.window === fixture.window
+        }
+        weak var closingReader: VellumPDFView?
+        try autoreleasepool {
+            let reader = try #require(fixture.state.activeReaderController as? VellumPDFView)
+            closingReader = reader
+            #expect((reader.document?.pageCount ?? 0) > 1)
+            reader.layoutDocumentView()
+            fixture.window.displayIfNeeded()
+        }
+        autoreleasepool {
+            fixture.state.handleVimCommand(.closeTab)
+            fixture.host.layoutSubtreeIfNeeded()
+        }
+        #expect(fixture.state.tabs.isEmpty)
+        try await waitForTestCondition("Real document reader detached", dispatchAppKitEvents: true) {
+            fixture.host.layoutSubtreeIfNeeded()
+            return closingReader?.window == nil
+        }
+        #expect(fixture.window.isVisible)
+        try await waitForTestCondition("Real document reader finally deallocated", timeout: .seconds(60), dispatchAppKitEvents: true) {
+            autoreleasepool { closingReader == nil }
+        }
+        #expect(fixture.window.isVisible)
+    }
+
     @Test(arguments: [false, true])
     func dismantleDefersPublicationAndSavesFinalSnapshot(updated: Bool) async throws {
         let fixture = try Fixture()
@@ -145,6 +221,66 @@ struct PDFReaderLifecycleTests {
             host.rootView = AnyView(EmptyView())
             window.close()
             preferences.cleanup()
+        }
+    }
+
+    @MainActor
+    private struct CloseCommandFixture {
+        let preferences: TestPreferences
+        let directory: URL
+        let urls: [URL]
+        let state: AppState
+        let host: NSHostingView<AnyView>
+        let window: NSWindow
+
+        init(tabCount: Int, useRealDocument: Bool = false) throws {
+            _ = NSApplication.shared
+            preferences = try TestPreferences()
+            let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            self.directory = directory
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            let sample: URL
+            if useRealDocument {
+                sample = URL(fileURLWithPath: #filePath)
+                    .deletingLastPathComponent().deletingLastPathComponent()
+                    .deletingLastPathComponent().deletingLastPathComponent()
+                    .appendingPathComponent("docs/samples/the-shape-of-attention.pdf")
+            } else {
+                sample = directory.appendingPathComponent("sample.pdf")
+                let data = NSMutableData()
+                var mediaBox = CGRect(x: 0, y: 0, width: 612, height: 792)
+                let consumer = try #require(CGDataConsumer(data: data as CFMutableData))
+                let context = try #require(CGContext(consumer: consumer, mediaBox: &mediaBox, nil))
+                for _ in 0..<2 {
+                    context.beginPDFPage(nil)
+                    context.setStrokeColor(NSColor.black.cgColor)
+                    context.stroke(CGRect(x: 72, y: 72, width: 468, height: 648))
+                    context.endPDFPage()
+                }
+                context.closePDF()
+                try (data as Data).write(to: sample)
+            }
+            urls = try (0..<tabCount).map { index in
+                let url = directory.appendingPathComponent("reader-close-\(index).pdf")
+                try FileManager.default.copyItem(at: sample, to: url)
+                return url
+            }
+            state = makeTestAppState(defaults: preferences.defaults)
+            host = NSHostingView(rootView: AnyView(ReaderStack(emptyScale: 1).environmentObject(state)))
+            window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),
+                              styleMask: [.titled, .closable, .resizable, .fullSizeContentView],
+                              backing: .buffered, defer: false)
+            window.isReleasedWhenClosed = false
+            window.contentView = host
+            window.makeKeyAndOrderFront(nil)
+            host.layoutSubtreeIfNeeded()
+        }
+
+        func cleanUp() {
+            window.contentView = nil
+            window.close()
+            preferences.cleanup()
+            try? FileManager.default.removeItem(at: directory)
         }
     }
 }

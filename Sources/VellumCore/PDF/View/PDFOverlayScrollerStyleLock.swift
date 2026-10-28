@@ -1,71 +1,45 @@
 @preconcurrency import AppKit
 import ObjectiveC.runtime
 
+@MainActor
 enum PDFOverlayScrollerStyleLock {
-    private static let lockedClassPrefix = "VellumOverlayScrollerStyleLocked_"
+    private static var enabledKey: UInt8 = 0
+    private static var hookedClasses: Set<ObjectIdentifier> = []
 
-    @MainActor
     static func install(on scrollView: NSScrollView) {
-        guard let currentClass = object_getClass(scrollView) else {
+        // Preserve AppKit's dynamic-property and KVO classes during teardown.
+        guard installHooks(on: scrollView.classForCoder) else {
             scrollView.scrollerStyle = .overlay
             return
         }
 
-        if NSStringFromClass(currentClass).hasPrefix(lockedClassPrefix) {
-            scrollView.scrollerStyle = .overlay
-            return
-        }
-
-        guard let lockedClass = lockedSubclass(for: currentClass) else {
-            scrollView.scrollerStyle = .overlay
-            return
-        }
-
-        object_setClass(scrollView, lockedClass)
+        objc_setAssociatedObject(scrollView, &enabledKey, true, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
         scrollView.scrollerStyle = .overlay
     }
 
-    private static func lockedSubclass(for originalClass: AnyClass) -> AnyClass? {
-        let subclassName = lockedSubclassName(for: originalClass)
-        if let existingClass = NSClassFromString(subclassName) {
-            return existingClass
-        }
-
-        guard let subclass = objc_allocateClassPair(originalClass, subclassName, 0) else {
-            return NSClassFromString(subclassName)
-        }
-
+    private static func installHooks(on originalClass: AnyClass) -> Bool {
+        let classID = ObjectIdentifier(originalClass)
+        if hookedClasses.contains(classID) { return true }
         let selector = #selector(setter: NSScrollView.scrollerStyle)
-        guard let method = class_getInstanceMethod(originalClass, selector) else {
-            objc_disposeClassPair(subclass)
-            return nil
-        }
+        let wheelSelector = #selector(NSScrollView.scrollWheel(with:))
+        guard let method = class_getInstanceMethod(originalClass, selector),
+              let wheelMethod = class_getInstanceMethod(originalClass, wheelSelector) else { return false }
 
         let originalImplementation = method_getImplementation(method)
         typealias Setter = @convention(c) (AnyObject, Selector, NSScroller.Style) -> Void
         let originalSetter = unsafeBitCast(originalImplementation, to: Setter.self)
-        let lockedSetter: @convention(block) (AnyObject, NSScroller.Style) -> Void = { object, style in
-            originalSetter(object, selector, style == .legacy ? .overlay : style)
+        let lockedSetter: @convention(block) @MainActor (NSScrollView, NSScroller.Style) -> Void = { scrollView, style in
+            let isEnabled = objc_getAssociatedObject(scrollView, &enabledKey) != nil
+            originalSetter(scrollView, selector, isEnabled && style == .legacy ? .overlay : style)
         }
 
-        guard class_addMethod(
-            subclass,
-            selector,
-            imp_implementationWithBlock(lockedSetter),
-            method_getTypeEncoding(method)
-        ) else {
-            objc_disposeClassPair(subclass)
-            return nil
-        }
-
-        let wheelSelector = #selector(NSScrollView.scrollWheel(with:))
-        guard let wheelMethod = class_getInstanceMethod(originalClass, wheelSelector) else {
-            objc_disposeClassPair(subclass)
-            return nil
-        }
         typealias ScrollWheel = @convention(c) @Sendable (AnyObject, Selector, NSEvent) -> Void
         let originalScrollWheel = unsafeBitCast(method_getImplementation(wheelMethod), to: ScrollWheel.self)
         let constrainedScrollWheel: @convention(block) @MainActor (NSScrollView, NSEvent) -> Void = { scrollView, event in
+            guard objc_getAssociatedObject(scrollView, &enabledKey) != nil else {
+                originalScrollWheel(scrollView, wheelSelector, event)
+                return
+            }
             var scrollingEvent = event
             if event.hasPreciseScrollingDeltas, event.phase.contains(.began),
                event.scrollingDeltaY != 0, event.scrollingDeltaX != 0, abs(event.scrollingDeltaX) < 4,
@@ -83,26 +57,19 @@ enum PDFOverlayScrollerStyleLock {
                 originalScrollWheel(scrollView, wheelSelector, scrollingEvent)
             }
         }
-        guard class_addMethod(
-            subclass,
+        class_replaceMethod(
+            originalClass,
+            selector,
+            imp_implementationWithBlock(lockedSetter),
+            method_getTypeEncoding(method)
+        )
+        class_replaceMethod(
+            originalClass,
             wheelSelector,
             imp_implementationWithBlock(constrainedScrollWheel),
             method_getTypeEncoding(wheelMethod)
-        ) else {
-            objc_disposeClassPair(subclass)
-            return nil
-        }
-
-        objc_registerClassPair(subclass)
-        return subclass
-    }
-
-    private static func lockedSubclassName(for originalClass: AnyClass) -> String {
-        let originalName = NSStringFromClass(originalClass)
-        let sanitizedName = originalName.map { character in
-            character.isLetter || character.isNumber || character == "_" ? character : "_"
-        }
-
-        return lockedClassPrefix + String(sanitizedName)
+        )
+        hookedClasses.insert(classID)
+        return true
     }
 }
