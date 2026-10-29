@@ -100,6 +100,9 @@ struct PDFPageFitAnimationTests {
         }
         if interaction == "pageFit" {
             #expect(view.animationState.zoomPageFitPhase == (aligningTop ? .top : .bottom))
+        } else if interaction == "widthFit" {
+            #expect(view.animationState.zoomPageFitPhase != .bottom)
+            #expect(view.animationState.zoomPageFitPhase != .aligningTop)
         } else {
             #expect(view.animationState.zoomPageFitPhase == nil)
         }

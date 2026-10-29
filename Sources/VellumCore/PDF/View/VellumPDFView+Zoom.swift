@@ -27,10 +27,21 @@ extension VellumPDFView {
         stopScrollAnimation()
         animationState.zoomPageFitPhase = nil
         guard let anchor = centerDestination() ?? currentDestination,
-              let page = anchor.page,
-              let fitScale = widthFitScale(for: page) else { return }
+              var page = anchor.page else { return }
+        if let scrollView = pdfScrollView, let document, document.pageCount > 0 {
+            for (index, edge, phase) in [(0, VerticalEdge.top, ReaderAnimationState.PageFitPhase.top),
+                                         (document.pageCount - 1, .bottom, .widthBottom)] {
+                guard let candidate = document.page(at: index),
+                      let edgeY = pageEdgeOrigin(for: candidate, edge: edge, in: scrollView),
+                      abs(scrollView.contentView.bounds.origin.y - edgeY) < 0.5 else { continue }
+                page = candidate
+                animationState.zoomPageFitPhase = phase
+                break
+            }
+        }
+        guard let fitScale = widthFitScale(for: page) else { return }
         let pageCenter = convert(pageCenterDestination(for: page).point, from: page)
-        let anchorPoint = convert(anchor.point, from: page)
+        let anchorPoint = page === anchor.page ? convert(anchor.point, from: page) : pageCenter
         animationState.zoomAnchor = PDFDestination(
             page: page, at: convert(NSPoint(x: pageCenter.x, y: anchorPoint.y), to: page)
         )

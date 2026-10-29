@@ -6,6 +6,110 @@ import Testing
 
 @Suite("PDF zoom layout")
 struct PDFZoomLayoutTests {
+    @Test(arguments: [(false, false), (false, true), (true, false), (true, true)], [0, 90]) @MainActor
+    func widthFitAfterZoomAndDocumentEdgeKeepsPaperAligned(scenario: (Bool, Bool), rotation: Int) async throws {
+        let (quick, bottom) = scenario
+        let (window, view, _) = try makeReader()
+        defer { view.cancelPendingRestore(); view.stopZoomState(); view.stopScrollAnimation(); window.close() }
+        let document = try #require(view.document)
+        let page = try #require(document.page(at: bottom ? document.pageCount - 1 : 0))
+        page.rotation = rotation
+        view.layoutDocumentView()
+        let clip = try #require(view.pdfScrollView?.contentView)
+
+        func paperGap() -> CGFloat {
+            let paper = view.convert(page.bounds(for: view.displayBox), from: page)
+            let viewport = view.convert(clip.bounds, from: clip)
+            return (bottom == view.isFlipped) ? viewport.maxY - paper.maxY : paper.minY - viewport.minY
+        }
+        func finishZoom(checkEdge: Bool = false) async {
+            view.animationState.zoomTimer?.invalidate()
+            for _ in 0..<60 {
+                view.animationState.lastZoomTick = Date.timeIntervalSinceReferenceDate - 1.0 / 30.0
+                view.stepZoomAnimation()
+                await nextTestMainQueueTurn()
+                if checkEdge { #expect(abs(paperGap()) < 0.5, "gap=\(paperGap())") }
+                if view.animationState.zoomTargetScale == nil { break }
+            }
+        }
+        view.vimZoomToFit()
+        await finishZoom()
+        view.vimZoom(by: 1.1)
+        await finishZoom()
+        if bottom { view.vimGoToLastPage() } else { view.vimGoToFirstPage() }
+        if !quick { await nextTestMainQueueTurn() }
+        view.vimZoomToFit()
+        await finishZoom(checkEdge: true)
+        await nextTestMainQueueTurn()
+
+        let paper = view.convert(page.bounds(for: view.displayBox), from: page)
+        let viewport = view.convert(clip.bounds, from: clip)
+        let gap = (bottom == view.isFlipped) ? viewport.maxY - paper.maxY : paper.minY - viewport.minY
+        #expect(abs(gap) < 0.5, "quick=\(quick), bottom=\(bottom), rotation=\(rotation), gap=\(gap), paper=\(paper), viewport=\(viewport)")
+    }
+
+    @Test @MainActor
+    func widthFitKeepsIntermediateReadingPositionDuringAnimation() async throws {
+        let (window, view, page) = try makeReader()
+        defer { view.cancelPendingRestore(); view.stopZoomState(); view.stopScrollAnimation(); window.close() }
+        let anchor = try #require(view.centerDestination())
+        #expect(anchor.page === page)
+        view.vimZoomToFit()
+        view.animationState.zoomTimer?.invalidate()
+        for _ in 0..<60 {
+            view.animationState.lastZoomTick = Date.timeIntervalSinceReferenceDate - 1.0 / 30.0
+            view.stepZoomAnimation()
+            await nextTestMainQueueTurn()
+            #expect(abs(view.convert(anchor.point, from: page).y - view.bounds.midY) < 1)
+            if view.animationState.zoomTargetScale == nil { break }
+        }
+        #expect(view.animationState.zoomTargetScale == nil)
+    }
+
+    @Test(arguments: [1, 2], [false, true]) @MainActor
+    func widthFitKeepsShortFinalPageAtBottom(pageCount: Int, quick: Bool) async throws {
+        _ = NSApplication.shared
+        let document = PDFDocument()
+        for index in 0..<pageCount {
+            let page = PDFPage()
+            let size = index == pageCount - 1 ? NSSize(width: 800, height: 160) : NSSize(width: 1000, height: 1600)
+            page.setBounds(NSRect(origin: .zero, size: size), for: .mediaBox)
+            document.insert(page, at: index)
+        }
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),
+                              styleMask: .borderless, backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        let view = VellumPDFView(frame: window.contentView!.bounds)
+        window.contentView = view
+        defer { view.cancelPendingRestore(); view.stopZoomState(); view.stopScrollAnimation(); window.close() }
+        view.displayMode = .singlePageContinuous
+        view.document = document
+        view.autoScales = false
+        view.scaleFactor = 1.4
+        view.layoutDocumentView()
+        await nextTestMainQueueTurn()
+        view.vimGoToLastPage()
+        if !quick { await nextTestMainQueueTurn() }
+        let lastPage = try #require(document.page(at: pageCount - 1))
+        let clip = try #require(view.pdfScrollView?.contentView)
+        if pageCount > 1 { #expect(view.centerDestination()?.page !== lastPage) }
+        view.vimZoomToFit()
+        #expect(view.animationState.zoomAnchor?.page === lastPage)
+        view.animationState.zoomTimer?.invalidate()
+        for _ in 0..<60 {
+            view.animationState.lastZoomTick = Date.timeIntervalSinceReferenceDate - 1.0 / 30.0
+            view.stepZoomAnimation()
+            await nextTestMainQueueTurn()
+            let paper = view.convert(lastPage.bounds(for: view.displayBox), from: lastPage)
+            let viewport = view.convert(clip.bounds, from: clip)
+            let gap = view.isFlipped ? viewport.maxY - paper.maxY : paper.minY - viewport.minY
+            #expect(abs(gap) < 0.5, "gap=\(gap), scale=\(view.scaleFactor), phase=\(String(describing: view.animationState.zoomPageFitPhase)), paper=\(paper), viewport=\(viewport)")
+            if view.animationState.zoomTargetScale == nil { break }
+        }
+        #expect(view.animationState.zoomTargetScale == nil)
+        #expect(abs(view.scaleFactor - 1) < 0.001)
+    }
+
     @Test(arguments: [CGFloat(-40), CGFloat(40)]) @MainActor
     func horizontalScrollDoesNotMoveWidthFittedPage(delta: CGFloat) throws {
         let (window, view, page) = try makeReader(narrow: true)

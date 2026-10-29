@@ -193,7 +193,7 @@ extension VellumPDFView {
 
         if let zoomAnchor = animationState.zoomAnchor {
             let phase = animationState.zoomPageFitPhase
-            centerBothAxes(on: zoomAnchor, pageEdge: phase == .bottom ? .bottom : phase == .top ? .top : nil)
+            centerBothAxes(on: zoomAnchor, pageEdge: phase == .bottom || phase == .widthBottom ? .bottom : phase == .top ? .top : nil)
         }
     }
 

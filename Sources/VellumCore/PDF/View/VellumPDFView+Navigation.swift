@@ -11,6 +11,7 @@ extension VellumPDFView {
         stopScrollAnimation()
         stopZoomState()
         goToFirstPage(nil)
+        scrollToDocumentEdge(.top)
         DispatchQueue.main.async { [weak self] in
             guard let self, self.restoreGeneration == generation else { return }
             self.scrollToDocumentEdge(.top)
@@ -27,6 +28,7 @@ extension VellumPDFView {
         stopScrollAnimation()
         stopZoomState()
         goToLastPage(nil)
+        scrollToDocumentEdge(.bottom)
         DispatchQueue.main.async { [weak self] in
             guard let self, self.restoreGeneration == generation else { return }
             self.scrollToDocumentEdge(.bottom)

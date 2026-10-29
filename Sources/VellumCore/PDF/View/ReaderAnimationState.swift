@@ -4,7 +4,7 @@ import PDFKit
 @MainActor
 final class ReaderAnimationState {
     enum PageFitPhase {
-        case top, bottom, aligningTop
+        case top, bottom, widthBottom, aligningTop
     }
 
     var scrollTargetOrigin: NSPoint?
