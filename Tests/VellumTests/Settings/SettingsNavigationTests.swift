@@ -767,7 +767,8 @@ struct SettingsNavigationTests {
             _ = NSApplication.shared
             // The command-line test host must opt in before it can own a key window.
             NSApp.setActivationPolicy(.accessory)
-            window = FixtureWindow(contentRect: NSRect(x: 60, y: 60, width: 620, height: 640), styleMask: [.titled, .closable], backing: .buffered, defer: false)
+            let screenFrame = NSScreen.screens.first?.frame ?? .zero
+            window = FixtureWindow(contentRect: NSRect(x: screenFrame.minX, y: screenFrame.maxY - 640, width: 620, height: 640), styleMask: [.titled, .closable], backing: .buffered, defer: false)
             window.isReleasedWhenClosed = false
             let content = readingOnly ? AnyView(ReadingContent())
                 : lazyGrid ? AnyView(LazyGridContent(model: model)) : AnyView(Content(model: model))
@@ -775,6 +776,7 @@ struct SettingsNavigationTests {
                 .environmentObject(navigation)
                 .background(SettingsKeyboardBridge(navigation: navigation))))
             window.contentView = host
+            window.setFrameTopLeftPoint(NSPoint(x: screenFrame.minX, y: screenFrame.maxY))
             window.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
         }
@@ -796,7 +798,6 @@ struct SettingsNavigationTests {
             navigation.focusSidebar()
             await nextTestMainQueueTurn()
             let screen = try #require(NSScreen.screens.first)
-            window.setFrameTopLeftPoint(NSPoint(x: screen.frame.minX, y: screen.frame.maxY))
             try #require(window.frame.minX == screen.frame.minX && window.frame.maxY == screen.frame.maxY)
         }
 
