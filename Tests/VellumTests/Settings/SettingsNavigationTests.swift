@@ -192,9 +192,20 @@ struct SettingsNavigationTests {
         let point = NSPoint(x: bounds.midX, y: bounds.midY)
         let screen = try #require(NSScreen.screens.first)
         try #require(screen.visibleFrame.contains(fixture.window.convertPoint(toScreen: point)))
+        var postedEvents: [String] = []
+        var receivedEvents: [String] = []
         let monitor = try #require(NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .leftMouseUp]) { event in
             MainActor.assumeIsolated {
-                if event.window === fixture.window { #expect(event.locationInWindow == point) }
+                let content = fixture.window.contentView
+                let hit = content.flatMap { $0.hitTest($0.convert(event.locationInWindow, from: nil)) }
+                let details = "type=\(event.type.rawValue) number=\(event.eventNumber) timestamp=\(event.timestamp) window=\(event.windowNumber) location=\(event.locationInWindow) hit=\(String(describing: hit))"
+                receivedEvents.append(details)
+                if event.window === fixture.window {
+                    if event.locationInWindow != point {
+                        print("Settings click location mismatch: active=\(NSApp.isActive) key=\(fixture.window.isKeyWindow) main=\(fixture.window.isMainWindow) frame=\(fixture.window.frame) host=\(fixture.host.frame) toggle=\(bounds) expected=\(point) responder=\(String(describing: fixture.window.firstResponder)) posted=\(postedEvents) received=\(details)")
+                    }
+                    #expect(event.locationInWindow == point)
+                }
             }
             return event
         })
@@ -205,10 +216,16 @@ struct SettingsNavigationTests {
                 timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: fixture.window.windowNumber,
                 context: nil, eventNumber: 1, clickCount: 1, pressure: type == .leftMouseDown ? 1 : 0))
             #expect(event.window === fixture.window)
+            postedEvents.append("type=\(event.type.rawValue) number=\(event.eventNumber) timestamp=\(event.timestamp) window=\(event.windowNumber) location=\(event.locationInWindow)")
             NSApp.postEvent(event, atStart: false)
         }
-        try await waitForTestCondition("Clicking a switch focuses and changes that setting", dispatchAppKitEvents: true) {
-            fixture.model.value && fixture.navigation.controlID == "toggle"
+        do {
+            try await waitForTestCondition("Clicking a switch focuses and changes that setting", dispatchAppKitEvents: true) {
+                fixture.model.value && fixture.navigation.controlID == "toggle"
+            }
+        } catch {
+            print("Settings click: active=\(NSApp.isActive) key=\(fixture.window.isKeyWindow) main=\(fixture.window.isMainWindow) frame=\(fixture.window.frame) host=\(fixture.host.frame) toggle=\(bounds) expected=\(point) responder=\(String(describing: fixture.window.firstResponder)) posted=\(postedEvents) received=\(receivedEvents)")
+            throw error
         }
         #expect(try fixture.press("j"))
         #expect(fixture.navigation.rowID == "choices-row")

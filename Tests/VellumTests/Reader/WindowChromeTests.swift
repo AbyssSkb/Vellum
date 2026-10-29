@@ -37,9 +37,24 @@ struct WindowChromeTests {
         let firstTab = try #require(fixture.appState.tabs.first)
         let firstTitle = try #require(fixture.titles.first { $0.title == firstTab.title })
         let titleFrame = firstTitle.convert(firstTitle.bounds, to: fixture.host)
+        var receivedEvents: [String] = []
+        let monitor = try #require(NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .leftMouseUp]) { event in
+            MainActor.assumeIsolated {
+                let content = fixture.window.contentView
+                let hit = content.flatMap { $0.hitTest($0.convert(event.locationInWindow, from: nil)) }
+                receivedEvents.append("type=\(event.type.rawValue) number=\(event.eventNumber) timestamp=\(event.timestamp) window=\(event.windowNumber) location=\(event.locationInWindow) hit=\(String(describing: hit))")
+            }
+            return event
+        })
+        defer { NSEvent.removeMonitor(monitor) }
         try fixture.mouse([.leftMouseDown, .leftMouseUp], at: NSPoint(x: titleFrame.midX, y: titleFrame.midY))
-        try await waitForTestCondition("The first tab is selected by clicking its title", dispatchAppKitEvents: true) {
-            fixture.appState.selectedTabID == firstTab.id
+        do {
+            try await waitForTestCondition("The first tab is selected by clicking its title", dispatchAppKitEvents: true) {
+                fixture.appState.selectedTabID == firstTab.id
+            }
+        } catch {
+            print("Top bar click: active=\(NSApp.isActive) key=\(fixture.window.isKeyWindow) main=\(fixture.window.isMainWindow) frame=\(fixture.window.frame) host=\(fixture.host.frame) title=\(titleFrame) responder=\(String(describing: fixture.window.firstResponder)) posted=\(fixture.postedMouseEvents) received=\(receivedEvents)")
+            throw error
         }
         await nextTestMainQueueTurn()
         fixture.host.layoutSubtreeIfNeeded()
@@ -163,6 +178,7 @@ struct WindowChromeTests {
         let window: DragRecordingWindow
         let host: NSHostingView<AnyView>
         let edgeInset: CGFloat
+        var postedMouseEvents: [String] = []
         private let previousHighlight: Any?
 
         init(width: CGFloat) throws {
@@ -219,6 +235,7 @@ struct WindowChromeTests {
                 let event = try #require(NSEvent.mouseEvent(with: type, location: location, modifierFlags: [],
                     timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber,
                     context: nil, eventNumber: 1, clickCount: 1, pressure: type == .leftMouseUp ? 0 : 1))
+                postedMouseEvents.append("type=\(event.type.rawValue) number=\(event.eventNumber) timestamp=\(event.timestamp) window=\(event.windowNumber) location=\(event.locationInWindow)")
                 NSApp.postEvent(event, atStart: false)
             }
             while let event = NSApp.nextEvent(matching: .any, until: .distantPast, inMode: .default, dequeue: true) {
