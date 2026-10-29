@@ -183,7 +183,7 @@ public enum AppPreferences {
         if let translates = defaults.object(forKey: AppPreferenceKeys.doubleClickTranslatesSelection) as? Bool {
             return translates ? .ai : .none
         }
-        return .dictionary
+        return .none
     }
 
     public static func dictionaryLocation(in defaults: UserDefaults = .standard) -> URL? {

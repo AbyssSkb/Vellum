@@ -68,7 +68,7 @@ struct AppPreferenceTests {
         defer { preferences.cleanup() }
         let defaults = preferences.defaults
 
-        #expect(AppPreferences.doubleClickAction(in: defaults) == .dictionary)
+        #expect(AppPreferences.doubleClickAction(in: defaults) == .none)
         defaults.set(true, forKey: AppPreferenceKeys.doubleClickTranslatesSelection)
         #expect(AppPreferences.doubleClickAction(in: defaults) == .ai)
         defaults.set(false, forKey: AppPreferenceKeys.doubleClickTranslatesSelection)
@@ -76,10 +76,12 @@ struct AppPreferenceTests {
 
         defaults.set(DoubleClickActionPreference.dictionary.rawValue, forKey: AppPreferenceKeys.doubleClickAction)
         #expect(AppPreferences.doubleClickAction(in: defaults) == .dictionary)
+        defaults.set(DoubleClickActionPreference.ai.rawValue, forKey: AppPreferenceKeys.doubleClickAction)
+        #expect(AppPreferences.doubleClickAction(in: defaults) == .ai)
         defaults.set("invalid", forKey: AppPreferenceKeys.doubleClickAction)
         #expect(AppPreferences.doubleClickAction(in: defaults) == .none)
         defaults.removeObject(forKey: AppPreferenceKeys.doubleClickTranslatesSelection)
-        #expect(AppPreferences.doubleClickAction(in: defaults) == .dictionary)
+        #expect(AppPreferences.doubleClickAction(in: defaults) == .none)
     }
 
     @Test

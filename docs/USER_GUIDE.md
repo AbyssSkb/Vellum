@@ -229,7 +229,7 @@ While the dictionary is open, `j` / `k` scroll vertically, `h` / `l` scroll hori
 
 Dictionary pages and audio stay offline. Vellum blocks remote resources, so features that require a website or online speech service are unavailable. Playback requires audio included in the local resource files; an optional sentence or TTS resource pack may be needed for passages without a regular recording. Missing companion files can also affect an entry's appearance or controls.
 
-The text double-click action offers **Dictionary**, **AI**, and **Off**. New installations use **Dictionary**. An explicitly saved choice from the former double-click translation setting is preserved as **AI** or **Off** after upgrading. The `K` shortcut remains available with any double-click choice; `a` still requests an AI explanation.
+The text double-click action offers **Dictionary**, **AI**, and **Off**. New installations use **Off**. An explicitly saved choice from the former double-click translation setting is preserved as **AI** or **Off** after upgrading. The `K` shortcut remains available with any double-click choice; `a` still requests an AI explanation.
 
 ## Highlight and save
 
