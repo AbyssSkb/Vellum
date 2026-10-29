@@ -19,6 +19,13 @@ public struct ContentView: View {
                 topTrailingRadius: cornerRadius,
                 style: .circular
             )
+            let contentShape = UnevenRoundedRectangle(
+                topLeadingRadius: appState.isOutlineVisible && appState.hasOpenTabs ? 0 : cornerRadius,
+                bottomLeadingRadius: 0,
+                bottomTrailingRadius: 0,
+                topTrailingRadius: cornerRadius,
+                style: .circular
+            )
 
             ZStack {
                 VStack(spacing: 0) {
@@ -38,9 +45,9 @@ public struct ContentView: View {
                             .background(VellumColors.panelColor)
                     }
                     .background(VellumColors.backgroundDeepColor)
-                    .clipShape(readerShape)
+                    .clipShape(contentShape)
                     .overlay {
-                        readerShape
+                        contentShape
                             .strokeBorder(
                                 LinearGradient(colors: [VellumColors.foregroundColor.opacity(0.045),
                                                         VellumColors.foregroundColor.opacity(0.015)],

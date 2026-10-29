@@ -7,6 +7,38 @@ import Testing
 @MainActor
 @Suite("Window chrome")
 struct WindowChromeTests {
+    @Test
+    func outlineSidebarHasASquareTopLeftCorner() async throws {
+        _ = NSApplication.shared
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let appState = makeTestAppState(defaults: preferences.defaults)
+        _ = appState.tabStore.openInNewTabs([
+            PDFTab(url: URL(fileURLWithPath: "/tmp/outline-corner-test.pdf"), document: PDFDocument())
+        ])
+        appState.isOutlineVisible = true
+        let host = NSHostingView(rootView: ContentView().environmentObject(appState))
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 640, height: 480),
+                              styleMask: .borderless, backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentView = host
+        window.orderFront(nil)
+        defer {
+            window.contentView = nil
+            window.close()
+        }
+        await nextTestMainQueueTurn()
+        host.layoutSubtreeIfNeeded()
+        window.displayIfNeeded()
+        let bitmap = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+        host.cacheDisplay(in: host.bounds, to: bitmap)
+        let scaleY = CGFloat(bitmap.pixelsHigh) / host.bounds.height
+        let top = try #require(bitmap.colorAt(x: 0, y: Int(48 * scaleY))?.usingColorSpace(.sRGB))
+        let edge = try #require(bitmap.colorAt(x: 0, y: Int(65 * scaleY))?.usingColorSpace(.sRGB))
+        #expect(abs(top.redComponent - edge.redComponent) < 0.02)
+        #expect(abs(top.greenComponent - edge.greenComponent) < 0.02)
+        #expect(abs(top.blueComponent - edge.blueComponent) < 0.02)
+    }
     @Test(arguments: [false, true])
     func readerCornersRevealTheTitleBarBackground(hasDocument: Bool) async throws {
         _ = NSApplication.shared
