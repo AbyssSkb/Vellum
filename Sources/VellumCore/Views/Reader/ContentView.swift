@@ -50,6 +50,7 @@ public struct ContentView: View {
                             .mask(Rectangle().padding(.top, appState.hasOpenTabs ? 1 : 0))
                             .allowsHitTesting(false)
                     }
+                    .background(VellumColors.backgroundDeepColor)
                 }
 
                 .allowsHitTesting(!appState.isTabSwitcherPresented && !appState.isHighlightsPresented && !appState.isPDFQuickOpenPresented)

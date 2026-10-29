@@ -1,4 +1,5 @@
 @preconcurrency import AppKit
+import PDFKit
 import SwiftUI
 import Testing
 @testable import VellumCore
@@ -6,6 +7,46 @@ import Testing
 @MainActor
 @Suite("Window chrome")
 struct WindowChromeTests {
+    @Test(arguments: [false, true])
+    func readerCornersRevealTheTitleBarBackground(hasDocument: Bool) async throws {
+        _ = NSApplication.shared
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let appState = makeTestAppState(defaults: preferences.defaults)
+        if hasDocument {
+            _ = appState.tabStore.openInNewTabs([
+                PDFTab(url: URL(fileURLWithPath: "/tmp/corner-test.pdf"), document: PDFDocument())
+            ])
+        }
+        let host = NSHostingView(rootView: ContentView().environmentObject(appState))
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 640, height: 480),
+                              styleMask: .borderless, backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentView = host
+        window.orderFront(nil)
+        defer {
+            window.contentView = nil
+            window.close()
+        }
+        await nextTestMainQueueTurn()
+        host.layoutSubtreeIfNeeded()
+        window.displayIfNeeded()
+        let bitmap = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+        host.cacheDisplay(in: host.bounds, to: bitmap)
+        let scaleX = CGFloat(bitmap.pixelsWide) / host.bounds.width
+        let scaleY = CGFloat(bitmap.pixelsHigh) / host.bounds.height
+        func pixel(x: CGFloat, fromTop: CGFloat) throws -> NSColor {
+            try #require(bitmap.colorAt(x: Int(x * scaleX), y: Int(fromTop * scaleY))?.usingColorSpace(.sRGB))
+        }
+        for x in [CGFloat(4), host.bounds.width - 4] {
+            let title = try pixel(x: x, fromTop: 40)
+            let corner = try pixel(x: x, fromTop: 48)
+            #expect(abs(title.redComponent - corner.redComponent) < 0.01)
+            #expect(abs(title.greenComponent - corner.greenComponent) < 0.01)
+            #expect(abs(title.blueComponent - corner.blueComponent) < 0.01)
+        }
+    }
+
     @Test
     func smallWindowResizesKeepTheEmptyReaderInsetContinuous() {
         let before = EmptyReaderLayout(size: CGSize(width: 1100, height: 690.5))
