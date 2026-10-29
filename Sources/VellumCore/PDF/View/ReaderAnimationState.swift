@@ -15,6 +15,8 @@ final class ReaderAnimationState {
     var zoomPageFitPhase: PageFitPhase?
     var zoomTimer: Timer?
     var lastZoomTick = Date.timeIntervalSinceReferenceDate
+    var applyingZoomScale = false
+    var correctingZoomEdge = false
 
     var hasActiveScrollTimer: Bool {
         scrollTimer?.isValid == true

@@ -628,18 +628,21 @@ final class VellumPDFView: PDFView {
             MainActor.assumeIsolated {
                 guard let self, let clipView, let scrollView else { return }
                 PDFNativeScrollBoundsConstraint.boundsDidChange(in: scrollView)
-                let moved = self.observedReadingScrollOrigin != clipView.bounds.origin
-                if moved { self.cancelWordJump() }
-                self.observedReadingScrollOrigin = clipView.bounds.origin
                 let event = NSApp?.currentEvent
                 var scrollHit: NSView?
-                if event?.type == .leftMouseDragged, let event, let scrollView = self.pdfScrollView {
+                if let event, [.leftMouseDown, .leftMouseDragged].contains(event.type),
+                   let scrollView = self.pdfScrollView {
                     let point = scrollView.superview?.convert(event.locationInWindow, from: nil) ?? event.locationInWindow
                     scrollHit = scrollView.hitTest(point)
                     while let hit = scrollHit, !(hit is NSScroller) { scrollHit = hit.superview }
                 }
                 let draggingContent = event?.type == .leftMouseDragged
                     && ((self.isMouseSelectingText && self.didDragDuringCurrentMouseSequence) || scrollHit is NSScroller)
+                if scrollHit is NSScroller { self.stopZoomState() }
+                self.correctZoomEdgeIfNeeded(in: scrollView)
+                let moved = self.observedReadingScrollOrigin != clipView.bounds.origin
+                if moved { self.cancelWordJump() }
+                self.observedReadingScrollOrigin = clipView.bounds.origin
                 let userScrolling = self.window?.inLiveResize != true && self.pendingRestoreAction == nil
                     && self.animationState.zoomTargetScale == nil
                     && (self.animationState.scrollTargetOrigin != nil

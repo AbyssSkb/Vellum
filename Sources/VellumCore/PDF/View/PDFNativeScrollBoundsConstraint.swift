@@ -44,6 +44,7 @@ enum PDFNativeScrollBoundsConstraint {
     }
 
     static func withNativeScroll(on scrollView: NSScrollView, event: NSEvent, operation: () -> Void) {
+        context(for: scrollView)?.pdfView?.stopZoomState()
         guard let context = prepare(in: scrollView) else {
             operation()
             return

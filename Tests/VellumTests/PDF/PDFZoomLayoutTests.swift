@@ -110,6 +110,70 @@ struct PDFZoomLayoutTests {
         #expect(abs(view.scaleFactor - 1) < 0.001)
     }
 
+    @Test(arguments: [1, 2], ["repair", "cancel", "zoom", "navigate", "wheel", "complete"]) @MainActor
+    func shortPageZoomRepairsDeferredNativeRecentering(pageCount: Int, action: String) async throws {
+        _ = NSApplication.shared
+        let document = PDFDocument()
+        if pageCount == 2 {
+            let firstPage = PDFPage()
+            firstPage.setBounds(NSRect(x: 0, y: 0, width: 1000, height: 1600), for: .mediaBox)
+            document.insert(firstPage, at: 0)
+        }
+        let page = PDFPage()
+        page.setBounds(NSRect(x: 0, y: 0, width: 800, height: 160), for: .mediaBox)
+        document.insert(page, at: pageCount - 1)
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),
+                              styleMask: .borderless, backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        let view = VellumPDFView(frame: window.contentView!.bounds)
+        window.contentView = view
+        defer { view.cancelPendingRestore(); view.stopZoomState(); view.stopScrollAnimation(); window.close() }
+        view.displayMode = .singlePageContinuous
+        view.document = document
+        view.autoScales = false
+        view.scaleFactor = 1.4
+        view.layoutDocumentView()
+        await nextTestMainQueueTurn()
+        view.vimGoToLastPage()
+        view.vimZoomToFit()
+        view.animationState.zoomTimer?.invalidate()
+        view.applyZoomScale(1.2)
+        let scroll = try #require(view.pdfScrollView)
+        let clip = scroll.contentView
+        view.configurePDFScrollersIfNeeded()
+        let centered = pageCount == 1 ? clip.constrainBoundsRect(clip.bounds).origin
+            : NSPoint(x: clip.bounds.origin.x, y: clip.bounds.origin.y - 2)
+        let edge = try #require(view.pageEdgeOrigin(for: page, edge: .bottom, in: scroll))
+        #expect(abs(centered.y - edge) > 1)
+        switch action {
+        case "cancel": view.stopZoomState()
+        case "zoom":
+            view.vimZoom(by: 1.1)
+            view.animationState.zoomTimer?.invalidate()
+        case "navigate": view.vimGoToFirstPage()
+        case "wheel":
+            PDFNativeScrollBoundsConstraint.install(on: scroll, for: view)
+            let cgEvent = try #require(CGEvent(scrollWheelEvent2Source: nil, units: .pixel,
+                                              wheelCount: 1, wheel1: 1, wheel2: 0, wheel3: 0))
+            let event = try #require(NSEvent(cgEvent: cgEvent))
+            PDFNativeScrollBoundsConstraint.withNativeScroll(on: scroll, event: event) {}
+        case "complete":
+            view.animationState.zoomTargetScale = view.scaleFactor
+            view.stepZoomAnimation()
+        default: break
+        }
+        if action == "repair" { await nextTestMainQueueTurn() }
+        let expected = action == "repair" || action == "complete" ? edge : centered.y
+        for _ in 0..<3 {
+            clip.scroll(to: centered)
+            scroll.reflectScrolledClipView(clip)
+            #expect(abs(clip.bounds.origin.x - centered.x) < 0.5)
+            #expect(abs(clip.bounds.origin.y - expected) < 0.5)
+        }
+        await nextTestMainQueueTurn()
+        if action != "navigate" { #expect(abs(clip.bounds.origin.y - expected) < 0.5) }
+    }
+
     @Test(arguments: [CGFloat(-40), CGFloat(40)]) @MainActor
     func horizontalScrollDoesNotMoveWidthFittedPage(delta: CGFloat) throws {
         let (window, view, page) = try makeReader(narrow: true)

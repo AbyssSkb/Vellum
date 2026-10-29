@@ -166,6 +166,20 @@ extension VellumPDFView {
             applyZoomScale(target)
             // Keep one final tick so PDFKit's deferred magnification layout finishes before anchoring.
             if current != target { return }
+            if animationState.zoomPageFitPhase == .widthBottom,
+               let anchor = animationState.zoomAnchor {
+                animationState.zoomTimer?.invalidate()
+                DispatchQueue.main.async { [weak self, weak anchor] in
+                    guard let self, let anchor,
+                          self.animationState.zoomPageFitPhase == .widthBottom,
+                          self.animationState.zoomAnchor === anchor else { return }
+                    if self.scaleFactor == target {
+                        self.centerBothAxes(on: anchor, pageEdge: .bottom)
+                    }
+                    self.stopZoomState()
+                }
+                return
+            }
             if animationState.zoomPageFitPhase == .bottom {
                 animationState.zoomPageFitPhase = .aligningTop
             } else {
@@ -179,6 +193,8 @@ extension VellumPDFView {
     }
 
     func applyZoomScale(_ scale: CGFloat) {
+        animationState.applyingZoomScale = true
+        defer { animationState.applyingZoomScale = false }
         autoScales = false
         let nextScale = clampedScale(scale)
         if scaleFactor != nextScale {
@@ -195,6 +211,22 @@ extension VellumPDFView {
             let phase = animationState.zoomPageFitPhase
             centerBothAxes(on: zoomAnchor, pageEdge: phase == .bottom || phase == .widthBottom ? .bottom : phase == .top ? .top : nil)
         }
+    }
+
+    func correctZoomEdgeIfNeeded(in scrollView: NSScrollView) {
+        guard animationState.zoomPageFitPhase == .widthBottom,
+              animationState.zoomTargetScale != nil,
+              !animationState.applyingZoomScale, !animationState.correctingZoomEdge,
+              window?.inLiveResize != true,
+              let page = animationState.zoomAnchor?.page else { return }
+        animationState.correctingZoomEdge = true
+        defer { animationState.correctingZoomEdge = false }
+        guard let target = pageEdgeOrigin(for: page, edge: .bottom, in: scrollView) else { return }
+        let clip = scrollView.contentView
+        let origin = clip.bounds.origin
+        guard abs(origin.y - target) > 0.1 else { return }
+        clip.scroll(to: NSPoint(x: origin.x, y: target))
+        scrollView.reflectScrolledClipView(clip)
     }
 
     func stopZoomState() {
