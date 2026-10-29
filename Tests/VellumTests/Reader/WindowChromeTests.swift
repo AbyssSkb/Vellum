@@ -258,6 +258,7 @@ struct WindowChromeTests {
     private final class DragRecordingWindow: NSWindow {
         var dragCount = 0
         override var canBecomeKey: Bool { true }
+        override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect { frameRect }
         override func performDrag(with event: NSEvent) { dragCount += 1 }
     }
 }
