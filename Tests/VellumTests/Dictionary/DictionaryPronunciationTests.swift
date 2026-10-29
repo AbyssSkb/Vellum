@@ -118,6 +118,29 @@ struct DictionaryPronunciationTests {
     }
 
     @Test(.timeLimit(.minutes(1)))
+    func restoringAnEntryDoesNotRestartAnEarlierPronunciation() async throws {
+        let fixture = try DictionaryPronunciationFixture()
+        defer { fixture.close() }
+        UserDefaults.standard.set(false, forKey: AppPreferenceKeys.dictionaryAutoPronunciationEnabled)
+        fixture.view.lookup("hello")
+        try await fixture.waitForDocumentAndPendingWork()
+
+        fixture.view.webView.evaluateJavaScript("const end = Date.now() + 500; while (Date.now() < end) {}") { _, _ in }
+        #expect(try fixture.sendPronunciationKey())
+        var retainedEntry = false
+        fixture.view.onLookupError = { _, retained in retainedEntry = retained }
+        UserDefaults.standard.set("/missing-vellum-pronunciation.mdx", forKey: AppPreferenceKeys.dictionaryPath)
+        fixture.view.lookup("other")
+        try await waitForTestCondition("The failed lookup restores the entry", dispatchAppKitEvents: true) { retainedEntry }
+        _ = try await fixture.view.webView.evaluateJavaScript("null;")
+        try await fixture.drainPendingWork()
+        #expect(fixture.view.player == nil)
+
+        #expect(try fixture.sendPronunciationKey())
+        try await fixture.waitForPlayback(fixture.american)
+    }
+
+    @Test(.timeLimit(.minutes(1)))
     func unfinishedLookupsCannotStartStalePlaybackAfterDismissalOrReplacement() async throws {
         let fixture = try DictionaryPronunciationFixture()
         defer { fixture.close() }

@@ -136,17 +136,98 @@ struct PDFDictionaryInteractionTests {
         }
     }
 
-    @Test
-    func anUnreadableDictionaryKeepsItsErrorDistinctFromAMissingEntry() async throws {
+    @Test(arguments: [false, true])
+    func anUnreadableDictionaryShowsAToastWithoutOpeningAPopover(damaged: Bool) async throws {
         try await withReader { window, view, _ in
+            let path = FileManager.default.temporaryDirectory.appendingPathComponent("VellumInvalid-\(UUID().uuidString).mdx")
+            defer { try? FileManager.default.removeItem(at: path) }
+            if damaged { try Data("not a dictionary".utf8).write(to: path) }
+            UserDefaults.standard.set(path.path, forKey: AppPreferenceKeys.dictionaryPath)
+            view.vimLookupDictionary()
+            let message = AppUILanguage.saved().text(damaged ? .dictionaryDamaged : .dictionaryFileUnavailable)
+            try await waitForTestCondition("The unreadable dictionary reports its error", dispatchAppKitEvents: true) {
+                currentToast(in: window)?.message == message
+            }
+            #expect(!view.isDictionaryInteractionActive)
+            #expect(view.dictionaryPopover == nil)
+            #expect(view.currentSelection == nil)
+            #expect(window.firstResponder === view)
+        }
+    }
+
+    @Test(arguments: [false, true])
+    func failingEntryLookupKeepsThePreviousEntry(cancel: Bool) async throws {
+        try await withReader { window, view, _ in
+            let location = try #require(AppPreferences.dictionaryLocation())
+            let resource = location.deletingLastPathComponent().appendingPathComponent("VellumResource-\(UUID().uuidString).css")
+            try Data("original-resource".utf8).write(to: resource)
+            defer { try? FileManager.default.removeItem(at: resource) }
             view.vimLookupDictionary()
             try await waitForDictionary(in: view)
             let popover = try #require(view.dictionaryPopover)
-            try await waitForTestCondition("The unreadable dictionary reports its error", dispatchAppKitEvents: true) { !popover.isLoading }
+            try await waitForTestCondition("The entry is ready", dispatchAppKitEvents: true) { !popover.isLoading }
+            let originalURL = try #require(popover.webView.url)
+            if !cancel {
+                _ = try await popover.webView.evaluateJavaScript("document.getElementById('entry-field').focus()")
+                let key = try keyEvent("j", in: window)
+                try await waitForTestCondition("The dictionary input has editing focus", dispatchAppKitEvents: true) {
+                    !popover.handleKeyEvent(key)
+                }
+            }
 
-            #expect(view.isDictionaryInteractionActive)
+            UserDefaults.standard.set("/nonexistent-vellum-dictionary-test.mdx", forKey: AppPreferenceKeys.dictionaryPath)
+            popover.lookup("another")
+            if cancel {
+                view.dismissDictionaryPopover()
+                await DictionaryStore.shared.invalidate()
+                await nextTestMainQueueTurn()
+                #expect(currentToast(in: window) == nil)
+                #expect(!view.isDictionaryInteractionActive)
+            } else {
+                try await waitForTestCondition("The lookup reports the file error", dispatchAppKitEvents: true) {
+                    currentToast(in: window)?.message == AppUILanguage.saved().text(.dictionaryFileUnavailable)
+                }
+                #expect(view.dictionaryPopover === popover)
+                #expect(view.isDictionaryInteractionActive)
+                #expect(!popover.isLoading)
+                #expect(popover.webView.url == originalURL)
+                #expect(popover.location == location)
+                #expect(view.dictionaryOverlay?.alphaValue == 1)
+                let text = try await popover.webView.evaluateJavaScript("document.body.textContent") as? String
+                #expect(text?.contains("Definition") == true)
+                let resourceText = try await popover.webView.callAsyncJavaScript(
+                    "return await (await fetch(path)).text()", arguments: ["path": "/\(resource.lastPathComponent)"],
+                    in: nil, contentWorld: .page
+                ) as? String
+                #expect(resourceText == "original-resource")
+                #expect(try !popover.handleKeyEvent(keyEvent("j", in: window)))
+                _ = try await popover.webView.evaluateJavaScript("document.getElementById('entry-field').blur()")
+                let key = try keyEvent("j", in: window)
+                try await waitForTestCondition("Leaving the restored input restores navigation", dispatchAppKitEvents: true) {
+                    popover.handleKeyEvent(key)
+                }
+            }
+        }
+    }
+
+    @Test
+    func supersededDictionaryFailureDoesNotShowAToast() async throws {
+        try await withReader { window, view, _ in
+            let location = try #require(AppPreferences.dictionaryLocation())
+            view.vimLookupDictionary()
+            try await waitForDictionary(in: view)
+            let popover = try #require(view.dictionaryPopover)
+            try await waitForTestCondition("The entry is ready", dispatchAppKitEvents: true) { !popover.isLoading }
+            UserDefaults.standard.set("/nonexistent-vellum-dictionary-test.mdx", forKey: AppPreferenceKeys.dictionaryPath)
+            popover.lookup("another")
+            UserDefaults.standard.set(location.path, forKey: AppPreferenceKeys.dictionaryPath)
+            popover.lookup("hello")
+            try await waitForTestCondition("The replacement entry is ready", dispatchAppKitEvents: true) { !popover.isLoading }
+            await DictionaryStore.shared.invalidate()
+            await nextTestMainQueueTurn()
             #expect(currentToast(in: window) == nil)
-            #expect(view.currentSelection?.string == "hello")
+            #expect(view.dictionaryPopover === popover)
+            #expect(view.isDictionaryInteractionActive)
         }
     }
 
@@ -268,7 +349,10 @@ struct PDFDictionaryInteractionTests {
             try await waitForDictionary(in: view)
             let first = try #require(view.dictionaryPopover)
             first.dismiss()
-            UserDefaults.standard.set("/another-dictionary-test.mdx", forKey: AppPreferenceKeys.dictionaryPath)
+            let another = FileManager.default.temporaryDirectory.appendingPathComponent("VellumAnother-\(UUID().uuidString).mdx")
+            defer { try? FileManager.default.removeItem(at: another) }
+            try MDictFixture(entries: [("hello", Data("<p>Another definition</p>".utf8))]).data.write(to: another)
+            UserDefaults.standard.set(another.path, forKey: AppPreferenceKeys.dictionaryPath)
             view.vimLookupDictionary()
             try await waitForDictionary(in: view)
             #expect(view.dictionaryPopover !== first)
@@ -603,7 +687,10 @@ struct PDFDictionaryInteractionTests {
                 if let value { defaults.set(value, forKey: key) } else { defaults.removeObject(forKey: key) }
             }
         }
-        defaults.set("/nonexistent-vellum-dictionary-test.mdx", forKey: AppPreferenceKeys.dictionaryPath)
+        let dictionary = FileManager.default.temporaryDirectory.appendingPathComponent("VellumDictionaryReader-\(UUID().uuidString).mdx")
+        try MDictFixture(entries: [("hello", Data("<p>Definition</p><input id='entry-field'>".utf8))]).data.write(to: dictionary)
+        defer { try? FileManager.default.removeItem(at: dictionary) }
+        defaults.set(dictionary.path, forKey: AppPreferenceKeys.dictionaryPath)
         defaults.set(false, forKey: AppPreferenceKeys.dictionaryAutoPronunciationEnabled)
         let document = try makeTextPDF(pages: [[("hello world", NSPoint(x: 72, y: 720))]])
         let page = try #require(document.page(at: 0))

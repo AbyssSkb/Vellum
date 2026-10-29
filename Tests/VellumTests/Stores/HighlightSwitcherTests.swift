@@ -8,12 +8,30 @@ import Testing
 @Suite("Highlight switcher")
 struct HighlightSwitcherTests {
     @Test
-    func emptyListAcceptsEscapeAndRestoresOriginalFocus() async throws {
+    func emptyListShowsWarningWithoutChangingFocus() throws {
         let fixture = try Fixture()
         defer { fixture.close() }
+        #expect(fixture.window.makeFirstResponder(fixture.reader))
+        fixture.state.handleVimCommand(.showHighlights)
+
+        #expect(fixture.state.highlightItems.isEmpty)
+        #expect(!fixture.state.isHighlightsPresented)
+        #expect(!fixture.state.hasBlockingReaderPresentation)
+        #expect(fixture.window.firstResponder === fixture.reader)
+        let toast = fixture.window.contentView?.superview?.subviews.compactMap { $0 as? ToastView }.first
+        #expect(toast?.message == AppUILanguage.saved().text(.noHighlightsInFile))
+        #expect(toast?.kind == .warning)
+    }
+
+    @Test
+    func escapeRestoresOriginalFocus() async throws {
+        let fixture = try Fixture()
+        defer { fixture.close() }
+        let selection = try #require(fixture.reader.document?.findString("Alpha", withOptions: []).first)
+        _ = fixture.reader.addHighlightAnnotations(for: selection, color: .yellow)
         #expect(fixture.window.makeFirstResponder(fixture.editor))
         let field = try await fixture.show()
-        #expect(fixture.state.highlightItems.isEmpty)
+        #expect(fixture.state.highlightItems.count == 1)
         #expect(fixture.state.hasBlockingReaderPresentation)
 
         #expect(field.performCommand(#selector(NSResponder.cancelOperation(_:))))

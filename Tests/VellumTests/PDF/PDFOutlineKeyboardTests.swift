@@ -66,6 +66,11 @@ struct PDFOutlineKeyboardTests {
     func capsLockPreservesUppercaseTabAndOutlineCommands() throws {
         let fixture = try Fixture(items: tree())
         defer { fixture.cleanup() }
+        let root = PDFOutline()
+        let chapter = PDFOutline()
+        chapter.label = "Chapter"
+        root.insertChild(chapter, at: 0)
+        fixture.document.outlineRoot = root
         let firstTabID = fixture.appState.selectedTabID
         let secondTab = PDFTab(url: nil, document: fixture.document)
         _ = fixture.appState.tabStore.openInNewTabs([secondTab])

@@ -7,6 +7,73 @@ import Testing
 @Suite("App state reader controller")
 struct AppStateReaderControllerTests {
     @Test
+    func outlineToggleShowsWarningOnlyForLoadedDocumentsWithoutContents() throws {
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let state = makeTestAppState(defaults: preferences.defaults)
+
+        state.handleVimCommand(.toggleOutline)
+        #expect(!state.isOutlineVisible)
+        #expect(state.pendingNotification == nil)
+
+        let tab = PDFTab(url: nil, document: nil)
+        _ = state.tabStore.openInNewTabs([tab])
+        state.handleVimCommand(.toggleOutline)
+        #expect(!state.isOutlineVisible)
+        #expect(state.pendingNotification == nil)
+
+        let document = PDFDocument()
+        state.tabStore.replaceDocument(for: tab.id, with: document)
+        for root in [nil, PDFOutline()] {
+            document.outlineRoot = root
+            state.handleVimCommand(.toggleOutline)
+            #expect(!state.isOutlineVisible)
+            #expect(state.pendingNotification?.text == AppUILanguage.saved().text(.noContents))
+            #expect(state.pendingNotification?.kind == .warning)
+        }
+
+        let root = PDFOutline()
+        root.insertChild(PDFOutline(), at: 0)
+        document.outlineRoot = root
+        state.pendingNotification = nil
+        state.handleVimCommand(.toggleOutline)
+        #expect(state.isOutlineVisible)
+        #expect(state.pendingNotification == nil)
+
+        document.outlineRoot = nil
+        state.handleVimCommand(.toggleOutline)
+        #expect(!state.isOutlineVisible)
+        #expect(state.pendingNotification == nil)
+    }
+
+    @Test
+    func closingAllFilesClearsTemporarilyHiddenOutlinePreference() throws {
+        let preferences = try TestPreferences()
+        defer { preferences.cleanup() }
+        let state = makeTestAppState(defaults: preferences.defaults)
+        let document = PDFDocument()
+        let root = PDFOutline()
+        root.insertChild(PDFOutline(), at: 0)
+        document.outlineRoot = root
+        let tab = PDFTab(url: nil, document: document)
+        let emptyTab = PDFTab(url: nil, document: PDFDocument())
+        _ = state.tabStore.openInNewTabs([tab])
+        state.toggleOutlineSidebar()
+        _ = state.tabStore.openInNewTabs([emptyTab])
+        _ = state.tabStore.selectTab(tab.id)
+        state.selectTab(emptyTab.id)
+        #expect(!state.isOutlineVisible)
+        #expect(state.restoreOutlineWhenAvailable)
+
+        state.closeTab(tab.id)
+        state.closeTab(emptyTab.id)
+        #expect(!state.restoreOutlineWhenAvailable)
+        _ = state.tabStore.openInNewTabs([tab])
+        state.prepareForSelectedReaderChange()
+        #expect(!state.isOutlineVisible)
+    }
+
+    @Test
     func selectedTabActivatesReaderControllerAndRoutesCommands() throws {
         let preferences = try TestPreferences()
         defer { preferences.cleanup() }

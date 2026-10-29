@@ -412,6 +412,11 @@ struct PDFOutlineCoordinatorTests {
         _ = NSApplication.shared
         let document = PDFDocument()
         document.insert(PDFPage(), at: 0)
+        let root = PDFOutline()
+        let chapter = PDFOutline()
+        chapter.label = "Chapter"
+        root.insertChild(chapter, at: 0)
+        document.outlineRoot = root
         let tab = PDFTab(url: nil, document: document)
         _ = appState.tabStore.openInNewTabs([tab])
         let coordinator = PDFOutlineView.Coordinator(

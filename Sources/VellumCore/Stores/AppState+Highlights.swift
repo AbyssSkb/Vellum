@@ -2,6 +2,10 @@ extension AppState {
     func showHighlights() {
         guard hasOpenTabs, let reader = activeReaderController else { return }
         highlightItems = reader.highlightListItems()
+        guard !highlightItems.isEmpty else {
+            showNotification(AppUILanguage.saved().text(.noHighlightsInFile), kind: .warning)
+            return
+        }
         rememberFocusBeforeSwitcher()
         isHighlightsPresented = true
     }

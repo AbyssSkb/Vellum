@@ -257,6 +257,10 @@ final class DictionaryResourceHandler: NSObject, WKURLSchemeHandler {
     private var documentData = Data()
     private var tasks: [ObjectIdentifier: Task<Void, Never>] = [:]
 
+    func hasDocument(id: UUID) -> Bool {
+        DictionaryPage.isEntryURL(documentURL, id: id)
+    }
+
     func setDocument(_ html: String, at url: URL, location: URL) {
         stop()
         self.location = location

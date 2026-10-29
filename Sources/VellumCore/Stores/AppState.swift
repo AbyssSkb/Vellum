@@ -19,6 +19,7 @@ public final class AppState: ObservableObject {
     @Published var outlineReadingItemID: String?
     @Published private(set) var selectedHighlightColor: HighlightColor
     var outlineStates: [PDFTab.ID: PDFOutlineView.State] = [:]
+    var restoreOutlineWhenAvailable = false
 
     private var allAIConversationHistory: [AIConversationHistoryItem] = []
     private var allAIExplanationHistory: [AIExplanationHistoryItem] = []
@@ -36,11 +37,18 @@ public final class AppState: ObservableObject {
     var requestsOutlineFocus = true
     weak var readerWindow: NSWindow? {
         didSet {
-            guard readerWindow != nil, pendingNotification != nil else { return }
-            DispatchQueue.main.async { [weak self] in self?.showPendingNotification() }
+            if oldValue !== readerWindow { observeFileFailureWindowChange(from: oldValue) }
+            guard readerWindow != nil, pendingNotification != nil || !pendingFileFailureDetails.isEmpty else { return }
+            DispatchQueue.main.async { [weak self] in
+                self?.showPendingNotification()
+                self?.showPendingFileFailureDetails()
+            }
         }
     }
     var pendingNotification: ToastMessage?
+    var pendingFileFailureDetails: [(title: String, details: String)] = []
+    var fileFailureDetailsSheet: NSWindow?
+    var fileFailureWindowObservers: [NSObjectProtocol] = []
     weak var responderBeforeSwitcher: NSResponder?
     var tabBeforeSwitcher: PDFTab.ID?
 
@@ -84,6 +92,7 @@ public final class AppState: ObservableObject {
     }
 
     deinit {
+        fileFailureWindowObservers.forEach { NotificationCenter.default.removeObserver($0) }
         if let highlightColorPreferenceObserver {
             NotificationCenter.default.removeObserver(highlightColorPreferenceObserver)
         }
@@ -113,6 +122,14 @@ public final class AppState: ObservableObject {
         guard hasOpenTabs else {
             isOutlineVisible = false
             return
+        }
+
+        if !isOutlineVisible {
+            guard let document = selectedTab?.document else { return }
+            guard (document.outlineRoot?.numberOfChildren ?? 0) > 0 else {
+                showNotification(AppUILanguage.saved().text(.noContents), kind: .warning)
+                return
+            }
         }
 
         isOutlineVisible.toggle()

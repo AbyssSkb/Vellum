@@ -10,6 +10,7 @@ final class DictionaryPopoverView: NSView, WKNavigationDelegate, WKScriptMessage
 
     var onDismiss: (() -> Void)?
     var onLookupMiss: ((String) -> Void)?
+    var onLookupError: ((String, Bool) -> Void)?
     var onPreferredHeightChange: ((CGFloat) -> Void)?
     var onLoadingChange: ((Bool) -> Void)?
     private(set) var preferredHeight: CGFloat = 160
@@ -22,6 +23,7 @@ final class DictionaryPopoverView: NSView, WKNavigationDelegate, WKScriptMessage
     private(set) var player: AVAudioPlayer?
     private var activeNavigation: WKNavigation?
     private var lookupID = UUID()
+    private var presentedEntry: (id: UUID, word: String, height: CGFloat?, location: URL, editing: Bool)?
     private(set) var location = URL(fileURLWithPath: "/")
     private var pendingAnchor: String?
     private var didAutoPronounce = false
@@ -31,6 +33,7 @@ final class DictionaryPopoverView: NSView, WKNavigationDelegate, WKScriptMessage
     private var scrollingKey: String?
 
     var isLoading: Bool { model.isLoading }
+    private var pageID: UUID { model.isLoading ? lookupID : presentedEntry?.id ?? lookupID }
 
     init() {
         let resourceHandler = DictionaryResourceHandler()
@@ -84,7 +87,9 @@ final class DictionaryPopoverView: NSView, WKNavigationDelegate, WKScriptMessage
     }
 
     private func lookup(_ text: String, anchor: String?) {
+        let previousEntry = presentedEntry
         stop()
+        presentedEntry = previousEntry
         model.isLoading = true
         onLoadingChange?(true)
         let word = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -123,7 +128,25 @@ final class DictionaryPopoverView: NSView, WKNavigationDelegate, WKScriptMessage
                 self.activeNavigation = self.webView.load(URLRequest(url: url))
             } catch {
                 guard !Task.isCancelled, let self, self.lookupID == id else { return }
-                self.showMessage(self.message(for: error))
+                let message = self.message(for: error)
+                guard let onLookupError = self.onLookupError else {
+                    self.showMessage(message)
+                    return
+                }
+                let retainedEntry = self.presentedEntry.flatMap { previous in
+                    DictionaryPage.isEntryURL(self.webView.url, id: previous.id)
+                        && self.resourceHandler.hasDocument(id: previous.id) ? previous : nil
+                }
+                if let previous = retainedEntry {
+                    self.model.word = previous.word
+                    self.location = previous.location
+                    self.contentHeight = previous.height
+                    self.isEditing = previous.editing
+                    self.model.isLoading = false
+                    self.updatePreferredHeight()
+                    self.onLoadingChange?(false)
+                }
+                onLookupError(message, retainedEntry != nil)
             }
         }
     }
@@ -135,6 +158,7 @@ final class DictionaryPopoverView: NSView, WKNavigationDelegate, WKScriptMessage
         scrollingKey = nil
         scroll("cancel()")
         lookupID = UUID()
+        presentedEntry = nil
         lookupTask?.cancel()
         lookupTask = nil
         audioTask?.cancel()
@@ -259,13 +283,14 @@ final class DictionaryPopoverView: NSView, WKNavigationDelegate, WKScriptMessage
         let wasLoading = model.isLoading
         model.isLoading = false
         model.message = nil
+        presentedEntry = (lookupID, model.word, contentHeight, location, isEditing)
         if wasLoading { onLoadingChange?(false) }
         pendingAnchor = nil
         if wasLoading { startKeyboardScroll() }
     }
 
     private func pronounce(automatically: Bool) {
-        guard !model.isLoading, model.message == nil, DictionaryPage.isEntryURL(webView.url, id: lookupID) else { return }
+        guard !model.isLoading, model.message == nil, DictionaryPage.isEntryURL(webView.url, id: pageID) else { return }
         if automatically {
             guard AppPreferences.automaticallyPronouncesDictionary(), !didAutoPronounce else { return }
         }
@@ -294,7 +319,7 @@ final class DictionaryPopoverView: NSView, WKNavigationDelegate, WKScriptMessage
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping @MainActor @Sendable (WKNavigationActionPolicy) -> Void) {
         guard let url = navigationAction.request.url else { decisionHandler(.cancel); return }
         if let link = DictionaryPage.link(url.absoluteString) {
-            if DictionaryPage.isEntryURL(navigationAction.sourceFrame.request.url, id: lookupID) {
+            if DictionaryPage.isEntryURL(navigationAction.sourceFrame.request.url, id: pageID) {
                 follow(link)
             }
             decisionHandler(.cancel)
@@ -307,14 +332,16 @@ final class DictionaryPopoverView: NSView, WKNavigationDelegate, WKScriptMessage
 
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
         guard message.name == "dictionary", message.frameInfo.isMainFrame,
-              DictionaryPage.isEntryURL(message.frameInfo.request.url, id: lookupID) else { return }
+              DictionaryPage.isEntryURL(message.frameInfo.request.url, id: pageID) else { return }
         if let payload = message.body as? [String: Any], payload["type"] as? String == "layout",
            let height = payload["height"] as? Double, height.isFinite, height > 0 {
             contentHeight = height
+            if presentedEntry?.id == pageID { presentedEntry?.height = height }
             updatePreferredHeight()
         } else if let payload = message.body as? [String: Any], payload["type"] as? String == "editing",
                   let editing = payload["editing"] as? Bool {
             isEditing = editing
+            if presentedEntry?.id == pageID { presentedEntry?.editing = editing }
             if editing {
                 pendingG = false
                 endKeyboardScroll()
@@ -394,7 +421,7 @@ final class DictionaryPopoverView: NSView, WKNavigationDelegate, WKScriptMessage
 
     private func message(for error: Error) -> String {
         switch error as? DictionaryError {
-        case .dictionaryNotFound, .unreadableFile: language.text(.dictionaryUnavailable)
+        case .dictionaryNotFound, .unreadableFile: language.text(.dictionaryFileUnavailable)
         case .unsupportedVersion, .encryptedArchive, .unsupportedEncoding, .unsupportedCompression: language.text(.dictionaryUnsupportedFormat)
         default: language.text(.dictionaryDamaged)
         }

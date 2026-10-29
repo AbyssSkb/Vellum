@@ -56,14 +56,14 @@ struct FileFeedbackTests {
         #expect(fixture.toasts.count == 1)
         let message = try #require(fixture.toasts.first?.message)
         let language = AppUILanguage.saved()
-        #expect(message.hasPrefix(language.text(.fileBatchOpenFailed(opened: opened, failed: 2))))
-        #expect(message.contains(language.text(.fileOpenFailed(
+        #expect(message == language.text(.fileBatchOpenFailed(opened: opened, failed: 2)))
+        let details = try fixture.failureDetails()
+        #expect(details.contains(language.text(.fileOpenFailed(
             name: invalid.lastPathComponent, reason: language.text(.fileUnparseable)
         ))))
-        #expect(message.contains(language.text(.fileOpenFailed(
+        #expect(details.contains(language.text(.fileOpenFailed(
             name: missing.lastPathComponent, reason: language.text(.fileMissing)
         ))))
-        #expect(fixture.toasts.first?.toolTip == message)
     }
 
     @Test
@@ -134,14 +134,204 @@ struct FileFeedbackTests {
         #expect(fixture.state.unresolvedSession?.tabs == [missing, unreadable])
         let toast = try #require(fixture.toasts.first)
         let language = AppUILanguage.saved()
-        #expect(toast.message.hasPrefix(language.text(.fileSessionRestoreFailed(restored: allFailed ? 0 : 1, failed: 2))))
-        #expect(toast.message.contains(language.text(.fileMissing)))
-        #expect(toast.message.contains(language.text(.fileUnparseable)))
+        #expect(toast.message == language.text(.fileSessionRestoreFailed(restored: allFailed ? 0 : 1, failed: 2)))
+        let details = try fixture.failureDetails()
+        #expect(details.contains(language.text(.fileMissing)))
+        #expect(details.contains(language.text(.fileUnparseable)))
         fixture.state.restorePreviousTabsIfNeeded()
         #expect(fixture.toasts.count == 1)
         #expect(fixture.toasts.first === toast)
         fixture.state.saveCurrentSession()
         #expect(AppSessionPersistence.load(defaults: fixture.defaults)?.tabs == session.tabs)
+    }
+
+    @Test
+    func sessionFailureDetailsWaitForWindowAndSurviveOtherNotifications() async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        fixture.state.readerWindow = nil
+        let missing = PersistedPDFTab(path: fixture.url("missing.pdf").path, snapshot: .initial)
+        let another = PersistedPDFTab(path: fixture.url("another.pdf").path, snapshot: .initial)
+        let session = PersistedAppSession(tabs: [missing, another], selectedURLPath: missing.path)
+        fixture.defaults.set(true, forKey: AppPreferenceKeys.restorePreviousTabs)
+        fixture.defaults.set(try JSONEncoder().encode(session), forKey: "VellumPreviousSession")
+
+        fixture.state.restorePreviousTabsIfNeeded()
+        fixture.state.showNotification("Another notification", kind: .info)
+
+        #expect(fixture.state.pendingFileFailureDetails.count == 1)
+        fixture.state.readerWindow = fixture.window
+        try await waitForTestCondition("The pending failure sheet appears") {
+            fixture.window.attachedSheet != nil
+        }
+        let details = try fixture.failureDetails()
+        #expect(details.contains("missing.pdf"))
+        #expect(details.contains(AppUILanguage.saved().text(.fileMissing)))
+    }
+
+    @Test(arguments: [false, true])
+    func singleSessionFileFailureUsesOnlyToast(duplicated: Bool) throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let missing = PersistedPDFTab(path: fixture.url("missing.pdf").path, snapshot: .initial)
+        let session = PersistedAppSession(tabs: duplicated ? [missing, missing] : [missing],
+                                          selectedURLPath: missing.path)
+        fixture.defaults.set(true, forKey: AppPreferenceKeys.restorePreviousTabs)
+        fixture.defaults.set(try JSONEncoder().encode(session), forKey: "VellumPreviousSession")
+
+        fixture.state.restorePreviousTabsIfNeeded()
+
+        let language = AppUILanguage.saved()
+        #expect(fixture.toasts.first?.message == language.text(.fileRestoreFailed(
+            name: "missing.pdf", reason: language.text(.fileMissing)
+        )))
+        #expect(fixture.window.attachedSheet == nil)
+        #expect(fixture.state.pendingFileFailureDetails.isEmpty)
+        #expect(fixture.state.unresolvedSession?.tabs == [missing])
+    }
+
+    @Test
+    func batchFailureDetailsScrollToTheLastFile() throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let urls = (0..<40).map { fixture.url("missing-\($0).pdf") }
+        fixture.state.openInNewTabs(urls: urls)
+
+        let text = try fixture.failureDetailsView()
+        let layout = try #require(text.layoutManager)
+        let container = try #require(text.textContainer)
+        layout.ensureLayout(for: container)
+        text.scrollToEndOfDocument(nil)
+        let glyphs = layout.glyphRange(
+            forCharacterRange: NSRange(location: text.string.utf16.count - 1, length: 1),
+            actualCharacterRange: nil
+        )
+        let lastGlyph = layout.boundingRect(forGlyphRange: glyphs, in: container)
+            .offsetBy(dx: text.textContainerOrigin.x, dy: text.textContainerOrigin.y)
+        #expect(text.string.contains("missing-39.pdf"))
+        #expect(text.bounds.height > text.visibleRect.height)
+        #expect(lastGlyph.maxY <= text.visibleRect.maxY + 1)
+        #expect(lastGlyph.minY >= text.visibleRect.minY - 1)
+    }
+
+    @Test
+    func queuedFailureSheetsRemainAvailableAndRestoreFocus() async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let field = NSTextField(string: "reader focus")
+        try #require(fixture.window.contentView).addSubview(field)
+        #expect(fixture.window.makeFirstResponder(field))
+        let originalFocus = fixture.window.firstResponder
+        fixture.state.readerWindow = nil
+        fixture.state.openInNewTabs(urls: [fixture.url("first-a.pdf"), fixture.url("first-b.pdf")])
+        fixture.state.openInNewTabs(urls: [fixture.url("second-a.pdf"), fixture.url("second-b.pdf")])
+        #expect(fixture.state.pendingFileFailureDetails.count == 2)
+
+        fixture.state.readerWindow = fixture.window
+        fixture.state.showPendingFileFailureDetails()
+        let first = try #require(fixture.window.attachedSheet)
+        #expect(try fixture.failureDetails().contains("first-a.pdf"))
+        let event = try #require(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [],
+                                                  timestamp: 0, windowNumber: first.windowNumber, context: nil,
+                                                  characters: "\u{1b}", charactersIgnoringModifiers: "\u{1b}",
+                                                  isARepeat: false, keyCode: 53))
+        first.sendEvent(event)
+        try await waitForTestCondition("The next failure sheet appears") {
+            fixture.window.attachedSheet != nil && fixture.window.attachedSheet !== first
+        }
+        let second = try #require(fixture.window.attachedSheet)
+        #expect(try fixture.failureDetails().contains("second-a.pdf"))
+        let escapeEvent = try #require(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [],
+                                                        timestamp: 0, windowNumber: second.windowNumber, context: nil,
+                                                        characters: "\u{1b}", charactersIgnoringModifiers: "\u{1b}",
+                                                        isARepeat: false, keyCode: 53))
+        second.sendEvent(escapeEvent)
+        try await waitForTestCondition("The failure sheets close") { fixture.window.attachedSheet == nil }
+        #expect(fixture.window.firstResponder === originalFocus)
+    }
+
+    @Test
+    func failureDetailsWaitForAnExistingSheet() async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let otherSheet = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 200, height: 100),
+                                  styleMask: .titled, backing: .buffered, defer: false)
+        fixture.window.beginSheet(otherSheet, completionHandler: nil)
+        fixture.state.openInNewTabs(urls: [fixture.url("first.pdf"), fixture.url("second.pdf")])
+        #expect(fixture.window.attachedSheet === otherSheet)
+        fixture.window.endSheet(otherSheet)
+        try await waitForTestCondition("The queued failure details appear") {
+            fixture.window.attachedSheet != nil && fixture.window.attachedSheet !== otherSheet
+        }
+        #expect(try fixture.failureDetails().contains("first.pdf"))
+    }
+
+    @Test
+    func pendingFailureDetailsFollowAReplacementWindow() async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let oldSheet = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 200, height: 100),
+                                styleMask: .titled, backing: .buffered, defer: false)
+        fixture.window.beginSheet(oldSheet, completionHandler: nil)
+        fixture.state.openInNewTabs(urls: [fixture.url("first.pdf"), fixture.url("second.pdf")])
+        let replacement = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),
+                                   styleMask: .titled, backing: .buffered, defer: false)
+        replacement.isReleasedWhenClosed = false
+        defer {
+            if let sheet = replacement.attachedSheet { replacement.endSheet(sheet) }
+            replacement.close()
+        }
+        fixture.state.readerWindow = replacement
+        fixture.window.endSheet(oldSheet)
+        fixture.window.close()
+        try await waitForTestCondition("Pending failure details follow the replacement window") {
+            replacement.attachedSheet != nil
+        }
+    }
+
+    @Test
+    func visibleFailureDetailsFollowAReplacementWindow() async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        fixture.state.openInNewTabs(urls: [fixture.url("first.pdf"), fixture.url("second.pdf")])
+        #expect(try fixture.failureDetails().contains("first.pdf"))
+        let replacement = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),
+                                   styleMask: .titled, backing: .buffered, defer: false)
+        replacement.isReleasedWhenClosed = false
+        defer {
+            if let sheet = replacement.attachedSheet { replacement.endSheet(sheet) }
+            replacement.close()
+        }
+        fixture.state.readerWindow = replacement
+        try await waitForTestCondition("The open failure details follow the replacement window") {
+            replacement.attachedSheet != nil
+        }
+        #expect(fixture.window.attachedSheet == nil)
+        #expect(fixture.state.pendingFileFailureDetails.first?.details.contains("first.pdf") == true)
+    }
+
+    @Test
+    func closingReaderKeepsVisibleFailureDetailsForTheNextWindow() async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        fixture.state.openInNewTabs(urls: [fixture.url("first.pdf"), fixture.url("second.pdf")])
+        _ = try #require(fixture.window.attachedSheet)
+        fixture.window.close()
+        try await waitForTestCondition("The closed reader releases its window") {
+            fixture.state.readerWindow == nil
+        }
+        #expect(fixture.state.pendingFileFailureDetails.first?.details.contains("first.pdf") == true)
+        let replacement = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),
+                                   styleMask: .titled, backing: .buffered, defer: false)
+        replacement.isReleasedWhenClosed = false
+        defer {
+            if let sheet = replacement.attachedSheet { replacement.endSheet(sheet) }
+            replacement.close()
+        }
+        fixture.state.readerWindow = replacement
+        try await waitForTestCondition("The next reader receives the failure details") {
+            replacement.attachedSheet != nil
+        }
     }
 
     @MainActor
@@ -171,6 +361,21 @@ struct FileFeedbackTests {
             window.contentView?.superview?.subviews.compactMap { $0 as? ToastView } ?? []
         }
 
+        func failureDetailsView() throws -> NSTextView {
+            let sheet = try #require(window.attachedSheet)
+            sheet.contentView?.layoutSubtreeIfNeeded()
+            func descendants(_ view: NSView) -> [NSView] {
+                [view] + view.subviews.flatMap(descendants)
+            }
+            let views = descendants(try #require(sheet.contentView))
+            let text = try #require(views.compactMap { $0 as? NSTextView }.first)
+            #expect(text.enclosingScrollView?.hasVerticalScroller == true)
+            #expect(!text.isEditable)
+            return text
+        }
+
+        func failureDetails() throws -> String { try failureDetailsView().string }
+
         func url(_ name: String) -> URL { directory.appendingPathComponent(name) }
 
         func writePDF(to url: URL) throws {
@@ -182,6 +387,7 @@ struct FileFeedbackTests {
         }
 
         func cleanUp() {
+            if let sheet = window.attachedSheet { window.endSheet(sheet) }
             window.close()
             defaults.removePersistentDomain(forName: suiteName)
             try? FileManager.default.removeItem(at: directory)

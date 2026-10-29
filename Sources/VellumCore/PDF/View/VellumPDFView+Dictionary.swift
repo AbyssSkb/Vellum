@@ -80,6 +80,14 @@ extension VellumPDFView {
             self.clearTextSelectionForVimNavigation()
             self.showNotification(AppUILanguage.saved().text(.dictionaryNotFound(word)), kind: .warning)
         }
+        popover.onLookupError = { [weak self, weak popover] message, retainedEntry in
+            guard let self, let popover, self.dictionaryPopover === popover else { return }
+            if !retainedEntry {
+                self.dismissDictionaryPopover(restoreFocus: false)
+                self.clearTextSelectionForVimNavigation()
+            }
+            self.showNotification(message, kind: .warning)
+        }
         popover.onPreferredHeightChange = { [weak self, weak popover] height in
             guard let self, let popover, self.dictionaryPopover === popover else { return }
             self.dictionaryPreferredHeight = height

@@ -260,8 +260,18 @@ struct WindowChromeTests {
             preferences = try TestPreferences()
             appState = makeTestAppState(defaults: preferences.defaults)
             previousHighlight = UserDefaults.standard.object(forKey: AppPreferenceKeys.defaultHighlightColor)
-            _ = appState.tabStore.openInNewTabs(["Alpha", "Beta"].map {
-                PDFTab(url: URL(fileURLWithPath: "/tmp/\($0).pdf"), document: nil)
+            _ = appState.tabStore.openInNewTabs(["Alpha", "Beta"].map { title in
+                let document = PDFDocument()
+                let page = PDFPage()
+                page.setBounds(NSRect(x: 0, y: 0, width: 612, height: 792), for: .mediaBox)
+                document.insert(page, at: 0)
+                let root = PDFOutline()
+                let chapter = PDFOutline()
+                chapter.label = "Chapter"
+                chapter.destination = PDFDestination(page: page, at: .zero)
+                root.insertChild(chapter, at: 0)
+                document.outlineRoot = root
+                return PDFTab(url: URL(fileURLWithPath: "/tmp/\(title).pdf"), document: document)
             })
             let size = NSSize(width: width, height: 480)
             let screen = try #require(NSScreen.screens.first)

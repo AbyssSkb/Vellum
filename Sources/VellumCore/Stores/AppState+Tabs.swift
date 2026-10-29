@@ -1,4 +1,4 @@
-import Foundation
+import AppKit
 
 extension AppState {
     func selectTab(_ id: PDFTab.ID) {
@@ -212,7 +212,8 @@ extension AppState {
         if tabStore.restoreSessionTabs(tabs, selectedURLPath: session.selectedURLPath) {
             prepareForSelectedReaderChange()
         }
-        showFileFailures(failures, summary: .fileSessionRestoreFailed(restored: tabs.count, failed: failures.count))
+        showFileFailures(failures, summary: openedURLs.count > 1
+                         ? .fileSessionRestoreFailed(restored: tabs.count, failed: failures.count) : nil)
     }
 
     private func fileFailureReason(for url: URL) -> String {
@@ -221,8 +222,79 @@ extension AppState {
 
     private func showFileFailures(_ failures: [String], summary: AppText? = nil) {
         guard !failures.isEmpty else { return }
-        let lines = summary.map { [AppUILanguage.saved().text($0)] } ?? []
-        showNotification((lines + failures).joined(separator: "\n"), kind: .error)
+        guard let summary else {
+            showNotification(failures.joined(separator: "\n"), kind: .error)
+            return
+        }
+        let title = AppUILanguage.saved().text(summary)
+        showNotification(title, kind: .error)
+        pendingFileFailureDetails.append((title, failures.joined(separator: "\n\n")))
+        showPendingFileFailureDetails()
+    }
+
+    func showPendingFileFailureDetails() {
+        guard let window = readerWindow, window.attachedSheet == nil,
+              fileFailureDetailsSheet == nil, let failure = pendingFileFailureDetails.first else { return }
+        let alert = NSAlert()
+        alert.messageText = failure.title
+        let close = alert.addButton(withTitle: AppUILanguage.saved().text(.closeFileFailureDetails))
+        alert.window.defaultButtonCell = close.cell as? NSButtonCell
+        let scroll = NSScrollView(frame: NSRect(x: 0, y: 0, width: 460, height: 200))
+        scroll.hasVerticalScroller = true
+        scroll.autohidesScrollers = true
+        let text = NSTextView(frame: scroll.bounds)
+        text.isEditable = false
+        text.drawsBackground = false
+        text.font = .systemFont(ofSize: 13)
+        text.isVerticallyResizable = true
+        text.isHorizontallyResizable = false
+        text.minSize = NSSize(width: 0, height: scroll.contentSize.height)
+        text.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+        text.autoresizingMask = [.width]
+        text.textContainer?.containerSize = NSSize(width: scroll.contentSize.width, height: CGFloat.greatestFiniteMagnitude)
+        text.textContainer?.widthTracksTextView = true
+        text.string = failure.details
+        scroll.documentView = text
+        if let container = text.textContainer {
+            text.layoutManager?.ensureLayout(for: container)
+        }
+        text.sizeToFit()
+        alert.accessoryView = scroll
+        let sheet = alert.window
+        fileFailureDetailsSheet = sheet
+        alert.beginSheetModal(for: window) { [weak self, weak sheet] response in
+            guard let self, self.fileFailureDetailsSheet === sheet else { return }
+            self.fileFailureDetailsSheet = nil
+            if response != .abort { self.pendingFileFailureDetails.removeFirst() }
+            self.showPendingFileFailureDetails()
+        }
+        close.keyEquivalent = "\u{1b}"
+        close.keyEquivalentModifierMask = []
+    }
+
+    func observeFileFailureWindowChange(from oldWindow: NSWindow?) {
+        fileFailureWindowObservers.forEach { NotificationCenter.default.removeObserver($0) }
+        fileFailureWindowObservers.removeAll()
+        if let sheet = fileFailureDetailsSheet, let oldWindow {
+            fileFailureDetailsSheet = nil
+            oldWindow.endSheet(sheet, returnCode: .abort)
+        }
+        guard let window = readerWindow else { return }
+        for name in [NSWindow.didEndSheetNotification, NSWindow.willCloseNotification] {
+            let observer = NotificationCenter.default.addObserver(forName: name, object: window, queue: .main) {
+                [weak self, weak window] notification in
+                let isClosing = notification.name == NSWindow.willCloseNotification
+                Task { @MainActor in
+                    guard let self, let window, self.readerWindow === window else { return }
+                    if isClosing {
+                        self.readerWindow = nil
+                    } else {
+                        self.showPendingFileFailureDetails()
+                    }
+                }
+            }
+            fileFailureWindowObservers.append(observer)
+        }
     }
 
     public func saveCurrentSession() {

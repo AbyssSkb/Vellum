@@ -25,6 +25,18 @@ extension AppState {
     }
 
     func prepareForSelectedReaderChange() {
+        if let document = selectedTab?.document {
+            let hasContents = (document.outlineRoot?.numberOfChildren ?? 0) > 0
+            if isOutlineVisible && !hasContents {
+                isOutlineVisible = false
+                restoreOutlineWhenAvailable = true
+            } else if hasContents && restoreOutlineWhenAvailable {
+                isOutlineVisible = true
+                restoreOutlineWhenAvailable = false
+            }
+        } else if !hasOpenTabs {
+            restoreOutlineWhenAvailable = false
+        }
         recordReadingFocusIntent(outline: isOutlineVisible && readerWindow?.firstResponder is PDFOutlineKeyView)
         (activeReaderController as? VellumPDFView)?.dismissDictionaryPopover(restoreFocus: false)
         activeReaderController = nil

@@ -186,6 +186,49 @@ struct ReaderFocusTests {
     }
 
     @Test
+    func switchingToFileWithoutContentsHidesSidebarAndRestoresItWhenAvailable() async throws {
+        let fixture = try Fixture()
+        defer { fixture.close() }
+        try await fixture.ready()
+        let outline = try fixture.outline()
+        #expect(fixture.window.makeFirstResponder(outline))
+        let emptyDocument = Fixture.document()
+        emptyDocument.outlineRoot = nil
+        let emptyTab = PDFTab(url: nil, document: emptyDocument)
+        _ = fixture.state.tabStore.openInNewTabs([emptyTab])
+        _ = fixture.state.tabStore.selectTab(fixture.tab.id)
+
+        fixture.state.selectTab(emptyTab.id)
+        #expect(!fixture.state.isOutlineVisible)
+        #expect(fixture.state.pendingNotification == nil)
+        fixture.host.rootView = AnyView(EmptyView())
+        let reader = VellumPDFView(frame: fixture.reader.frame)
+        reader.appState = fixture.state
+        reader.document = emptyDocument
+        fixture.window.contentView?.addSubview(reader)
+        fixture.state.setActiveReaderController(reader, for: emptyTab.id)
+        fixture.state.focusActivatedReaderSoon(reader)
+        try await waitForTestCondition("The reader did not regain focus") {
+            fixture.window.firstResponder === reader
+        }
+        fixture.expectFocus(reader)
+
+        fixture.state.toggleOutlineSidebar()
+        #expect(!fixture.state.isOutlineVisible)
+        fixture.state.selectTab(fixture.tab.id)
+        #expect(fixture.state.isOutlineVisible)
+        fixture.host.rootView = AnyView(OutlineSidebar(tab: fixture.tab).environmentObject(fixture.state))
+        fixture.state.setActiveReaderController(fixture.reader, for: fixture.tab.id)
+        try await fixture.drainQueuedFocus()
+
+        fixture.state.toggleOutlineSidebar()
+        #expect(!fixture.state.isOutlineVisible)
+        fixture.state.selectTab(emptyTab.id)
+        fixture.state.selectTab(fixture.tab.id)
+        #expect(!fixture.state.isOutlineVisible)
+    }
+
+    @Test
     func reactivatingACachedReaderReportsItsPositionWithoutLayoutOrMovement() async throws {
         let fixture = try Fixture()
         defer { fixture.close() }
@@ -354,6 +397,11 @@ struct ReaderFocusTests {
                 page.setBounds(NSRect(x: 0, y: 0, width: 612, height: 792), for: .mediaBox)
                 document.insert(page, at: index)
             }
+            let root = PDFOutline()
+            let section = PDFOutline()
+            section.label = "Section"
+            root.insertChild(section, at: 0)
+            document.outlineRoot = root
             return document
         }
 

@@ -172,6 +172,7 @@ public enum AppText {
     case dictionaryNoSelection
     case dictionaryNotFound(String)
     case dictionaryUnavailable
+    case dictionaryFileUnavailable
     case dictionaryUnsupportedFormat
     case dictionaryDamaged
     case dictionaryFailed(String)
@@ -308,6 +309,7 @@ public enum AppText {
     case fileRestoreFailed(name: String, reason: String)
     case fileBatchOpenFailed(opened: Int, failed: Int)
     case fileSessionRestoreFailed(restored: Int, failed: Int)
+    case closeFileFailureDetails
     case aiLogOpenRejected
     case highlightWithoutText
     case selected
@@ -495,8 +497,9 @@ public extension AppText {
         case .dictionaryNoSelection: return "Select a word to look it up."
         case .dictionaryNotFound(let word): return "No entry for “\(word)”"
         case .dictionaryUnavailable: return "Choose a dictionary in Settings → Local Dictionary"
-        case .dictionaryUnsupportedFormat: return "This dictionary format is not supported. Choose a compatible MDict 2.x dictionary."
-        case .dictionaryDamaged: return "This dictionary could not be read. Its files may be incomplete or damaged."
+        case .dictionaryFileUnavailable: return "Cannot access the dictionary file"
+        case .dictionaryUnsupportedFormat: return "Unsupported dictionary format"
+        case .dictionaryDamaged: return "Cannot read the dictionary file"
         case .dictionaryFailed(let message): return "Dictionary lookup failed: \(message)"
         case .dictionaryAudioUnavailable: return "This pronunciation recording is unavailable."
         case .dictionaryClose: return "Close dictionary"
@@ -649,6 +652,7 @@ public extension AppText {
         case .fileRestoreFailed(let name, let reason): return "Could not restore “\(name)”: \(reason)"
         case .fileBatchOpenFailed(let opened, let failed): return "Opened \(opened) files; \(failed) files could not be opened"
         case .fileSessionRestoreFailed(let restored, let failed): return "Restored \(restored) tabs; \(failed) tabs could not be restored"
+        case .closeFileFailureDetails: return "Close"
         case .aiLogOpenRejected: return "The system could not open the log file"
         case .highlightWithoutText: return "Highlight without extractable text"
         case .selected: return "Selected"
@@ -827,8 +831,9 @@ public extension AppText {
         case .dictionaryNoSelection: return "请先选中要查询的单词。"
         case .dictionaryNotFound(let word): return "没有“\(word)”的词条"
         case .dictionaryUnavailable: return "请在设置 → 本地词典中选择词典"
-        case .dictionaryUnsupportedFormat: return "暂不支持此词典格式。请选择兼容的 MDict 2.x 词典。"
-        case .dictionaryDamaged: return "无法读取词典，文件可能不完整或已损坏。"
+        case .dictionaryFileUnavailable: return "无法访问词典文件"
+        case .dictionaryUnsupportedFormat: return "不支持此词典格式"
+        case .dictionaryDamaged: return "无法读取词典文件"
         case .dictionaryFailed(let message): return "查词失败：\(message)"
         case .dictionaryAudioUnavailable: return "此发音录音不可用。"
         case .dictionaryClose: return "关闭词典"
@@ -981,6 +986,7 @@ public extension AppText {
         case .fileRestoreFailed(let name, let reason): return "无法恢复「\(name)」：\(reason)"
         case .fileBatchOpenFailed(let opened, let failed): return "已打开 \(opened) 个文件，另有 \(failed) 个无法打开"
         case .fileSessionRestoreFailed(let restored, let failed): return "已恢复 \(restored) 个标签页，另有 \(failed) 个无法恢复"
+        case .closeFileFailureDetails: return "关闭"
         case .aiLogOpenRejected: return "系统无法打开日志文件"
         case .highlightWithoutText: return "无可提取文字的高亮"
         case .selected: return "已选"
