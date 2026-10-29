@@ -30,7 +30,7 @@ struct ClippedTabTitle: NSViewRepresentable {
 
     func updateNSView(_ view: PDFOutlineTitleView, context: Context) {
         let textField = view.textField
-        textField.font = .systemFont(ofSize: 12.5, weight: isSelected ? .medium : .regular)
+        textField.font = .systemFont(ofSize: 12.5, weight: .regular)
         textField.textColor = isSelected || isHovered
             ? VellumColors.foreground
             : VellumColors.muted

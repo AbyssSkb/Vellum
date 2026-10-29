@@ -103,7 +103,7 @@ final class TitlebarDragView: NSView {
 
     private func isPointInInteractiveTitlebarControl(_ point: NSPoint) -> Bool {
         let sidebarToggleRect = NSRect(x: 94, y: 8, width: 34, height: 34)
-        let highlightToolbarRect = NSRect(x: bounds.maxX - 210, y: 4, width: 202, height: 40)
+        let highlightToolbarRect = NSRect(x: bounds.maxX - 180, y: 4, width: 172, height: 38)
 
         return sidebarToggleRect.contains(point)
             || highlightToolbarRect.contains(point)

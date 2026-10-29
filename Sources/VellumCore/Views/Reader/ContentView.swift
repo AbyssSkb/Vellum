@@ -42,8 +42,8 @@ public struct ContentView: View {
                     .overlay {
                         readerShape
                             .strokeBorder(
-                                LinearGradient(colors: [VellumColors.foregroundColor.opacity(0.10),
-                                                        VellumColors.foregroundColor.opacity(0.025)],
+                                LinearGradient(colors: [VellumColors.foregroundColor.opacity(0.045),
+                                                        VellumColors.foregroundColor.opacity(0.015)],
                                                startPoint: .top, endPoint: .bottom),
                                 lineWidth: 0.5
                             )
@@ -58,7 +58,7 @@ public struct ContentView: View {
                 if appState.isTabSwitcherPresented {
                     TabSwitcherOverlay()
                         .clipShape(readerShape)
-                        .padding(.top, 38 + edgeInset)
+                        .padding(.top, 46)
                 }
 
                 if appState.isAIConversationHistoryPresented {
@@ -79,7 +79,7 @@ public struct ContentView: View {
             }
             .overlay(alignment: .top) {
                 TitlebarDragRegion(hasOpenTabs: appState.hasOpenTabs)
-                    .frame(height: appState.hasOpenTabs ? 38 + edgeInset : 46)
+                    .frame(height: 46)
             }
             .foregroundStyle(VellumColors.foregroundColor)
             .tint(VellumColors.blueColor)

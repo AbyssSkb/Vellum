@@ -11,7 +11,7 @@ struct TabButton: View {
     @State private var isCloseHovered = false
 
     var body: some View {
-        let tabShape = UnevenRoundedRectangle(topLeadingRadius: 8, topTrailingRadius: 8, style: .continuous)
+        let tabShape = Rectangle()
         let showsCloseButton = isSelected || isHovered
 
         HStack(spacing: width < 70 ? 4 : 7) {
@@ -42,7 +42,7 @@ struct TabButton: View {
         }
         .padding(.leading, width < 70 ? 6 : 12)
         .padding(.trailing, width >= 90 ? 8 : (width < 70 ? 6 : 12))
-        .frame(width: width, height: 38)
+        .frame(width: width, height: 46)
         .contentShape(tabShape)
         .onTapGesture {
             if !isSelected {
@@ -63,17 +63,9 @@ struct TabButton: View {
         }
         .background(
             isSelected
-                ? VellumColors.panelColor
-                : VellumColors.panelColor.opacity(isHovered ? 0.55 : 0)
+                ? VellumColors.panelColor.opacity(0.5)
+                : VellumColors.panelColor.opacity(isHovered ? 0.3 : 0)
         )
-        .overlay {
-            if isSelected {
-                tabShape
-                    .strokeBorder(VellumColors.foregroundColor.opacity(0.10), lineWidth: 0.5)
-                    .padding(.bottom, -1)
-                    .allowsHitTesting(false)
-            }
-        }
         .clipShape(tabShape)
         .onHover { isHovered = $0 }
         .animation(.easeInOut(duration: 0.12), value: isHovered)

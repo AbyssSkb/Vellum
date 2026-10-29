@@ -6,7 +6,7 @@ struct HighlightToolbar: View {
     @State private var hoveredColor: HighlightColor?
 
     var body: some View {
-        HStack(spacing: 5) {
+        HStack(spacing: 2) {
             ForEach(HighlightColor.allCases) { color in
                 let isSelected = appState.selectedHighlightColor == color
                 let isHovered = hoveredColor == color
@@ -17,20 +17,20 @@ struct HighlightToolbar: View {
                     ZStack {
                         Circle()
                             .fill(isHovered ? VellumColors.panelElevatedColor : .clear)
-                            .frame(width: 28, height: 28)
+                            .frame(width: 26, height: 26)
 
                         if isSelected {
                             Circle()
-                                .strokeBorder(VellumColors.mutedColor.opacity(0.85), lineWidth: 1)
-                                .frame(width: 22, height: 22)
+                                .strokeBorder(VellumColors.mutedColor.opacity(0.55), lineWidth: 0.75)
+                                .frame(width: 18, height: 18)
                         }
 
                         Circle()
                             .fill(color.swatchColor)
-                            .frame(width: isSelected ? 14 : 12, height: isSelected ? 14 : 12)
+                            .frame(width: isSelected ? 12 : 10, height: isSelected ? 12 : 10)
                             .opacity(isSelected || isHovered ? 1 : 0.68)
                     }
-                    .frame(width: 34, height: 34)
+                    .frame(width: 30, height: 30)
                     .contentShape(Rectangle())
                     .animation(.easeInOut(duration: 0.12), value: isSelected)
                     .animation(.easeInOut(duration: 0.1), value: isHovered)
@@ -47,8 +47,8 @@ struct HighlightToolbar: View {
         .frame(height: 34)
         .overlay(alignment: .leading) {
             Rectangle()
-                .fill(VellumColors.borderColor.opacity(0.6))
-                .frame(width: 1, height: 24)
+                .fill(VellumColors.borderColor.opacity(0.4))
+                .frame(width: 0.5, height: 16)
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
         }

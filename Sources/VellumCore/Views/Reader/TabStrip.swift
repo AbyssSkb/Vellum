@@ -32,8 +32,8 @@ struct TabStrip: View {
                                index + 1 < appState.tabs.count,
                                appState.tabs[index + 1].id != appState.selectedTabID {
                                 Rectangle()
-                                    .fill(VellumColors.borderColor.opacity(0.7))
-                                    .frame(width: 1, height: 22)
+                                    .fill(VellumColors.borderColor.opacity(0.55))
+                                    .frame(width: 0.5, height: 16)
                                     .offset(x: 0.5)
                                     .allowsHitTesting(false)
                                     .accessibilityHidden(true)
@@ -41,16 +41,16 @@ struct TabStrip: View {
                         }
                     }
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
             }
-            .frame(height: 38 + edgeInset)
+            .frame(height: 46)
             .padding(.leading, appState.isOutlineVisible ? 122 : 0)
             .layoutPriority(1)
 
             HighlightToolbar()
                 .padding(.trailing, edgeInset)
         }
-        .frame(height: 38 + edgeInset)
+        .frame(height: 46)
         .background(VellumColors.backgroundDeepColor)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(language.text(.filesAndTabs))

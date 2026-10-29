@@ -1,4 +1,5 @@
 @preconcurrency import AppKit
+import SwiftUI
 import Testing
 @testable import VellumCore
 
@@ -11,6 +12,62 @@ struct WindowChromeTests {
         let after = EmptyReaderLayout(size: CGSize(width: 1100, height: 690.75))
         #expect(after.inset > before.inset)
         #expect(after.inset - before.inset < 0.01)
+    }
+
+    @Test(arguments: [640.0, 1400.0])
+    func tabTitlesShareTheTrafficLightCenterAtDifferentWindowSizes(width: Double) async throws {
+        let fixture = try TopBarFixture(width: width)
+        defer { fixture.close() }
+        try await fixture.ready()
+
+        for title in fixture.titles {
+            let frame = title.textField.convert(title.textField.bounds, to: fixture.host)
+            let centerFromTop = fixture.host.isFlipped
+                ? frame.midY - fixture.host.bounds.minY : fixture.host.bounds.maxY - frame.midY
+            #expect(abs(centerFromTop - 23) <= 0.5)
+        }
+    }
+
+    @Test
+    func compactTopBarKeepsItsControlsClickableAndItsFreeSpaceDraggable() async throws {
+        let fixture = try TopBarFixture(width: 960)
+        defer { fixture.close() }
+        try await fixture.ready()
+
+        let firstTab = try #require(fixture.appState.tabs.first)
+        let firstTitle = try #require(fixture.titles.first { $0.title == firstTab.title })
+        let titleFrame = firstTitle.convert(firstTitle.bounds, to: fixture.host)
+        try fixture.mouse([.leftMouseDown, .leftMouseUp], at: NSPoint(x: titleFrame.midX, y: titleFrame.midY))
+        try await waitForTestCondition("The first tab is selected by clicking its title", dispatchAppKitEvents: true) {
+            fixture.appState.selectedTabID == firstTab.id
+        }
+        await nextTestMainQueueTurn()
+        fixture.host.layoutSubtreeIfNeeded()
+        let selectedTitle = try #require(fixture.titles.first { $0.title == firstTab.title })
+        let selectedFrame = selectedTitle.convert(selectedTitle.bounds, to: fixture.host)
+        try fixture.mouse([.leftMouseDown, .leftMouseUp], at: NSPoint(x: selectedFrame.maxX + 18, y: selectedFrame.midY))
+        try await waitForTestCondition("The selected tab's close button remains clickable", dispatchAppKitEvents: true) {
+            fixture.appState.tabs.count == 1
+        }
+
+        try fixture.mouse([.leftMouseDown, .leftMouseUp], at: fixture.topPoint(x: 109))
+        try await waitForTestCondition("The directory button remains clickable", dispatchAppKitEvents: true) {
+            fixture.appState.isOutlineVisible
+        }
+        for (index, color) in HighlightColor.allCases.enumerated() {
+            let x = fixture.host.bounds.width - fixture.edgeInset - 150 + CGFloat(index) * 32
+            try fixture.mouse([.leftMouseDown, .leftMouseUp], at: fixture.topPoint(x: x))
+            try await waitForTestCondition("The compact \(color.rawValue) color button remains clickable", dispatchAppKitEvents: true) {
+                fixture.appState.selectedHighlightColor == color
+            }
+        }
+
+        try fixture.mouse([.leftMouseDown, .leftMouseDragged, .leftMouseUp],
+                          at: fixture.topPoint(x: fixture.host.bounds.width - 195))
+        #expect(fixture.window.dragCount == 1)
+        let colorX = fixture.host.bounds.width - fixture.edgeInset - 22
+        try fixture.mouse([.leftMouseDown, .leftMouseDragged, .leftMouseUp], at: fixture.topPoint(x: colorX))
+        #expect(fixture.window.dragCount == 1)
     }
 
     @Test
@@ -97,6 +154,92 @@ struct WindowChromeTests {
         await nextTestMainQueueTurn()
         await nextTestMainQueueTurn()
         #expect(frameChanges.count == 0)
+    }
+
+    @MainActor
+    private final class TopBarFixture {
+        let preferences: TestPreferences
+        let appState: AppState
+        let window: DragRecordingWindow
+        let host: NSHostingView<AnyView>
+        let edgeInset: CGFloat
+        private let previousHighlight: Any?
+
+        init(width: CGFloat) throws {
+            _ = NSApplication.shared
+            NSApp.setActivationPolicy(.accessory)
+            preferences = try TestPreferences()
+            appState = makeTestAppState(defaults: preferences.defaults)
+            previousHighlight = UserDefaults.standard.object(forKey: AppPreferenceKeys.defaultHighlightColor)
+            _ = appState.tabStore.openInNewTabs(["Alpha", "Beta"].map {
+                PDFTab(url: URL(fileURLWithPath: "/tmp/\($0).pdf"), document: nil)
+            })
+            let size = NSSize(width: width, height: 480)
+            let inset = EmptyReaderLayout(size: size).inset
+            edgeInset = inset
+            window = DragRecordingWindow(contentRect: NSRect(origin: .zero, size: size),
+                                         styleMask: [.borderless], backing: .buffered, defer: false)
+            window.isReleasedWhenClosed = false
+            host = NSHostingView(rootView: AnyView(
+                VStack(spacing: 0) {
+                    TabStrip(edgeInset: inset)
+                    VellumColors.panelColor
+                }
+                .overlay(alignment: .top) { TitlebarDragRegion(hasOpenTabs: true).frame(height: 46) }
+                .environmentObject(appState)
+                .environment(\.appUILanguage, .english)
+            ))
+            window.contentView = host
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+        }
+
+        var titles: [PDFOutlineTitleView] {
+            func collect(_ view: NSView) -> [PDFOutlineTitleView] {
+                if let title = view as? PDFOutlineTitleView { return [title] }
+                return view.subviews.flatMap(collect)
+            }
+            return collect(host)
+        }
+
+        func ready() async throws {
+            try await waitForTestCondition("The real top bar is mounted in a key window", dispatchAppKitEvents: true) {
+                self.host.layoutSubtreeIfNeeded()
+                return self.window.isKeyWindow && self.titles.count == 2 && self.titles.allSatisfy { $0.bounds.width > 0 }
+            }
+        }
+
+        func topPoint(x: CGFloat) -> NSPoint {
+            NSPoint(x: x, y: host.isFlipped ? 23 : host.bounds.maxY - 23)
+        }
+
+        func mouse(_ types: [NSEvent.EventType], at point: NSPoint) throws {
+            let location = host.convert(point, to: nil)
+            for type in types {
+                let event = try #require(NSEvent.mouseEvent(with: type, location: location, modifierFlags: [],
+                    timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber,
+                    context: nil, eventNumber: 1, clickCount: 1, pressure: type == .leftMouseUp ? 0 : 1))
+                NSApp.postEvent(event, atStart: false)
+            }
+            while let event = NSApp.nextEvent(matching: .any, until: .distantPast, inMode: .default, dequeue: true) {
+                NSApp.sendEvent(event)
+            }
+        }
+
+        func close() {
+            host.rootView = AnyView(EmptyView())
+            window.contentView = nil
+            window.close()
+            UserDefaults.standard.set(previousHighlight, forKey: AppPreferenceKeys.defaultHighlightColor)
+            preferences.cleanup()
+        }
+    }
+
+    @MainActor
+    private final class DragRecordingWindow: NSWindow {
+        var dragCount = 0
+        override var canBecomeKey: Bool { true }
+        override func performDrag(with event: NSEvent) { dragCount += 1 }
     }
 }
 

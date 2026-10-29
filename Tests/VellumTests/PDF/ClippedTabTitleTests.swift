@@ -143,7 +143,7 @@ struct ClippedTabTitleTests {
         for selected in [true, false] {
             try await update(selected: false, hovered: false)
             try await update(selected: selected, hovered: !selected)
-            #expect(view.textField.font == NSFont.systemFont(ofSize: 12.5, weight: selected ? .medium : .regular))
+            #expect(view.textField.font == NSFont.systemFont(ofSize: 12.5, weight: .regular))
             #expect(view.textField.textColor == VellumColors.foreground)
             #expect(view.toolTip == title)
             let currentAnimation = try animation()
