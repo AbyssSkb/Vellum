@@ -53,7 +53,7 @@ struct WindowChromeTests {
                 fixture.appState.selectedTabID == firstTab.id
             }
         } catch {
-            print("Top bar click: active=\(NSApp.isActive) key=\(fixture.window.isKeyWindow) main=\(fixture.window.isMainWindow) frame=\(fixture.window.frame) host=\(fixture.host.frame) title=\(titleFrame) responder=\(String(describing: fixture.window.firstResponder)) posted=\(fixture.postedMouseEvents) received=\(receivedEvents)")
+            print("Top bar click: active=\(NSApp.isActive) key=\(fixture.window.isKeyWindow) main=\(fixture.window.isMainWindow) screen=\(String(describing: NSScreen.screens.first?.frame)) frame=\(fixture.window.frame) host=\(fixture.host.frame) title=\(titleFrame) responder=\(String(describing: fixture.window.firstResponder)) posted=\(fixture.postedMouseEvents) received=\(receivedEvents)")
             throw error
         }
         await nextTestMainQueueTurn()
@@ -191,9 +191,11 @@ struct WindowChromeTests {
                 PDFTab(url: URL(fileURLWithPath: "/tmp/\($0).pdf"), document: nil)
             })
             let size = NSSize(width: width, height: 480)
+            let screen = try #require(NSScreen.screens.first)
             let inset = EmptyReaderLayout(size: size).inset
             edgeInset = inset
-            window = DragRecordingWindow(contentRect: NSRect(origin: .zero, size: size),
+            window = DragRecordingWindow(contentRect: NSRect(x: screen.frame.minX, y: screen.frame.maxY - size.height,
+                                                             width: size.width, height: size.height),
                                          styleMask: [.borderless], backing: .buffered, defer: false)
             window.isReleasedWhenClosed = false
             host = NSHostingView(rootView: AnyView(
@@ -221,7 +223,7 @@ struct WindowChromeTests {
         func ready() async throws {
             try await waitForTestCondition("The real top bar is mounted in a key window", dispatchAppKitEvents: true) {
                 self.host.layoutSubtreeIfNeeded()
-                return self.window.isKeyWindow && self.titles.count == 2 && self.titles.allSatisfy { $0.bounds.width > 0 }
+                return NSApp.isActive && self.window.isKeyWindow && self.titles.count == 2 && self.titles.allSatisfy { $0.bounds.width > 0 }
             }
         }
 
