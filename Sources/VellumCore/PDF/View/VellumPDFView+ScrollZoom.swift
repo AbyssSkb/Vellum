@@ -12,16 +12,44 @@ extension VellumPDFView {
         let maxX = max(0, documentSize.width - clipView.bounds.width)
         let verticalRange = verticalScrollRange(in: scrollView)
         let origin = animationState.scrollTargetOrigin ?? clipView.bounds.origin
+        var nextX = ScrollGeometry.nextCoordinate(
+            origin: origin.x,
+            delta: x,
+            contentLength: documentSize.width,
+            viewportLength: clipView.bounds.width,
+            maxValue: maxX
+        )
+        if x != 0, let documentView = scrollView.documentView,
+           let document, let current = currentPageState() {
+            func paperBounds(_ page: PDFPage) -> NSRect {
+                convert(convert(page.bounds(for: displayBox), from: page), to: documentView)
+            }
+            var papers = [paperBounds(current.page)]
+            for direction in [-1, 1] {
+                var index = current.pageIndex + direction
+                while index >= 0, index < document.pageCount, let page = document.page(at: index) {
+                    let paper = paperBounds(page)
+                    guard paper.maxY > clipView.bounds.minY, paper.minY < clipView.bounds.maxY else { break }
+                    papers.append(paper)
+                    index += direction
+                }
+            }
+            let ranges = papers.map { paper in
+                if paper.width <= clipView.bounds.width + 0.5 {
+                    let centered = paper.midX - clipView.bounds.width / 2
+                    return centered...centered
+                }
+                return paper.minX...(paper.maxX - clipView.bounds.width)
+            }
+            if let minimum = ranges.map(\.lowerBound).min(), let maximum = ranges.map(\.upperBound).max() {
+                // A prior page may leave the viewport outside the visible pages' range.
+                nextX = x < 0 ? max(nextX, min(origin.x, minimum)) : min(nextX, max(origin.x, maximum))
+            }
+        }
         // Keyboard deltas use positive y for up; PDFKit's document coordinates can be flipped.
         let verticalDelta = scrollView.documentView?.isFlipped == true ? -y : y
         let next = NSPoint(
-            x: ScrollGeometry.nextCoordinate(
-                origin: origin.x,
-                delta: x,
-                contentLength: documentSize.width,
-                viewportLength: clipView.bounds.width,
-                maxValue: maxX
-            ),
+            x: nextX,
             y: y == 0 ? origin.y : min(max(origin.y + verticalDelta, verticalRange.lowerBound), verticalRange.upperBound)
         )
         animationState.scrollTargetOrigin = next

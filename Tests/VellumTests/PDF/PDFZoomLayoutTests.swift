@@ -6,6 +6,94 @@ import Testing
 
 @Suite("PDF zoom layout")
 struct PDFZoomLayoutTests {
+    @Test(arguments: [CGFloat(-40), CGFloat(40)]) @MainActor
+    func horizontalScrollDoesNotMoveWidthFittedPage(delta: CGFloat) throws {
+        let (window, view, page) = try makeReader(narrow: true)
+        defer { view.cancelPendingRestore(); view.stopZoomState(); view.stopScrollAnimation(); window.close() }
+        let scrollView = try #require(view.pdfScrollView)
+        view.vimZoomToFit()
+        view.applyZoomScale(try #require(view.animationState.zoomTargetScale))
+        view.stopZoomState()
+        let initialOrigin = scrollView.contentView.bounds.origin.x
+        let initialPaper = view.convert(page.bounds(for: view.displayBox), from: page)
+
+        view.vimScroll(x: delta, y: 0)
+        view.animationState.scrollTimer?.invalidate()
+        for _ in 0..<60 {
+            view.animationState.lastScrollTick = Date.timeIntervalSinceReferenceDate - 1.0 / 30.0
+            view.stepScrollAnimation(in: scrollView)
+        }
+
+        #expect(abs(scrollView.contentView.bounds.origin.x - initialOrigin) < 0.5)
+        let paper = view.convert(page.bounds(for: view.displayBox), from: page)
+        #expect(abs(paper.minX - initialPaper.minX) < 0.5)
+    }
+
+    @Test(arguments: [CGFloat(-40), CGFloat(40)]) @MainActor
+    func horizontalScrollStillMovesEnlargedPage(delta: CGFloat) throws {
+        let (window, view, page) = try makeReader(narrow: true)
+        defer { view.cancelPendingRestore(); view.stopZoomState(); view.stopScrollAnimation(); window.close() }
+        let scrollView = try #require(view.pdfScrollView)
+        view.vimZoomToFit()
+        view.applyZoomScale(try #require(view.animationState.zoomTargetScale) * 1.5)
+        view.stopZoomState()
+        let origin = scrollView.contentView.bounds.origin.x
+        #expect(view.currentPageState()?.page === page)
+
+        view.vimScroll(x: delta, y: 0)
+        #expect(abs(try #require(view.animationState.scrollTargetOrigin).x - (origin + delta)) < 0.5)
+    }
+
+    @Test(arguments: [CGFloat(-40), CGFloat(40)], [CGFloat(-300), CGFloat(300)]) @MainActor
+    func horizontalScrollDoesNotReverseOutsideCurrentPage(delta: CGFloat, offset: CGFloat) throws {
+        let (window, view, page) = try makeReader(narrow: true)
+        defer { view.cancelPendingRestore(); view.stopZoomState(); view.stopScrollAnimation(); window.close() }
+        let scrollView = try #require(view.pdfScrollView)
+        view.vimZoomToFit()
+        view.applyZoomScale(try #require(view.animationState.zoomTargetScale) * 1.5)
+        view.stopZoomState()
+        let clip = scrollView.contentView
+        let center = clip.bounds.origin
+        clip.scroll(to: NSPoint(x: center.x + offset, y: center.y))
+        let origin = clip.bounds.origin.x
+        let documentView = try #require(scrollView.documentView)
+        let paper = view.convert(view.convert(page.bounds(for: view.displayBox), from: page), to: documentView)
+        let minimum = paper.minX
+        let maximum = paper.maxX - clip.bounds.width
+        #expect(offset < 0 ? origin < minimum : origin > maximum)
+
+        view.vimScroll(x: delta, y: 0)
+        let movement = try #require(view.animationState.scrollTargetOrigin).x - origin
+        let expectedMovement: CGFloat = offset * delta < 0 ? delta : 0
+        #expect(abs(movement - expectedMovement) < 0.001)
+    }
+
+    @Test(arguments: [CGFloat(-40), CGFloat(40)]) @MainActor
+    func horizontalScrollCanReachWiderVisibleAdjacentPage(delta: CGFloat) throws {
+        let (window, view, page) = try makeReader(narrow: true)
+        defer { view.cancelPendingRestore(); view.stopZoomState(); view.stopScrollAnimation(); window.close() }
+        let scrollView = try #require(view.pdfScrollView)
+        let documentView = try #require(scrollView.documentView)
+        let previousPage = try #require(view.document?.page(at: 0))
+        view.vimZoomToFit()
+        view.applyZoomScale(try #require(view.animationState.zoomTargetScale))
+        view.stopZoomState()
+        let narrow = view.convert(view.convert(page.bounds(for: view.displayBox), from: page), to: documentView)
+        let wide = view.convert(view.convert(previousPage.bounds(for: view.displayBox), from: previousPage), to: documentView)
+        let clip = scrollView.contentView
+        let y = wide.midY < narrow.midY ? narrow.minY - 100 : narrow.maxY - clip.bounds.height + 100
+        clip.scroll(to: NSPoint(x: clip.bounds.origin.x, y: y))
+        #expect(view.currentPageState()?.page === page)
+        #expect(wide.maxY > clip.bounds.minY && wide.minY < clip.bounds.maxY)
+        let origin = clip.bounds.origin.x
+
+        view.vimScroll(x: delta, y: 0)
+        #expect(abs(try #require(view.animationState.scrollTargetOrigin).x - (origin + delta)) < 0.5)
+        view.vimScroll(x: delta * 10000, y: 0)
+        let boundary = delta < 0 ? wide.minX : wide.maxX - clip.bounds.width
+        #expect(abs(try #require(view.animationState.scrollTargetOrigin).x - boundary) < 0.5)
+    }
+
     @Test @MainActor
     func widthFitInReaderLeavesNoHorizontalScrollForUniformPages() async throws {
         _ = NSApplication.shared
