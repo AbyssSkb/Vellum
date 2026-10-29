@@ -55,6 +55,84 @@ struct PDFWordJumpTests {
         #expect(!view.isWordJumpActive)
     }
 
+    @Test(arguments: [false, true]) @MainActor
+    func linkHintSizeTracksReaderSizeOnlyForPreview(preview: Bool) async throws {
+        let (window, view) = try await makeReader(pages: [[], []])
+        defer { view.cancelWordJump(); window.close() }
+        let page = try #require(view.document?.page(at: 0))
+        let link = PDFAnnotation(bounds: NSRect(x: 72, y: 650, width: 80, height: 18), forType: .link, withProperties: nil)
+        link.destination = PDFDestination(page: try #require(view.document?.page(at: 1)), at: .zero)
+        page.addAnnotation(link)
+
+        func labelSize(windowSize: NSSize) throws -> NSSize {
+            view.cancelWordJump()
+            window.setContentSize(windowSize)
+            view.autoScales = false
+            view.scaleFactor = 1
+            view.layoutSubtreeIfNeeded()
+            view.layoutDocumentView()
+            view.scrollToDocumentEdge(.top)
+            if preview { view.beginLinkPreviewCommand() } else { view.beginLinkJumpCommand() }
+            let overlay = try #require(view.subviews.first { String(describing: type(of: $0)).contains("WordJumpOverlayView") })
+            let bitmap = try #require(NSBitmapImageRep(bitmapDataPlanes: nil,
+                pixelsWide: Int(overlay.bounds.width), pixelsHigh: Int(overlay.bounds.height),
+                bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+                colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0))
+            let context = try #require(NSGraphicsContext(bitmapImageRep: bitmap))
+            NSGraphicsContext.saveGraphicsState()
+            NSGraphicsContext.current = context
+            context.cgContext.clear(overlay.bounds)
+            overlay.draw(overlay.bounds)
+            NSGraphicsContext.restoreGraphicsState()
+            var minX = bitmap.pixelsWide, maxX = -1, minY = bitmap.pixelsHigh, maxY = -1
+            for y in 0..<bitmap.pixelsHigh {
+                for x in 0..<bitmap.pixelsWide {
+                    guard let color = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB),
+                          color.alphaComponent > 0.9, color.redComponent > 0.4, color.redComponent < 0.6,
+                          color.greenComponent > 0.7, color.blueComponent > 0.9 else { continue }
+                    minX = min(minX, x); maxX = max(maxX, x)
+                    minY = min(minY, y); maxY = max(maxY, y)
+                }
+            }
+            try #require(maxX >= minX && maxY >= minY)
+            return NSSize(width: maxX - minX + 1, height: maxY - minY + 1)
+        }
+
+        let small = try labelSize(windowSize: NSSize(width: 600, height: 420))
+        let large = try labelSize(windowSize: NSSize(width: 1200, height: 800))
+        if preview {
+            #expect(large.width > small.width)
+            #expect(large.height > small.height)
+        } else {
+            #expect(abs(large.width - small.width) <= 1)
+            #expect(abs(large.height - small.height) <= 1)
+        }
+    }
+
+    @Test @MainActor
+    func referencePreviewAcceptsMultiCharacterLabels() async throws {
+        let (window, view) = try await makeReader(pages: [[], []])
+        defer { view.cancelWordJump(); view.cancelLinkPreview(); window.close() }
+        let page = try #require(view.document?.page(at: 0))
+        let destination = PDFDestination(page: try #require(view.document?.page(at: 1)), at: .zero)
+        for index in 0..<27 {
+            let link = PDFAnnotation(bounds: NSRect(x: 40 + (index % 9) * 50, y: 690 - (index / 9) * 40,
+                                                    width: 30, height: 15), forType: .link, withProperties: nil)
+            link.destination = destination
+            page.addAnnotation(link)
+        }
+        view.beginLinkPreviewCommand()
+        let controller = try #require(view.wordJumpController)
+        #expect(controller.targets.count == 27)
+        let label = try #require(controller.session.matches.first).label
+        #expect(label.count == 2)
+        try send(String(try #require(label.first)), to: view)
+        #expect(view.isWordJumpActive)
+        try send(String(try #require(label.last)), to: view)
+        #expect(!view.isWordJumpActive)
+        #expect(view.referenceController?.preview != nil)
+    }
+
     @Test(arguments: [0, 90, 180, 270]) @MainActor
     func linkHintsRespectPageCropAndRotation(rotation: Int) async throws {
         let (window, view) = try await makeReader(pages: [[]])

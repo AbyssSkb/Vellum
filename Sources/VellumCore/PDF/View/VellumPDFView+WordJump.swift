@@ -339,6 +339,11 @@ private final class WordJumpOverlayView: NSView {
         return convert(pdfView.wordJumpViewport, from: pdfView)
     }
 
+    private var labelScale: CGFloat {
+        guard isLinkPreview else { return 1 }
+        return min(1.5, max(0.75, sqrt(viewport.width * viewport.height / (800 * 420))))
+    }
+
     private var statusFrame: NSRect {
         let attributes: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 12, weight: .medium)]
         // Reserve complete label entry so the HUD does not displace nearby labels while typing.
@@ -364,10 +369,10 @@ private final class WordJumpOverlayView: NSView {
             }
             let word = convert(rect, from: superview)
             let rotation = targets[match.wordIndex].rotation
-            let font = NSFont.monospacedSystemFont(ofSize: WordJumpLabelGeometry.fontSize(for: word, rotation: rotation), weight: .medium)
+            let font = NSFont.monospacedSystemFont(ofSize: WordJumpLabelGeometry.fontSize(for: word, rotation: rotation) * labelScale, weight: .medium)
             let textSize = (match.label as NSString).size(withAttributes: [.font: font])
             return (match.wordIndex, word,
-                    NSSize(width: textSize.width + 4, height: textSize.height))
+                    NSSize(width: textSize.width + 4 * labelScale, height: textSize.height))
         }
         var occupied = session.labelsOnly ? [statusFrame] : Array(labelFrames.values)
         for candidate in candidates {
@@ -411,7 +416,7 @@ private final class WordJumpOverlayView: NSView {
             let rotation = usesTextGeometry ? (targets[match.wordIndex].rotation % 360 + 360) % 360 : 0
             let textArea = rotation % 180 == 0 ? frame.size : NSSize(width: frame.height, height: frame.width)
             let fontSize = usesTextGeometry ? textArea.height * 0.8
-                : WordJumpLabelGeometry.fontSize(for: rect, rotation: targets[match.wordIndex].rotation)
+                : WordJumpLabelGeometry.fontSize(for: rect, rotation: targets[match.wordIndex].rotation) * labelScale
             let attributes: [NSAttributedString.Key: Any] = [
                 .font: NSFont.monospacedSystemFont(ofSize: fontSize, weight: .medium),
                 .foregroundColor: VellumColors.backgroundDeep
