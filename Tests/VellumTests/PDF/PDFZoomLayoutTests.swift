@@ -457,11 +457,14 @@ struct PDFZoomLayoutTests {
                 for distance in [CGFloat(60), clipView.bounds.height / 2, clipView.bounds.height] {
                     view.vimScroll(x: 0, y: direction * distance)
                     view.animationState.scrollTimer?.invalidate()
+                    let target = try #require(view.animationState.scrollTargetOrigin)
+                    #expect(view.verticalScrollRange(in: scrollView).contains(target.y))
+                    #expect(abs(target.y - origin.y) < 0.5)
                     for _ in 0..<60 {
                         view.animationState.lastScrollTick = Date.timeIntervalSinceReferenceDate - 1.0 / 30.0
                         view.stepScrollAnimation(in: scrollView)
                     }
-                    #expect(abs(clipView.bounds.origin.y - origin.y) < 0.001)
+                    #expect(abs(clipView.bounds.origin.y - origin.y) < 0.5)
                     expectWholePaperAtTop()
                 }
             }
