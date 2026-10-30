@@ -4,6 +4,34 @@ import Testing
 
 @Suite("Codex app-server session lifetime")
 struct CodexAppServerSessionTests {
+    @Test
+    func cancelledReaderReportsCancellationAfterPipeCloses() async throws {
+        let (directory, configuration) = try stalledServer()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let session = try CodexAppServerSession(configuration: configuration)
+        defer { session.stop() }
+        let request = Task {
+            try? await Task.sleep(for: .seconds(10))
+            try await session.readMessages { _ in false }
+        }
+        session.stop()
+        request.cancel()
+        do {
+            try await request.value
+            Issue.record("The cancelled reader must not complete successfully")
+        } catch is CancellationError {
+        } catch {
+            Issue.record("Expected cancellation, got \(error)")
+        }
+
+        do {
+            try await session.readMessages { _ in false }
+            Issue.record("A stopped session must not complete successfully")
+        } catch AIExplanationError.transport(let message) {
+            #expect(message == AppUILanguage.saved().text(.codexConnectionClosed))
+        }
+    }
+
     @Test(arguments: [false, true])
     func stalledProcessStopsOnTimeoutOrCancellation(cancel: Bool) async throws {
         let (directory, configuration) = try stalledServer()

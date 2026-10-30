@@ -316,26 +316,31 @@ struct CodexAppServerAIExplanationClient: AIExplaining {
         defer { session.stop() }
 
         return try await withTaskCancellationHandler {
-            try await withThrowingTaskGroup(of: T.self) { group in
-                defer {
-                    group.cancelAll()
-                    // Close the process before the group waits for its pipe-reading child.
-                    session.stop()
-                }
-                group.addTask {
-                    try Task.checkCancellation()
-                    return try await operation(session)
-                }
-                group.addTask {
-                    try await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
-                    throw AIExplanationError.transport(AppUILanguage.saved().text(.codexRequestTimedOut))
-                }
+            do {
+                return try await withThrowingTaskGroup(of: T.self) { group in
+                    defer {
+                        group.cancelAll()
+                        // Close the process before the group waits for its pipe-reading child.
+                        session.stop()
+                    }
+                    group.addTask {
+                        try Task.checkCancellation()
+                        return try await operation(session)
+                    }
+                    group.addTask {
+                        try await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+                        throw AIExplanationError.transport(AppUILanguage.saved().text(.codexRequestTimedOut))
+                    }
 
-                guard let result = try await group.next() else {
-                    throw AIExplanationError.transport(AppUILanguage.saved().text(.codexRequestIncomplete))
+                    guard let result = try await group.next() else {
+                        throw AIExplanationError.transport(AppUILanguage.saved().text(.codexRequestIncomplete))
+                    }
+                    try Task.checkCancellation()
+                    return result
                 }
+            } catch {
                 try Task.checkCancellation()
-                return result
+                throw error
             }
         } onCancel: {
             session.stop()
@@ -397,12 +402,24 @@ final class CodexAppServerSession: @unchecked Sendable {
     }
 
     func readMessages(until shouldStop: ([String: Any]) async throws -> Bool) async throws {
-        for try await line in stdoutPipe.fileHandleForReading.bytes.lines {
+        var iterator = try stopLock.withLock {
             try Task.checkCancellation()
-            guard let message = CodexAppServerMessageParser.message(from: line) else { continue }
-            if try await shouldStop(message) {
-                return
+            guard !isStopped else {
+                throw AIExplanationError.transport(AppUILanguage.saved().text(.codexConnectionClosed))
             }
+            return stdoutPipe.fileHandleForReading.bytes.lines.makeAsyncIterator()
+        }
+        do {
+            while let line = try await iterator.next() {
+                try Task.checkCancellation()
+                guard let message = CodexAppServerMessageParser.message(from: line) else { continue }
+                if try await shouldStop(message) {
+                    return
+                }
+            }
+        } catch {
+            try Task.checkCancellation()
+            throw error
         }
 
         try Task.checkCancellation()
