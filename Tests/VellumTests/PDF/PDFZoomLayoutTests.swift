@@ -171,7 +171,14 @@ struct PDFZoomLayoutTests {
             #expect(abs(clip.bounds.origin.y - expected) < 0.5)
         }
         await nextTestMainQueueTurn()
-        if action != "navigate" { #expect(abs(clip.bounds.origin.y - expected) < 0.5) }
+        if action != "navigate" {
+            if action != "repair" && action != "complete" {
+                #expect(abs(clip.bounds.origin.y - edge) > 0.5)
+                clip.scroll(to: centered)
+                scroll.reflectScrolledClipView(clip)
+            }
+            #expect(abs(clip.bounds.origin.y - expected) < 0.5)
+        }
     }
 
     @Test(arguments: [CGFloat(-40), CGFloat(40)]) @MainActor
