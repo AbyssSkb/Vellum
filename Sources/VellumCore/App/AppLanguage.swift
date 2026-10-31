@@ -273,6 +273,7 @@ public enum AppText {
     case linkJump
     case linkJumpTypeHint
     case linkJumpNoLinks
+    case linkJumpNoMatch
     case linkPreview
     case linkPreviewNoLinks
     case figurePreview(String)
@@ -614,8 +615,9 @@ public extension AppText {
         case .wordJumpNoText: return "No selectable text on screen"
         case .wordJumpNoMatch: return "No match · Word selection ended"
         case .linkJump: return "Follow link"
-        case .linkJumpTypeHint: return "Type a label · Esc to cancel"
+        case .linkJumpTypeHint: return "Type a label"
         case .linkJumpNoLinks: return "No links in view"
+        case .linkJumpNoMatch: return "No match · Link selection ended"
         case .linkPreview: return "Link Preview"
         case .linkPreviewNoLinks: return "No previewable links in view"
         case .figurePreview(let number): return "Figure \(number)"
@@ -948,8 +950,9 @@ public extension AppText {
         case .wordJumpNoText: return "屏幕内没有可选文字"
         case .wordJumpNoMatch: return "无匹配，已退出选词"
         case .linkJump: return "打开链接"
-        case .linkJumpTypeHint: return "输入标签 · Esc 取消"
+        case .linkJumpTypeHint: return "输入标签"
         case .linkJumpNoLinks: return "当前视野内没有链接"
+        case .linkJumpNoMatch: return "无匹配，已退出链接选择"
         case .linkPreview: return "链接预览"
         case .linkPreviewNoLinks: return "当前视野内没有可预览的链接"
         case .figurePreview(let number): return "图 \(number)"

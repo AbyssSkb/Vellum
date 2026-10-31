@@ -87,7 +87,7 @@ enum WordJumpLabelGeometry {
     }
 
     static func frame(for word: NSRect, labelSize: NSSize, in viewport: NSRect,
-                      avoiding occupied: [NSRect], rotation: Int = 0) -> NSRect {
+                      avoiding occupied: [NSRect], toast: NSRect? = nil, rotation: Int = 0) -> NSRect {
         let bounds = viewport.insetBy(dx: 2, dy: 2)
         let size = NSSize(width: min(labelSize.width, bounds.width), height: min(labelSize.height, bounds.height))
         let rotation = (rotation % 360 + 360) % 360
@@ -102,22 +102,40 @@ enum WordJumpLabelGeometry {
         let crossSize = vertical ? size.width : size.height
         let wordCrossSize = vertical ? word.width : word.height
         let offset = max(0, min(crossSize + 1, (wordCrossSize + crossSize) / 2 - 2))
+        var positions = [CGFloat.zero, offset, -offset].map { shift in
+            NSPoint(x: origin.x + (vertical ? shift : 0), y: origin.y + (vertical ? 0 : shift))
+        }
+        if let toast {
+            let alternatives = [
+                NSPoint(x: origin.x, y: toast.minY - size.height),
+                NSPoint(x: origin.x, y: toast.maxY),
+                NSPoint(x: toast.minX - size.width, y: origin.y),
+                NSPoint(x: toast.maxX, y: origin.y)
+            ]
+            positions += alternatives.sorted {
+                hypot($0.x - origin.x, $0.y - origin.y) < hypot($1.x - origin.x, $1.y - origin.y)
+            }
+        }
         var best = NSRect.zero
+        var leastToastOverlap = CGFloat.greatestFiniteMagnitude
         var leastOverlap = CGFloat.greatestFiniteMagnitude
-        for shift in [CGFloat.zero, offset, -offset] {
-            let frame = NSRect(x: min(max(origin.x + (vertical ? shift : 0), bounds.minX), bounds.maxX - size.width),
-                               y: min(max(origin.y + (vertical ? 0 : shift), bounds.minY), bounds.maxY - size.height),
+        for position in positions {
+            let frame = NSRect(x: min(max(position.x, bounds.minX), bounds.maxX - size.width),
+                               y: min(max(position.y, bounds.minY), bounds.maxY - size.height),
                                width: size.width, height: size.height)
+            let toastIntersection = toast.map { frame.intersection($0) } ?? .null
+            let toastOverlap = toastIntersection.isNull ? 0 : toastIntersection.width * toastIntersection.height
             let overlap = occupied.reduce(CGFloat.zero) { area, obstacle in
                 guard frame.intersects(obstacle) else { return area }
                 let intersection = frame.intersection(obstacle)
                 return area + intersection.width * intersection.height
             }
-            if overlap < leastOverlap {
+            if toastOverlap < leastToastOverlap || (toastOverlap == leastToastOverlap && overlap < leastOverlap) {
                 best = frame
+                leastToastOverlap = toastOverlap
                 leastOverlap = overlap
             }
-            if overlap == 0 { return frame }
+            if toastOverlap == 0 && overlap == 0 { return frame }
         }
         return best
     }
@@ -173,10 +191,11 @@ final class PDFWordJumpController {
         pdfView.addSubview(overlay)
         self.overlay = overlay
         refreshOverlay()
-        if mode.selectsWords {
-            entryHint = VellumToast.show(AppUILanguage.saved().text(.wordJumpTypeHint),
-                                        in: pdfView.window, autoDismiss: false)
-        }
+        let hint: AppText = mode.selectsWords ? .wordJumpTypeHint : .linkJumpTypeHint
+        entryHint = VellumToast.show(AppUILanguage.saved().text(hint),
+                                    in: pdfView.window, autoDismiss: false)
+        overlay.entryHint = entryHint
+        overlay.needsDisplay = true
     }
 
     func handleKey(_ event: NSEvent) -> Bool {
@@ -185,6 +204,13 @@ final class PDFWordJumpController {
         guard isActive else { return true }
         guard event.type == .keyDown else { return true }
         guard !event.isARepeat, let key = event.charactersIgnoringModifiers else { return true }
+        if !mode.selectsWords, key.count == 1,
+           key.unicodeScalars.allSatisfy({ CharacterSet.letters.contains($0) }),
+           !session.matches.contains(where: { $0.label.hasPrefix(session.labelPrefix + key.lowercased()) }) {
+            cancel()
+            pdfView?.showNotification(AppUILanguage.saved().text(.linkJumpNoMatch), kind: .warning)
+            return true
+        }
         switch session.input(key) {
         case .updated:
             if mode.selectsWords, !session.query.isEmpty {
@@ -193,6 +219,10 @@ final class PDFWordJumpController {
                     pdfView?.showNotification(AppUILanguage.saved().text(.wordJumpNoMatch), kind: .warning)
                     return true
                 }
+                entryHint?.dismiss(animated: false)
+                entryHint = nil
+            }
+            if !mode.selectsWords, !session.labelPrefix.isEmpty {
                 entryHint?.dismiss(animated: false)
                 entryHint = nil
             }
@@ -303,6 +333,7 @@ private final class WordJumpOverlayView: NSView {
     var targets: [PDFWordJumpTarget] = []
     var session = WordJumpSession(words: [])
     var isLinkPreview = false
+    weak var entryHint: ToastView?
     private var labelFrames: [Int: NSRect] = [:]
     private var labelCharacterCounts: [Int: Int] = [:]
 
@@ -340,25 +371,15 @@ private final class WordJumpOverlayView: NSView {
     }
 
     private var labelScale: CGFloat {
-        guard isLinkPreview else { return 1 }
+        guard session.labelsOnly else { return 1 }
         return min(1.5, max(0.75, sqrt(viewport.width * viewport.height / (800 * 420))))
-    }
-
-    private var statusFrame: NSRect {
-        let attributes: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 12, weight: .medium)]
-        // Reserve complete label entry so the HUD does not displace nearby labels while typing.
-        let textWidth = session.matches.reduce((statusText as NSString).size(withAttributes: attributes).width) { width, match in
-            let text = statusText(labelPrefix: match.label, count: session.matches.count) as NSString
-            return max(width, text.size(withAttributes: attributes).width)
-        }
-        let width = min(viewport.width - 32, textWidth + 28)
-        return NSRect(x: viewport.midX - width / 2, y: viewport.minY + 18, width: width, height: 30)
     }
 
     private func updateLabelFrames() {
         let previous = labelFrames
         labelFrames = [:]
         labelCharacterCounts = [:]
+        var toast = entryHint.flatMap { $0.superview == nil ? nil : convert($0.bounds, from: $0) }
         let candidates = session.matches.compactMap { match -> (index: Int, word: NSRect, size: NSSize)? in
             guard !match.label.isEmpty, let rect = targets[match.wordIndex].rects.first else { return nil }
             if !session.labelsOnly, let pdfView = superview as? VellumPDFView,
@@ -374,18 +395,27 @@ private final class WordJumpOverlayView: NSView {
             return (match.wordIndex, word,
                     NSSize(width: textSize.width + 4 * labelScale, height: textSize.height))
         }
-        var occupied = session.labelsOnly ? [statusFrame] : Array(labelFrames.values)
+        var occupied = Array(labelFrames.values)
         for candidate in candidates {
             if let frame = previous[candidate.index], frame.size == candidate.size,
+               !(toast?.intersects(frame) ?? false),
                viewport.insetBy(dx: 2, dy: 2).contains(frame) {
                 labelFrames[candidate.index] = frame
                 occupied.append(frame)
             }
         }
         for candidate in candidates where labelFrames[candidate.index] == nil {
-            let frame = WordJumpLabelGeometry.frame(for: candidate.word, labelSize: candidate.size,
+            var frame = WordJumpLabelGeometry.frame(for: candidate.word, labelSize: candidate.size,
+                                                   in: viewport, avoiding: occupied, toast: toast,
+                                                   rotation: targets[candidate.index].rotation)
+            if let blockingToast = toast, frame.intersects(blockingToast) {
+                entryHint?.dismiss(animated: false)
+                entryHint = nil
+                toast = nil
+                frame = WordJumpLabelGeometry.frame(for: candidate.word, labelSize: candidate.size,
                                                    in: viewport, avoiding: occupied,
                                                    rotation: targets[candidate.index].rotation)
+            }
             labelFrames[candidate.index] = frame
             occupied.append(frame)
         }
@@ -438,25 +468,5 @@ private final class WordJumpOverlayView: NSView {
             text.draw(at: NSPoint(x: -size.width / 2, y: -size.height / 2))
             NSGraphicsContext.restoreGraphicsState()
         }
-
-        guard session.labelsOnly else { return }
-        let text = statusText as NSString
-        let paragraph = NSMutableParagraphStyle()
-        paragraph.lineBreakMode = .byTruncatingMiddle
-        let attributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 12, weight: .medium),
-            .foregroundColor: VellumColors.foreground,
-            .paragraphStyle: paragraph
-        ]
-        let size = text.size(withAttributes: attributes)
-        let frame = statusFrame
-        VellumColors.backgroundDeep.setFill()
-        let path = NSBezierPath(roundedRect: frame, xRadius: 8, yRadius: 8)
-        path.fill()
-        VellumColors.border.setStroke()
-        path.lineWidth = 1
-        path.stroke()
-        text.draw(in: NSRect(x: frame.minX + 14, y: frame.midY - size.height / 2,
-                            width: frame.width - 28, height: size.height), withAttributes: attributes)
     }
 }

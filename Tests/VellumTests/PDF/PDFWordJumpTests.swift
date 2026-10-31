@@ -23,6 +23,121 @@ struct PDFWordJumpTests {
         #expect(hint.superview == nil)
     }
 
+    @Test(arguments: [false, true], ["valid", "invalid", "cancel"]) @MainActor
+    func linkHintUsesAToastUntilInput(preview: Bool, action: String) async throws {
+        let (window, view) = try await makeReader(pages: [[], []])
+        defer { view.cancelWordJump(); view.cancelLinkPreview(); window.close() }
+        let page = try #require(view.document?.page(at: 0))
+        let destination = PDFDestination(page: try #require(view.document?.page(at: 1)), at: .zero)
+        for index in 0..<27 {
+            let link = PDFAnnotation(bounds: NSRect(x: 40 + (index % 9) * 50, y: 690 - (index / 9) * 40,
+                                                    width: 30, height: 15), forType: .link, withProperties: nil)
+            link.destination = destination
+            page.addAnnotation(link)
+        }
+        if preview { view.beginLinkPreviewCommand() } else { view.beginLinkJumpCommand() }
+        let controller = try #require(view.wordJumpController)
+        let host = try #require(window.contentView?.superview)
+        let hint = try #require(host.subviews.compactMap { $0 as? ToastView }.first)
+        #expect(hint.message == AppUILanguage.saved().text(.linkJumpTypeHint))
+        #expect(hint.kind == .info)
+        #expect(!hint.autoDismiss)
+        try send("\u{7f}", to: view)
+        #expect(hint.superview != nil)
+        switch action {
+        case "valid":
+            let label = try #require(controller.session.matches.first).label
+            #expect(label.count == 2)
+            let overlay = try #require(view.subviews.first { String(describing: type(of: $0)).contains("WordJumpOverlayView") })
+            let before = try labelFrames(in: overlay)
+            try send(String(try #require(label.first)), to: view)
+            #expect(view.isWordJumpActive)
+            #expect(hint.superview == nil)
+            let after = try labelFrames(in: overlay)
+            for match in controller.session.displayedMatches {
+                #expect(after[match.wordIndex] == before[match.wordIndex])
+            }
+        case "invalid":
+            let invalid = try #require("abcdefghijklmnopqrstuvwxyz".first { character in
+                !controller.session.matches.contains { $0.label.hasPrefix(String(character)) }
+            })
+            try send(String(invalid), to: view)
+            #expect(!view.isWordJumpActive)
+            #expect(hint.superview == nil)
+            let toast = try #require(host.subviews.compactMap { $0 as? ToastView }.first)
+            #expect(toast.message == AppUILanguage.saved().text(.linkJumpNoMatch))
+            #expect(toast.kind == .warning)
+        default:
+            try send("\u{1b}", to: view)
+            #expect(!view.isWordJumpActive)
+            #expect(hint.superview == nil)
+        }
+    }
+
+    @Test(arguments: [false, true]) @MainActor
+    func linkLabelAvoidsEntryToast(preview: Bool) async throws {
+        let (window, view) = try await makeReader(pages: [[], []])
+        defer { view.cancelWordJump(); view.cancelLinkPreview(); window.close() }
+        let page = try #require(view.document?.page(at: 0))
+        let probe = try #require(VellumToast.show(AppUILanguage.saved().text(.linkJumpTypeHint),
+                                                   in: window, autoDismiss: false))
+        let toastInView = view.convert(probe.bounds, from: probe)
+        probe.dismiss(animated: false)
+        let target = NSRect(x: toastInView.midX - 10, y: toastInView.midY - 8, width: 20, height: 16)
+        let link = PDFAnnotation(bounds: view.convert(target, to: page), forType: .link, withProperties: nil)
+        link.destination = PDFDestination(page: try #require(view.document?.page(at: 1)), at: .zero)
+        page.addAnnotation(link)
+
+        if preview { view.beginLinkPreviewCommand() } else { view.beginLinkJumpCommand() }
+        let controller = try #require(view.wordJumpController)
+        let match = try #require(controller.session.matches.first)
+        #expect(controller.session.matches.count == 1)
+        let toast = try #require(window.contentView?.superview?.subviews.compactMap { $0 as? ToastView }.first)
+        let overlay = try #require(view.subviews.first { String(describing: type(of: $0)).contains("WordJumpOverlayView") })
+        let frames = try labelFrames(in: overlay)
+        let frame = try #require(frames[match.wordIndex])
+        let toastFrame = overlay.convert(toast.bounds, from: toast)
+        #expect(!frame.intersects(toastFrame))
+        let original = WordJumpLabelGeometry.frame(for: target, labelSize: frame.size,
+                                                    in: view.wordJumpViewport, avoiding: [])
+        #expect(original.intersects(toastFrame))
+
+        try send(match.label, to: view)
+        #expect(!view.isWordJumpActive)
+        #expect(toast.superview == nil)
+    }
+
+    @Test(arguments: [0, 90, 180, 270])
+    func linkLabelAvoidsToastAtEveryPageRotation(rotation: Int) {
+        let viewport = NSRect(x: 0, y: 0, width: 800, height: 420)
+        let toast = NSRect(x: 340, y: 340, width: 120, height: 40)
+        let word = NSRect(x: 390, y: 350, width: 20, height: 16)
+        let frame = WordJumpLabelGeometry.frame(for: word, labelSize: NSSize(width: 14, height: 16),
+                                                in: viewport, avoiding: [], toast: toast, rotation: rotation)
+        #expect(viewport.contains(frame))
+        #expect(!toast.intersects(frame))
+    }
+
+    @Test(arguments: [false, true]) @MainActor
+    func linkLabelRemainsVisibleWhenToastCoversViewport(preview: Bool) async throws {
+        let (window, view) = try await makeReader(pages: [[], []])
+        defer { view.cancelWordJump(); window.close() }
+        let page = try #require(view.document?.page(at: 0))
+        let link = PDFAnnotation(bounds: NSRect(x: 72, y: 650, width: 80, height: 18), forType: .link, withProperties: nil)
+        link.destination = PDFDestination(page: try #require(view.document?.page(at: 1)), at: .zero)
+        page.addAnnotation(link)
+        if preview { view.beginLinkPreviewCommand() } else { view.beginLinkJumpCommand() }
+        let toast = try #require(window.contentView?.superview?.subviews.compactMap { $0 as? ToastView }.first)
+        let host = try #require(toast.superview)
+        toast.frame = host.convert(view.wordJumpViewport, from: view)
+        let overlay = try #require(view.subviews.first { String(describing: type(of: $0)).contains("WordJumpOverlayView") })
+        let frames = try labelFrames(in: overlay)
+        let frame = try #require(frames.values.first)
+        #expect(toast.superview == nil)
+        #expect(view.wordJumpViewport.contains(overlay.convert(frame, to: view)))
+        #expect(view.isWordJumpActive)
+    }
+
     @Test @MainActor
     func linkHintsIncludeVisibleActionsWithoutRequiringATextLayer() async throws {
         let (window, view) = try await makeReader(pages: [[], []])
@@ -55,8 +170,8 @@ struct PDFWordJumpTests {
         #expect(!view.isWordJumpActive)
     }
 
-    @Test(arguments: [false, true]) @MainActor
-    func linkHintSizeTracksReaderSizeOnlyForPreview(preview: Bool) async throws {
+    @Test @MainActor
+    func linkHintSizeTracksReaderSize() async throws {
         let (window, view) = try await makeReader(pages: [[], []])
         defer { view.cancelWordJump(); window.close() }
         let page = try #require(view.document?.page(at: 0))
@@ -64,7 +179,7 @@ struct PDFWordJumpTests {
         link.destination = PDFDestination(page: try #require(view.document?.page(at: 1)), at: .zero)
         page.addAnnotation(link)
 
-        func labelSize(windowSize: NSSize) throws -> NSSize {
+        func labelSize(windowSize: NSSize, preview: Bool) throws -> NSSize {
             view.cancelWordJump()
             window.setContentSize(windowSize)
             view.autoScales = false
@@ -98,15 +213,12 @@ struct PDFWordJumpTests {
             return NSSize(width: maxX - minX + 1, height: maxY - minY + 1)
         }
 
-        let small = try labelSize(windowSize: NSSize(width: 600, height: 420))
-        let large = try labelSize(windowSize: NSSize(width: 1200, height: 800))
-        if preview {
-            #expect(large.width > small.width)
-            #expect(large.height > small.height)
-        } else {
-            #expect(abs(large.width - small.width) <= 1)
-            #expect(abs(large.height - small.height) <= 1)
-        }
+        let small = try labelSize(windowSize: NSSize(width: 600, height: 420), preview: true)
+        let large = try labelSize(windowSize: NSSize(width: 1200, height: 800), preview: true)
+        #expect(large.width > small.width)
+        #expect(large.height > small.height)
+        #expect(try labelSize(windowSize: NSSize(width: 600, height: 420), preview: false) == small)
+        #expect(try labelSize(windowSize: NSSize(width: 1200, height: 800), preview: false) == large)
     }
 
     @Test @MainActor
@@ -627,6 +739,19 @@ struct PDFWordJumpTests {
         #expect(abs(actual.minY - expected.minY) < 0.000001)
         #expect(abs(actual.width - expected.width) < 0.000001)
         #expect(abs(actual.height - expected.height) < 0.000001)
+    }
+
+    @MainActor
+    private func labelFrames(in overlay: NSView) throws -> [Int: NSRect] {
+        let bitmap = try #require(NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(overlay.bounds.width),
+            pixelsHigh: Int(overlay.bounds.height), bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true,
+            isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0))
+        let context = try #require(NSGraphicsContext(bitmapImageRep: bitmap))
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = context
+        overlay.draw(overlay.bounds)
+        NSGraphicsContext.restoreGraphicsState()
+        return try #require(Mirror(reflecting: overlay).children.first { $0.label == "labelFrames" }?.value as? [Int: NSRect])
     }
 
     @MainActor
