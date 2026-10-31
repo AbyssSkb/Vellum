@@ -179,7 +179,8 @@ jobs:
           xcrun stapler staple "dist/${{ steps.version.outputs.archive_name }}.dmg"
 
       - name: Generate final disk image checksum
-        run: shasum -a 256 "dist/${{ steps.version.outputs.archive_name }}.dmg" > "dist/${{ steps.version.outputs.archive_name }}.dmg.sha256"
+        working-directory: dist
+        run: shasum -a 256 "${{ steps.version.outputs.archive_name }}.dmg" > "${{ steps.version.outputs.archive_name }}.dmg.sha256"
 
       - name: Generate signed Sparkle appcast
         env:
