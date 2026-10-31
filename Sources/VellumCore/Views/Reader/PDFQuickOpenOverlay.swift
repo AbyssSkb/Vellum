@@ -5,7 +5,6 @@ struct PDFQuickOpenOverlay: View {
     @Environment(\.appUILanguage) private var language
     @ObservedObject var search: PDFQuickOpenSearch
     @State private var selectedURL: URL?
-    @State private var isCancelHovered = false
 
     private var selection: URL? { selectedURL ?? search.results.first }
 
@@ -76,20 +75,7 @@ struct PDFQuickOpenOverlay: View {
                 .font(.system(size: 11, design: .monospaced))
                 .foregroundStyle(VellumColors.mutedColor)
                 .frame(width: 40, alignment: .trailing)
-            Button { appState.hidePDFQuickOpen() } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(isCancelHovered ? VellumColors.foregroundColor : VellumColors.mutedColor)
-                    .frame(width: 32, height: 28)
-                    .background(isCancelHovered ? VellumColors.panelElevatedColor : VellumColors.panelColor,
-                                in: RoundedRectangle(cornerRadius: 5))
-                    .overlay(RoundedRectangle(cornerRadius: 5).strokeBorder(VellumColors.borderColor))
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .onHover { isCancelHovered = $0 }
-            .help(language.text(.cancel))
-            .accessibilityLabel(language.text(.cancel))
+            ListCloseButton { appState.hidePDFQuickOpen() }
         }
         .padding(.horizontal, 16)
         .frame(height: 58)

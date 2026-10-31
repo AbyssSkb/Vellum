@@ -10,7 +10,6 @@ struct TabSwitcherOverlay: View {
     @State private var selectedIndex = 0
     @State private var isVisible = false
     @State private var isClosing = false
-    @State private var isCancelHovered = false
     @State private var transitionTask: Task<Void, Never>?
 
     private var matches: [PDFTab] {
@@ -95,20 +94,7 @@ struct TabSwitcherOverlay: View {
                 .font(.system(size: 11, design: .monospaced))
                 .foregroundStyle(VellumColors.mutedColor)
                 .accessibilityHidden(true)
-            Button { dismiss(committing: nil) } label: {
-                Text("Esc")
-                    .font(.system(size: 10, design: .monospaced))
-                    .foregroundStyle(isCancelHovered ? VellumColors.foregroundColor : VellumColors.mutedColor)
-                    .frame(width: 32, height: 28)
-                    .background(isCancelHovered ? VellumColors.panelElevatedColor : VellumColors.panelColor,
-                                in: RoundedRectangle(cornerRadius: 5))
-                    .overlay(RoundedRectangle(cornerRadius: 5).strokeBorder(VellumColors.borderColor, lineWidth: 1))
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .onHover { isCancelHovered = $0 }
-            .help(language.text(.cancel))
-            .accessibilityLabel(language.text(.cancel))
+            ListCloseButton { dismiss(committing: nil) }
         }
         .padding(.bottom, 16)
         .overlay(alignment: .bottom) {

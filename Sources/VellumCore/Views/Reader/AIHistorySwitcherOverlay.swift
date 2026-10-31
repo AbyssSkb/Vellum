@@ -181,6 +181,7 @@ private struct AIHistorySwitcherOverlay: View {
             .frame(height: 30)
 
             matchCount
+            ListCloseButton(action: onDismiss)
         }
         .padding(.horizontal, 16)
         .frame(height: 52)
