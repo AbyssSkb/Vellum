@@ -40,7 +40,11 @@ public actor DictionaryStore {
         guard let archive = current?.archive else { throw DictionaryError.dictionaryNotFound }
         var budget = MDictArchive.ReadBudget()
         var remainingHTMLBytes = 64 * 1_024 * 1_024
-        let entries = try lookup(word, in: archive, visited: [], budget: &budget, remainingHTMLBytes: &remainingHTMLBytes)
+        var entries = try lookup(word, in: archive, visited: [], budget: &budget, remainingHTMLBytes: &remainingHTMLBytes)
+        let expanded = word.precomposedStringWithCompatibilityMapping
+        if entries.isEmpty, expanded != word {
+            entries = try lookup(expanded, in: archive, visited: [], budget: &budget, remainingHTMLBytes: &remainingHTMLBytes)
+        }
         guard let first = entries.first else { return nil }
         return DictionaryEntry(word: first.word, html: entries.map(\.html).joined(separator: "\n"))
     }

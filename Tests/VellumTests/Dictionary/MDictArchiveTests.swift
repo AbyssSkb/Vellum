@@ -5,6 +5,25 @@ import zlib
 
 @Suite("Local MDict archives")
 struct MDictArchiveTests {
+    @Test(arguments: [("coﬀee", "coffee"), ("ﬁle", "file"), ("ﬂow", "flow"),
+                      ("eﬃciency", "efficiency"), ("baﬄe", "baffle")])
+    func looksUpPDFLigatures(selectedText: String, headword: String) async throws {
+        let archive = try MDictFixture(entries: [(headword, Data("plain".utf8))])
+        let files = try DictionaryFiles(archive: archive.data)
+        defer { files.cleanup() }
+        let store = DictionaryStore()
+        let selected = AISelectedTextNormalizer.normalized(selectedText)
+        #expect(try await store.lookup(selected, at: files.mdx)?.html == "plain")
+    }
+
+    @Test
+    func exactLigatureHeadwordTakesPrecedence() async throws {
+        let exact = try MDictFixture(entries: [("efficiency", Data("plain".utf8)), ("eﬃciency", Data("ligature".utf8))])
+        let exactFiles = try DictionaryFiles(archive: exact.data)
+        defer { exactFiles.cleanup() }
+        #expect(try await DictionaryStore().lookup("eﬃciency", at: exactFiles.mdx)?.html == "ligature")
+    }
+
     @Test(arguments: [false, true])
     func readsRecordsAcrossBlockBoundaries(compressed: Bool) async throws {
         let html = "<h1>hello</h1><p>你好 — a greeting</p>"
